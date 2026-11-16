@@ -1,41 +1,90 @@
 ---
+hide:
+- navigation
+- toc
 source: index.md
-source_hash: 1fb3e0da0124
+source_hash: c90889738331
 ---
+<div class="wl-hero" markdown>
+
+![Wayloop](assets/brand/mark.svg){ width="96" }
+
 # Wayloop
 
-**Spec-driven agentic loop.** Dall'idea al codice unito, dentro le tue issue, con le persone ai
-gate.
+<p class="wl-tagline">Spec-driven agentic loop.</p>
 
-Wayloop è un motore open source che porta avanti un progetto software con gli agenti di
-programmazione, dalla prima idea fino alla pull request unita. Le specifiche fissano l'intento,
-un loop deterministico fa avanzare il lavoro, il piano vive nel tuo issue tracker e le persone
-decidono ai gate.
+<p class="wl-promise">Dall'idea al codice unito, dentro le tue issue, con le persone ai gate.</p>
+
+Wayloop porta avanti un progetto software con gli agenti di programmazione, dalla prima idea
+fino alla pull request unita. Le specifiche fissano l'intento, un loop deterministico fa
+avanzare il lavoro, il piano vive nel tuo issue tracker e le persone decidono ai gate.
+
+[Come funziona il loop](concepts/the-loop.md){ .md-button .md-button--primary }
+[Architettura](concepts/architecture.md){ .md-button }
+
+</div>
 
 !!! note "Stato"
     Pre-alpha, fase di progettazione. Non c'è ancora nulla da installare. Questo sito descrive
     l'architettura e segue il progetto mentre viene costruito.
 
-## Il loop in una pagina
+<div class="grid cards wl-features" markdown>
 
-1. **Scomposizione**: un'idea o un codice esistente diventa milestone, epic, user story,
-   specifiche, task e issue.
-2. **Esecuzione**: ogni issue segue lo stesso ciclo, dalla presa in carico alla pull request.
-3. **Riconciliazione**: ogni evento produce una proposta di modifica della roadmap.
-4. **Ripianificazione**: dopo l'approvazione si ricalcolano dipendenze e prossimi task e si
-   aggiorna il tracker.
+-   __Il motore decide__
 
-Leggi [Il loop](concepts/the-loop.md) per il quadro completo.
+    ---
 
-## Principi
+    Una macchina a stati scritta in Rust sceglie ogni passo e lo verifica con controlli
+    deterministici. Un modello non dichiara mai finito il proprio lavoro.
 
-| Principio | Dove approfondire |
-| --- | --- |
-| Il motore decide, gli agenti scrivono | [Architettura](concepts/architecture.md) |
-| Il tracker è la base dati | [Lo stato nel tracker](concepts/state-in-the-tracker.md) |
-| Le persone ai gate | [Gate](concepts/gates.md) |
-| Un ledger deterministico | [Ledger](concepts/ledger.md) |
-| Progetti nuovi ed esistenti | [Rilievo dei progetti esistenti](concepts/brownfield-survey.md) |
+    [Architettura](concepts/architecture.md)
+
+-   __Il tracker è la base dati__
+
+    ---
+
+    Piano, avanzamento, decisioni e domande vivono nelle tue issue; le specifiche vivono nel
+    repository. Togli Wayloop e il progetto resta leggibile.
+
+    [Lo stato nel tracker](concepts/state-in-the-tracker.md)
+
+-   __Le persone ai gate__
+
+    ---
+
+    Il loop gira senza sorveglianza tra uno stato di approvazione e l'altro e si ferma a
+    ciascuno, con una domanda in formato fisso sull'issue.
+
+    [Gate](concepts/gates.md)
+
+-   __Un ledger deterministico__
+
+    ---
+
+    Eventi in sola aggiunta, concatenati da hash. Lo stato è una funzione del ledger, e ogni
+    sessione passa la mano con un riassunto validato.
+
+    [Ledger](concepts/ledger.md)
+
+-   __Progetti nuovi ed esistenti__
+
+    ---
+
+    Su un codice esistente, un rilievo mappa il codice e scrive una documentazione che cita
+    file e riga per ogni affermazione. Senza embedding.
+
+    [Rilievo dei progetti esistenti](concepts/brownfield-survey.md)
+
+-   __I token sono un budget__
+
+    ---
+
+    Ogni fase ha un budget e il ledger misura il costo di ogni issue, così il costo del loop è
+    noto, non stimato.
+
+    [Il loop](concepts/the-loop.md)
+
+</div>
 
 ## Per gli agenti
 

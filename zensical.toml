@@ -27,6 +27,7 @@ nav = [
   ] },
   { "Project" = [
     "project/vision.md",
+    "project/brand.md",
     "project/roadmap.md",
     "project/release-notes.md",
     "project/changelog.md",

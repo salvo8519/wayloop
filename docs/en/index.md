@@ -1,36 +1,89 @@
+---
+hide:
+  - navigation
+  - toc
+---
+
+<div class="wl-hero" markdown>
+
+![Wayloop](assets/brand/mark.svg){ width="96" }
+
 # Wayloop
 
-**Spec-driven agentic loop.** From idea to merged code, in your issues, with humans at the
-gates.
+<p class="wl-tagline">Spec-driven agentic loop.</p>
 
-Wayloop is an open-source engine that runs a software project with coding agents, from the
-first idea to the merged pull request. Specifications capture intent, a deterministic loop
-moves the work forward, the plan lives in your issue tracker, and people decide at the gates.
+<p class="wl-promise">From idea to merged code, in your issues, with humans at the gates.</p>
+
+Wayloop runs a software project with coding agents, from the first idea to the merged pull
+request. Specifications capture intent, a deterministic loop moves the work forward, the plan
+lives in your issue tracker, and people decide at the gates.
+
+[How the loop works](concepts/the-loop.md){ .md-button .md-button--primary }
+[Architecture](concepts/architecture.md){ .md-button }
+
+</div>
 
 !!! note "Status"
     Pre-alpha, design phase. Nothing is installable yet. This site describes the architecture
     and follows the project as it is built.
 
-## The loop in one page
+<div class="grid cards wl-features" markdown>
 
-1. **Decompose**: idea or existing codebase, then milestones, epics, user stories,
-   specifications, tasks and issues.
-2. **Execute**: every issue follows the same cycle, from claim to pull request.
-3. **Reconcile**: every event produces a proposed change to the roadmap.
-4. **Re-plan**: after approval, dependencies and next tasks are recomputed and the tracker is
-   updated.
+-   __The engine decides__
 
-Read [The loop](concepts/the-loop.md) for the full picture.
+    ---
 
-## Principles
+    A state machine written in Rust chooses every step and verifies it with deterministic
+    checks. A model never declares its own work finished.
 
-| Principle | Where to read more |
-| --- | --- |
-| The engine decides, agents write | [Architecture](concepts/architecture.md) |
-| Your tracker is the database | [State in the tracker](concepts/state-in-the-tracker.md) |
-| Humans at the gates | [Gates](concepts/gates.md) |
-| A deterministic ledger | [Ledger](concepts/ledger.md) |
-| Greenfield and brownfield | [Brownfield survey](concepts/brownfield-survey.md) |
+    [Architecture](concepts/architecture.md)
+
+-   __Your tracker is the database__
+
+    ---
+
+    Plan, progress, decisions and questions live in your issues; specifications live in the
+    repository. Remove Wayloop and the project still reads.
+
+    [State in the tracker](concepts/state-in-the-tracker.md)
+
+-   __Humans at the gates__
+
+    ---
+
+    The loop runs unattended between approval states and stops at them, with a question in a
+    fixed format on the issue.
+
+    [Gates](concepts/gates.md)
+
+-   __A deterministic ledger__
+
+    ---
+
+    Append-only, hash-chained events. The state is a function of the ledger, and every session
+    hands over a validated summary.
+
+    [Ledger](concepts/ledger.md)
+
+-   __Greenfield and brownfield__
+
+    ---
+
+    On an existing codebase, a survey maps the code and writes documentation that cites file
+    and line for every claim. No embeddings.
+
+    [Brownfield survey](concepts/brownfield-survey.md)
+
+-   __Tokens are a budget__
+
+    ---
+
+    Every phase has a budget and the ledger measures the cost of each issue, so that the cost of
+    the loop is known, not guessed.
+
+    [The loop](concepts/the-loop.md)
+
+</div>
 
 ## For agents
 

@@ -1,11 +1,44 @@
-<!-- i18n source: README.md source_hash: 73c89cf60880 -->
-# Wayloop
+<!-- i18n source: README.md source_hash: a0033f667cd9 -->
+<div align="center">
 
-**Spec-driven agentic loop.**
+<a href="https://salvo8519.github.io/wayloop/it/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/_shared/assets/brand/banner-dark.svg">
+    <img alt="Wayloop. Spec-driven agentic loop." src="docs/_shared/assets/brand/banner-light.svg" width="100%">
+  </picture>
+</a>
 
-Dall'idea al codice unito, dentro le tue issue, con le persone ai gate.
+[English](README.md) · **Italiano**
 
-[English](README.md) | Italiano · [Documentazione](https://salvo8519.github.io/wayloop/it/) · [Roadmap](https://salvo8519.github.io/wayloop/project/roadmap/)
+<h3>Lo spec-driven agentic loop per interi progetti software.</h3>
+
+I tuoi agenti scrivono il codice. Wayloop guida il progetto intorno —<br/>
+dall'idea al codice unito, dentro le tue issue, con le persone ai gate.
+
+[![CI](https://github.com/salvo8519/wayloop/actions/workflows/ci.yml/badge.svg)](https://github.com/salvo8519/wayloop/actions/workflows/ci.yml)
+[![Docs](https://github.com/salvo8519/wayloop/actions/workflows/docs.yml/badge.svg)](https://salvo8519.github.io/wayloop/it/)
+[![Status](https://img.shields.io/badge/status-pre--alpha-0B1F3A)](https://salvo8519.github.io/wayloop/project/roadmap/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-F59E0B)](LICENSE)
+
+[![Rust core](https://img.shields.io/badge/core-Rust-12325C?logo=rust)](crates/wayloop-core)
+[![Python SDK](https://img.shields.io/badge/SDK-Python%20%C2%B7%20planned-12325C?logo=python&logoColor=white)](https://salvo8519.github.io/wayloop/project/roadmap/)
+[![TypeScript SDK](https://img.shields.io/badge/SDK-TypeScript%20%C2%B7%20planned-12325C?logo=typescript&logoColor=white)](https://salvo8519.github.io/wayloop/project/roadmap/)
+[![MCP](https://img.shields.io/badge/MCP-planned-12325C)](https://salvo8519.github.io/wayloop/concepts/architecture/)
+[![uv](https://img.shields.io/badge/built%20with-uv-12325C)](https://docs.astral.sh/uv/)
+
+[![Spec-driven](https://img.shields.io/badge/development-spec--driven-0F766E)](https://salvo8519.github.io/wayloop/concepts/the-loop/)
+[![Agentic loop](https://img.shields.io/badge/agentic%20loop-human--gated-0F766E)](https://salvo8519.github.io/wayloop/concepts/gates/)
+[![Docs EN IT](https://img.shields.io/badge/docs-English%20%C2%B7%20Italiano-0F766E)](https://salvo8519.github.io/wayloop/it/)
+
+**[Documentazione](https://salvo8519.github.io/wayloop/it/)** ·
+**[Come funziona il loop](https://salvo8519.github.io/wayloop/it/concepts/the-loop/)** ·
+**[Architettura](https://salvo8519.github.io/wayloop/it/concepts/architecture/)** ·
+**[Roadmap](https://salvo8519.github.io/wayloop/project/roadmap/)** ·
+**[Contribuire](CONTRIBUTING.md)**
+
+</div>
+
+---
 
 > Stato: pre-alpha, fase di progettazione. Non c'è ancora nulla da installare. L'architettura
 > è descritta nella documentazione e la prima milestone viene pianificata in pubblico.
