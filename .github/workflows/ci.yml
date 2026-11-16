@@ -31,6 +31,28 @@ jobs:
       - name: Translations current (or labelled translation-pending)
         if: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'translation-pending') }}
         run: uv run python scripts/i18n.py check
+      - run: uv run python scripts/check_yaml.py
+      - run: uv run python scripts/check_task_ids.py
+      - name: Roadmap consistent (and with the pull request body)
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+            uv run python scripts/roadmap.py check --pr-body "$RUNNER_TEMP/pr-body.md"
+          else
+            uv run python scripts/roadmap.py check
+          fi
+      - name: Sprint files valid
+        run: for f in sprints/S*.yaml; do [ ! -e "$f" ] || uv run python scripts/sprint.py validate "$f" || exit 1; done
+      - name: Sprint pull request stays in its lane
+        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'sprint/')
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=50 origin "$BASE_SHA"
+          uv run python scripts/sprint.py check-diff --branch "$HEAD_REF" --base "$BASE_SHA"
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace

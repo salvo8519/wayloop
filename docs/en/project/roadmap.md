@@ -1,17 +1,12 @@
 # Roadmap
 
-The detailed plan lives in the repository issues, as the product itself proposes. This page
-gives the milestones and their exit criteria.
+The plan lives in `roadmap/roadmap.yaml` and in the repository issues: milestones, epics and
+tasks, each task linked to its issue and, when it has one, to its specification. GitHub holds
+the state of every issue; `scripts/roadmap.py sync` copies it into the file, and this page is
+generated from the file at every build of the site.
 
-| Milestone | Scope | Exit criterion |
-| --- | --- | --- |
-| M0 Foundations | Repository, documentation site, artifact schemas, `init` | `init` on an empty repository produces a structure that passes validation |
-| M1 Execution | State machine, ledger, issue cycle, sprints with lanes, session hand-over, asynchronous runtime | A real project runs its issues through the loop end to end |
-| M2 Living specifications | Brownfield survey, specifications and change deltas, consistency checks | A complete change on an existing codebase managed as a delta |
-| M3 Upstream | Brief, expert council, roadmap from the council report, user stories | A new project taken from an idea to its issues |
-| M4 Distribution | Python and TypeScript SDKs, MCP server, plugins for Claude Code and Codex, release 0.1 | Installation in an external repository in less than five minutes |
+Execution comes first: it is the part with the most proven practice behind it. The expert
+council is the most visible part but the least proven one, and it is built when the rest of the
+loop can receive its output.
 
-## Why execution comes first
-
-Execution is the part with the most proven practice behind it. The expert council is the most visible part but the least proven one, and it is built when the rest
-of the loop can receive its output.
+--8<-- ".generated/ROADMAP.md"

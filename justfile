@@ -4,8 +4,23 @@ default:
     @just --list
 
 # Full local gate: run before every pull request (CI runs the same checks).
-check: style i18n rust
+check: style i18n process rust
     @echo "All checks passed."
+
+# Process: YAML, task ids, roadmap, sprint files, agent mirrors.
+process:
+    python scripts/check_yaml.py
+    python scripts/check_task_ids.py
+    python scripts/roadmap.py check
+    for f in sprints/S*.yaml; do [ ! -e "$f" ] || python scripts/sprint.py validate "$f" || exit 1; done
+
+# Regenerate the canonical roadmap file.
+roadmap:
+    python scripts/roadmap.py render
+
+# Briefing for a new session: branch, issue, journal, pull requests, sprint.
+state:
+    python scripts/project_state.py
 
 # House style: no icons or emoji anywhere in the repository.
 style:

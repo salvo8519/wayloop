@@ -1,0 +1,74 @@
+# Source of truth for the plan: milestones, epics (parent issues) and tasks (sub-issues).
+# The state of each issue lives on GitHub; `python scripts/roadmap.py sync --write` copies it
+# here. Edit by hand or with `python scripts/roadmap.py new`; then `python scripts/roadmap.py
+# render` rewrites this file canonically; the roadmap page of the site is generated from it.
+# Task tags: parallel = can be done independently; maintainer = maintainer decision;
+# needs-decision = a gate question is open.
+
+labels:
+  - { name: "area:core", color: "1d76db" }
+  - { name: "area:runtime", color: "1d76db" }
+  - { name: "area:cli", color: "1d76db" }
+  - { name: "area:docs", color: "1d76db" }
+  - { name: "area:agents", color: "1d76db" }
+  - { name: "area:infra", color: "1d76db" }
+  - { name: "maintainer", color: "d93f0b" }
+  - { name: "needs-decision", color: "F59E0B" }
+  - { name: "parallel", color: "c2e0c6" }
+  - { name: "good first issue", color: "7057ff" }
+  - { name: "translation-pending", color: "fbca04" }
+  - { name: "no-release-note", color: "cfd3d7" }
+  - { name: "spec", color: "0F766E" }
+  - { name: "adr", color: "12325C" }
+
+milestones:
+  - title: "M0 · Foundations"
+    gate: "wayloop init on an empty repository produces a structure that passes validation."
+    release: "0.0.1"
+    epics:
+      - title: "Repository and governance"
+        labels: ["area:infra"]
+        tasks:
+          - { issue: 1, title: "Enable GitHub Pages and upload the social preview", tags: [maintainer], status: open }
+          - { issue: 2, title: "Cap the Pages deploy timeout at the allowed maximum", status: done }
+          - { issue: 15, title: "Specs, roadmap as code, sprints and process checks", status: done }
+          - { issue: 10, title: "Decide on ADR 0006 and ADR 0007", tags: [maintainer, needs-decision], status: open }
+          - { issue: 9, title: "Header colour of the site follows the brand palette", status: open }
+      - title: "Artifact model"
+        labels: ["area:core"]
+        tasks:
+          - { issue: 3, title: "Specification: artifact model and schemas", status: open }
+          - { issue: 4, title: "ADR 0008: identifiers and traceability between artifacts", status: open }
+          - { issue: 5, title: "wayloop init creates a project structure that validates", status: open }
+          - { issue: 6, title: "Validate artifacts and their links", status: open }
+      - title: "Agent process"
+        labels: ["area:agents"]
+        tasks:
+          - { issue: 7, title: "Generate the Claude Code and Codex mirrors of .agents", tags: [parallel], status: open }
+          - { issue: 8, title: "Session-start and session-end skills", tags: [parallel], status: open }
+
+  - title: "M1 · Execution"
+    gate: "A real project runs its issues through the loop end to end."
+    release: "0.0.2"
+    epics:
+      - title: "Engine foundations"
+        labels: ["area:core"]
+        tasks:
+          - { issue: 11, title: "Specification: state machine of the project and of the issue cycle", status: open }
+          - { issue: 12, title: "Specification: ledger events, hash chain and replay", status: open }
+          - { issue: 13, title: "Specification: GitHub tracker adapter and local cache", status: open }
+
+  - title: "M2 · Living specifications"
+    gate: "A complete change on an existing codebase managed as a delta."
+    release: "0.0.3"
+    epics: []
+
+  - title: "M3 · Upstream"
+    gate: "A new project taken from an idea to its issues."
+    release: "0.0.4"
+    epics: []
+
+  - title: "M4 · Distribution"
+    gate: "Installation in an external repository in less than five minutes."
+    release: "0.1.0"
+    epics: []

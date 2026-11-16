@@ -19,13 +19,19 @@ built with the process it describes. Read `docs/en/project/vision.md` and the AD
 | `docs/en/` | Documentation source (English). |
 | `docs/it/` | Italian edition, tracked against the English source. |
 | `i18n/` | Language configuration and the Italian glossary. |
-| `.agents/` | Canonical agent roles (`agents/`) and skills (`skills/`). |
+| `.agents/` | Canonical agent roles (`agents/`), skills (`skills/`) and the session journal (`journal/`). |
+| `specs/` | Spec-driven development: constitution, templates, one folder per specification. |
+| `roadmap/roadmap.yaml` | Milestones, epics and tasks with their issues; checked and synchronised by `scripts/roadmap.py`. |
+| `sprints/` | Sprint plans with lanes of disjoint paths, validated by `scripts/sprint.py`. |
 | `changes/` | Release note fragments. |
 | `scripts/` | Documentation build, translation tracking, house style. |
 
 ## How work is done here
 
-1. Every change starts from an issue. Pull requests close exactly one issue.
+1. Every change starts from an issue in the roadmap. Create issues with
+   `python scripts/roadmap.py new`; a pull request closes exactly one issue and marks its task
+   `done` in `roadmap/roadmap.yaml` in the same change. When a request adds, changes or drops
+   planned work, propose the roadmap change first.
 2. Structural changes start from an ADR; behaviour of the engine starts from a specification
    with numbered requirements.
 3. Work in one git worktree per session when other sessions are active:
@@ -81,3 +87,6 @@ parallel; each brief names the files to read.
 | Build the documentation | `uv run just docs` |
 | Preview the documentation | `uv run just docs-serve` or `uv run just docs-serve it` |
 | Translation status | `uv run just i18n-status` |
+| Briefing for a new session | `uv run just state` |
+| Roadmap: plan, sync with GitHub | `uv run python scripts/roadmap.py list --open` / `sync` |
+| Sprint: validate, state | `uv run python scripts/sprint.py validate sprints/SNN.yaml` |

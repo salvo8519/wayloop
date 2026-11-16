@@ -1,0 +1,13 @@
+# Area labels applied from the changed paths (actions/labeler). Labels that need judgement are
+# added by the author.
+"area:core":
+  - changed-files: [{ any-glob-to-any-file: ["crates/wayloop-core/**", "specs/**"] }]
+"area:cli":
+  - changed-files: [{ any-glob-to-any-file: ["crates/wayloop-cli/**"] }]
+"area:docs":
+  - changed-files: [{ any-glob-to-any-file: ["docs/**", "README*.md", "zensical.toml", "i18n/**"] }]
+"area:infra":
+  - changed-files:
+      - any-glob-to-any-file: [".github/**", "scripts/**", "justfile", ".pre-commit-config.yaml", "Cargo.toml", "uv.lock", "Cargo.lock", "pyproject.toml"]
+"area:agents":
+  - changed-files: [{ any-glob-to-any-file: [".agents/**", ".claude/**", "AGENTS.md", "CLAUDE.md", "sprints/**", "roadmap/**"] }]

@@ -163,7 +163,7 @@ def llms_txt() -> None:
         text = path.read_text(encoding="utf-8")
         if text.startswith("--8<--"):
             text = (ROOT / text.split('"')[1]).read_text(encoding="utf-8")
-        text = re.sub(r"\A---\n.*?\n---\n", "", text, flags=re.S)
+        text = re.sub(r"\A---\n.*?\n---\n", "", text, flags=re.DOTALL)
         url = site + ("" if page == "index.md" else page.removesuffix(".md") + "/")
         index.append(f"- [{h1(path)}]({url})")
         full += [f"<!-- source: {url} -->", text.strip(), ""]
@@ -223,16 +223,24 @@ def current_notes() -> None:
         ["git-cliff"], cwd=ROOT, capture_output=True, text=True, check=False, encoding="utf-8"
     )
     # A repository without commits yet has no changelog to render.
-    changelog = result.stdout if result.returncode == 0 and result.stdout.strip() else (
-        (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    changelog = (
+        result.stdout
+        if result.returncode == 0 and result.stdout.strip()
+        else ((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
     )
     (GENERATED / "CHANGELOG.md").write_text(changelog, encoding="utf-8")
+
+
+def roadmap_page() -> None:
+    """Tables of the roadmap page, generated from roadmap/roadmap.yaml (never committed)."""
+    subprocess.run([sys.executable, "scripts/roadmap.py", "page"], cwd=ROOT, check=True)
 
 
 def prepare() -> None:
     copy_shared()
     italian_config()
     current_notes()
+    roadmap_page()
 
 
 def main() -> None:
