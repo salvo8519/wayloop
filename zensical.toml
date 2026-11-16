@@ -1,0 +1,113 @@
+# Documentation site, built with Zensical (https://zensical.org).
+# English edition (source). The Italian edition is generated: see scripts/docs.py and i18n/.
+#   uv run python scripts/docs.py serve [--lang it]   (local preview)
+#   uv run python scripts/docs.py build               (both sites, strict; what CI runs)
+
+[project]
+site_name = "Wayloop"
+site_description = "Spec-driven agentic loop. From idea to merged code, in your issues, with humans at the gates."
+site_url = "https://salvo8519.github.io/wayloop/"
+docs_dir = "docs/en"
+site_dir = "site"
+repo_url = "https://github.com/salvo8519/wayloop"
+repo_name = "salvo8519/wayloop"
+edit_uri = "edit/main/docs/en/"
+copyright = "Copyright &copy; 2026 The Wayloop Authors &middot; Apache License 2.0"
+extra_css = ["stylesheets/extra.css"]
+
+nav = [
+  { "Home" = "index.md" },
+  { "Concepts" = [
+    "concepts/the-loop.md",
+    "concepts/state-in-the-tracker.md",
+    "concepts/gates.md",
+    "concepts/ledger.md",
+    "concepts/brownfield-survey.md",
+    "concepts/architecture.md",
+  ] },
+  { "Project" = [
+    "project/vision.md",
+    "project/roadmap.md",
+    "project/release-notes.md",
+    "project/changelog.md",
+    "project/contributing.md",
+    "project/conventions.md",
+    { "Decisions (ADR)" = [
+      "project/adr/index.md",
+      "project/adr/0001-rust-engine-thin-adapters.md",
+      "project/adr/0002-tracker-as-database.md",
+      "project/adr/0003-deterministic-ledger.md",
+      "project/adr/0004-no-embeddings.md",
+      "project/adr/0005-english-source-bilingual-docs.md",
+      "project/adr/0006-synchronous-core-asynchronous-runtime.md",
+      "project/adr/0007-files-as-source-sqlite-as-index.md",
+    ] },
+  ] },
+]
+
+[project.theme]
+language = "en"
+icon.repo = "fontawesome/brands/github"
+logo = "assets/brand/mark.svg"
+favicon = "assets/brand/mark.svg"
+features = [
+  "content.action.edit",
+  "content.code.copy",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.top",
+  "search.highlight",
+  "toc.follow",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[project.extra]
+alternate = [
+  { name = "English", link = "https://salvo8519.github.io/wayloop/", lang = "en" },
+  { name = "Italiano", link = "https://salvo8519.github.io/wayloop/it/", lang = "it" },
+]
+social = [
+  { icon = "fontawesome/brands/github", link = "https://github.com/salvo8519/wayloop" },
+]
+
+[project.plugins.search]
+
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+toc.permalink = true
+pymdownx.betterem = {}
+pymdownx.details = {}
+pymdownx.highlight.anchor_linenums = true
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite = {}
+pymdownx.snippets.base_path = ["."]
+pymdownx.snippets.check_paths = true
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+pymdownx.tabbed.alternate_style = true
+pymdownx.tasklist.custom_checkbox = true

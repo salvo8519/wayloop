@@ -1,0 +1,26 @@
+# Installed by `uv run pre-commit install --hook-type pre-commit --hook-type commit-msg`.
+# Fast checks on each commit; the full gate is `uv run just check` (and CI).
+repos:
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --all --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+      - id: typos
+        name: typos
+        entry: uv run typos
+        language: system
+        pass_filenames: false
+      - id: house-style
+        name: no icons or emoji
+        entry: uv run python scripts/check_style.py
+        language: system
+        pass_filenames: false
+      - id: i18n
+        name: Italian translations current
+        entry: uv run python scripts/i18n.py check
+        language: system
+        pass_filenames: false

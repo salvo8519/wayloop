@@ -1,0 +1,20 @@
+[package]
+name = "wayloop-cli"
+description = "Command-line interface of Wayloop, the spec-driven agentic loop."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "wayloop"
+path = "src/main.rs"
+
+[dependencies]
+wayloop-core = { path = "../wayloop-core" }
+
+[lints]
+workspace = true

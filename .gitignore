@@ -1,0 +1,24 @@
+/target
+.venv/
+__pycache__/
+*.so
+dist/
+.ruff_cache/
+site/
+.generated/
+
+# Shared docs assets are copied into each language at build time (scripts/docs.py)
+/docs/en/assets/
+/docs/en/stylesheets/
+/docs/it/assets/
+/docs/it/stylesheets/
+/zensical.it.toml
+
+# Personal agent preferences
+CLAUDE.local.md
+
+# Runtime state of the loop: local checkpoints and ledger, never committed (ADR 0003)
+/.wayloop/
+
+# Internal research, market analysis and design notes: never published (maintainer decision)
+/internal/

@@ -1,0 +1,17 @@
+/* Wayloop palette: deep navy for structure, teal for the loop. Plain, corporate, no icons. */
+:root,
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #0f2a44;
+  --md-primary-fg-color--light: #1d4268;
+  --md-primary-fg-color--dark: #0a1d30;
+  --md-accent-fg-color: #0f766e;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #0f2a44;
+  --md-accent-fg-color: #2dd4bf;
+}
+
+.md-typeset table:not([class]) {
+  font-size: 0.72rem;
+}

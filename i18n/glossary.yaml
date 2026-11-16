@@ -1,0 +1,37 @@
+# Terminology for the Italian edition. Translators (human or agent) must use these terms.
+# Rule: use terms in use in Italian software and project-management practice; never invent
+# Italian words from English roots. Where Italian practice keeps the English term, keep it.
+terms:
+  agentic loop: loop agentico
+  spec-driven: spec-driven (guidato dalle specifiche)
+  specification: specifica
+  change delta: modifica a delta
+  living specification: specifica viva
+  issue: issue
+  issue tracker: issue tracker
+  pull request: pull request
+  merge: merge (unione)
+  roadmap: roadmap
+  milestone: milestone
+  epic: epic
+  user story: user story
+  task: task
+  gate: gate
+  approval state: stato di approvazione
+  ledger: ledger (registro degli eventi)
+  checkpoint: checkpoint
+  hand-over: passaggio di mano
+  state machine: macchina a stati
+  reconciliation: riconciliazione
+  counter-review: controdeduzione critica
+  expert council: comitato di esperti
+  council report: verbale del comitato
+  brownfield: progetto esistente (brownfield)
+  greenfield: progetto nuovo (greenfield)
+  survey: rilievo
+  evidence: prova
+  token budget: budget di token
+  engine: motore
+  adapter: adattatore
+  subagent: subagent
+  skill: skill

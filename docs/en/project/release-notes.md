@@ -1,0 +1,1 @@
+--8<-- ".generated/RELEASE_NOTES.md"

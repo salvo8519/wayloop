@@ -1,0 +1,60 @@
+# Development tooling of the repository (documentation, checks, release notes).
+# The Python SDK arrives in milestone M4 as its own package; this file ships nothing to users.
+[project]
+name = "wayloop-dev"
+version = "0.0.0"
+description = "Development tooling of Wayloop. Not published."
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+  "pyyaml>=6",
+  "tomli-w>=1.0",
+  "ruff>=0.6",
+  "rust-just>=1.40",
+  "typos>=1.30",
+  "pre-commit>=4",
+  "git-cliff>=2.6",
+  "towncrier>=24.8",
+]
+docs = [
+  "zensical>=0.1",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.towncrier]
+name = "Wayloop"
+directory = "changes"
+filename = "RELEASE_NOTES.md"
+start_string = "<!-- release notes start -->\n"
+title_format = "## Wayloop {version} — {project_date}"
+issue_format = "[#{issue}](https://github.com/salvo8519/wayloop/issues/{issue})"
+underlines = ["", "", ""]
+wrap = false
+
+[[tool.towncrier.type]]
+directory = "breaking"
+name = "Action required"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "feature"
+name = "New"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "improvement"
+name = "Improved"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "fix"
+name = "Fixed"
+showcontent = true
