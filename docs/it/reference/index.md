@@ -1,6 +1,6 @@
 ---
 source: reference/index.md
-source_hash: 8c0a87afc689
+source_hash: 37c5b9ba701b
 ---
 # Riferimento
 
@@ -32,6 +32,11 @@ con codice 2:
 $ cargo run -q -p wayloop-cli
 wayloop 0.0.0: pre-alpha. Commands: version, steps.
 ```
+
+Quando lo standard output non si può scrivere, per esempio perché l'estremità in lettura di
+una pipe è chiusa, il comando stampa la causa sullo standard error ed esce con codice 3, un
+errore d'ambiente. I codici di uscita seguono
+l'[ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/) (C7).
 
 Gli identificativi dei passi sono stabili: un passo non viene mai rinominato. I passi sono
 descritti in [Il loop](../concepts/the-loop.md#il-ciclo-di-unissue).

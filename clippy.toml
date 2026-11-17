@@ -1,0 +1,9 @@
+# Clippy configuration of the crates without their own clippy.toml (wayloop-runtime,
+# wayloop-cli). A crate-level clippy.toml replaces this file, it does not extend it: the pure
+# crates repeat these entries in theirs.
+# Tests may unwrap, expect, panic and index: a failing test should stop at the line that failed.
+# The workspace lints of Cargo.toml refuse all four in the code that ships.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true

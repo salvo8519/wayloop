@@ -1,6 +1,14 @@
 # Clippy configuration of a pure crate: it performs no I/O and reads no ambient state
 # (ADR 0001, ADR 0006). Clippy reads this file for this crate only; the lints that use it are
 # forbidden at the crate root. scripts/check_core_io.py refuses its removal.
+
+# Tests may unwrap, expect, panic and index: a failing test should stop at the line that failed.
+# The workspace lints of Cargo.toml refuse all four in the code that ships.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
+
 disallowed-methods = [
   # Files and directories.
   { path = "std::fs::canonicalize", reason = "no file system in a pure crate" },

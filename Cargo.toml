@@ -24,3 +24,20 @@ missing_docs = "warn"
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
+# Restriction lints: the engine never panics on bad input, every failure is a value
+# (ADR 0009 C3, C7). Tests may unwrap, expect, panic and index: see clippy.toml.
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+todo = "warn"
+unimplemented = "warn"
+unreachable = "warn"
+indexing_slicing = "warn"
+panic_in_result_fn = "warn"
+get_unwrap = "warn"
+exit = "warn"
+mem_forget = "warn"
+string_slice = "warn"
+# arithmetic_side_effects is left off: it flags every `+` on an index or a counter and would
+# turn the code into checked arithmetic everywhere. Arithmetic on values read from input uses
+# checked_* explicitly, and the specification that introduces such a value says so.

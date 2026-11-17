@@ -188,6 +188,13 @@ class CargoError(Exception):
     """cargo tree failed: the crate is unknown, or the lock file is out of date."""
 
 
+class TreeLineError(ValueError):
+    """A line of the output of cargo tree does not have the expected shape."""
+
+    def __init__(self, line: str) -> None:
+        super().__init__(f"unexpected line in the output of cargo tree: {line!r}")
+
+
 def cargo_tree(crate: str, root: Path = ROOT) -> str:
     """The normal dependencies of one crate, resolved on its own with all features."""
     result = subprocess.run(
@@ -231,7 +238,7 @@ def dependency_paths(text: str) -> dict[str, list[str]]:
     for line in filter(str.strip, text.splitlines()):
         match = TREE_LINE.match(line)
         if not match:
-            raise ValueError(f"unexpected line in the output of cargo tree: {line!r}")
+            raise TreeLineError(line)
         depth, name = int(match.group(1)), match.group(2)
         del stack[depth:]
         if stack:

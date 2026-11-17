@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 87dec3e2033b
+source_hash: 14f439754d13
 ---
 # Architettura
 
@@ -13,7 +13,7 @@ nell'[ADR 0001](https://salvo8519.github.io/wayloop/project/adr/0001-rust-engine
 | Componente | Percorso | Cosa fa oggi |
 | --- | --- | --- |
 | Schemi | `crates/wayloop-schemas` | Libreria Rust senza I/O, sede dei tipi dei contratti che rispecchiano gli schemi JSON. Non contiene ancora tipi. |
-| Core | `crates/wayloop-core` | Libreria Rust senza I/O. Fissa il vocabolario del ciclo di un'issue: i nove passi in ordine, i loro identificativi stabili e quale passo è uno stato di approvazione. |
+| Core | `crates/wayloop-core` | Libreria Rust senza I/O. Fissa il vocabolario del ciclo di un'issue: i nove passi in ordine, i loro identificativi stabili e quale passo è uno stato di approvazione. Definisce l'errore di ogni rifiuto ([sotto](#gli-errori-sono-valori)). |
 | Runtime | `crates/wayloop-runtime` | Libreria Rust che esegue il lavoro deciso dal core ([sotto](#core-sincrono-runtime-asincrono)). Non contiene ancora codice. |
 | Riga di comando | `crates/wayloop-cli` | Il binario `wayloop`, solo un adattatore: legge gli argomenti, chiama il core e stampa JSON. Comandi: `version` e `steps` ([riferimento](../reference/index.md)). |
 | Contenuti per agenti | `.agents/` | Ruoli e skill nel formato aperto Agent Skills, con mirror generati per Claude Code. Servono a costruire Wayloop stesso. |
@@ -75,6 +75,16 @@ wayloop-schemas    tipi dei contratti, niente I/O
   differenza di `deny`, non può essere revocato da un `allow` più interno. `cargo clippy` li
   applica in `just check` e nella CI; `scripts/check_core_io.py` fallisce se l'attributo o una
   voce di un `clippy.toml` viene rimossa.
+- **Niente panic.** Ogni crate del workspace rifiuta i lint di Clippy che permettono al codice
+  di andare in panic o di fermare il processo: `unwrap_used`, `expect_used`, `panic`, `todo`,
+  `unimplemented`, `unreachable`, `indexing_slicing`, `string_slice`, `get_unwrap`,
+  `panic_in_result_fn`, `exit` e `mem_forget`, oltre ai gruppi `all` e `pedantic`. Sono fissati
+  nel manifest del workspace e fanno fallire `cargo clippy -D warnings` in `just check` e nella
+  CI. I test possono usare unwrap, expect, panic e indici: ogni `clippy.toml` lo consente solo
+  nel codice di test, quello alla radice per il runtime e la riga di comando, quello di ogni
+  crate puro per il suo crate, perché il file di un crate sostituisce quello alla radice. Un
+  fallimento è un valore di errore; la riga di comando lo traduce in un codice di uscita,
+  anche quando non riesce a scrivere la propria uscita.
 
 ## Core sincrono, runtime asincrono
 
@@ -106,3 +116,18 @@ Ogni ingresso e ogni uscita che attraversano il confine del motore sono JSON con
 versionato. Un adattatore che ha bisogno di un nuovo comportamento lo chiede al motore; non lo
 implementa mai. L'envelope comune a tutti i comandi, con i codici di errore e di uscita, è
 l'oggetto dell'[ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/).
+
+### Gli errori sono valori
+
+Il motore non va mai in panic su un input errato: restituisce `wayloop_core::Error`. Il tipo è
+scritto a mano, senza dipendenze, così il core mantiene vuota la sua allowlist di crate
+esterni. Porta come dati i campi di un rifiuto su cui un agente agisce (ADR 0009, C3):
+
+| Campo | Significato |
+| --- | --- |
+| `code` | Identificativo stabile del rifiuto; un nuovo significato riceve un nuovo codice, mai uno rinominato (C8) |
+| `reason` | Un valore dell'enum documentato: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale` |
+| `pointer` | Puntatore RFC 6901 dalla radice dell'input inviato; vuoto per l'intero input |
+
+Il tipo implementa `Display` e `std::error::Error`. I codici, il messaggio, i valori accettati
+e la correzione suggerita di C3 arrivano con la specifica di ogni comando.
