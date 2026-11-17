@@ -65,7 +65,7 @@ repos:
         name: documentation updated with the changes
         entry: python3 scripts/docs_sync.py impact --staged
         language: system
-        pass_filenames: false
+        stages: [commit-msg]
       - id: conventional-commit
         name: commit message follows docs/en/project/conventions.md
         entry: python3 scripts/conventions.py commit-msg

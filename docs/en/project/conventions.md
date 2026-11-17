@@ -167,8 +167,9 @@ type `breaking`, `feature`, `improvement` or `fix`, unless the pull request is l
 - `scripts/docs_sync.py impact`: a change to the engine (every crate but the command line),
   the command line, the schemas, the guards of the pure crates (`scripts/check_core_io.py`,
   a `clippy.toml`) or a process script comes with the matching documentation. A change that
-  genuinely needs none is
-  labelled `no-docs-needed`, or its latest commit carries the trailer `Docs-impact: none`.
+  genuinely needs none is labelled `no-docs-needed`, or its latest commit carries the trailer
+  `Docs-impact: none`. The local check runs as a commit-msg hook, so the trailer of the
+  commit being written applies there too.
 
 ## House style
 

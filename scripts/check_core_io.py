@@ -204,6 +204,8 @@ def cargo_tree(crate: str, root: Path = ROOT) -> str:
             "all",
             "--all-features",
             "--locked",
+            "--color",
+            "never",
             "--prefix",
             "depth",
             "--format",

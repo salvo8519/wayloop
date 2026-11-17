@@ -298,7 +298,11 @@ def test_a_pure_crate_depending_on_the_runtime_is_refused(tmp_path: Path) -> Non
 
 
 @needs_cargo
-def test_cargo_tree_never_rewrites_the_lock_file(tmp_path: Path) -> None:
+def test_cargo_tree_never_rewrites_the_lock_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # CI sets CARGO_TERM_COLOR=always; the error must still be plain text.
+    monkeypatch.setenv("CARGO_TERM_COLOR", "always")
     root = workspace(tmp_path, {"wayloop-core": "", "helper": ""})
     manifest = root / "crates/wayloop-core/Cargo.toml"
     manifest.write_text(

@@ -182,3 +182,24 @@ def test_italian_pages_and_translated_readmes_are_public(public: Path) -> None:
     problems = ds.claims_problems(public)
     assert "README.it.md:3: Il motore sarà pronto." in problems
     assert "docs/it/concepts/page.md:3: Le guide verranno pubblicate." in problems
+
+
+def test_message_trailer_waives_the_staged_check(tmp_path: Path) -> None:
+    message = tmp_path / "COMMIT_EDITMSG"
+    message.write_text("fix(scripts): plain errors\n\nDocs-impact: none\n", encoding="utf-8")
+    assert ds.waived_by_message(message)
+
+
+def test_message_without_trailer_does_not_waive(tmp_path: Path) -> None:
+    message = tmp_path / "COMMIT_EDITMSG"
+    message.write_text("fix(scripts): plain errors\n\nRefs: #47\n", encoding="utf-8")
+    assert not ds.waived_by_message(message)
+
+
+def test_trailer_must_be_in_the_last_paragraph(tmp_path: Path) -> None:
+    message = tmp_path / "COMMIT_EDITMSG"
+    message.write_text(
+        "fix(scripts): plain errors\n\nDocs-impact: none\n\nSigned-off-by: A <a@b.c>\n",
+        encoding="utf-8",
+    )
+    assert not ds.waived_by_message(message)
