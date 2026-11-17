@@ -88,6 +88,7 @@ milestones:
           - { issue: 5, title: "wayloop init creates a project structure that validates", spec: "0001", status: open }
           - { issue: 6, title: "Artifacts and their links are validated", spec: "0001", status: open }
           - { issue: 160, title: "Naming and linking rules validated by the engine", spec: "0001", status: open }
+          - { issue: 229, title: "Existing specifications follow the Markdown rules of the artifact model", spec: "0001", status: open }
       - title: "Agent process"
         issue: 19
         labels: ["area:agents"]
@@ -118,6 +119,7 @@ milestones:
         tasks:
           - { issue: 46, title: "Decide on ADR 0009, ADR 0010 and ADR 0024", tags: [maintainer, needs-decision], status: done }
           - { issue: 47, title: "Crate layout for core, runtime and adapters", status: open }
+          - { issue: 228, title: "Issue step identifiers are snake_case contract values", spec: "0001", status: open }
       - title: "State machine"
         issue: 21
         labels: ["area:core"]
