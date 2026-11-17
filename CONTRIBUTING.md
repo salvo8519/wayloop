@@ -29,6 +29,9 @@ uv run just check
   `translation-pending`.
 - A fragment in `changes/` for every user-facing change, or the label `no-release-note`.
 - Commits are signed off (`git commit -s`), under the Developer Certificate of Origin.
+- A change to a script in `scripts/` that enforces the process (roadmap, sprints, commit
+  conventions, task ids, translations) comes with a test in `tests/process/` for the rule it
+  adds or changes.
 
 ## Licence
 

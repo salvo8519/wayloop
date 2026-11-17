@@ -51,7 +51,7 @@ milestones:
         issue: 136
         labels: ["area:infra"]
         tasks:
-          - { issue: 137, title: "Process scripts are covered by tests that run in CI", status: open }
+          - { issue: 137, title: "Process scripts are covered by tests that run in CI", status: done }
           - { issue: 138, title: "Issue forms for task, bug and specification request", status: open }
           - { issue: 45, title: "Issue titles state the outcome, are unique and carry no type prefix", status: open }
           - { issue: 139, title: "Roadmap file reproduced on GitHub by a script in the repository", status: open }
