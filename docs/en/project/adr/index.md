@@ -12,7 +12,7 @@ consequences. A decision is changed only by a new record that supersedes it.
 | [0005](0005-english-source-bilingual-docs.md) | English source, documentation in English and Italian | Accepted |
 | [0006](0006-synchronous-core-asynchronous-runtime.md) | Synchronous pure core, asynchronous runtime | Accepted |
 | [0007](0007-files-as-source-sqlite-as-index.md) | Files as the source, SQLite as a derived index | Accepted |
-| [0008](0008-identifiers-and-traceability.md) | Identifiers and traceability between artifacts | Proposed |
+| [0008](0008-identifiers-and-traceability.md) | Identifiers and traceability between artifacts | Accepted |
 | [0009](0009-contract-guidelines.md) | Contract guidelines: envelope, errors and versioning | Accepted |
 | [0010](0010-configuration.md) | One configuration file with layered precedence | Accepted |
 | [0011](0011-executors-behind-an-interface.md) | Executors behind an interface; no model calls in the core | Proposed |
