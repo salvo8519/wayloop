@@ -33,6 +33,7 @@ labels:
   - { name: "task", color: "5319e7" }
   - { name: "bug", color: "d73a4a" }
   - { name: "spec-request", color: "0F766E" }
+  - { name: "maintenance", color: "5319e7" }
 
 milestones:
   - title: "M0 · Foundations"
@@ -60,7 +61,7 @@ milestones:
           - { issue: 139, title: "Roadmap file reproduced on GitHub by a script in the repository", status: done }
           - { issue: 140, title: "Required status checks kept in step with the workflows", status: done }
           - { issue: 141, title: "Workflows linted, actions pinned and dependencies scanned", status: done }
-          - { issue: 142, title: "Weekly maintenance workflow", status: open }
+          - { issue: 142, title: "Weekly maintenance workflow", status: done }
           - { issue: 143, title: "Claude Code hooks for documentation impact and formatting", status: open }
           - { issue: 144, title: "Documentation kept in sync with the project by a deterministic check", status: open }
           - { issue: 145, title: "Automated review of pull requests and documentation", status: open }
