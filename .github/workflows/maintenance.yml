@@ -1,8 +1,9 @@
 name: Weekly maintenance
 
 # Early warning, never blocking: tests against the newest compatible dependencies, security
-# advisories, broken links and the required checks of the ruleset. A failure opens (or updates)
-# one issue labelled `maintenance`.
+# advisories, broken links, the required checks of the ruleset and mutation testing of
+# wayloop-core. A failure opens (or updates) one issue labelled `maintenance`, with the surviving
+# mutants in its body; the next green run closes it (scripts/failure_issue.py).
 # Policy: docs/en/project/dependencies.md.
 on:
   schedule:
@@ -89,23 +90,93 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: uv run --no-project --with pyyaml python scripts/required_checks.py remote --repo "$GITHUB_REPOSITORY"
 
+  mutants:
+    name: Mutation testing of wayloop-core
+    runs-on: ubuntu-latest
+    # 13 mutants in about 15 seconds today; the timeout leaves room for a core a hundred times larger.
+    timeout-minutes: 90
+    outputs:
+      missed: ${{ steps.result.outputs.missed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        id: mutants-install
+        continue-on-error: true
+        timeout-minutes: 5
+        with:
+          tool: cargo-mutants@27.1.0
+          fallback: none
+      - name: Build cargo-mutants from crates.io (download failed)
+        if: steps.mutants-install.outcome == 'failure'
+        run: cargo install --locked cargo-mutants@27.1.0
+      - name: cargo mutants on wayloop-core (same command as just mutants)
+        id: run
+        run: |
+          status=0
+          cargo mutants --package wayloop-core --no-shuffle --output target/mutants || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Surviving mutants in the summary and in the job output
+        id: result
+        env:
+          STATUS: ${{ steps.run.outputs.status }}
+        run: |
+          out=target/mutants/mutants.out
+          cat "$out/missed.txt" "$out/timeout.txt" > survivors.txt 2>/dev/null || true
+          {
+            echo '### Mutation testing of wayloop-core'
+            echo "Caught: $(wc -l < "$out/caught.txt"), surviving or timed out: $(wc -l < survivors.txt)."
+            echo '```'
+            cat survivors.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          delimiter="survivors-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+          { echo "missed<<$delimiter"; cat survivors.txt; echo "$delimiter"; } >> "$GITHUB_OUTPUT"
+          # 2: mutants survived, 3: a mutant timed out; anything else non-zero is a tool failure.
+          exit "$STATUS"
+
   report:
-    name: Open or update the maintenance issue
-    needs: [latest-deps, audit, links, required-checks]
-    if: failure() && github.event_name == 'schedule'
+    name: Open, update or close the maintenance issue
+    needs: [latest-deps, audit, links, required-checks, mutants]
+    if: always() && github.event_name == 'schedule'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       issues: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - env:
           GH_TOKEN: ${{ github.token }}
-          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           RESULTS: >-
             latest-deps=${{ needs.latest-deps.result }}, audit=${{ needs.audit.result }},
             links=${{ needs.links.result }},
-            required-checks=${{ needs.required-checks.result }}
+            required-checks=${{ needs.required-checks.result }},
+            mutants=${{ needs.mutants.result }}
+          MISSED: ${{ needs.mutants.outputs.missed }}
         run: |
-          body="Weekly maintenance found problems: ${RESULTS}. Run: ${RUN}. Triage with the dependency policy (docs/en/project/dependencies.md)."
-          n=$(gh issue list -R "$GITHUB_REPOSITORY" --label maintenance --state open --json number -q '.[0].number')
-          if [ -n "$n" ]; then gh issue comment "$n" -R "$GITHUB_REPOSITORY" --body "$body"
-          else gh issue create -R "$GITHUB_REPOSITORY" --title "Weekly maintenance report" --label maintenance --body "$body"; fi
+          case "$RESULTS" in
+            *=failure*) conclusion=failure ;;
+            *=cancelled*) conclusion=cancelled ;;
+            *) conclusion=success ;;
+          esac
+          {
+            echo "Triage with the dependency policy (docs/en/project/dependencies.md)."
+            if [ -n "$MISSED" ]; then
+              echo
+              echo "Surviving mutants of wayloop-core (cargo-mutants): add a test that kills each one."
+              echo '```'
+              printf '%s\n' "$MISSED"
+              echo '```'
+            fi
+          } > details.md
+          python3 scripts/failure_issue.py report --repo "$GITHUB_REPOSITORY" \
+            --workflow "Weekly maintenance" --run-id "$GITHUB_RUN_ID" --run-url "$RUN_URL" \
+            --conclusion "$conclusion" --event schedule --branch main --label maintenance \
+            --title "Weekly maintenance report" --jobs "$RESULTS" --details details.md

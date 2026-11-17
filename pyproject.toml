@@ -23,6 +23,7 @@ dev = [
   "towncrier>=24.8",
   "mypy>=1.13",
   "types-pyyaml>=6",
+  "pytest-cov>=7",
 ]
 docs = [
   "zensical>=0.1",

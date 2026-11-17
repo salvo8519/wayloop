@@ -1,5 +1,8 @@
 # Run with `uv run just <recipe>` (just is installed by uv).
 
+# Floor of line coverage for wayloop-core, in percent (docs/en/project/conventions.md, Code quality).
+core_coverage_floor := "90"
+
 default:
     @just --list
 
@@ -48,6 +51,22 @@ rust:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
     cargo test --workspace
+
+# Line coverage: Rust tests instrumented (cargo-llvm-cov, needs the llvm-tools-preview component),
+# the floor of wayloop-core, and the process scripts (pytest-cov). `just coverage 100` tries a floor.
+coverage floor=core_coverage_floor:
+    cargo llvm-cov --workspace --no-report
+    cargo llvm-cov report --summary-only
+    just coverage-floor {{floor}}
+    python -m pytest tests/process --cov=scripts --cov-report=term
+
+# Fails when the line coverage of wayloop-core, measured by the last instrumented run, is below the floor.
+coverage-floor floor=core_coverage_floor:
+    cargo llvm-cov report --package wayloop-core --summary-only --fail-under-lines {{floor}} >/dev/null || { echo "Line coverage of wayloop-core is below the floor of {{floor}} percent: add the missing tests." >&2; exit 1; }
+
+# Mutation testing of wayloop-core (cargo-mutants); surviving mutants in target/mutants/mutants.out/missed.txt.
+mutants:
+    cargo mutants --package wayloop-core --no-shuffle --output target/mutants
 
 # Format everything.
 fmt:

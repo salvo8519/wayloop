@@ -22,3 +22,4 @@ CLAUDE.local.md
 
 # Internal research, market analysis and design notes: never published (maintainer decision)
 /internal/
+.coverage
