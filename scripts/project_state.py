@@ -79,6 +79,45 @@ def gh(path: str) -> Any:
     return json.loads(text) if text else None
 
 
+def gh_pages(path: str, fetch: Any = None, per_page: int = 100) -> list[Any]:
+    """Every item of a paginated list endpoint, not only the first page."""
+    fetch = fetch or gh
+    sep = "&" if "?" in path else "?"
+    items: list[Any] = []
+    page = 1
+    while True:
+        batch = fetch(f"{path}{sep}per_page={per_page}&page={page}") or []
+        items.extend(batch)
+        if len(batch) < per_page:
+            return items
+        page += 1
+
+
+def blocked_natively(issue: dict[str, Any]) -> bool:
+    """True when the issue has an open native blocked-by dependency."""
+    return bool((issue.get("issue_dependencies_summary") or {}).get("blocked_by"))
+
+
+def ready_issues(pool: list[dict[str, Any]], busy_branches: set[str]) -> list[dict[str, Any]]:
+    """Issues of the pool that can start now: not an epic, not taken, not blocked."""
+
+    def names(i: dict[str, Any]) -> set[str]:
+        return {lbl["name"] for lbl in i["labels"]}
+
+    return [
+        {
+            "number": i["number"],
+            "title": i["title"],
+            "parallel": "parallel" in names(i),
+            "areas": sorted(lbl for lbl in names(i) if lbl.startswith("area:")),
+        }
+        for i in pool
+        if not names(i) & {"epic", "in-progress", "blocked"}
+        and not blocked_natively(i)
+        and not any(f"/{i['number']}-" in "/" + b for b in busy_branches)
+    ][:12]
+
+
 def repo() -> str:
     url = sh("git", "remote", "get-url", "origin")
     return re.sub(r"(\.git)?$", "", re.split(r"github\.com[:/]", url)[-1])
@@ -138,7 +177,7 @@ def collect() -> dict[str, Any]:
     ]
     issues = [
         i
-        for i in (gh(f"repos/{r}/issues?state=open&per_page=100") or [])
+        for i in gh_pages(f"repos/{r}/issues?state=open")
         if "pull_request" not in i
     ]
 
@@ -173,17 +212,7 @@ def collect() -> dict[str, Any]:
         pool = [i for i in issues if i.get("milestone") and i["milestone"]["title"] == current]
         state["current_milestone"] = current
     busy = {pr["branch"] for pr in state["pull_requests"]}
-    state["ready"] = [
-        {
-            "number": i["number"],
-            "title": i["title"],
-            "parallel": "parallel" in labels(i),
-            "areas": sorted(lbl for lbl in labels(i) if lbl.startswith("area:")),
-        }
-        for i in pool
-        if not labels(i) & {"epic", "in-progress", "blocked"}
-        and not any(f"/{i['number']}-" in "/" + b for b in busy)
-    ][:12]
+    state["ready"] = ready_issues(pool, busy)
     return state
 
 
