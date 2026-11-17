@@ -88,3 +88,42 @@ def test_briefing_shows_who_merges_each_pull_request() -> None:
     assert "| #7 | feat(state): add guards | green | none | maintainer confirmation |" in ps.render(
         state
     )
+
+
+def _issue(number: int, labels: list[str] = [], blocked_by: int = 0) -> dict[str, Any]:  # noqa: B006
+    return {
+        "number": number,
+        "title": f"Issue {number}",
+        "labels": [{"name": n} for n in labels],
+        "issue_dependencies_summary": {"blocked_by": blocked_by, "blocking": 0},
+    }
+
+
+def test_ready_issues_leave_out_natively_blocked_issues() -> None:
+    pool = [_issue(160, ["area:core"], blocked_by=1), _issue(3, ["area:core"])]
+    assert [i["number"] for i in ps.ready_issues(pool, set())] == [3]
+
+
+def test_ready_issues_leave_out_epics_taken_and_labelled_issues() -> None:
+    pool = [
+        _issue(1, ["epic"]),
+        _issue(2, ["in-progress"]),
+        _issue(3, ["blocked"]),
+        _issue(4),
+        _issue(5),
+    ]
+    ready = ps.ready_issues(pool, {"feat/5-something"})
+    assert [i["number"] for i in ready] == [4]
+
+
+def test_gh_pages_reads_every_page() -> None:
+    pages = {1: list(range(100)), 2: list(range(100, 130))}
+    calls: list[str] = []
+
+    def fetch(path: str) -> list[int]:
+        calls.append(path)
+        return pages.get(int(path.rsplit("page=", 1)[1]), [])
+
+    items = ps.gh_pages("repos/o/r/issues?state=open", fetch)
+    assert len(items) == 130
+    assert calls[0] == "repos/o/r/issues?state=open&per_page=100&page=1"
