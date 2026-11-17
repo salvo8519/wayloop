@@ -93,3 +93,118 @@ def test_format_hook_formats_python_and_ignores_other_files(project: Path) -> No
 def test_format_hook_ignores_input_without_a_file(project: Path) -> None:
     assert run("format.sh", {"tool_input": {}}, project).returncode == 0
     assert run("format.sh", {}, project).returncode == 0
+
+
+GIT_ENV = {
+    "GIT_AUTHOR_NAME": "t",
+    "GIT_AUTHOR_EMAIL": "t@t",
+    "GIT_COMMITTER_NAME": "t",
+    "GIT_COMMITTER_EMAIL": "t@t",
+}
+
+
+def git(cwd: Path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=cwd, env={**os.environ, **GIT_ENV}, check=True)
+
+
+def run_env(
+    hook: str, payload: dict[str, object], cwd: Path, **env: str
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(cwd / ".claude" / "hooks" / hook)],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        env={**os.environ, "CLAUDE_PROJECT_DIR": str(cwd), **env},
+        cwd=cwd,
+        check=False,
+    )
+
+
+@pytest.fixture
+def contracts(project: Path) -> Path:
+    snapshot = project / "schemas" / "commands" / "next" / "v1.json"
+    snapshot.parent.mkdir(parents=True)
+    snapshot.write_text("{}\n", encoding="utf-8")
+    git(project, "add", ".")
+    git(project, "commit", "-q", "-m", "snapshot")
+    git(project, "checkout", "-q", "-b", "feat/7-next")
+    return project
+
+
+def test_an_existing_contract_snapshot_cannot_be_edited(contracts: Path) -> None:
+    existing = contracts / "schemas" / "commands" / "next" / "v1.json"
+    result = run_env(
+        "protect-contracts.sh",
+        {"tool_input": {"file_path": str(existing)}},
+        contracts,
+        WAYLOOP_CONTRACT_BASE="main",
+    )
+    assert result.returncode == 2
+    assert "write the next version" in result.stderr
+
+
+def test_a_new_snapshot_and_other_files_stay_editable(contracts: Path) -> None:
+    for path in ("schemas/commands/next/v2.json", "schemas/index.json", "docs/en/x.md"):
+        payload = {"tool_input": {"file_path": str(contracts / path)}}
+        assert (
+            run_env(
+                "protect-contracts.sh", payload, contracts, WAYLOOP_CONTRACT_BASE="main"
+            ).returncode
+            == 0
+        )
+
+
+def test_briefing_names_branch_issue_and_next_step(contracts: Path) -> None:
+    journal = contracts / ".agents" / "journal"
+    journal.mkdir(parents=True)
+    (journal / "2026-11-17-feat-7-next.md").write_text(
+        "# 2026-11-17 feat/7-next\n\n## Next steps\n1. Write the replay test.\n", encoding="utf-8"
+    )
+    out = run_env("session-briefing.sh", {}, contracts).stdout
+    assert "Branch: feat/7-next." in out and "Issue: #7." in out
+    assert "Write the replay test." in out
+
+
+def test_a_session_that_committed_without_hand_over_is_reminded_once(contracts: Path) -> None:
+    (contracts / "x.txt").write_text("x\n", encoding="utf-8")
+    git(contracts, "add", ".")
+    git(contracts, "commit", "-q", "-m", "work")
+    result = run_env(
+        "handover-reminder.sh", {"stop_hook_active": False}, contracts, WAYLOOP_CONTRACT_BASE="main"
+    )
+    assert result.returncode == 2 and "without a hand-over" in result.stderr
+    assert (
+        run_env(
+            "handover-reminder.sh",
+            {"stop_hook_active": True},
+            contracts,
+            WAYLOOP_CONTRACT_BASE="main",
+        ).returncode
+        == 0
+    )
+    today = subprocess.run(
+        ["date", "+%Y-%m-%d"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    journal = contracts / ".agents" / "journal"
+    journal.mkdir(parents=True, exist_ok=True)
+    (journal / f"{today}-feat-7-next.md").write_text("# hand-over\n", encoding="utf-8")
+    assert (
+        run_env(
+            "handover-reminder.sh",
+            {"stop_hook_active": False},
+            contracts,
+            WAYLOOP_CONTRACT_BASE="main",
+        ).returncode
+        == 0
+    )
+
+
+def test_no_reminder_on_main_or_without_commits(contracts: Path) -> None:
+    assert (
+        run_env("handover-reminder.sh", {}, contracts, WAYLOOP_CONTRACT_BASE="main").returncode == 0
+    )
+    git(contracts, "checkout", "-q", "main")
+    assert (
+        run_env("handover-reminder.sh", {}, contracts, WAYLOOP_CONTRACT_BASE="main").returncode == 0
+    )
