@@ -44,6 +44,10 @@ instructions are in `AGENTS.md` (all agents) and `CLAUDE.md` (Claude Code specif
 | `verify` | The commands that prove a claim, run before the claim is made |
 | `debug` | Reproduce, isolate, prove the cause, fix at the narrowest layer |
 | `apply-review` | Verify each review finding, apply the confirmed ones, record the rejected ones |
+| `roadmap-update` | The roadmap change a request implies, proposed and then applied with `roadmap.py` |
+| `spec-new` | A specification from the template, with EARS requirements and bounded questions |
+| `adr-new` | An ADR with options, decision and consequences, indexed and in the navigation |
+| `plan-sprint` | A sprint file with lanes of disjoint paths, validated |
 
 ## The standard (ADR 0027)
 
