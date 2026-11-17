@@ -60,6 +60,7 @@ nav = [
       "project/adr/0022-threat-model.md",
       "project/adr/0024-tool-definitions-for-agents.md",
       "project/adr/0025-api-executor.md",
+    "project/adr/0026-process-policy-in-the-core.md",
       "project/adr/0023-stability-policy.md",
     ] },
   ] },

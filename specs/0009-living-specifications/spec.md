@@ -5,7 +5,7 @@
 | Status | Draft |
 | Milestone | M3 · Living specifications and survey |
 | Owner | @salvo8519 |
-| Related | ADR 0014, #79, #82, #83, #84, #85 |
+| Related | ADR 0014, #79, #82, #83, #84, #85, #174 |
 | Commit scope | specs |
 
 ## Problem
@@ -28,11 +28,13 @@ Specifications written once stop governing the code. The current behaviour must 
 - **R5**: THE ENGINE SHALL ask at most a configured number of clarification questions and write the answers back into the specification.
 - **R6**: THE ENGINE SHALL compare the code with the specification and append the missing work as tasks.
 - **R7**: THE ENGINE SHALL require a verification technique for every task.
+- **R8**: WHERE an acceptance criterion uses the technique judge, THE ENGINE SHALL have an agent other than the implementer score the result against the written rubric, record score and reasons, and open a question after two scores below the threshold.
 
 ## Acceptance criteria
 - **AC1**: Given a delta that modifies a missing requirement, when validated, then it fails with the requirement id. Verification: TDD.
 - **AC2**: Given a closed change, when archived, then the living specification contains the merged requirements. Verification: TDD.
 - **AC3**: Given a plan task without a requirement, when analysed, then it is reported. Verification: TDD.
+- **AC4**: Given a criterion with technique judge, when verified, then score and reasons are recorded. Verification: TDD.
 
 ## Interfaces
 - wayloop spec new | analyze | clarify | converge | archive.
