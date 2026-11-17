@@ -89,4 +89,5 @@ parallel; each brief names the files to read.
 | Translation status | `uv run just i18n-status` |
 | Briefing for a new session | `uv run just state` |
 | Roadmap: plan, sync with GitHub | `uv run python scripts/roadmap.py list --open` / `sync` |
+| Roadmap: reproduce the plan on a repository | `uv run python scripts/bootstrap_github.py --dry-run` |
 | Sprint: validate, state | `uv run python scripts/sprint.py validate sprints/SNN.yaml` |
