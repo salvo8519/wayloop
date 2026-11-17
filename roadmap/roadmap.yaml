@@ -58,6 +58,7 @@ milestones:
           - { issue: 43, title: "Roadmap to version 1.0 with specifications, ADRs and issues", status: done }
           - { issue: 44, title: "README and documentation follow the structure of the shared project template", status: open }
           - { issue: 157, title: "Plan the work checkout, the pull request ledger, naming rules in the engine, token saving and agent compatibility", status: done }
+          - { issue: 171, title: "Plan the process policy in the engine and the loop improvements", status: done }
       - title: "Process parity with the project template"
         issue: 136
         labels: ["area:infra"]
@@ -156,6 +157,7 @@ milestones:
           - { issue: 67, title: "Worktree per issue and lane checks", spec: "0006", status: open }
           - { issue: 68, title: "Token budgets per phase and per sprint", spec: "0006", status: open }
           - { issue: 76, title: "wayloop run in session and unattended modes", spec: "0006", status: open }
+          - { issue: 178, title: "Failed attempts discarded with a note the next attempt starts from", spec: "0006", status: open }
       - title: "Executors"
         issue: 27
         labels: ["area:runtime"]
@@ -167,6 +169,8 @@ milestones:
           - { issue: 164, title: "Output reducers for test output, logs and structured data", spec: "0008", status: open }
           - { issue: 165, title: "Model and effort routing by step and complexity", spec: "0008", status: open }
           - { issue: 166, title: "Briefs with a stable prefix, a simplicity rule and controlled English", spec: "0008", status: open }
+          - { issue: 173, title: "Review by a different agent, of another vendor when one is available", spec: "0008", status: open }
+          - { issue: 176, title: "Usage limits handled by executors, in-session mode first for subscription users", spec: "0008", status: open }
       - title: "Gates and reconciliation"
         issue: 28
         labels: ["area:core"]
@@ -177,11 +181,24 @@ milestones:
           - { issue: 74, title: "Hand-over comment rendered from the session summary", spec: "0007", status: open }
           - { issue: 75, title: "Reusable workflow that restarts reconciliation on merge", spec: "0007", status: open }
           - { issue: 167, title: "Deferred shortcuts become roadmap proposals", spec: "0007", status: open }
+          - { issue: 172, title: "Learnings promoted to codebase patterns and agent instruction files", spec: "0007", status: open }
+          - { issue: 175, title: "Notifications when the loop stops on a question or ends", spec: "0007", status: open }
       - title: "Dogfooding"
         issue: 29
         labels: ["area:agents"]
         tasks:
           - { issue: 77, title: "Run the Wayloop repository with Wayloop", tags: [maintainer], status: open }
+      - title: "Process policy"
+        issue: 186
+        labels: ["area:core"]
+        tasks:
+          - { issue: 179, title: "Approved specification of the process policy", spec: "0021", status: open }
+          - { issue: 180, title: "Policy registry for labels, scopes, areas, checks and rules", spec: "0021", status: open }
+          - { issue: 181, title: "Gated checks and label waivers as policy rules", spec: "0021", status: open }
+          - { issue: 182, title: "Roadmap consistency and tracker links checked by the engine", spec: "0021", status: open }
+          - { issue: 183, title: "Sprint lanes and required checks checked by the engine", spec: "0021", status: open }
+          - { issue: 184, title: "Policy results and waivers recorded in the ledger", spec: "0021", status: open }
+          - { issue: 185, title: "wayloop check runs the whole policy and replaces the process scripts", spec: "0021", status: open }
 
   - title: "M3 · Living specifications and survey"
     gate: "A change on an existing codebase is surveyed, specified as a delta, implemented and merged into the living specification."
@@ -197,6 +214,7 @@ milestones:
           - { issue: 83, title: "Consistency analysis, clarification and requirement checklists", spec: "0009", status: open }
           - { issue: 84, title: "Convergence of code and specification", spec: "0009", status: open }
           - { issue: 85, title: "Verification technique per task (TDD, BDD, end-to-end, visual, property, contract)", spec: "0009", status: open }
+          - { issue: 174, title: "Judge verification for criteria that tests cannot check", spec: "0009", status: open }
       - title: "Survey"
         issue: 31
         labels: ["area:survey"]
@@ -296,6 +314,7 @@ milestones:
         tasks:
           - { issue: 125, title: "Injection test suite and content-as-data enforcement", spec: "0020", status: open }
           - { issue: 126, title: "Least-privilege executors and workflows, secret handling", spec: "0020", status: open }
+          - { issue: 177, title: "Sandboxed execution in a container with a cost cap", spec: "0020", status: open }
       - title: "Hardening"
         issue: 41
         labels: ["area:core"]

@@ -5,7 +5,7 @@
 | Status | Draft |
 | Milestone | M2 · Tracker and loop |
 | Owner | @salvo8519 |
-| Related | ADR 0012, #62, #72, #73, #74, #75, #167 |
+| Related | ADR 0012, #62, #72, #73, #74, #75, #167, #172, #175 |
 | Commit scope | state |
 
 ## Problem
@@ -28,12 +28,16 @@ People decide at the gates, and the plan must follow reality. Questions must rea
 - **R5**: THE ENGINE SHALL publish a hand-over comment at the end of every session, rendered from the validated summary.
 - **R6**: THE ENGINE SHALL ignore events produced by its own bot except to create proposals, and group them.
 - **R7**: WHEN a merge adds or removes code comments of the form `shortcut: <limit>, <when to revisit>`, THE ENGINE SHALL propose discovered work for the new ones and close the proposals of the removed ones.
+- **R8**: WHEN a learning recorded in hand-overs is repeated or confirmed by a reviewer, THE ENGINE SHALL propose it as a pattern in the instruction files of the touched directories for every supported agent (AGENTS.md, CLAUDE.md and the others of SPEC-0017), refusing story-specific notes.
+- **R9**: WHEN the loop opens a question, waits at a gate, finishes, fails or exhausts a budget, THE ENGINE SHALL send a notice in controlled English with the issue link to every configured channel.
 
 ## Acceptance criteria
 - **AC1**: Given a question answered by a person without permission, when processed, then it is ignored and the reason recorded. Verification: TDD.
 - **AC2**: Given a merged pull request that leaves a story incomplete, when reconciled, then a proposal adds the missing task. Verification: end-to-end.
 - **AC3**: Given ten bot events in one minute, when processed, then one grouped proposal is created. Verification: TDD.
 - **AC4**: Given a merge that adds two shortcuts, when reconciled, then one proposal lists both with file and line. Verification: TDD.
+- **AC5**: Given two sessions recording the same learning for a directory, when reconciled, then one proposal adds it to the instruction files of that directory for every supported agent. Verification: TDD.
+- **AC6**: Given a question opened in an unattended run, when processed, then one notice reaches each configured channel. Verification: TDD.
 
 ## Interfaces
 - Labels needs-decision and approved; reusable GitHub workflow on pull request merge.
