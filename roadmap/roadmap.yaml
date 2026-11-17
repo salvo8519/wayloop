@@ -47,7 +47,21 @@ milestones:
           - { issue: 9, title: "Header colour of the site follows the brand palette", status: open }
           - { issue: 43, title: "Roadmap to version 1.0 with specifications, ADRs and issues", status: done }
           - { issue: 44, title: "README and documentation follow the structure of the shared project template", status: open }
-          - { issue: 45, title: "Issue titles state the outcome in sentence case without a type prefix", status: open }
+      - title: "Process parity with the project template"
+        issue: 136
+        labels: ["area:infra"]
+        tasks:
+          - { issue: 137, title: "Process scripts are covered by tests that run in CI", status: open }
+          - { issue: 138, title: "Issue forms for task, bug and specification request", status: open }
+          - { issue: 45, title: "Issue titles state the outcome, are unique and carry no type prefix", status: open }
+          - { issue: 139, title: "Roadmap file reproduced on GitHub by a script in the repository", status: open }
+          - { issue: 140, title: "Required status checks kept in step with the workflows", status: open }
+          - { issue: 141, title: "Workflows linted, actions pinned and dependencies scanned", status: open }
+          - { issue: 142, title: "Weekly maintenance workflow", status: open }
+          - { issue: 143, title: "Claude Code hooks for documentation impact and formatting", status: open }
+          - { issue: 144, title: "Documentation kept in sync with the project by a deterministic check", status: open }
+          - { issue: 145, title: "Automated review of pull requests and documentation", status: open }
+          - { issue: 146, title: "Decide on a GitHub Projects board for the roadmap", tags: [maintainer, needs-decision], status: open }
       - title: "Artifact model"
         issue: 18
         labels: ["area:core"]
