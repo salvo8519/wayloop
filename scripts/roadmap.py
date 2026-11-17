@@ -8,6 +8,7 @@ so the published roadmap page is generated offline, deterministically, from a re
     python scripts/roadmap.py check [--pr-body FILE]  # offline: format, links, generated page
     python scripts/roadmap.py render                  # canonical file, regenerated page
     python scripts/roadmap.py sync [--write] [--apply-milestones]
+    python scripts/roadmap.py links                   # titles, parents, labels, dependencies on GitHub
         # online: compare with GitHub; --write updates statuses in the file;
         # --apply-milestones sets each issue's milestone on GitHub to the one in the file
     python scripts/roadmap.py list [--open] [--milestone M2]  # the plan, one task per line
@@ -256,6 +257,7 @@ def gh(*args: str, payload: dict[str, Any] | None = None) -> Any:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        check=False,
     )
     if out.returncode != 0:
         sys.exit(f"gh api {' '.join(args)} failed: {out.stderr.strip()}")
@@ -348,6 +350,7 @@ def open_pull_roadmaps() -> dict[int, tuple[dict[str, Any], set[int]]]:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            check=False,
         )
         if found.returncode != 0:
             # A pull request opened before the roadmap existed has no roadmap file.
@@ -432,6 +435,88 @@ def sync(write: bool, apply_milestones: bool) -> int:
     return 0
 
 
+DEPENDS = re.compile(r"^## Depends on\s*\n((?:- #\d+.*\n?)+)", re.MULTILINE)
+
+
+def depends_on(body: str) -> list[int]:
+    """Issue numbers listed under the "## Depends on" heading of an issue body."""
+    m = DEPENDS.search(body or "")
+    return [int(n) for n in re.findall(r"^- #(\d+)", m.group(1), re.MULTILINE)] if m else []
+
+
+def link_problems(
+    data: dict[str, Any],
+    issues: dict[int, dict[str, Any]],
+    children: dict[int, set[int]],
+    blockers: dict[int, set[int]],
+    labels: set[str],
+) -> list[str]:
+    """Differences between the plan and how GitHub names and links its issues."""
+    problems = [
+        f"label '{lbl['name']}' is in the roadmap but not on GitHub: create it"
+        for lbl in data["labels"]
+        if lbl["name"] not in labels
+    ]
+    for m in data["milestones"]:
+        for e in m["epics"]:
+            n = e.get("issue")
+            epic = issues.get(n) if n else None
+            if epic is None:
+                problems.append(f"epic '{e['title']}' has no issue on GitHub")
+                continue
+            items = [(e, epic, "epic")] + [(t, issues.get(t["issue"]), "task") for t in e["tasks"]]
+            for item, issue, kind in items:
+                where = f"#{item['issue']} ({kind})"
+                if issue is None:
+                    problems.append(f"{where} does not exist on GitHub")
+                    continue
+                if issue["title"] != item["title"]:
+                    problems.append(
+                        f"{where}: title on GitHub '{issue['title']}', in the roadmap '{item['title']}'"
+                    )
+                if (issue.get("milestone") or {}).get("title") != m["title"]:
+                    problems.append(f"{where}: not in milestone '{m['title']}' on GitHub")
+                names = {lbl["name"] for lbl in issue.get("labels", [])}
+                if kind == "epic" and "epic" not in names:
+                    problems.append(f"{where}: missing the label 'epic'")
+                if kind == "task":
+                    if item["issue"] not in children.get(n, set()):
+                        problems.append(f"{where}: not a sub-issue of its epic #{n}")
+                    if not (issue.get("body") or "").startswith(f"Part of #{n}."):
+                        problems.append(f"{where}: the body must start with 'Part of #{n}.'")
+                    missing = set(depends_on(issue.get("body") or "")) - blockers.get(
+                        item["issue"], set()
+                    )
+                    if missing:
+                        listed = ", ".join(f"#{x}" for x in sorted(missing))
+                        problems.append(
+                            f"{where}: listed under '## Depends on' but not blocked by {listed} on GitHub"
+                        )
+    return problems
+
+
+def links() -> int:
+    data = load()
+    issues = github_issues()
+    labels = {lbl["name"] for lbl in gh(f"repos/{REPO}/labels?per_page=100")}
+    children: dict[int, set[int]] = {}
+    blockers: dict[int, set[int]] = {}
+    for _m, e, t in tasks(data):
+        if e["issue"] not in children:
+            subs = gh(f"repos/{REPO}/issues/{e['issue']}/sub_issues?per_page=100")
+            children[e["issue"]] = {s["number"] for s in subs}
+        if depends_on((issues.get(t["issue"]) or {}).get("body") or ""):
+            deps = gh(f"repos/{REPO}/issues/{t['issue']}/dependencies/blocked_by?per_page=100")
+            blockers[t["issue"]] = {d["number"] for d in deps}
+    problems = link_problems(data, issues, children, blockers, labels)
+    if problems:
+        print("Issues on GitHub differ from the roadmap:")
+        print("\n".join(f"  {p}" for p in problems))
+        return 1
+    print("Titles, milestones, labels, parents and dependencies on GitHub agree with the roadmap.")
+    return 0
+
+
 def list_tasks(only_open: bool, milestone: str | None) -> int:
     for m, e, t in tasks(load()):
         if milestone and not m["title"].startswith(milestone):
@@ -471,6 +556,13 @@ def new_issue(args: argparse.Namespace) -> int:
             "labels": sorted(set(labels) | set(epic.get("labels", []))),
         },
     )
+    if epic.get("issue"):
+        gh(
+            "-X",
+            "POST",
+            f"repos/{REPO}/issues/{epic['issue']}/sub_issues",
+            payload={"sub_issue_id": created["id"]},
+        )
     task: dict[str, Any] = {"issue": created["number"], "title": args.title, "status": "open"}
     if args.spec:
         task["spec"] = args.spec
@@ -489,6 +581,7 @@ def main() -> None:
     c = sub.add_parser("check")
     c.add_argument("--pr-body", type=Path)
     sub.add_parser("render")
+    sub.add_parser("links", help="titles, milestones, labels, parents and dependencies on GitHub")
     sub.add_parser("page")
     li = sub.add_parser("list")
     li.add_argument("--open", action="store_true")
@@ -506,6 +599,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.cmd == "check":
         sys.exit(check(args.pr_body))
+    if args.cmd == "links":
+        sys.exit(links())
     if args.cmd == "list":
         sys.exit(list_tasks(args.open, args.milestone))
     if args.cmd == "render":

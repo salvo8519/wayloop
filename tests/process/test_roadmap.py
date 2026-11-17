@@ -274,3 +274,86 @@ def test_a_title_may_start_with_a_command_name() -> None:
     d = data()
     d["milestones"][0]["epics"][0]["tasks"][0]["title"] = "wayloop init creates a structure"
     assert [p for p in roadmap.problems_of(d) if "canonical form" not in p] == []
+
+
+# ------------------------------------------------------------------------------------------
+# links: how GitHub names and links the issues of the plan
+
+
+def github_mirror(d: dict) -> tuple[dict, dict, dict, set]:  # type: ignore[type-arg]
+    """A GitHub that agrees with the roadmap: issues, sub-issues, blockers and labels."""
+    issues, children = {}, {}
+    for m in d["milestones"]:
+        for e in m["epics"]:
+            issues[e["issue"]] = {
+                "title": e["title"],
+                "milestone": {"title": m["title"]},
+                "labels": [{"name": "epic"}],
+                "body": "Epic.",
+            }
+            children[e["issue"]] = set()
+            for t in e["tasks"]:
+                issues[t["issue"]] = {
+                    "title": t["title"],
+                    "milestone": {"title": m["title"]},
+                    "labels": [],
+                    "body": f"Part of #{e['issue']}.\n\n## Outcome\nX.",
+                }
+                children[e["issue"]].add(t["issue"])
+    return issues, children, {}, {lbl["name"] for lbl in d["labels"]}
+
+
+def linked_data() -> dict:  # type: ignore[type-arg]
+    d = data()
+    for k, m in enumerate(d["milestones"]):
+        for j, e in enumerate(m["epics"]):
+            e.setdefault("issue", 9000 + 10 * k + j)
+    return d
+
+
+def test_links_agree_when_github_mirrors_the_roadmap() -> None:
+    d = linked_data()
+    assert roadmap.link_problems(d, *github_mirror(d)) == []
+
+
+@pytest.mark.parametrize(
+    ("break_it", "message"),
+    [
+        (lambda i, c, b, lab, t, e: i[t].update(title="Other"), "title on GitHub 'Other'"),
+        (lambda i, c, b, lab, t, e: i[t].update(milestone=None), "not in milestone"),
+        (lambda i, c, b, lab, t, e: i[e].update(labels=[]), "missing the label 'epic'"),
+        (lambda i, c, b, lab, t, e: c[e].discard(t), "not a sub-issue of its epic"),
+        (
+            lambda i, c, b, lab, t, e: i[t].update(body="No parent line."),
+            "must start with 'Part of #",
+        ),
+        (
+            lambda i, c, b, lab, t, e: i[t].update(body=f"Part of #{e}.\n\n## Depends on\n- #3\n"),
+            "not blocked by #3",
+        ),
+        (
+            lambda i, c, b, lab, t, e: lab.discard("epic"),
+            "label 'epic' is in the roadmap but not on GitHub",
+        ),
+        (lambda i, c, b, lab, t, e: i.pop(t), "does not exist on GitHub"),
+    ],
+)
+def test_each_link_rule_is_reported(break_it, message: str) -> None:  # type: ignore[no-untyped-def]
+    d = linked_data()
+    if not any(lbl["name"] == "epic" for lbl in d["labels"]):
+        d["labels"].append({"name": "epic", "color": "000000"})
+    issues, children, blockers, labels = github_mirror(d)
+    epic = d["milestones"][0]["epics"][0]
+    break_it(issues, children, blockers, labels, epic["tasks"][0]["issue"], epic["issue"])
+    assert any(message in p for p in roadmap.link_problems(d, issues, children, blockers, labels))
+
+
+def test_a_native_dependency_satisfies_the_depends_on_section() -> None:
+    d = linked_data()
+    issues, children, blockers, labels = github_mirror(d)
+    epic = d["milestones"][0]["epics"][0]
+    task = epic["tasks"][0]["issue"]
+    issues[task]["body"] = f"Part of #{epic['issue']}.\n\n## Depends on\n- #3 (the ledger)\n- #4\n"
+    blockers[task] = {3, 4}
+    assert roadmap.link_problems(d, issues, children, blockers, labels) == []
+    assert roadmap.depends_on("## Depends on\n- #3 (x)\n- #4\n\n## Next\n- #5") == [3, 4]

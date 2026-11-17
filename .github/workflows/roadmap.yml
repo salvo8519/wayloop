@@ -40,3 +40,7 @@ jobs:
       - run: uv run --frozen --only-group dev python scripts/roadmap.py sync
         env:
           GH_TOKEN: ${{ github.token }}
+      # Titles, milestones, labels, parent epics and dependencies of every planned issue.
+      - run: uv run --frozen --only-group dev python scripts/roadmap.py links
+        env:
+          GH_TOKEN: ${{ github.token }}
