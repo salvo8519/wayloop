@@ -78,6 +78,7 @@ milestones:
           - { issue: 146, title: "Decide on a GitHub Projects board for the roadmap", tags: [maintainer, needs-decision], status: open }
           - { issue: 158, title: "Traceability rules of the project template written down and checked", status: done }
           - { issue: 224, title: "Session briefing proposes only issues that can start now", status: done }
+          - { issue: 226, title: "Defects found during any work are fixed in the same change or filed at once", status: done }
       - title: "Artifact model"
         issue: 18
         labels: ["area:core"]
