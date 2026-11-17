@@ -1,4 +1,4 @@
-"""scripts/check_core_io.py: wayloop-core has no I/O dependency and no I/O in its source."""
+"""scripts/check_core_io.py: the pure crates have no I/O dependency and no I/O in their source."""
 
 from __future__ import annotations
 
@@ -16,16 +16,18 @@ core_io = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(core_io)
 
 
-def metadata(edges: dict[str, list[tuple[str, str | None]]]) -> dict[str, Any]:
+def metadata(
+    edges: dict[str, list[tuple[str, str | None]]], members: tuple[str, ...] = ("wayloop-core",)
+) -> dict[str, Any]:
     """Cargo metadata for a graph given as {crate: [(dependency, kind), ...]}.
 
     The kind is None for a normal dependency, "dev" or "build" otherwise, as cargo writes it.
     """
-    names = set(edges) | {dep for deps in edges.values() for dep, _ in deps}
+    names = set(edges) | set(members) | {dep for deps in edges.values() for dep, _ in deps}
     pid = {name: f"registry+https://example.org#{name}@1.0.0" for name in names}
     return {
         "packages": [{"name": name, "id": pid[name]} for name in sorted(names)],
-        "workspace_members": [pid["wayloop-core"]],
+        "workspace_members": [pid[name] for name in members],
         "resolve": {
             "nodes": [
                 {
@@ -88,9 +90,9 @@ def test_a_crate_reached_twice_is_reported_once() -> None:
     assert core_io.io_dependencies(metadata(graph)) == [["wayloop-core", "a", "reqwest"]]
 
 
-def source(tmp_path: Path, text: str) -> Path:
-    src = tmp_path / "src"
-    src.mkdir()
+def source(tmp_path: Path, text: str, crate: str = "wayloop-core") -> Path:
+    src = tmp_path / "crates" / crate / "src"
+    src.mkdir(parents=True)
     (src / "lib.rs").write_text(text, encoding="utf-8")
     return src
 
@@ -130,18 +132,42 @@ def test_comments_and_compile_time_macros_pass(tmp_path: Path) -> None:
     assert core_io.io_in_source(source(tmp_path, text)) == []
 
 
-def test_main_refuses_an_io_dependency(monkeypatch: pytest.MonkeyPatch) -> None:
+PURE = ("wayloop-core", "wayloop-schemas")
+
+
+def test_main_refuses_an_io_dependency(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     graph = {"wayloop-core": [("helper", None)], "helper": [("tokio", None)]}
-    monkeypatch.setattr(core_io, "cargo_metadata", lambda: metadata(graph))
+    monkeypatch.setattr(core_io, "cargo_metadata", lambda: metadata(graph, PURE))
+    monkeypatch.setattr(core_io, "ROOT", tmp_path)
     with pytest.raises(SystemExit, match="wayloop-core -> helper -> tokio"):
         core_io.main()
 
 
-def test_main_refuses_io_in_the_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(core_io, "cargo_metadata", lambda: metadata({"wayloop-core": []}))
-    monkeypatch.setattr(core_io, "CORE_SRC", source(tmp_path, "use std::fs;\n"))
+def test_main_checks_the_schemas_crate_too(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    graph = {"wayloop-schemas": [("reqwest", None)]}
+    monkeypatch.setattr(core_io, "cargo_metadata", lambda: metadata(graph, PURE))
     monkeypatch.setattr(core_io, "ROOT", tmp_path)
-    with pytest.raises(SystemExit, match=r"src/lib.rs:1: use std::fs;"):
+    source(tmp_path, "use std::process::Command;\n", "wayloop-schemas")
+    with pytest.raises(SystemExit) as refused:
+        core_io.main()
+    assert "wayloop-schemas -> reqwest" in str(refused.value)
+    assert "crates/wayloop-schemas/src/lib.rs:1: use std::process::Command;" in str(refused.value)
+
+
+def test_main_refuses_io_in_the_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(core_io, "cargo_metadata", lambda: metadata({}, PURE))
+    monkeypatch.setattr(core_io, "ROOT", tmp_path)
+    source(tmp_path, "use std::fs;\n")
+    with pytest.raises(SystemExit, match=r"crates/wayloop-core/src/lib.rs:1: use std::fs;"):
+        core_io.main()
+
+
+def test_main_refuses_a_pure_crate_missing_from_the_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(core_io, "cargo_metadata", lambda: metadata({}, ("wayloop-core",)))
+    monkeypatch.setattr(core_io, "ROOT", tmp_path)
+    with pytest.raises(SystemExit, match="wayloop-schemas is not a member of the workspace"):
         core_io.main()
 
 

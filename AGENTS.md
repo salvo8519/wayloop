@@ -14,7 +14,9 @@ built with the process it describes. Read `docs/en/project/vision.md` and the AD
 
 | Path | What lives there |
 | --- | --- |
+| `crates/wayloop-schemas/` | Contract types of the versioned JSON schemas. No I/O. |
 | `crates/wayloop-core/` | All decision logic: artifact model, state machine, ledger. No I/O. |
+| `crates/wayloop-runtime/` | Asynchronous runtime (ADR 0006): queue, workers, single writer to the ledger. Decides nothing. |
 | `crates/wayloop-cli/` | The `wayloop` binary. Adapter only. |
 | `docs/en/` | Documentation source (English). |
 | `docs/it/` | Italian edition, tracked against the English source. |
@@ -24,7 +26,7 @@ built with the process it describes. Read `docs/en/project/vision.md` and the AD
 | `roadmap/roadmap.yaml` | Milestones, epics and tasks with their issues; checked and synchronised by `scripts/roadmap.py`. |
 | `sprints/` | Sprint plans with lanes of disjoint paths, validated by `scripts/sprint.py`. |
 | `changes/` | Release note fragments. |
-| `scripts/` | Documentation build, translation tracking, house style. |
+| `scripts/` | Documentation build, translation tracking, house style, process checks (no I/O in the pure crates: `check_core_io.py`). |
 
 ## How work is done here
 

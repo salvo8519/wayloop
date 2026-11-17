@@ -8,13 +8,44 @@ write the state by hand. The rule is recorded in
 
 | Component | Path | What it does today |
 | --- | --- | --- |
+| Schemas | `crates/wayloop-schemas` | Rust library with no I/O, home of the contract types that mirror the JSON schemas. It holds no type yet. |
 | Core | `crates/wayloop-core` | Rust library with no I/O. It fixes the vocabulary of the issue cycle: the nine steps in order, their stable identifiers, and which step is an approval state. |
+| Runtime | `crates/wayloop-runtime` | Rust library that runs the work the core decides ([below](#synchronous-core-asynchronous-runtime)). It holds no code yet. |
 | Command line | `crates/wayloop-cli` | The `wayloop` binary, an adapter only: it parses arguments, calls the core and prints JSON. Commands: `version` and `steps` ([reference](../reference/index.md)). |
 | Agent content | `.agents/` | Roles and skills in the open Agent Skills format, with generated mirrors for Claude Code. They are used to build Wayloop itself. |
 | Process | `roadmap/`, `specs/`, `sprints/`, `scripts/` | The plan as code, synchronised with the GitHub issues; specifications with numbered requirements; sprint lanes of disjoint paths; the checks run by CI. |
 
 Wayloop has no release yet. The components of the engine, and the order in which they are
 built, are in the [roadmap](../project/roadmap.md).
+
+## Crate layout
+
+The engine is a Cargo workspace of four crates. Each one has a single role, and dependencies
+point in one direction only: towards the pure crates.
+
+```text
+wayloop-cli ------> wayloop-runtime ----> wayloop-core ----> wayloop-schemas
+ (adapter)            (I/O, no decisions)   (decisions, no I/O)  (contract types, no I/O)
+```
+
+| Crate | Role | May depend on | Performs I/O |
+| --- | --- | --- | --- |
+| `wayloop-schemas` | Contract types of the JSON schemas under `schemas/` | no Wayloop crate | No |
+| `wayloop-core` | All decision logic: artifact model, state machine, ledger rules | `wayloop-schemas` | No |
+| `wayloop-runtime` | Queue, parallel workers, tracker calls, single writer to the ledger | `wayloop-core`, `wayloop-schemas` | Yes |
+| `wayloop-cli` and the other adapters | Translation between a channel and the engine | any of the above | Yes |
+
+- **One entry point.** The core exposes one function to every channel: command, canonical
+  input and context in, envelope out
+  ([ADR 0028](../project/adr/0028-one-contract-on-every-channel.md)). It belongs at the root
+  of `wayloop-core`; adapters call it and only translate its input and its envelope.
+- **No I/O in the pure crates.** `scripts/check_core_io.py` reads the dependency graph that
+  Cargo resolves and fails when a known I/O crate (an asynchronous runtime, an HTTP client, a
+  database, a file or process library, a git library) is reached from `wayloop-core` or
+  `wayloop-schemas` through normal dependencies, printing the path that reaches it. It also
+  fails on I/O of the standard library in their source: `std::fs`, `std::net`,
+  `std::process`, `std::env`, the standard streams and the print macros. The check runs in
+  `just check` and in CI. Development dependencies, used by tests only, are not checked.
 
 ## Synchronous core, asynchronous runtime
 

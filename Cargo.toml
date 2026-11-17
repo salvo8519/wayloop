@@ -1,6 +1,11 @@
 [workspace]
 resolver = "3"
-members = ["crates/wayloop-core", "crates/wayloop-cli"]
+members = [
+  "crates/wayloop-schemas",
+  "crates/wayloop-core",
+  "crates/wayloop-runtime",
+  "crates/wayloop-cli",
+]
 
 # The single source of the project version. Everything else derives from it.
 [workspace.package]

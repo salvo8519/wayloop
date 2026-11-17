@@ -12,3 +12,11 @@ dependencies = [
 [[package]]
 name = "wayloop-core"
 version = "0.0.0"
+
+[[package]]
+name = "wayloop-runtime"
+version = "0.0.0"
+
+[[package]]
+name = "wayloop-schemas"
+version = "0.0.0"

@@ -84,6 +84,9 @@ def test_a_page_outside_the_navigation_is_reported(site: Path) -> None:
     [
         (["crates/wayloop-core/src/lib.rs"], ["engine changed"]),
         (["crates/wayloop-core/src/lib.rs", "specs/0002-state-machine/spec.md"], []),
+        (["crates/wayloop-runtime/src/lib.rs"], ["engine changed"]),
+        (["crates/wayloop-schemas/src/lib.rs"], ["engine changed"]),
+        (["crates/wayloop-runtime/src/lib.rs", "docs/en/concepts/architecture.md"], []),
         (["crates/wayloop-cli/src/main.rs", "docs/en/reference/commands.md"], []),
         (["schemas/commands/next/v1.json"], ["schemas changed"]),
         (["scripts/roadmap.py"], ["process script changed"]),

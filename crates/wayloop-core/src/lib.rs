@@ -2,7 +2,11 @@
 //!
 //! This crate holds all decision logic and performs no I/O. Adapters (CLI, Python and
 //! TypeScript SDKs, MCP server) translate requests into calls to this crate and never
-//! decide anything themselves (ADR 0001).
+//! decide anything themselves (ADR 0001). The single entry point of ADR 0028 (command,
+//! canonical input and context in, envelope out) belongs to this crate, at its root, and
+//! every channel calls it; it is not written yet (#221). `wayloop-runtime` executes the work this crate decides (ADR 0006).
+//! `scripts/check_core_io.py` refuses an I/O crate among the dependencies of this crate and
+//! I/O of the standard library in its source.
 //!
 //! The crate is a placeholder until milestone M1: it fixes the vocabulary of the issue cycle
 //! so that the first specification has a stable starting point.
