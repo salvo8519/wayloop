@@ -42,7 +42,9 @@ A table of findings with their verdict (confirmed, rejected, needs decision), co
 
 ## Stop and ask
 - A finding conflicts with the specification, an ADR or an earlier decision of the maintainer.
-- A finding needs a change outside the issue's scope, a new dependency or a contract change.
+- A finding needs a new dependency or a contract change. A defect outside the issue's scope is
+  fixed here when it is small, and filed at once with `roadmap.py new` when it is not
+  (AGENTS.md, How work is done).
 - A finding cannot be verified (no reproduction, missing tool): say so and ask whether to proceed.
 - Reviewer and implementer still disagree after the evidence is recorded: the maintainer decides.
 

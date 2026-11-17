@@ -38,6 +38,11 @@ built with the process it describes. Read `docs/en/project/vision.md` and the AD
    `git worktree add ../wayloop-<issue> -b <type>/<issue>-<slug> origin/main`.
 4. Test first where it pays: acceptance criteria and bug fixes.
 5. Run `uv run just check` before every pull request.
+6. Leave the code better than you found it. A defect found during any work, in or out of the
+   task, is fixed in the same change, with a test where it pays; it is never deferred, because
+   deferred defects are forgotten. A defect too large for the change in hand (its own design,
+   a contract, another area) becomes an issue at once with `python scripts/roadmap.py new`,
+   cited in the report of the change.
 
 ## Hard rules
 
