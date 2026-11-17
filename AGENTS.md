@@ -91,4 +91,5 @@ parallel; each brief names the files to read.
 | Roadmap: plan, sync with GitHub | `uv run python scripts/roadmap.py list --open` / `sync` |
 | Roadmap: reproduce the plan on a repository | `uv run python scripts/bootstrap_github.py --dry-run` |
 | Required checks: offline, against the ruleset | `uv run python scripts/required_checks.py check` / `remote` |
+| Pin GitHub Actions to commits | `uv run python scripts/pin_actions.py` (`--check` in CI) |
 | Sprint: validate, state | `uv run python scripts/sprint.py validate sprints/SNN.yaml` |

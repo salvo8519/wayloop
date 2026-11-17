@@ -7,3 +7,6 @@ House style, translations and Rust
 Build both sites (strict)
 Title, branch and linked issue
 Area labels
+Quality · workflows, pins, unused dependencies
+Dependencies · licenses, bans, advisories
+Dependency review
