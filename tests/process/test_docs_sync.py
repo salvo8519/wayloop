@@ -87,6 +87,16 @@ def test_a_page_outside_the_navigation_is_reported(site: Path) -> None:
         (["crates/wayloop-runtime/src/lib.rs"], ["engine changed"]),
         (["crates/wayloop-schemas/src/lib.rs"], ["engine changed"]),
         (["crates/wayloop-runtime/src/lib.rs", "docs/en/concepts/architecture.md"], []),
+        # Every crate but the command line is engine, including crates added later.
+        (["crates/wayloop-mcp/src/lib.rs"], ["engine changed"]),
+        (["crates/wayloop-cli/src/main.rs"], ["command line changed"]),
+        (["crates/wayloop-core/Cargo.toml"], []),
+        # The guards of the pure crates are described on the architecture page.
+        (["scripts/check_core_io.py"], ["purity guard changed"]),
+        (["crates/wayloop-core/clippy.toml"], ["purity guard changed"]),
+        (["crates/wayloop-schemas/clippy.toml"], ["purity guard changed"]),
+        (["crates/wayloop-core/clippy.toml", "docs/en/concepts/architecture.md"], []),
+        (["scripts/check_core_io.py", "docs/en/concepts/index.md"], ["purity guard changed"]),
         (["crates/wayloop-cli/src/main.rs", "docs/en/reference/commands.md"], []),
         (["schemas/commands/next/v1.json"], ["schemas changed"]),
         (["scripts/roadmap.py"], ["process script changed"]),

@@ -46,7 +46,7 @@ NOT_PAGES = ("assets/", "stylesheets/")
 # (changed path pattern, documentation that must change with it, reason)
 RULES: list[tuple[str, str, str]] = [
     (
-        r"^crates/wayloop-(core|runtime|schemas)/src/",
+        r"^crates/wayloop-(?!cli/)[^/]+/src/",
         r"^(docs/en/(concepts|reference)/|specs/\d{4}-[^/]+/)",
         "engine changed: update docs/en/concepts/, docs/en/reference/ or its specification",
     ),
@@ -54,6 +54,11 @@ RULES: list[tuple[str, str, str]] = [
         r"^crates/wayloop-cli/src/",
         r"^docs/en/(reference|guides|getting-started)/",
         "command line changed: update docs/en/reference/, guides/ or getting-started/",
+    ),
+    (
+        r"^(scripts/check_core_io\.py|crates/[^/]+/clippy\.toml)$",
+        r"^docs/en/concepts/architecture\.md$",
+        "purity guard changed: update the crate layout in docs/en/concepts/architecture.md",
     ),
     (
         r"^schemas/",
