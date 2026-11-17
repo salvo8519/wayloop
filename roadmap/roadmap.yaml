@@ -57,7 +57,7 @@ milestones:
           - { issue: 137, title: "Process scripts are covered by tests that run in CI", status: done }
           - { issue: 138, title: "Issue forms for task, bug and specification request", status: done }
           - { issue: 45, title: "Issue titles state the outcome, are unique and carry no type prefix", status: done }
-          - { issue: 139, title: "Roadmap file reproduced on GitHub by a script in the repository", status: open }
+          - { issue: 139, title: "Roadmap file reproduced on GitHub by a script in the repository", status: done }
           - { issue: 140, title: "Required status checks kept in step with the workflows", status: open }
           - { issue: 141, title: "Workflows linted, actions pinned and dependencies scanned", status: open }
           - { issue: 142, title: "Weekly maintenance workflow", status: open }
