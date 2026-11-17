@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | Draft |
+| Status | Approved |
 | Milestone | M0 · Foundations |
 | Owner | @salvo8519 |
 | Related | #3, #4, #5, #6, #95, #160; ADR 0002, 0003, 0007, 0008, 0009, 0012, 0014, 0016, 0017; SPEC-0002, SPEC-0003, SPEC-0004, SPEC-0005, SPEC-0007, SPEC-0009, SPEC-0011, SPEC-0012, SPEC-0013, SPEC-0021 |
@@ -169,7 +169,7 @@ type found on the default branch (files) and in the tracker (structured blocks a
 descriptions), plus one; removed and superseded artifacts count. Two branches may allocate the
 same identifier; CI checks uniqueness again against the default branch and the tracker before
 merge, and both artifacts that carry the identifier are refused, each error pointing to the
-other (R14). How the collision is resolved is open question Q4.
+other (R14). The branch that is not yet merged then takes a new identifier before it merges (Q4).
 
 Milestones are numbered from `M0`, without leading zeros. The number records the order of
 creation, not the order of delivery: moving a milestone in the plan never renumbers it.
@@ -362,7 +362,7 @@ One per capability (ADR 0014). The Markdown layout is the template in
 | `owner` | string, tracker handle | yes | Person who approves changes |
 | `milestone` | milestone identifier | no | Milestone of the first delivery |
 | `commit_scope` | string, a scope of the project policy | yes | Scope used by commits that implement it |
-| `related` | list of strings | no | Identifiers of ADRs, issues and specifications |
+| `related` | list of strings | no | Identifiers of ADRs, issues and specifications; a citation `ADR <NNNN>` with no ADR of that number gives a warning (Q5) |
 | `problem` | string | yes | Who needs this and why |
 | `scope_in` | list of strings, at least 1 | yes | What is specified |
 | `scope_out` | list of strings | no | What is left to other specifications |
@@ -424,7 +424,7 @@ with no mapped word is refused with the reason `enum` and the words below in `ex
 
 Most specifications of this repository predate these rules (acceptance criteria without their
 requirements, open questions without identifiers, extra sections). A migration task that
-brings them to this form must be done before `wayloop validate` runs on this repository.
+brings them to this form (#229) must be done before `wayloop validate` runs on this repository.
 
 ### Change delta
 
@@ -493,7 +493,7 @@ field, so an agent that sends one, for example `tokens`, is refused with `unknow
 | `rulings` | list of objects `{decision, reason, cost_if_wrong}` | yes, may be empty | agent | Rulings of the session (SPEC-0003 R5) |
 | `next_step` | string | yes | agent | First action of the next session |
 | `recorded_at` | date-time in UTC, with the suffix `Z` | yes | engine | When the engine recorded it |
-| `tokens` | integer | yes | engine | Size of the record, within the budget of SPEC-0003 R12; the counting method is open question Q6 |
+| `tokens` | integer | yes | engine | Size of the record, within the budget of SPEC-0003 R12; counted by the engine as the length in bytes of the canonical JSON (RFC 8785) divided by four, rounded up (Q6) |
 
 - Identifier: `HANDOVER-<issue>-<k>`, assigned by the engine when it records the event.
 - Statuses: none. A hand-over is immutable; a later one for the same issue takes its place in the next brief.
@@ -648,6 +648,6 @@ expected pointer and reason.
 - [x] **Q1. Where do the council report and the brief live?** Decided by the maintainer on 2026-11-17: a repository file, plus a comment by the engine on the gate issue with the decisions and the questions; approval is given on the issue. See Where artifacts live and Gate issue.
 - [x] **Q2. Identifiers of tracker items.** Decided by the maintainer on 2026-11-17 with ADR 0008 (#4): both identifiers, with different roles. See Identifiers.
 - [x] **Q3. Is every task a tracker sub-issue?** Decided by the maintainer on 2026-11-17: yes, whatever its complexity; SPEC-0013 R5 and SPEC-0005 R1 are aligned. R9 and R10 hold unchanged.
-- [ ] **Q4. How is a collision of identifiers resolved?** Two branches allocated the same identifier and CI refuses both (R14). Options: (a) the branch that is not yet merged takes a new identifier from the allocator before it merges; (b) the engine renumbers the later artifact on the default branch and rewrites its citations; (c) a person chooses each time. Recommendation: (a). An identifier on the default branch or in the tracker may already be cited by commits, pull requests and release notes, which cannot be rewritten; an unmerged branch has no such citations outside itself.
-- [ ] **Q5. Are ADRs a checked kind?** `related` cites ADRs as free text. Options: (a) add the kind `adr`, identifier `ADR <NNNN>` read from the first heading, with a schema for status and decision; (b) no kind, but a citation of the form `ADR <NNNN>` gives a warning when no ADR carries that number; (c) no check. Recommendation: (b) for `v1`. It catches broken citations at the cost of one reader of the heading, and leaves the ADR format, which ADR 0008 does not cover, to a later decision.
-- [ ] **Q6. How are `tokens` counted?** Options: (a) a fixed tokenizer of one model family; (b) a deterministic estimate computed by the engine, the length in bytes of the canonical JSON (RFC 8785) divided by four, rounded up; (c) the count reported by the executor. Recommendation: (b). The ledger must replay to the same state on every platform (ADR 0003); (a) ties the record to one vendor, and (c) differs between executors.
+- [x] **Q4. How is a collision of identifiers resolved?** Decided by the maintainer on 2026-11-17: (a), the branch that is not yet merged takes a new identifier before it merges.
+- [x] **Q5. Are ADRs a checked kind?** Decided by the maintainer on 2026-11-17: (b), no new kind; a citation `ADR <NNNN>` with no ADR of that number gives a warning.
+- [x] **Q6. How are `tokens` counted?** Decided by the maintainer on 2026-11-17: (b), the deterministic estimate computed by the engine.
