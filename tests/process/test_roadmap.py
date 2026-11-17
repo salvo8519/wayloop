@@ -248,3 +248,29 @@ def test_sync_refuses_a_milestone_missing_on_github(monkeypatch) -> None:  # typ
     monkeypatch.setattr(roadmap, "github_milestones", dict)
     with pytest.raises(SystemExit, match=f"milestone '{m['title']}' does not exist on GitHub"):
         roadmap.sync(write=False, apply_milestones=True)
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["feat: replay the ledger", "core(state): add guards", "[FEAT] guards", "Add guards."],
+)
+def test_titles_state_the_outcome_without_a_type_prefix(title: str) -> None:
+    d = data()
+    d["milestones"][0]["epics"][0]["tasks"][0]["title"] = title
+    assert any("title" in p and title in p for p in roadmap.problems_of(d))
+
+
+def test_titles_of_tasks_and_epics_are_unique() -> None:
+    d = data()
+    first = d["milestones"][0]["epics"][0]
+    first["tasks"][1]["title"] = first["tasks"][0]["title"].upper()
+    assert any("same title" in p for p in roadmap.problems_of(d))
+    d = data()
+    d["milestones"][1]["epics"][0]["title"] = d["milestones"][0]["epics"][0]["title"]
+    assert any("same title" in p for p in roadmap.problems_of(d))
+
+
+def test_a_title_may_start_with_a_command_name() -> None:
+    d = data()
+    d["milestones"][0]["epics"][0]["tasks"][0]["title"] = "wayloop init creates a structure"
+    assert [p for p in roadmap.problems_of(d) if "canonical form" not in p] == []
