@@ -32,6 +32,20 @@ pull request workflow both run.
 - Commits and titles cite the specification when there is one:
   `feat(ledger): chain events by hash [SPEC-0002 R3]`.
 
+## Issues
+
+- **Type**: chosen with the issue form, which applies the label: `task` for planned work,
+  `bug` for a defect, `spec-request` for a proposed capability. Blank issues are disabled.
+- **Area**: one `area:*` label. Areas decide which issues can run in parallel; the area list of
+  the task form matches the `area:*` labels of the roadmap, and a test checks it.
+- **Hierarchy**: every task is a sub-issue of an epic, every epic belongs to a milestone. The
+  roadmap file is the source of this structure; maintainers create planned tasks with
+  `python scripts/roadmap.py new`, which sets the milestone and labels on GitHub and adds the
+  task to the file.
+- **Body**: outcome and the advantage it brings, scope as a checklist, acceptance criteria, the
+  verification technique, references to specifications and ADRs, dependencies, and the
+  definition of done.
+
 ## House style
 
 No icons, emoji or decorative symbols in any file, commit message, issue or pull request.

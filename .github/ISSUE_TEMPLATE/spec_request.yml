@@ -1,0 +1,21 @@
+name: Specification request
+description: Propose a capability; it becomes a specification once the maintainer accepts it
+labels: ["spec-request"]
+body:
+  - type: textarea
+    id: problem
+    attributes: { label: Problem, description: Who needs this and why. One paragraph. }
+    validations: { required: true }
+  - type: textarea
+    id: users
+    attributes: { label: Users and situations, description: "As a <role>, I want <capability>, so that <benefit>." }
+    validations: { required: true }
+  - type: textarea
+    id: scope
+    attributes: { label: Scope, description: What is in and what is out. }
+  - type: textarea
+    id: constraints
+    attributes: { label: Constraints, description: "Contracts, ADRs, budgets or security rules that apply." }
+  - type: textarea
+    id: alternatives
+    attributes: { label: Alternatives considered }

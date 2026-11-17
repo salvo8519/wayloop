@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Contributing guide
+    url: https://github.com/salvo8519/wayloop/blob/main/CONTRIBUTING.md
+    about: How work is planned, named and reviewed in this repository.
+  - name: Security policy
+    url: https://github.com/salvo8519/wayloop/blob/main/SECURITY.md
+    about: Report a vulnerability privately.

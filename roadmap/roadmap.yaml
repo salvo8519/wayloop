@@ -30,6 +30,9 @@ labels:
   - { name: "area:benchmark", color: "0F766E" }
   - { name: "contract", color: "b60205" }
   - { name: "epic", color: "0B1F3A" }
+  - { name: "task", color: "5319e7" }
+  - { name: "bug", color: "d73a4a" }
+  - { name: "spec-request", color: "0F766E" }
 
 milestones:
   - title: "M0 · Foundations"
@@ -52,7 +55,7 @@ milestones:
         labels: ["area:infra"]
         tasks:
           - { issue: 137, title: "Process scripts are covered by tests that run in CI", status: done }
-          - { issue: 138, title: "Issue forms for task, bug and specification request", status: open }
+          - { issue: 138, title: "Issue forms for task, bug and specification request", status: done }
           - { issue: 45, title: "Issue titles state the outcome, are unique and carry no type prefix", status: open }
           - { issue: 139, title: "Roadmap file reproduced on GitHub by a script in the repository", status: open }
           - { issue: 140, title: "Required status checks kept in step with the workflows", status: open }
