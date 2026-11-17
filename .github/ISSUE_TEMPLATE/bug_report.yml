@@ -1,0 +1,31 @@
+name: Bug report
+description: Something does not work (installation, CLI, SDK, MCP server, plugin, loop)
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems are not reported here: follow SECURITY.md.
+  - type: textarea
+    id: what
+    attributes: { label: What happened and what you expected }
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes: { label: Steps to reproduce, description: "The command or tool call, with its input." }
+    validations: { required: true }
+  - type: textarea
+    id: output
+    attributes:
+      label: Result envelope or error report
+      description: The JSON returned, with secrets and private paths removed.
+      render: json
+  - type: input
+    id: versions
+    attributes: { label: "Versions (wayloop, operating system, coding agent)" }
+    validations: { required: true }
+  - type: dropdown
+    id: channel
+    attributes:
+      label: Installed from
+      options: [crates.io, PyPI, npm, Claude Code plugin, Codex plugin, source]

@@ -1,0 +1,46 @@
+name: Task
+description: A planned unit of work, part of an epic (maintainers and agreed contributions)
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Title: the outcome as a short sentence in sentence case, without a type prefix, for example
+        "Ledger replay gives the same state on every platform". Maintainers create planned tasks with
+        `python scripts/roadmap.py new`. See docs/en/project/conventions.md.
+  - type: input
+    id: epic
+    attributes: { label: Parent epic, placeholder: "#21" }
+    validations: { required: true }
+  - type: input
+    id: spec
+    attributes: { label: Specification and requirements, placeholder: "SPEC-0003 R1, R2, or Not applicable" }
+  - type: textarea
+    id: outcome
+    attributes: { label: Outcome, description: What exists when this task is done, and the advantage it brings. }
+    validations: { required: true }
+  - type: textarea
+    id: scope
+    attributes: { label: Scope, description: The steps of the work, as a checklist. }
+  - type: textarea
+    id: acceptance
+    attributes: { label: Acceptance criteria, description: "Verifiable statements, Given / When / Then where it helps; each becomes a test." }
+    validations: { required: true }
+  - type: dropdown
+    id: verification
+    attributes:
+      label: Verification technique
+      options: [TDD, BDD scenarios, end-to-end, visual, property test, contract test, spike, review]
+    validations: { required: true }
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [core, runtime, cli, tracker, survey, sdk, mcp, plugins, release, security, benchmark, docs, agents, infra]
+    validations: { required: true }
+  - type: checkboxes
+    id: parallel
+    attributes:
+      label: Planning
+      options:
+        - label: Can be worked on in parallel with other tasks of the same epic
