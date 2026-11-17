@@ -3,7 +3,7 @@ hide:
 - navigation
 - toc
 source: index.md
-source_hash: c90889738331
+source_hash: af94d270a185
 ---
 <div class="wl-hero" markdown>
 
@@ -25,8 +25,9 @@ avanzare il lavoro, il piano vive nel tuo issue tracker e le persone decidono ai
 </div>
 
 !!! note "Stato"
-    Pre-alpha, fase di progettazione. Non c'è ancora nulla da installare. Questo sito descrive
-    l'architettura e segue il progetto mentre viene costruito.
+    Pre-alpha. Non c'è ancora una release. Le pagine dei concetti descrivono il progetto e
+    dicono, ciascuna, che cosa ne esiste oggi. Ciò che viene dopo è nella
+    [roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
 <div class="grid cards wl-features" markdown>
 

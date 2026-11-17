@@ -12,6 +12,7 @@ process:
     python -m pytest tests/process
     python scripts/required_checks.py check
     python scripts/docs_sync.py coverage
+    python scripts/docs_sync.py claims
     python scripts/sync_agents.py --check
     python scripts/check_agents.py
     python scripts/check_yaml.py

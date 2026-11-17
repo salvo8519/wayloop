@@ -48,8 +48,13 @@ drift from it. Pull request numbers share the same sequence.
   issue states from GitHub; `roadmap.py links` checks that every planned issue has the title,
   milestone, labels, parent epic, parent line and dependencies of the plan. The workflow
   `Roadmap sync` runs both every day and on issue events.
-- **Plans in public pages**: concept pages, guides and the README describe what exists. What
-  comes next is stated only in the roadmap page, generated from the plan.
+- **Plans in public pages**: the README files and every documentation page outside
+  `project/`, in English and Italian, describe what exists. What comes next is stated only in
+  the roadmap page, generated from the plan; a public page links it instead. A page for a part
+  that does not exist says so in one line and links the roadmap page.
+  `scripts/docs_sync.py claims` checks it in `just process`, pre-commit and CI: it fails on
+  plans in prose ("will", "planned", "coming soon", "on the roadmap", a milestone number such
+  as "M2", and the Italian equivalents) and ignores code, link targets and HTML comments.
 
 ## Status
 
@@ -153,6 +158,8 @@ type `breaking`, `feature`, `improvement` or `fix`, unless the pull request is l
 - `scripts/docs_sync.py coverage`: every ADR has its row in the ADR index, its entry in the
   navigation and a valid status line; every specification has a valid status; every page of
   the navigation exists and every page is in the navigation.
+- `scripts/docs_sync.py claims`: public pages state no plans in prose (rule "Plans in public
+  pages" above).
 - `scripts/docs_sync.py impact`: a change to the engine, the command line, the schemas or a
   process script comes with the matching documentation. A change that genuinely needs none is
   labelled `no-docs-needed`, or its latest commit carries the trailer `Docs-impact: none`.

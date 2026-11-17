@@ -1,14 +1,17 @@
 """Keep the documentation in sync with the project, deterministically.
 
-Two checks, used by `just`, CI and the Claude Code Stop hook:
+Three checks, used by `just`, pre-commit, CI and the Claude Code Stop hook:
 
   coverage   every ADR file has its row in the ADR index and its navigation entry, with a valid
              status line; every specification has a valid status; every page of the navigation
              exists and every page is in the navigation
+  claims     public pages (the README files, docs/en and docs/it outside project/) contain no
+             plans in prose: what comes next is stated only in the roadmap page
   impact     files changed in a way that needs documentation (engine, command line, schemas,
              process scripts) come with a matching documentation change
 
     python scripts/docs_sync.py coverage
+    python scripts/docs_sync.py claims
     python scripts/docs_sync.py impact --base origin/main     # CI, pull requests
     python scripts/docs_sync.py impact --staged               # pre-commit
     python scripts/docs_sync.py impact --worktree --hook      # Claude Code Stop hook
@@ -172,10 +175,77 @@ def coverage() -> int:
     return 0
 
 
+# Statements about the future go stale silently: what comes next is stated only in the roadmap
+# page, generated from the plan. Project pages (vision, roadmap, ADRs) are exempt.
+FUTURE = re.compile(
+    r"\bwill\b|\bplanned\b|\bupcoming\b|\bcoming (?:soon|next|later)\b|\bsoon\b"
+    r"|\bon the roadmap\b|\bin a (?:future|later|next) (?:release|version|milestone)\b"
+    r"|\bnext (?:release|version|milestone)\b|\bM\d\b"
+    r"|\bsar[àa]\b|\bsaranno\b|\bverr[àa]\b|\bverranno\b|\barriver[àa]\b"
+    r"|\bprevist[oaie]\b|\bpianificat[oaie]\b|\bin programma\b|\bprossimamente\b"
+    r"|\bsulla roadmap\b|\bprossim[oa] (?:release|versione|milestone)\b",
+    re.IGNORECASE,
+)
+# Parts of a page that are not prose: front matter, HTML comments, code, link targets.
+NOT_PROSE = [
+    re.compile(r"\A---\n.*?\n---\n", re.S),
+    re.compile(r"<!--.*?-->", re.S),
+    re.compile(r"^(```|~~~).*?^\1", re.S | re.M),
+    re.compile(r"`[^`\n]*`"),
+    re.compile(r"\]\([^)\s]*\)"),
+    re.compile(r"\b(?:src|srcset|href)=\"[^\"]*\""),
+]
+
+
+def public_pages(root: Path = ROOT) -> list[Path]:
+    """README files and every documentation page outside project/, in both languages."""
+    pages = sorted(root.glob("README*.md"))
+    for lang in ("en", "it"):
+        base = root / "docs" / lang
+        pages += [
+            p
+            for p in sorted(base.rglob("*.md"))
+            if not p.relative_to(base).as_posix().startswith(("project/", *NOT_PAGES))
+        ]
+    return pages
+
+
+def prose(text: str) -> str:
+    """The text with everything that is not prose blanked, keeping line numbers."""
+    for pattern in NOT_PROSE:
+        text = pattern.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
+    return text
+
+
+def claims_problems(root: Path = ROOT) -> list[str]:
+    problems: list[str] = []
+    for page in public_pages(root):
+        rel = page.relative_to(root).as_posix()
+        source = page.read_text(encoding="utf-8").splitlines()
+        for number, line in enumerate(prose(page.read_text(encoding="utf-8")).splitlines(), 1):
+            if FUTURE.search(line):
+                problems.append(f"{rel}:{number}: {source[number - 1].strip()}")
+    return problems
+
+
+def claims() -> int:
+    problems = claims_problems()
+    if problems:
+        print("Public pages state plans in prose:\n" + "\n".join(f"  - {p}" for p in problems))
+        print(
+            "State what exists; link the roadmap page (docs/en/project/roadmap.md) for what "
+            "comes next."
+        )
+        return 1
+    print(f"Docs claims passed: {len(public_pages())} public pages state only what exists.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("coverage")
+    sub.add_parser("claims")
     p = sub.add_parser("impact")
     group = p.add_mutually_exclusive_group(required=True)
     group.add_argument("--base")
@@ -183,7 +253,11 @@ def main(argv: list[str] | None = None) -> int:
     group.add_argument("--worktree", action="store_true")
     p.add_argument("--hook", action="store_true", help="exit 2 with stderr (Claude Code hook)")
     args = parser.parse_args(argv)
-    return coverage() if args.cmd == "coverage" else impact(args)
+    if args.cmd == "coverage":
+        return coverage()
+    if args.cmd == "claims":
+        return claims()
+    return impact(args)
 
 
 if __name__ == "__main__":

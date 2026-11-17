@@ -24,8 +24,9 @@ lives in your issue tracker, and people decide at the gates.
 </div>
 
 !!! note "Status"
-    Pre-alpha, design phase. Nothing is installable yet. This site describes the architecture
-    and follows the project as it is built.
+    Pre-alpha. There is no release yet. The concept pages describe the design and state, on
+    each page, what of it exists today. What comes next is in the
+    [roadmap](project/roadmap.md).
 
 <div class="grid cards wl-features" markdown>
 

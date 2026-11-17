@@ -90,3 +90,77 @@ def test_impact_rules(files: list[str], expected: list[str]) -> None:
     missing = ds.missing_docs(files)
     assert len(missing) == len(expected)
     assert all(m.startswith(e) for m, e in zip(missing, expected, strict=True))
+
+
+@pytest.fixture
+def public(tmp_path: Path) -> Path:
+    """A minimal repository with one public page and one project page per language."""
+    for lang in ("en", "it"):
+        (tmp_path / "docs" / lang / "concepts").mkdir(parents=True)
+        (tmp_path / "docs" / lang / "project").mkdir(parents=True)
+        (tmp_path / "docs" / lang / "concepts" / "page.md").write_text(
+            "# Page\n\nThe engine is a Rust library.\n", encoding="utf-8"
+        )
+    (tmp_path / "README.md").write_text("# Readme\n", encoding="utf-8")
+    return tmp_path
+
+
+def test_the_committed_public_pages_state_no_plans() -> None:
+    assert ds.claims_problems() == []
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "The MCP server will be available next month.",
+        "A Python SDK is planned.",
+        "Support for GitLab is coming soon.",
+        "Plugins are on the roadmap.",
+        "The adapter ships in M3.",
+        "Il server MCP sarà disponibile a breve.",
+        "## Architettura prevista",
+    ],
+)
+def test_a_plan_in_prose_is_reported(public: Path, line: str) -> None:
+    page = public / "docs/en/concepts/page.md"
+    page.write_text(page.read_text(encoding="utf-8") + line + "\n", encoding="utf-8")
+    assert ds.claims_problems(public) == [f"docs/en/concepts/page.md:4: {line}"]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "What comes next is in the [roadmap](../project/roadmap.md).",
+        "[![SDK](https://img.shields.io/badge/SDK-planned-blue)](https://example.org/roadmap/)",
+        "Run `wayloop steps --will` to list the steps.",
+        "<!-- planned: nothing -->",
+        "A proposed change to the roadmap is a readable difference.",
+    ],
+)
+def test_links_code_and_comments_are_not_prose(public: Path, line: str) -> None:
+    (public / "README.md").write_text(f"# Readme\n\n{line}\n", encoding="utf-8")
+    assert ds.claims_problems(public) == []
+
+
+def test_a_fenced_block_is_not_prose(public: Path) -> None:
+    (public / "README.md").write_text(
+        "# Readme\n\n```text\nthis will not be checked\n```\n", encoding="utf-8"
+    )
+    assert ds.claims_problems(public) == []
+
+
+def test_project_pages_may_state_plans(public: Path) -> None:
+    (public / "docs/en/project/roadmap.md").write_text(
+        "# Roadmap\n\nThe SDK will follow.\n", encoding="utf-8"
+    )
+    assert ds.claims_problems(public) == []
+
+
+def test_italian_pages_and_translated_readmes_are_public(public: Path) -> None:
+    (public / "README.it.md").write_text("# Leggimi\n\nIl motore sarà pronto.\n", encoding="utf-8")
+    (public / "docs/it/concepts/page.md").write_text(
+        "# Pagina\n\nLe guide verranno pubblicate.\n", encoding="utf-8"
+    )
+    problems = ds.claims_problems(public)
+    assert "README.it.md:3: Il motore sarà pronto." in problems
+    assert "docs/it/concepts/page.md:3: Le guide verranno pubblicate." in problems

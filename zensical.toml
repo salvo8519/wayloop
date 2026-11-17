@@ -17,6 +17,12 @@ extra_css = ["stylesheets/extra.css"]
 
 nav = [
   { "Home" = "index.md" },
+  { "Getting started" = [
+    "getting-started/index.md",
+  ] },
+  { "Guides" = [
+    "guides/index.md",
+  ] },
   { "Concepts" = [
     "concepts/the-loop.md",
     "concepts/state-in-the-tracker.md",
@@ -24,6 +30,9 @@ nav = [
     "concepts/ledger.md",
     "concepts/brownfield-survey.md",
     "concepts/architecture.md",
+  ] },
+  { "Reference" = [
+    "reference/index.md",
   ] },
   { "Project" = [
     "project/vision.md",
@@ -61,8 +70,8 @@ nav = [
       "project/adr/0023-stability-policy.md",
       "project/adr/0024-tool-definitions-for-agents.md",
       "project/adr/0025-api-executor.md",
-    "project/adr/0026-process-policy-in-the-core.md",
-    "project/adr/0027-skills-agents-hooks-standard.md",
+      "project/adr/0026-process-policy-in-the-core.md",
+      "project/adr/0027-skills-agents-hooks-standard.md",
     ] },
   ] },
 ]

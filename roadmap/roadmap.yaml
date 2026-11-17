@@ -56,7 +56,7 @@ milestones:
           - { issue: 10, title: "Decide on ADR 0006 and ADR 0007", tags: [maintainer, needs-decision], status: open }
           - { issue: 9, title: "Header colour of the site follows the brand palette", status: done }
           - { issue: 43, title: "Roadmap to version 1.0 with specifications, ADRs and issues", status: done }
-          - { issue: 44, title: "README and documentation follow the structure of the shared project template", status: open }
+          - { issue: 44, title: "README and documentation follow the structure of the shared project template", status: done }
           - { issue: 157, title: "Plan the work checkout, the pull request ledger, naming rules in the engine, token saving and agent compatibility", status: done }
           - { issue: 171, title: "Plan the process policy in the engine and the loop improvements", status: done }
           - { issue: 191, title: "Plan the process and system skills, agents and hooks", status: done }

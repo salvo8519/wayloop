@@ -3,6 +3,12 @@
 A gate is a state that the loop cannot pass on its own. The loop runs unattended between
 gates; at a gate it stops, asks, and waits for a person.
 
+!!! note "Status"
+    This page describes the design of the gates. In the core, `merge` is the approval step of
+    the issue cycle. In this repository the gates are applied by hand: agents ask questions with
+    the label `needs-decision`, and the maintainer approves the roadmap, the specifications and
+    the merges of engine changes. What comes next is in the [roadmap](../project/roadmap.md).
+
 ## Approval states
 
 | Gate | Decided by |

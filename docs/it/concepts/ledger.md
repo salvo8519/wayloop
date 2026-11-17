@@ -1,12 +1,17 @@
 ---
 source: concepts/ledger.md
-source_hash: 66699d1042c9
+source_hash: 8fc71c47e375
 ---
 # Ledger
 
 Il ledger è un registro di eventi in sola aggiunta, scritto solo dal motore e mai da un
 modello. Lo stato del loop è una funzione del ledger: rileggendo gli eventi dall'inizio si
 ottiene sempre lo stesso stato.
+
+!!! note "Stato"
+    Questa pagina descrive il progetto del ledger, registrato
+    nell'[ADR 0003](https://salvo8519.github.io/wayloop/project/adr/0003-deterministic-ledger/). Oggi nessun codice scrive
+    o legge un ledger. Ciò che viene dopo è nella [roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
 | Elemento | Formato | Regola |
 | --- | --- | --- |
@@ -21,8 +26,8 @@ ottiene sempre lo stesso stato.
   schema; un'uscita non valida diventa un evento di errore, mai uno stato corrotto.
 - **Catena di hash.** Ogni evento contiene l'hash del precedente: una modifica o un buco nel
   registro si vedono subito.
-- **Il replay è testato.** Un test della CI rigioca il ledger e confronta lo stato con la
-  proiezione YAML.
+- **Il replay è un test.** Il progetto richiede un test della CI che rigiochi il ledger e
+  confronti lo stato con la proiezione YAML.
 
 ## Cicli di vita lunghi
 
@@ -43,8 +48,7 @@ storia del progetto.
 ## Trovare le cose
 
 I file sono la fonte; da essi si costruisce un indice SQLite con ricerca full-text, che si può
-sempre ricostruire. Gli agenti lo interrogano tramite la CLI e il server MCP, mai
-direttamente. Vedi
+sempre ricostruire. Gli agenti lo interrogano tramite il motore, mai direttamente. Vedi
 [ADR 0007](https://salvo8519.github.io/wayloop/project/adr/0007-files-as-source-sqlite-as-index/).
 
 ## Due memorie, dette chiaramente

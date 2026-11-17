@@ -49,6 +49,12 @@ repos:
         language: system
         pass_filenames: false
         files: ^(docs/en/|specs/|zensical\.toml)
+      - id: docs-claims
+        name: public pages state no plans in prose
+        entry: python3 scripts/docs_sync.py claims
+        language: system
+        pass_filenames: false
+        files: ^(README.*\.md|docs/(en|it)/|scripts/docs_sync\.py)
       - id: docs-impact
         name: documentation updated with the changes
         entry: python3 scripts/docs_sync.py impact --staged
