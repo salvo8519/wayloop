@@ -13,8 +13,8 @@ consequences. A decision is changed only by a new record that supersedes it.
 | [0006](0006-synchronous-core-asynchronous-runtime.md) | Synchronous pure core, asynchronous runtime | Proposed |
 | [0007](0007-files-as-source-sqlite-as-index.md) | Files as the source, SQLite as a derived index | Proposed |
 | [0008](0008-identifiers-and-traceability.md) | Identifiers and traceability between artifacts | Proposed |
-| [0009](0009-contract-guidelines.md) | Contract guidelines: envelope, errors and versioning | Proposed |
-| [0010](0010-configuration.md) | One configuration file with layered precedence | Proposed |
+| [0009](0009-contract-guidelines.md) | Contract guidelines: envelope, errors and versioning | Accepted |
+| [0010](0010-configuration.md) | One configuration file with layered precedence | Accepted |
 | [0011](0011-executors-behind-an-interface.md) | Executors behind an interface; no model calls in the core | Proposed |
 | [0012](0012-gates-on-the-tracker.md) | Approval gates are tracker states, not chat prompts | Proposed |
 | [0013](0013-worktree-per-issue.md) | One worktree per issue; lanes as the unit of parallelism | Proposed |
@@ -28,7 +28,7 @@ consequences. A decision is changed only by a new record that supersedes it.
 | [0021](0021-benchmark-methodology.md) | Benchmark methodology | Proposed |
 | [0022](0022-threat-model.md) | Threat model: content is data, executors have least privilege | Proposed |
 | [0023](0023-stability-policy.md) | Stability policy for 1.0 | Proposed |
-| [0024](0024-tool-definitions-for-agents.md) | Tool definitions for agents: MCP and function calling from one source | Proposed |
+| [0024](0024-tool-definitions-for-agents.md) | Tool definitions for agents: MCP and function calling from one source | Accepted |
 | [0025](0025-api-executor.md) | API executor for steps that do not edit code | Proposed |
 | [0026](0026-process-policy-in-the-core.md) | Process policy as registries, rules in the core and a ledger of results | Proposed |
 | [0027](0027-skills-agents-hooks-standard.md) | One standard and one source for skills, agents and hooks | Proposed |
