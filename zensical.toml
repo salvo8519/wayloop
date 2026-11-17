@@ -73,6 +73,7 @@ nav = [
       "project/adr/0026-process-policy-in-the-core.md",
       "project/adr/0027-skills-agents-hooks-standard.md",
       "project/adr/0028-one-contract-on-every-channel.md",
+      "project/adr/0029-merge-waived-by-policy.md",
     ] },
   ] },
 ]
