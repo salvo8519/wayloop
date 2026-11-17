@@ -90,4 +90,5 @@ parallel; each brief names the files to read.
 | Briefing for a new session | `uv run just state` |
 | Roadmap: plan, sync with GitHub | `uv run python scripts/roadmap.py list --open` / `sync` |
 | Roadmap: reproduce the plan on a repository | `uv run python scripts/bootstrap_github.py --dry-run` |
+| Required checks: offline, against the ruleset | `uv run python scripts/required_checks.py check` / `remote` |
 | Sprint: validate, state | `uv run python scripts/sprint.py validate sprints/SNN.yaml` |
