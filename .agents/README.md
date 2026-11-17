@@ -48,6 +48,9 @@ instructions are in `AGENTS.md` (all agents) and `CLAUDE.md` (Claude Code specif
 | `spec-new` | A specification from the template, with EARS requirements and bounded questions |
 | `adr-new` | An ADR with options, decision and consequences, indexed and in the navigation |
 | `plan-sprint` | A sprint file with lanes of disjoint paths, validated |
+| `pr-triage` | The merge queue: checks, conventions, roadmap, review by tier, merge or confirmation request |
+| `explain-changes` | Commits, pull requests or a diff explained in the reader's language |
+| `fix-ci` | A red CI run diagnosed, external failures told apart, the smallest correct fix |
 
 ## The standard (ADR 0027)
 
