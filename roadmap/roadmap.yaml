@@ -36,6 +36,10 @@ labels:
   - { name: "maintenance", color: "5319e7" }
   - { name: "no-docs-needed", color: "cfd3d7" }
   - { name: "docs-sync", color: "0F766E" }
+  - { name: "no-issue", color: "cfd3d7" }
+  - { name: "breaking-change", color: "b60205" }
+  - { name: "in-progress", color: "fbca04" }
+  - { name: "blocked", color: "000000" }
 
 milestones:
   - title: "M0 · Foundations"
@@ -69,7 +73,7 @@ milestones:
           - { issue: 144, title: "Documentation kept in sync with the project by a deterministic check", status: done }
           - { issue: 145, title: "Automated review of pull requests and documentation", status: done }
           - { issue: 146, title: "Decide on a GitHub Projects board for the roadmap", tags: [maintainer, needs-decision], status: open }
-          - { issue: 158, title: "Traceability rules of the project template written down and checked", status: open }
+          - { issue: 158, title: "Traceability rules of the project template written down and checked", status: done }
       - title: "Artifact model"
         issue: 18
         labels: ["area:core"]
