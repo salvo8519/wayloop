@@ -22,12 +22,16 @@ uv run just check
 
 ## Working with Claude Code
 
-The project settings in `.claude/settings.json` register three hooks:
+The project settings in `.claude/settings.json` register these hooks:
 
+- at session start, a short briefing: branch, issue, latest hand-over and its next step;
 - before each request, a reminder to propose roadmap changes before doing planned work;
+- before each edit, a released contract snapshot (`schemas/**/v<N>.json`) cannot be changed:
+  the next version is written instead;
 - after each edit, the written file is formatted (rustfmt for Rust, ruff for Python);
 - before the session ends, `scripts/docs_sync.py impact` lists changes that still need their
-  documentation, and the session continues until they have it.
+  documentation, and a session that committed today without a hand-over in
+  `.agents/journal/` is asked to write it.
 
 The hooks never block on a missing tool: they report it and the work goes on.
 

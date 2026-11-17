@@ -103,7 +103,7 @@ milestones:
           - { issue: 196, title: "Review and integration skills: pull request triage, explain changes, fix CI", status: open }
           - { issue: 197, title: "Documentation and release skills: translate, release, onboarding, retrospective, learnings, debt", status: open }
           - { issue: 198, title: "Skills for the work this repository repeats: add a command, contract cases, new skill or agent", status: open }
-          - { issue: 199, title: "Process hooks: protect contracts, session briefing, hand-over reminder", status: open }
+          - { issue: 199, title: "Process hooks: protect contracts, session briefing, hand-over reminder", status: done }
 
   - title: "M1 · Engine core"
     gate: "The engine replays a ledger to the same state on every platform and drives the issue cycle in a dry run on local fixtures."
