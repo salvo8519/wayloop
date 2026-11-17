@@ -31,3 +31,4 @@ consequences. A decision is changed only by a new record that supersedes it.
 | [0025](0025-api-executor.md) | API executor for steps that do not edit code | Proposed |
 | [0023](0023-stability-policy.md) | Stability policy for 1.0 | Proposed |
 | [0026](0026-process-policy-in-the-core.md) | Process policy as registries, rules in the core and a ledger of results | Proposed |
+| [0027](0027-skills-agents-hooks-standard.md) | One standard and one source for skills, agents and hooks | Proposed |
