@@ -59,6 +59,7 @@ milestones:
           - { issue: 44, title: "README and documentation follow the structure of the shared project template", status: open }
           - { issue: 157, title: "Plan the work checkout, the pull request ledger, naming rules in the engine, token saving and agent compatibility", status: done }
           - { issue: 171, title: "Plan the process policy in the engine and the loop improvements", status: done }
+          - { issue: 191, title: "Plan the process and system skills, agents and hooks", status: done }
       - title: "Process parity with the project template"
         issue: 136
         labels: ["area:infra"]
@@ -91,6 +92,18 @@ milestones:
           - { issue: 7, title: "Claude Code and Codex mirrors generated from .agents", tags: [parallel], status: done }
           - { issue: 8, title: "Session-start and session-end skills", tags: [parallel], status: done }
           - { issue: 159, title: "Agents merge their own pull requests; engine and contract changes wait for confirmation", status: done }
+      - title: "Process skills, agents and hooks"
+        issue: 205
+        labels: ["area:agents"]
+        tasks:
+          - { issue: 192, title: "Standard for skills, agents and hooks, checked in CI", status: open }
+          - { issue: 193, title: "Process agents of the project template", status: open }
+          - { issue: 194, title: "Planning skills: roadmap update, specification, ADR and sprint planning", status: open }
+          - { issue: 195, title: "Delivery skills: implement, run a sprint, pre-PR gate, commit, verify, debug, apply review", status: open }
+          - { issue: 196, title: "Review and integration skills: pull request triage, explain changes, fix CI", status: open }
+          - { issue: 197, title: "Documentation and release skills: translate, release, onboarding, retrospective, learnings, debt", status: open }
+          - { issue: 198, title: "Skills for the work this repository repeats: add a command, contract cases, new skill or agent", status: open }
+          - { issue: 199, title: "Process hooks: protect contracts, session briefing, hand-over reminder", status: open }
 
   - title: "M1 · Engine core"
     gate: "The engine replays a ledger to the same state on every platform and drives the issue cycle in a dry run on local fixtures."
@@ -280,6 +293,11 @@ milestones:
           - { issue: 114, title: "Claude Code plugin with skills, roles, hooks and MCP", spec: "0017", status: open }
           - { issue: 115, title: "Codex skills and package", tags: [parallel], spec: "0017", status: open }
           - { issue: 168, title: "Instructions for other coding agents generated from one source", spec: "0017", status: open }
+          - { issue: 200, title: "Approved specification of the skill and agent catalog of the system", spec: "0022", status: open }
+          - { issue: 201, title: "System skills for planning, from brief to issues", spec: "0022", status: open }
+          - { issue: 202, title: "System skills for delivery, from checkout to hand-over", spec: "0022", status: open }
+          - { issue: 203, title: "System skills for existing code and support: survey, document, gaps, debug, learnings", spec: "0022", status: open }
+          - { issue: 204, title: "System agents shipped with the plugins", spec: "0022", status: open }
       - title: "Distribution"
         issue: 37
         labels: ["area:release"]
