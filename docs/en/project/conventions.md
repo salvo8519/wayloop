@@ -191,6 +191,32 @@ CI run the same commands.
   `just python` runs the three; `just fmt` formats and applies the safe fixes. A finding is
   fixed, not silenced: a `noqa` or `type: ignore` needs a comment that says why.
 
+Problems are fixed where they appear, without the maintainer watching for them:
+
+- **Agents**: the Claude Code Stop hook `.claude/hooks/quality-gate.sh` runs the fast checks on
+  the files changed against `HEAD` (staged, unstaged and untracked): `rustfmt --check` and
+  `cargo clippy -p <crate> --all-targets -- -D warnings` for the touched crates, `ruff check`,
+  `ruff format --check` and `mypy` for changed Python. Findings block the end of the turn once,
+  so the agent fixes them first; the checks share a budget of 60 seconds, and a check that does
+  not finish in time is reported without blocking.
+- **Commits**: pre-commit applies `cargo fmt`, `ruff check --fix` and `ruff format` to the
+  staged files. A commit with unformatted code stops once with the files already fixed: stage
+  them and commit again. CI runs the same tools in check mode.
+- **Coverage**: CI runs the Rust tests instrumented by cargo-llvm-cov and the process tests with
+  pytest-cov, and writes both line coverage tables to the job summary. Line coverage of
+  `wayloop-core` must stay at or above the floor in the `justfile` (`core_coverage_floor`,
+  90 percent). The core holds all the decision logic and is fully covered today; the floor
+  leaves room for a few lines that only a defensive path reaches, and mutation testing judges
+  the strength of the tests better than a higher number would. `just coverage` measures
+  locally (it needs the `llvm-tools-preview` component); `just coverage 100` tries a floor.
+- **Mutation testing**: every week the maintenance workflow runs cargo-mutants on
+  `wayloop-core` (`just mutants` locally). A mutant that survives means a change in the logic
+  that no test notices; the surviving mutants are listed in the maintenance issue.
+- **Failures**: a failure of CI or of the documentation on `main`, or of a scheduled workflow,
+  opens or updates one issue labelled `bug` per workflow with the failing jobs and the link to
+  the log, and the next green run closes it (`scripts/failure_issue.py`). The session briefing
+  lists open `bug` and `maintenance` issues before anything else.
+
 ## House style
 
 No icons, emoji or decorative symbols in any file, commit message, issue or pull request.
