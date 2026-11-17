@@ -63,7 +63,7 @@ Every level of the loop must have a validated structure so that the engine can c
 - **AC13** (R12): Given a living specification in Markdown with a requirement missing its identifier, when validated, then the error carries the pointer `/requirements/1/id` and `source` with the file and line of the requirement. Verification: TDD.
 - **AC14** (R15): Given a task in status `approved` whose milestone is M2 under an epic of M1, when validated, then it is refused and the error names M2 and M1; given the same task in status `done`, then it passes. Verification: TDD.
 - **AC15** (R11): Given the branch `sprint/S01/42-ledger-hash-chain`, when validated, then it passes; given `sprint/1/42-ledger-hash-chain`, then it is refused with the reason `syntax`. Verification: TDD.
-- **AC16** (R11): Given the branches `dependabot/cargo/serde-1.0.200` and `release/v0.2.0`, when validated, then both pass without further checks. Verification: TDD.
+- **AC16** (R11): Given the branches `dependabot/cargo/serde-1.0.200`, `release/v0.2.0` and `revert-57-feat/12-ledger-hash-chain`, when validated, then all three pass without further checks. Verification: TDD.
 - **AC17** (R11): Given the branch `feat/42-one-two-three-four-five-six`, when validated, then it is refused with the reason `length`; given `feat/42-Ledger`, then it is refused with the reason `syntax`. Verification: TDD.
 - **AC18** (R11): Given the header `feat(core)!: drop the v1 envelope` with a `BREAKING CHANGE:` paragraph in the body, when validated, then it passes; without that paragraph, then it is refused with the reason `requires`. Verification: TDD.
 - **AC19** (R11): Given the header `revert: drop the hash chain`, when validated, then it passes; given `feat: chain events by hash`, then it is refused with the reason `missing` at the scope. Verification: TDD.
@@ -544,7 +544,7 @@ Branches:
 | --- | --- |
 | `<type>/<issue>-<slug>` | `<issue>` matching `[1-9][0-9]*`; `<slug>` of 1 to 5 words of `[a-z0-9]+` joined by single hyphens |
 | `sprint/S<NN>/<issue>-<slug>` | as above; `<NN>` two digits or more, the number of the sprint file |
-| `dependabot/<anything>`, `release/v<anything>` | exempt: accepted without further checks |
+| `dependabot/<anything>`, `release/v<anything>`, `revert-<n>-<anything>` | exempt: accepted without further checks |
 
 Commit header and pull request title:
 
