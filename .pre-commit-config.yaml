@@ -31,6 +31,17 @@ repos:
         language: system
         pass_filenames: false
         files: ^(roadmap/|specs/)
+      - id: docs-coverage
+        name: ADRs, specifications and navigation agree
+        entry: python3 scripts/docs_sync.py coverage
+        language: system
+        pass_filenames: false
+        files: ^(docs/en/|specs/|zensical\.toml)
+      - id: docs-impact
+        name: documentation updated with the changes
+        entry: python3 scripts/docs_sync.py impact --staged
+        language: system
+        pass_filenames: false
       - id: conventional-commit
         name: commit message follows docs/en/project/conventions.md
         entry: python3 scripts/conventions.py commit-msg

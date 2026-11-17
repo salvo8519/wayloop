@@ -11,6 +11,7 @@ check: style i18n process rust
 process:
     python -m pytest tests/process
     python scripts/required_checks.py check
+    python scripts/docs_sync.py coverage
     python scripts/check_yaml.py
     python scripts/check_task_ids.py
     python scripts/roadmap.py check
