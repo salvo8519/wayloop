@@ -25,7 +25,7 @@ From a plan to work that agents can take: stories, specifications and tasks must
 - **R2**: THE ENGINE SHALL generate stories with acceptance criteria from each epic as a proposal.
 - **R3**: THE ENGINE SHALL score the complexity of each task from 1 to 10 and expand tasks above the configured threshold into subtasks.
 - **R4**: THE ENGINE SHALL generate issues idempotently: the same identifier updates the same issue (ADR 0017).
-- **R5**: THE ENGINE SHALL turn each story into a sub-issue of its epic, and each task into a checklist item or, above the threshold, a sub-issue.
+- **R5**: THE ENGINE SHALL turn each story and each task into a sub-issue of its epic, whatever the complexity of the task; a task above the threshold is expanded into subtasks first (R3).
 - **R6**: THE ENGINE SHALL keep status consistent in both directions between files and tracker.
 
 ## Acceptance criteria

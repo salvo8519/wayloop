@@ -80,8 +80,8 @@ the lower-case value (`draft`).
 
 ### Identifiers
 
-The rules below are those of ADR 0008, which is Proposed; its acceptance (#4) is a dependency
-of this specification (see Dependencies and Q2).
+The rules below are those of ADR 0008, accepted with its amendment on the roles of the two
+identifiers (#4).
 
 - An identifier is a type prefix and a sequence: four digits or more, zero-padded, per type
   and per project, for example `STORY-0042`, `TASK-0107`.
@@ -92,9 +92,10 @@ of this specification (see Dependencies and Q2).
   council report `COUNCIL-0001 D3`, questions `COUNCIL-0001 Q1`. Part numbers are never reused
   within their artifact.
 - Links are checked by identifier, never by path (ADR 0008).
-- Tracker items also carry their tracker number (`issue`) once created. The tracker number is
-  what branches, commits and pull requests cite (conventions page); the artifact identifier is
-  what generation uses to find the same issue again (ADR 0017).
+- Tracker items also carry their tracker number (`issue`) once created. The artifact
+  identifier is the identity, kept in the structured block, and what generation uses to find
+  the same issue again (ADR 0017); the tracker number is what branches, commits and pull
+  requests cite (ADR 0008, conventions page). The pair never changes once recorded.
 
 | Type | Prefix and format | Example |
 | --- | --- | --- |
@@ -116,14 +117,14 @@ truth of the ledger, the state and the summaries, with SQLite only as a rebuilda
 
 | Type | Location | Reason |
 | --- | --- | --- |
-| Brief | Repository file, recommended (Q1) | Not settled by the ADRs; see Q1 |
-| Council report | Repository file, recommended (Q1) | Not settled by the ADRs; see Q1 |
+| Brief | Repository file; the engine posts its summary and open questions as a comment on the gate issue, where the person approves it | Decision of the maintainer (Q1): the file stays reviewable with a diff, the gate stays asynchronous in the tracker (ADR 0002) |
+| Council report | Repository file; the engine posts its decisions and questions as a comment on the gate issue, where the person approves it | As for the brief (Q1); a stable input for regenerating the roadmap (ADR 0017) |
 | Milestone | Tracker milestone | ADR 0002: the roadmap is in the tracker |
 | Epic | Tracker issue with the label `epic`, structured block in the body | ADR 0002: epics are in the tracker |
 | User story | Tracker sub-issue of its epic, structured block in the body | ADR 0002: stories are in the tracker; SPEC-0013 R5 |
 | Living specification | Repository file `specs/<NNNN>-<capability>/spec.md` | ADR 0002: specifications are in the repository; ADR 0014: one per capability |
 | Change delta | Repository folder of the change, layout fixed by SPEC-0009 | ADR 0002: specifications and their changes are reviewed with the code; ADR 0014 |
-| Task | Tracker sub-issue of its epic, structured block in the body (see Q3) | ADR 0002: tasks are in the tracker |
+| Task | Tracker sub-issue of its epic, structured block in the body, whatever its complexity | ADR 0002: tasks are in the tracker; decision of the maintainer (Q3): a pull request closes one planned task, which needs an issue |
 | Hand-over record | JSON file under `<git common dir>/wayloop/`, published as a comment on its issue | ADR 0007: runtime files are the source; ADR 0003: summaries are published on the issue, which is the durable memory |
 
 A plan item may exist as a file before its issue is generated (a proposal of SPEC-0013); the
@@ -328,24 +329,14 @@ its first comment states the requirement it breaks and the expected pointer and 
 - Validation exposed by `wayloop validate` (SPEC-0004, #6); project structure created by `wayloop init` (#5).
 
 ## Dependencies
-- Acceptance of ADR 0008 (#4): the identifier rules above follow it as written.
-- ADR 0007, ADR 0009, ADR 0014, ADR 0016 and ADR 0017 are Proposed; the location of hand-overs, the error report, change deltas, the council report and the identifier in the structured block depend on them.
+- ADR 0007, ADR 0008 and ADR 0009 are Accepted: the location of hand-overs, the identifier rules and the error report follow them.
+- ADR 0014, ADR 0016 and ADR 0017 are Proposed; change deltas, the council report and the identifier in the structured block depend on them.
 
 ## Plan and tasks
 `plan.md` and `tasks.md` are written after the maintainer approves this specification
 (`specs/README.md`, Agent workflow).
 
 ## Open questions
-- [ ] **Q1. Where do the council report and the brief live?** ADR 0002 places decisions and questions in the tracker and specifications in the repository; ADR 0016 does not name a location. The ADRs do not settle it.
-  - A. Repository file, linked from a tracker issue that carries the gate. Diffable, reviewed in a pull request like a specification, a stable input for regenerating the roadmap (ADR 0017). Approval needs a pull request.
-  - B. Issue body or comment, with the full report as an attachment. Closest to ADR 0002 and approvable from a phone. Attachments are not versioned, comments change without a diff, and bodies have a size limit.
-  - C. A, plus a comment on the gate issue with the decisions and the questions, written by the engine, and approval given on the issue.
-  - Recommendation: C for both artifacts. The file is the source and stays reviewable; the gate stays asynchronous and visible in the tracker, and the removal test holds.
-- [ ] **Q2. Identifiers of tracker items.** ADR 0008 gives every artifact a prefixed identifier (`TASK-0107`); the conventions page says the issue number is the code of an issue and that a parallel scheme would drift.
-  - A. Both, as written above: the artifact identifier is the identity, kept in the structured block; the issue number is the tracker key cited by branches, commits and pull requests.
-  - B. Prefixed identifiers only for repository artifacts; tracker items are identified by their issue number.
-  - Recommendation: A. ADR 0017 needs an identifier before the issue exists, so that generation finds the same issue again. To be settled with #4; if B is chosen, R14 and the identifier table change.
-- [ ] **Q3. Is every task a tracker sub-issue?** The conventions page and R9 make every task a sub-issue of an epic; SPEC-0013 R5 turns a task below the complexity threshold into a checklist item of its story.
-  - A. Every task is a sub-issue of its epic; the story is a field. R9 and R10 hold unchanged.
-  - B. Tasks below the threshold are checklist items without an issue; R10 then applies only to tasks with an issue.
-  - Recommendation: A, and align SPEC-0013 R5 to it: a pull request must close one planned task, which needs an issue.
+- [x] **Q1. Where do the council report and the brief live?** Decided by the maintainer on 2026-11-17: a repository file, plus a comment by the engine on the gate issue with the decisions and the questions; approval is given on the issue. See Where artifacts live.
+- [x] **Q2. Identifiers of tracker items.** Decided by the maintainer on 2026-11-17 with ADR 0008 (#4): both identifiers, with different roles. See Identifiers.
+- [x] **Q3. Is every task a tracker sub-issue?** Decided by the maintainer on 2026-11-17: yes, whatever its complexity; SPEC-0013 R5 is aligned. R9 and R10 hold unchanged.
