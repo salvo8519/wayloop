@@ -1,6 +1,6 @@
 # ADR 0024: Tool definitions for agents: MCP and function calling from one source
 
-Status: Proposed · 2026-11-17 (milestone M1 · Engine core; decision tracked in #110)
+Status: Accepted · 2026-11-17 (decided by the maintainer in #46)
 
 ## Context
 

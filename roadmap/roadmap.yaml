@@ -113,7 +113,7 @@ milestones:
         issue: 20
         labels: ["area:core"]
         tasks:
-          - { issue: 46, title: "Decide on ADR 0009, ADR 0010 and ADR 0024", tags: [maintainer, needs-decision], status: open }
+          - { issue: 46, title: "Decide on ADR 0009, ADR 0010 and ADR 0024", tags: [maintainer, needs-decision], status: done }
           - { issue: 47, title: "Crate layout for core, runtime and adapters", status: open }
       - title: "State machine"
         issue: 21
