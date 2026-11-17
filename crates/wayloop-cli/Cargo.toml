@@ -14,7 +14,8 @@ name = "wayloop"
 path = "src/main.rs"
 
 [dependencies]
-wayloop-core = { path = "../wayloop-core" }
+# The version follows the workspace version; crates.io requires it on a path dependency.
+wayloop-core = { path = "../wayloop-core", version = "0.0.0" }
 
 [lints]
 workspace = true
