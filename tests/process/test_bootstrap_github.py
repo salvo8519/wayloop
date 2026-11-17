@@ -1,4 +1,4 @@
-"""scripts/bootstrap_github.py: the plan is reproduced on a repository, offline with a fake GitHub."""
+"""scripts/bootstrap_github.py: the plan is reproduced on a repository, offline, fake GitHub."""
 
 from __future__ import annotations
 
@@ -89,11 +89,15 @@ class FakeGitHub:
 
 def run(target: FakeGitHub, source: FakeGitHub | None = None) -> int:
     p = bs.plan(DATA, set(target.labels), set(target.milestones), target.issues())
-    return bs.apply(p, target, target.issues_, source)
+    changes: int = bs.apply(p, target, target.issues_, source)
+    return changes
 
 
 def source_repo() -> FakeGitHub:
-    body = "Part of #10.\n\n## Outcome\nReplay.\n\n## Depends on\n- #11\n\n## Definition of done\nCloses #12"
+    body = (
+        "Part of #10.\n\n## Outcome\nReplay.\n\n## Depends on\n- #11\n\n"
+        "## Definition of done\nCloses #12"
+    )
     return FakeGitHub(
         {
             10: {"number": 10, "id": 10, "title": "Ledger", "body": "Epic."},

@@ -171,6 +171,26 @@ type `breaking`, `feature`, `improvement` or `fix`, unless the pull request is l
   `Docs-impact: none`. The local check runs as a commit-msg hook, so the trailer of the
   commit being written applies there too.
 
+## Code quality
+
+Linters enforce the quality of the code and how it handles errors; `just check`, pre-commit and
+CI run the same commands.
+
+- **Rust**: `cargo clippy --workspace --all-targets -- -D warnings` with the `all` and
+  `pedantic` groups and the restriction lints of the workspace manifest that refuse a panic in
+  the code that ships: `unwrap_used`, `expect_used`, `panic`, `todo`, `unimplemented`,
+  `unreachable`, `indexing_slicing`, `string_slice`, `get_unwrap`, `panic_in_result_fn`, `exit`
+  and `mem_forget`. Tests may unwrap, expect, panic and index (`clippy.toml`). A failure is a
+  value: the error type of the core carries the code, reason and pointer of ADR 0009 (C3).
+- **Python** (`scripts/`, `tests/`, `.claude/hooks/`): `ruff check` with the rules of
+  `pyproject.toml`: errors and style (`E`, `W`), likely mistakes (`F`, `B`), imports (`I`),
+  modern syntax (`UP`), simpler code (`SIM`), ruff's own checks (`RUF`), an explicit encoding on
+  every file read and write (`PLW1514`), and error handling: no blind `except Exception`
+  (`BLE`), no silent `try`-`except`-`pass` (`S110`), exceptions raised and caught with care
+  (`TRY`). `ruff format --check` keeps one format, and `mypy` in strict mode checks the types.
+  `just python` runs the three; `just fmt` formats and applies the safe fixes. A finding is
+  fixed, not silenced: a `noqa` or `type: ignore` needs a comment that says why.
+
 ## House style
 
 No icons, emoji or decorative symbols in any file, commit message, issue or pull request.

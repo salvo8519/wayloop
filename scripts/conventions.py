@@ -39,7 +39,9 @@ BRANCH = re.compile(
     rf"^(?P<type>{'|'.join(TYPES)})/(?P<issue>\d+)-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)$"
 )
 BRANCH_EXEMPT = re.compile(r"^(dependabot/|release/v\d|revert-\d+-)")
-ISSUE_LINK = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)\b", re.IGNORECASE)
+ISSUE_LINK = re.compile(
+    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)\b", re.IGNORECASE
+)
 
 
 def check_header(header: str, *, bot: bool = False) -> list[str]:
@@ -92,7 +94,8 @@ def check_pull_request(
     b = BRANCH.match(branch)
     if not b and not BRANCH_EXEMPT.match(branch):
         problems.append(
-            f"branch: '{branch}' is not '<type>/<issue>-<slug>' (for example feat/42-ledger-hash-chain)."
+            f"branch: '{branch}' is not '<type>/<issue>-<slug>'"
+            " (for example feat/42-ledger-hash-chain)."
         )
     if "no-issue" not in labels:
         if not linked:

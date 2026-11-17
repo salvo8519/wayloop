@@ -56,7 +56,7 @@ def test_a_hand_edited_mirror_fails_the_check(repo: Path) -> None:
 def test_a_mirror_without_source_fails_the_check(repo: Path) -> None:
     run()
     (repo / ".claude" / "agents" / "orphan.md").write_text("x\n", encoding="utf-8")
-    with pytest.raises(SystemExit, match="orphan.md"):
+    with pytest.raises(SystemExit, match=r"orphan\.md"):
         run("--check")
 
 

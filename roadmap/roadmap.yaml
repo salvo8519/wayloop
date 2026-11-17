@@ -121,6 +121,7 @@ milestones:
           - { issue: 47, title: "Crate layout for core, runtime and adapters", status: done }
           - { issue: 228, title: "Issue step identifiers are snake_case contract values", spec: "0001", status: open }
           - { issue: 233, title: "Merge waived by policy for small changes and staleness scoped to the issue", status: done }
+          - { issue: 238, title: "Linters enforce code quality and error handling in Rust and Python", status: done }
       - title: "State machine"
         issue: 21
         labels: ["area:core"]

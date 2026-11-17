@@ -21,6 +21,8 @@ dev = [
   "pre-commit>=4",
   "git-cliff>=2.6",
   "towncrier>=24.8",
+  "mypy>=1.13",
+  "types-pyyaml>=6",
 ]
 docs = [
   "zensical>=0.1",
@@ -29,6 +31,28 @@ docs = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint]
+# Errors and style (E, W), mistakes (F, B), imports (I), modern syntax (UP), simpler code (SIM),
+# ruff's own checks (RUF), and error handling: no blind except (BLE), exceptions raised and
+# caught with care (TRY), no silent try-except-pass (S110), explicit encoding (PLW1514).
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF", "BLE", "TRY", "S110", "PLW1514"]
+# PLW1514 is a preview rule in ruff; explicit-preview-rules keeps every other preview rule off
+# unless it is selected by its exact code.
+preview = true
+explicit-preview-rules = true
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["scripts", "tests/process", ".claude/hooks"]
+# Every file is a standalone script, not a package: the same base name may not appear twice.
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+# fontTools ships no type information; scripts/brand.py is run by hand, with the fonts.
+module = ["fontTools.*"]
+ignore_missing_imports = true
 
 [tool.towncrier]
 name = "Wayloop"

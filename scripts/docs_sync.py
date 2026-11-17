@@ -104,9 +104,7 @@ def missing_docs(files: list[str]) -> list[str]:
 def waived_by_message(path: Path) -> bool:
     """True when the trailer block of a commit message says `Docs-impact: none`."""
     lines = [
-        line
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if not line.startswith("#")
+        line for line in path.read_text(encoding="utf-8").splitlines() if not line.startswith("#")
     ]
     paragraphs = "\n".join(lines).strip().split("\n\n")
     if len(paragraphs) < 2:

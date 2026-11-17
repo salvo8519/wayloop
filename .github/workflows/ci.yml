@@ -32,6 +32,12 @@ jobs:
       - name: Translations current (or labelled translation-pending)
         if: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'translation-pending') }}
         run: uv run python scripts/i18n.py check
+      - name: Python lint, error handling and format (ruff)
+        run: |
+          uv run ruff check --output-format github scripts tests .claude/hooks
+          uv run ruff format --check scripts tests .claude/hooks
+      - name: Python types (mypy strict)
+        run: uv run mypy
       - name: Process scripts tested
         run: uv run pytest tests/process
       - name: Required checks reported on pull requests

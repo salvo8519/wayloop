@@ -107,6 +107,7 @@ change and the order of dependent branches stays with whoever built them.
 | Set up | `uv sync --all-groups` |
 | Full gate | `uv run just check` |
 | Format | `uv run just fmt` |
+| Python: lint, format check, strict types | `uv run just python` |
 | Build the documentation | `uv run just docs` |
 | Preview the documentation | `uv run just docs-serve` or `uv run just docs-serve it` |
 | Translation status | `uv run just i18n-status` |

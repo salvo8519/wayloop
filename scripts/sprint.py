@@ -294,7 +294,7 @@ def origin_repo() -> str:
 def lane_of(sprint: dict[str, Any], issue: int) -> str:
     for lane in sprint["lanes"]:
         if issue in lane.get("issues", []):
-            return lane["name"]
+            return str(lane["name"])
     sys.exit(
         f"#{issue} is not in the lanes of {sprint.get('id', 'the sprint')}: "
         "the state is only written for the issues of the sprint file"
