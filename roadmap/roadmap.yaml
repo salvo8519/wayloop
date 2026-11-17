@@ -60,6 +60,7 @@ milestones:
           - { issue: 157, title: "Plan the work checkout, the pull request ledger, naming rules in the engine, token saving and agent compatibility", status: done }
           - { issue: 171, title: "Plan the process policy in the engine and the loop improvements", status: done }
           - { issue: 191, title: "Plan the process and system skills, agents and hooks", status: done }
+          - { issue: 220, title: "Plan one contract on every channel with translation adapters and a channel reconciler", status: done }
       - title: "Process parity with the project template"
         issue: 136
         labels: ["area:infra"]
@@ -144,6 +145,7 @@ milestones:
           - { issue: 56, title: "wayloop.toml with schema and precedence", spec: "0004", status: open }
           - { issue: 57, title: "Next, status, history and rulings commands", spec: "0004", status: open }
           - { issue: 163, title: "Cost report per issue, phase and role", spec: "0004", status: open }
+          - { issue: 221, title: "Contract cases run through one entry point by a channel-independent runner", spec: "0004", status: open }
       - title: "Engine documentation"
         issue: 24
         labels: ["area:docs"]
@@ -308,6 +310,7 @@ milestones:
           - { issue: 116, title: "Reusable GitHub Action for validation and remote execution", status: open }
           - { issue: 118, title: "Pipeline to crates.io, PyPI, npm and plugin marketplaces", spec: "0018", status: open }
           - { issue: 119, title: "0.5.0 preview on every channel", tags: [maintainer], status: open }
+          - { issue: 222, title: "Channel reconciler checks every channel against the envelope of the engine", spec: "0004", status: open }
       - title: "Installation guides"
         issue: 38
         labels: ["area:docs"]

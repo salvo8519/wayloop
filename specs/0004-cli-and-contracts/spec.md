@@ -5,7 +5,7 @@
 | Status | Draft |
 | Milestone | M1 · Engine core |
 | Owner | @salvo8519 |
-| Related | ADR 0009, ADR 0010, #53, #54, #55, #56, #57, #163 |
+| Related | ADR 0009, ADR 0010, ADR 0028, #53, #54, #55, #56, #57, #163, #221, #222 |
 | Commit scope | cli |
 
 ## Problem
@@ -14,7 +14,7 @@ Agents and people drive the engine through commands. Every command must speak th
 ## Scope
 **In scope:** Command set (init, validate, next, status, history, rulings, run, plan, issues, survey), JSON envelope, error model and exit codes (ADR 0009), configuration file and precedence (ADR 0010), output budget.
 
-**Out of scope:** Language bindings (SPEC-0014, SPEC-0015) and the MCP server (SPEC-0016).
+**Out of scope:** Language bindings (SPEC-0014, SPEC-0015) and the MCP server (SPEC-0016), except the rules every channel follows (R14 to R17, ADR 0028).
 
 ## User stories
 - As an agent, I want every command to return JSON with a stable shape, so that I parse it without guessing.
@@ -34,6 +34,10 @@ Agents and people drive the engine through commands. Every command must speak th
 - **R11**: THE ENGINE SHALL compute `meta.input_hash` as the SHA-256 of the input serialised as canonical JSON (RFC 8785).
 - **R12**: THE ENGINE SHALL report the revision, the hash of the latest ledger event, in `meta.revision` of every result that reads state (ADR 0009 C6).
 - **R13**: THE ENGINE SHALL return the effective configuration with the source of every value with `wayloop config show`.
+- **R14**: THE ENGINE SHALL expose one entry point that takes a command, its canonical input and a context (output budget, read-only mode, dry run) and returns the envelope; every channel SHALL call it and SHALL only translate its native input to the canonical input and the envelope to its native output (ADR 0028).
+- **R15**: THE ENGINE SHALL return, for the same input and the same context, the same envelope byte for byte in canonical JSON on every channel and platform, and SHALL place no clock time, host name or absolute path in the envelope.
+- **R16**: WHEN a command is refused, EVERY CHANNEL SHALL carry the whole envelope in its native error form: exit code of ADR 0009 C7 for the command line, a typed exception holding the envelope for the SDKs, an error result holding the envelope for the MCP server.
+- **R17**: THE PROJECT SHALL check every channel with a channel reconciler that sends each golden contract case through the translation of the channel, rebuilds the envelope with the inverse translation and compares it with the envelope of the entry point, reporting the channel and the JSON pointer of every difference.
 
 ## Acceptance criteria
 - **AC1**: Given each command, when run with an input holding three independent errors, then errors lists all three, each with pointer, reason, expected and fix. Verification: contract test.
@@ -45,6 +49,11 @@ Agents and people drive the engine through commands. Every command must speak th
 - **AC7**: Given the same input with keys in different orders, when hashed on two platforms, then `input_hash` is identical. Verification: property test.
 - **AC8**: Given a project key in the user file, when the configuration is read, then it is refused with the pointer and the fix. Verification: TDD.
 - **AC9**: Given a value set by an environment variable, when `wayloop config show` runs, then the value and the source environment are reported. Verification: TDD.
+- **AC10**: Given every golden contract case, when run through the entry point and through the command line, then the two envelopes are identical in canonical JSON (R14, R15). Verification: contract test.
+- **AC11**: Given an envelope that holds a clock time, a host name or an absolute path, when checked by the contract runner, then the check fails with the pointer of the value (R15). Verification: contract test.
+- **AC12**: Given a refused input, when sent through every channel, then each native error form carries the same envelope (R16). Verification: contract test.
+- **AC13**: Given an adapter that drops one output field, when the channel reconciler runs, then it fails naming the channel and the pointer of the field (R17). Verification: contract test.
+- **AC14**: Given the same input in the function-calling format of each supported provider, when translated, then every translation gives the same `input_hash` (R14, R15). Verification: contract test.
 
 ## Interfaces
 - schemas/commands/<command>/v<N>.json and v<N>.output.json; schemas/index.json; error codes and reasons documented in the reference (ADR 0009).
