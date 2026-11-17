@@ -1,0 +1,68 @@
+# Scenario: one issue of tier substantial from its first claim to done (SPEC-0002 AC35).
+# A trace, not an event fixture: event names and fields of SPEC-0002 only; payload shapes
+# come from SPEC-0003. Each entry gives the consumed event and the expected issue after it.
+scenario: issue_cycle_happy_path
+limits: {turns_per_issue: 20, attempts: 3, same_failure: 2, executor_retries: 2, lease_minutes: 120}
+approvers: {merge: [maintainer]}
+initial:
+  phase: delivery
+  sprint: {id: S01, lanes: [{name: core, issues: [12]}]}
+  artifacts:
+    - {id: M1, status: approved}
+    - {id: EPIC-0001, status: approved}
+    - {id: STORY-0001, status: approved}
+    - {id: SPEC-0001, status: approved}
+    - {id: TASK-0001, issue: 12, status: approved, area: core, depends_on: [], specification: [SPEC-0001]}
+  issues:
+    - {issue: 12, issue_state: open, tier: substantial, holds: [], turns: 0, attempts: 1}
+steps:
+  - consume: {event: claim_requested, class: command, issue: 12, holder: agent-a}
+    expect:
+      issue_state: claim
+      checkout: agent-a
+      record: [issue_claimed, artifact_status_changed]
+      artifacts: {TASK-0001: implementing, STORY-0001: implementing, SPEC-0001: implementing, EPIC-0001: implementing, M1: implementing}
+  - consume: {event: step_requested, class: command, issue: 12, step: claim}
+    expect: {issue_state: claim, dispatch: D1, turns: 0, record: [step_started]}
+  - consume: {event: step_result_submitted, class: result, dispatch: D1, outcome: completed}
+    expect: {issue_state: reanalysis, record: [step_completed]}
+  - consume: {event: step_requested, class: command, issue: 12, step: reanalysis}
+    expect: {dispatch: D2, turns: 1, record: [step_started]}
+  - consume: {event: step_result_submitted, class: result, dispatch: D2, outcome: completed}
+    expect: {issue_state: counter_review, record: [step_completed]}
+  - consume: {event: step_requested, class: command, issue: 12, step: counter_review}
+    expect: {dispatch: D3, turns: 2, record: [step_started]}
+  - consume: {event: step_result_submitted, class: result, dispatch: D3, outcome: completed}
+    expect: {issue_state: checklist, record: [step_completed]}
+  - consume: {event: step_requested, class: command, issue: 12, step: checklist}
+    expect: {dispatch: D4, turns: 3, record: [step_started]}
+  - consume: {event: step_result_submitted, class: result, dispatch: D4, outcome: completed}
+    expect: {issue_state: build, record: [step_completed]}
+  - consume: {event: step_requested, class: command, issue: 12, step: build}
+    expect: {dispatch: D5, turns: 4, record: [step_started]}
+  - consume: {event: step_result_submitted, class: result, dispatch: D5, outcome: completed}
+    expect: {issue_state: verify, record: [step_completed]}
+  - consume: {event: step_requested, class: command, issue: 12, step: verify}
+    expect: {dispatch: D6, turns: 4, record: [step_started]}
+  - consume: {event: verification_completed, class: result, dispatch: D6, checks: [{name: unit, passed: true}]}
+    expect: {issue_state: review, record: [step_completed]}
+  - consume: {event: step_requested, class: command, issue: 12, step: review}
+    expect: {dispatch: D7, turns: 5, record: [step_started]}
+  - consume: {event: step_result_submitted, class: result, dispatch: D7, outcome: completed}
+    expect: {issue_state: pull_request, record: [step_completed]}
+  - consume: {event: step_requested, class: command, issue: 12, step: pull_request}
+    expect: {dispatch: D8, record: [step_started]}
+  - consume: {event: pull_request_opened, class: observation, source_key: pr-40-opened, pull_request: 40}
+    expect: {issue_state: pull_request, dispatch: null, record: [pull_request_opened, step_completed]}
+  - consume: {event: checks_completed, class: observation, source_key: pr-40-checks-1, failing: []}
+    expect: {issue_state: merge, record: [checks_completed, gate_opened]}
+  - consume: {event: approval_given, class: observation, source_key: pr-40-approval, actor: agent-b, decision: approve}
+    expect: {issue_state: merge, gate: pending, record: [input_ignored], code: actor_not_authorised}
+  - consume: {event: approval_given, class: observation, source_key: pr-40-approval-2, actor: maintainer, decision: approve}
+    expect: {issue_state: merge, gate: resolved, record: [approval_given, gate_resolved]}
+  - consume: {event: pull_request_merged, class: observation, source_key: pr-40-merged, actor: maintainer}
+    expect:
+      issue_state: done
+      checkout: null
+      record: [pull_request_merged, issue_done, issue_released, artifact_status_changed]
+      artifacts: {TASK-0001: done, STORY-0001: done, EPIC-0001: done}

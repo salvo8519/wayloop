@@ -1,0 +1,40 @@
+# Scenario: a stale command, a lease expiry and a new claim that resumes (SPEC-0002 R16, R29,
+# R33, AC29, AC32, AC35). Uses the scoped staleness rule recommended in Q3 and the resume rule
+# recommended in Q4. Revisions are symbolic: rev-N is the head after the N-th recorded
+# event, and rev-13 is the head after the lease expiry. A trace, not an event fixture: event
+# names and fields of SPEC-0002 only.
+scenario: issue_cycle_release_and_stale
+limits: {turns_per_issue: 20, attempts: 3, same_failure: 2, executor_retries: 2, lease_minutes: 120}
+initial:
+  revision: rev-10
+  sprint: {id: S01, lanes: [{name: core, issues: [12]}, {name: docs, issues: [13]}]}
+  artifacts:
+    - {id: TASK-0001, issue: 12, status: implementing}
+  issues:
+    - {issue: 12, issue_state: build, checkout: {holder: agent-a, lease_expires_at: "2026-11-17T12:00:00Z"}, holds: [], turns: 4, attempts: 1}
+    - {issue: 13, issue_state: reanalysis, checkout: {holder: agent-b, lease_expires_at: "2026-11-17T13:00:00Z"}, holds: []}
+steps:
+  - consume: {event: step_requested, class: command, issue: 13, step: reanalysis, expected_revision: rev-10}
+    expect: {revision: rev-11, record: [step_started]}
+  - consume: {event: step_requested, class: command, issue: 12, step: build, expected_revision: rev-10}
+    note: The event after rev-10 names issue 13 only, so the revision is not stale for issue 12 under Q3 (b).
+    expect: {revision: rev-12, dispatch: D1, record: [step_started]}
+  - consume: {event: session_ended, class: command, issue: 12, holder: agent-a, expected_revision: rev-11}
+    expect: {refused: revision_stale, expected: [rev-12], record: []}
+  - next_steps: {now: "2026-11-17T12:30:00Z", free_workers: 1}
+    expect: {actions: [{kind: expire_lease, issue: 12}]}
+  - consume: {event: lease_expired, class: observation, source_key: lease-12-1, issue: 12, observed_at: "2026-11-17T12:30:00Z"}
+    expect:
+      issue_state: build
+      checkout: null
+      dispatch: null
+      record: [lease_expired, issue_released, artifact_status_changed]
+      artifacts: {TASK-0001: approved}
+  - consume: {event: step_result_submitted, class: result, dispatch: D1, outcome: completed}
+    expect: {refused: dispatch_stale, record: []}
+  - consume: {event: claim_requested, class: command, issue: 12, holder: agent-c, expected_revision: rev-13}
+    expect:
+      issue_state: build
+      checkout: agent-c
+      record: [issue_claimed, artifact_status_changed]
+      artifacts: {TASK-0001: implementing}

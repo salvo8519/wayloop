@@ -1,0 +1,35 @@
+# Scenario: the same check fails on two consecutive attempts (SPEC-0002 R21, R22, AC23, AC35).
+# A trace, not an event fixture: event names and fields of SPEC-0002 only.
+scenario: issue_cycle_repeated_failure
+limits: {turns_per_issue: 20, attempts: 3, same_failure: 2, executor_retries: 2, lease_minutes: 120}
+approvers: {question: [maintainer]}
+initial:
+  issues:
+    - {issue: 12, issue_state: verify, tier: substantial, checkout: agent-a, holds: [], turns: 4, attempts: 1, failures: {}}
+steps:
+  - consume: {event: step_requested, class: command, issue: 12, step: verify}
+    expect: {dispatch: D1, record: [step_started]}
+  - consume: {event: verification_completed, class: result, dispatch: D1, checks: [{name: unit, passed: false}, {name: lint, passed: true}]}
+    expect: {issue_state: build, attempts: 2, failures: {unit: 1}, holds: [], record: [attempt_failed]}
+  - consume: {event: step_requested, class: command, issue: 12, step: build}
+    expect: {dispatch: D2, turns: 5, record: [step_started]}
+  - consume: {event: step_result_submitted, class: result, dispatch: D2, outcome: completed}
+    expect: {issue_state: verify, record: [step_completed]}
+  - consume: {event: step_requested, class: command, issue: 12, step: verify}
+    expect: {dispatch: D3, record: [step_started]}
+  - consume: {event: verification_completed, class: result, dispatch: D3, checks: [{name: unit, passed: false}, {name: lint, passed: true}]}
+    expect:
+      issue_state: build
+      failures: {unit: 2}
+      holds: [{reason: question, question: Q-12-1}]
+      record: [attempt_failed, gate_opened, issue_blocked]
+      question: {category: repeated_failure, options: [retry, stop]}
+  - consume: {event: step_requested, class: command, issue: 12, step: build}
+    expect: {refused: issue_on_hold, record: []}
+  - consume: {event: answer_given, class: observation, source_key: c-901, actor: maintainer, question: Q-12-1, option: retry}
+    expect:
+      issue_state: build
+      attempts: 1
+      failures: {}
+      holds: []
+      record: [answer_given, question_answered, gate_resolved, issue_unblocked]
