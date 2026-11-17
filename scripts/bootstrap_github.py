@@ -57,6 +57,19 @@ class Item:
     number: int | None = None  # issue number in the target repository, once matched or created
     how: str = ""  # "number", "title" or "create"
 
+    def target(self) -> int:
+        """The issue number in the target repository; apply() sets it before reading it."""
+        if self.number is None:
+            raise UnmatchedItemError(self)
+        return self.number
+
+
+class UnmatchedItemError(LookupError):
+    """An item was read before it was matched to an issue or created."""
+
+    def __init__(self, item: Item) -> None:
+        super().__init__(f"{item.kind} '{item.title}' has no issue in the target repository")
+
 
 @dataclass
 class Plan:
@@ -217,20 +230,20 @@ def apply(p: Plan, gh: GitHub, issues: dict[int, dict[str, Any]], source: GitHub
             for c in (
                 []
                 if gh.dry_run and epic.how == "create"
-                else gh.pages(f"issues/{epic.number}/sub_issues")
+                else gh.pages(f"issues/{epic.target()}/sub_issues")
             )
         }
         for task in (i for i in p.items if i.parent is epic):
-            if task.number not in children:
+            if task.target() not in children:
                 gh.api(
                     "POST",
-                    f"issues/{epic.number}/sub_issues",
-                    {"sub_issue_id": issues[task.number]["id"], "replace_parent": True},
+                    f"issues/{epic.target()}/sub_issues",
+                    {"sub_issue_id": issues[task.target()]["id"], "replace_parent": True},
                 )
                 changes += 1
 
     for task in (i for i in p.items if i.kind == "task"):
-        body = issues.get(task.number, {}).get("body") or ""
+        body = issues.get(task.target(), {}).get("body") or ""
         if task.how == "create" and source:
             body = renumber(source_issues.get(task.planned or -1, {}).get("body") or "", mapping)
         wanted = [mapping.get(n, n) for n in depends_on(body)]
@@ -239,13 +252,13 @@ def apply(p: Plan, gh: GitHub, issues: dict[int, dict[str, Any]], source: GitHub
         have = (
             set()
             if task.how == "create" and gh.dry_run
-            else {d["number"] for d in gh.pages(f"issues/{task.number}/dependencies/blocked_by")}
+            else {d["number"] for d in gh.pages(f"issues/{task.target()}/dependencies/blocked_by")}
         )
         for blocker in wanted:
             if blocker not in have and blocker in issues:
                 gh.api(
                     "POST",
-                    f"issues/{task.number}/dependencies/blocked_by",
+                    f"issues/{task.target()}/dependencies/blocked_by",
                     {"issue_id": issues[blocker]["id"]},
                 )
                 changes += 1
@@ -270,9 +283,8 @@ def main(argv: list[str] | None = None) -> int:
     source = GitHub(args.source, True) if args.source else None
     changes = apply(p, gh, issues, source)
     created = sum(1 for i in p.items if i.how == "create")
-    print(
-        f"{len(p.items)} epics and tasks, {created} to create; {changes} changes{' (dry run)' if args.dry_run else ''}."
-    )
+    dry_run = " (dry run)" if args.dry_run else ""
+    print(f"{len(p.items)} epics and tasks, {created} to create; {changes} changes{dry_run}.")
     return 0
 
 

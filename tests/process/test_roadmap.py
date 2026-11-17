@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -85,14 +86,16 @@ def test_the_page_includes_the_generated_tables() -> None:
     assert roadmap.INCLUDE in roadmap.PAGE.read_text(encoding="utf-8")
 
 
-def test_a_page_without_the_include_is_refused(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_a_page_without_the_include_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     page = tmp_path / "roadmap.md"
     page.write_text("# Roadmap\n\nTables pasted by hand.\n", encoding="utf-8")
     monkeypatch.setattr(roadmap, "PAGE", page)
     assert any("must include the generated tables" in p for p in roadmap.problems_of(data()))
 
 
-def test_write_page_produces_the_tables(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_write_page_produces_the_tables(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     target = tmp_path / ".generated" / "ROADMAP.md"
     monkeypatch.setattr(roadmap, "GENERATED_PAGE", target)
     d = data()
@@ -182,7 +185,9 @@ def test_releases_must_be_semver_and_not_decrease() -> None:
     assert any("must not decrease" in p for p in roadmap.problems_of(d))
 
 
-def test_the_file_must_be_in_canonical_form(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_the_file_must_be_in_canonical_form(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     copy_of = tmp_path / "roadmap.yaml"
     copy_of.write_text(roadmap.ROADMAP.read_text(encoding="utf-8") + "\n# note\n", encoding="utf-8")
     monkeypatch.setattr(roadmap, "ROADMAP", copy_of)
@@ -208,7 +213,9 @@ def test_unknown_keys_of_the_file_milestones_and_epics_are_refused() -> None:
     assert sum("unknown keys ['owner']" in p for p in problems) == 2
 
 
-def test_a_file_that_is_not_a_mapping_is_refused(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_a_file_that_is_not_a_mapping_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     bad = tmp_path / "roadmap.yaml"
     bad.write_text("- a list\n", encoding="utf-8")
     monkeypatch.setattr(roadmap, "ROADMAP", bad)
@@ -216,7 +223,7 @@ def test_a_file_that_is_not_a_mapping_is_refused(monkeypatch, tmp_path) -> None:
         roadmap.load()
 
 
-def test_a_failed_github_call_stops_with_its_error(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_a_failed_github_call_stops_with_its_error(monkeypatch: pytest.MonkeyPatch) -> None:
     class Done:
         returncode, stdout, stderr = 1, "", "HTTP 404"
 
@@ -225,7 +232,7 @@ def test_a_failed_github_call_stops_with_its_error(monkeypatch) -> None:  # type
         roadmap.gh("repos/x/y")
 
 
-def test_new_issue_needs_a_known_milestone_on_both_sides(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_new_issue_needs_a_known_milestone_on_both_sides(monkeypatch: pytest.MonkeyPatch) -> None:
     import argparse
 
     args = argparse.Namespace(milestone="M9", epic="E", title="T", labels="", spec=None, body=None)
@@ -237,7 +244,7 @@ def test_new_issue_needs_a_known_milestone_on_both_sides(monkeypatch) -> None:  
         roadmap.new_issue(args)
 
 
-def test_sync_refuses_a_milestone_missing_on_github(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_sync_refuses_a_milestone_missing_on_github(monkeypatch: pytest.MonkeyPatch) -> None:
     d = data()
     m, _e, t = roadmap.tasks(d)[0]
     monkeypatch.setattr(roadmap, "load", lambda: d)
@@ -280,9 +287,12 @@ def test_a_title_may_start_with_a_command_name() -> None:
 # links: how GitHub names and links the issues of the plan
 
 
-def github_mirror(d: dict) -> tuple[dict, dict, dict, set]:  # type: ignore[type-arg]
+def github_mirror(
+    d: dict[str, Any],
+) -> tuple[dict[int, Any], dict[int, set[int]], dict[int, set[int]], set[str]]:
     """A GitHub that agrees with the roadmap: issues, sub-issues, blockers and labels."""
-    issues, children = {}, {}
+    issues: dict[int, Any] = {}
+    children: dict[int, set[int]] = {}
     for m in d["milestones"]:
         for e in m["epics"]:
             issues[e["issue"]] = {
@@ -303,7 +313,7 @@ def github_mirror(d: dict) -> tuple[dict, dict, dict, set]:  # type: ignore[type
     return issues, children, {}, {lbl["name"] for lbl in d["labels"]}
 
 
-def linked_data() -> dict:  # type: ignore[type-arg]
+def linked_data() -> dict[str, Any]:
     d = data()
     for k, m in enumerate(d["milestones"]):
         for j, e in enumerate(m["epics"]):
@@ -338,7 +348,7 @@ def test_links_agree_when_github_mirrors_the_roadmap() -> None:
         (lambda i, c, b, lab, t, e: i.pop(t), "does not exist on GitHub"),
     ],
 )
-def test_each_link_rule_is_reported(break_it, message: str) -> None:  # type: ignore[no-untyped-def]
+def test_each_link_rule_is_reported(break_it: Callable[..., object], message: str) -> None:
     d = linked_data()
     if not any(lbl["name"] == "epic" for lbl in d["labels"]):
         d["labels"].append({"name": "epic", "color": "000000"})

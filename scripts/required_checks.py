@@ -75,10 +75,12 @@ def job_names(job_id: str, job: dict[str, Any]) -> list[str]:
     if not MATRIX_REF.search(name):
         return [name]
     matrix = (job.get("strategy") or {}).get("matrix") or {}
-    names = []
-    for combo in combinations(matrix):
-        names.append(MATRIX_REF.sub(lambda m, c=combo: str(c.get(m.group(1), "")), name))
-    return names
+    return [_expand(name, combo) for combo in combinations(matrix)]
+
+
+def _expand(name: str, combo: dict[str, Any]) -> str:
+    """The job name with each matrix reference replaced by its value in one combination."""
+    return MATRIX_REF.sub(lambda m: str(combo.get(m.group(1), "")), name)
 
 
 def produced_on_pull_requests(workflow_dir: Path = WORKFLOWS) -> dict[str, str]:

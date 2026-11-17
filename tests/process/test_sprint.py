@@ -6,12 +6,14 @@ import importlib.util
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "sprint.py"
 _spec = importlib.util.spec_from_file_location("sprint", SCRIPT)
+assert _spec and _spec.loader
 sp = importlib.util.module_from_spec(_spec)
 sys.modules["sprint"] = sp
 _spec.loader.exec_module(sp)
@@ -72,14 +74,14 @@ def test_write_state_creates_the_file_with_the_first_step(tmp_path: Path, fixed_
 
 
 def test_state_updates_increment_agent_steps_and_keep_started(
-    tmp_path: Path, fixed_now: None
+    tmp_path: Path, fixed_now: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import datetime as dt
 
     f = sprint_file(tmp_path)
     sp.write_state(f, 12, branch="feat/12-guards", step="spec")
     later = dt.datetime(2026, 11, 14, 23, 5, 0, tzinfo=dt.UTC)
-    sp._now = lambda: later
+    monkeypatch.setattr(sp, "_now", lambda: later)
     state = sp.write_state(f, 12, step="pr", pull_request=33, blocker=["review comment"])
     assert state["started"] == "2026-11-14T22:30:00+00:00"
     assert state["updated"] == "2026-11-14T23:05:00+00:00"
@@ -133,7 +135,7 @@ def test_state_summary_flags_the_stale_file_of_a_closed_issue() -> None:
 def test_state_rejects_conflicting_pull_request_forms(tmp_path: Path, fixed_now: None) -> None:
     f = sprint_file(tmp_path)
     with pytest.raises(SystemExit, match="pull request must be an integer"):
-        sp.write_state(f, 12, pull_request="#33")  # type: ignore[arg-type]
+        sp.write_state(f, 12, pull_request="#33")
 
 
 def test_command_line_state_writes_and_prints(
@@ -370,9 +372,10 @@ def commit_files(repo: Path, *paths: str) -> None:
 
 
 def check_diff(repo: Path, branch: str = "sprint/S01/40-guide") -> int:
-    return sp.main(
+    status: int = sp.main(
         ["check-diff", "--branch", branch, "--base", "main", "--sprints", str(repo / "sprints")]
     )
+    return status
 
 
 def test_check_diff_accepts_files_inside_the_lane(sprint_repo: Path) -> None:
@@ -411,8 +414,9 @@ def test_check_diff_ignores_branches_outside_a_sprint(
 # Sprint file rules: every refusal of validate() and of the commands
 
 
-def valid_sprint(tmp_path: Path) -> dict[str, object]:
-    return sp.load(sprint_file(tmp_path))
+def valid_sprint(tmp_path: Path) -> dict[str, Any]:
+    sprint: dict[str, Any] = sp.load(sprint_file(tmp_path))
+    return sprint
 
 
 @pytest.mark.parametrize(
@@ -436,10 +440,10 @@ def test_sprint_fields_are_validated(
 
 def test_issue_ids_must_be_integers_and_in_one_lane(tmp_path: Path) -> None:
     sprint = valid_sprint(tmp_path)
-    sprint["lanes"][1]["issues"] = ["40"]  # type: ignore[index]
+    sprint["lanes"][1]["issues"] = ["40"]
     assert any("issue ids must be integers" in e for e in sp.validate(sprint))
     sprint = valid_sprint(tmp_path)
-    sprint["lanes"][1]["issues"] = [12]  # type: ignore[index]
+    sprint["lanes"][1]["issues"] = [12]
     assert any("issue #12 is in lanes core and docs" in e for e in sp.validate(sprint))
 
 
@@ -454,14 +458,14 @@ def test_commands_refuse_an_invalid_sprint_file(tmp_path: Path, fixed_now: None)
     f.write_text(f.read_text(encoding="utf-8").replace("status: active", "status: paused"))
     with pytest.raises(SystemExit, match="Invalid sprint file:"):
         sp.main(["validate", str(f)])
-    with pytest.raises(SystemExit, match="run 'sprint.py validate' first"):
+    with pytest.raises(SystemExit, match=r"run 'sprint\.py validate' first"):
         sp.write_state(f, 12, step="tests")
 
 
 def test_check_diff_refuses_a_missing_or_invalid_sprint_and_an_unplanned_issue(
     sprint_repo: Path,
 ) -> None:
-    with pytest.raises(SystemExit, match="S02.yaml does not exist"):
+    with pytest.raises(SystemExit, match=r"S02\.yaml does not exist"):
         check_diff(sprint_repo, "sprint/S02/40-guide")
     with pytest.raises(SystemExit, match="#99 is not in the lanes of S01"):
         check_diff(sprint_repo, "sprint/S01/99-other")

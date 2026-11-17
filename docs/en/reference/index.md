@@ -28,5 +28,10 @@ $ cargo run -q -p wayloop-cli
 wayloop 0.0.0: pre-alpha. Commands: version, steps.
 ```
 
+When standard output cannot be written, for example because the reading end of a pipe is
+closed, the command prints the cause on standard error and exits with code 3, an environment
+error. The exit codes follow
+[ADR 0009](../project/adr/0009-contract-guidelines.md) (C7).
+
 The step identifiers are stable: a step is never renamed. The steps themselves are described
 in [The loop](../concepts/the-loop.md#the-issue-cycle).

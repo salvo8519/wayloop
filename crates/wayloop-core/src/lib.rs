@@ -24,6 +24,10 @@
     clippy::disallowed_types
 )]
 
+mod error;
+
+pub use error::{Code, Error, Reason};
+
 /// Version of the engine, taken from the workspace manifest.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

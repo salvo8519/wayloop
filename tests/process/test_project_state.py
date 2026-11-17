@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -11,8 +12,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "project_state.py"
 _spec = importlib.util.spec_from_file_location("project_state", SCRIPT)
-ps = importlib.util.module_from_spec(_spec)  # type: ignore[arg-type]
-_spec.loader.exec_module(ps)  # type: ignore[union-attr]
+assert _spec and _spec.loader
+ps = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(ps)
 
 
 def briefing(sprint: dict[str, Any] | None) -> dict[str, Any]:
@@ -90,7 +92,7 @@ def test_briefing_shows_who_merges_each_pull_request() -> None:
     )
 
 
-def _issue(number: int, labels: list[str] = [], blocked_by: int = 0) -> dict[str, Any]:  # noqa: B006
+def _issue(number: int, labels: Sequence[str] = (), blocked_by: int = 0) -> dict[str, Any]:
     return {
         "number": number,
         "title": f"Issue {number}",

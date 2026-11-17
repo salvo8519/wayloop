@@ -158,13 +158,16 @@ def build(fonts: Path) -> None:
 
     # GitHub social preview, 1280 x 640.
     wsize, tsize, psize = 96.0, 38.0, 25.0
+    word_x = (1280 - bold.width("Wayloop", wsize, -2)) / 2
+    tagline_x = (1280 - semi.width(TAGLINE, tsize)) / 2
+    promise_x = (1280 - reg.width(PROMISE, psize)) / 2
     body = (
         f'<rect width="1280" height="640" fill="{NIGHT}"/>'
         + placed_mark(560, 92, 160)
-        + f'<path d="{bold.path("Wayloop", (1280 - bold.width("Wayloop", wsize, -2)) / 2, 382, wsize, -2)}" fill="{WHITE}"/>'
+        + f'<path d="{bold.path("Wayloop", word_x, 382, wsize, -2)}" fill="{WHITE}"/>'
         + f'<rect x="612" y="408" width="56" height="4" rx="2" fill="{TEAL_LIGHT}"/>'
-        + f'<path d="{semi.path(TAGLINE, (1280 - semi.width(TAGLINE, tsize)) / 2, 470, tsize)}" fill="{WHITE}"/>'
-        + f'<path d="{reg.path(PROMISE, (1280 - reg.width(PROMISE, psize)) / 2, 516, psize)}" fill="#A9B8CC"/>'
+        + f'<path d="{semi.path(TAGLINE, tagline_x, 470, tsize)}" fill="{WHITE}"/>'
+        + f'<path d="{reg.path(PROMISE, promise_x, 516, psize)}" fill="#A9B8CC"/>'
     )
     (OUT / "social-preview.svg").write_text(
         svg(1280, 640, f"Wayloop. {TAGLINE}", body), encoding="utf-8"

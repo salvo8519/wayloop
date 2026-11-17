@@ -10,6 +10,24 @@ repos:
         language: system
         types: [rust]
         pass_filenames: false
+      - id: ruff-check
+        name: ruff check (Python lint and error handling)
+        entry: uv run ruff check scripts tests .claude/hooks
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --check scripts tests .claude/hooks
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: mypy
+        name: mypy strict
+        entry: uv run mypy
+        language: system
+        types: [python]
+        pass_filenames: false
       - id: typos
         name: typos
         entry: uv run typos

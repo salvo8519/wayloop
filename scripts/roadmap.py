@@ -8,7 +8,7 @@ so the published roadmap page is generated offline, deterministically, from a re
     python scripts/roadmap.py check [--pr-body FILE]  # offline: format, links, generated page
     python scripts/roadmap.py render                  # canonical file, regenerated page
     python scripts/roadmap.py sync [--write] [--apply-milestones]
-    python scripts/roadmap.py links                   # titles, parents, labels, dependencies on GitHub
+    python scripts/roadmap.py links                   # titles, parents, labels, dependencies
         # online: compare with GitHub; --write updates statuses in the file;
         # --apply-milestones sets each issue's milestone on GitHub to the one in the file
     python scripts/roadmap.py list [--open] [--milestone M2]  # the plan, one task per line
@@ -472,7 +472,8 @@ def link_problems(
                     continue
                 if issue["title"] != item["title"]:
                     problems.append(
-                        f"{where}: title on GitHub '{issue['title']}', in the roadmap '{item['title']}'"
+                        f"{where}: title on GitHub '{issue['title']}',"
+                        f" in the roadmap '{item['title']}'"
                     )
                 if (issue.get("milestone") or {}).get("title") != m["title"]:
                     problems.append(f"{where}: not in milestone '{m['title']}' on GitHub")
@@ -490,7 +491,8 @@ def link_problems(
                     if missing:
                         listed = ", ".join(f"#{x}" for x in sorted(missing))
                         problems.append(
-                            f"{where}: listed under '## Depends on' but not blocked by {listed} on GitHub"
+                            f"{where}: listed under '## Depends on'"
+                            f" but not blocked by {listed} on GitHub"
                         )
     return problems
 

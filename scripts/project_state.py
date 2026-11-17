@@ -15,6 +15,7 @@ import importlib.util
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -26,8 +27,10 @@ ROOT = Path(__file__).resolve().parents[1]
 def _sprint_module() -> Any:
     """scripts/sprint.py, which owns the location of the runtime sprint state."""
     spec = importlib.util.spec_from_file_location("sprint", ROOT / "scripts" / "sprint.py")
-    module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    if spec is None or spec.loader is None:
+        sys.exit("scripts/sprint.py cannot be loaded.")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
     return module
 
 
@@ -175,11 +178,7 @@ def collect() -> dict[str, Any]:
         }
         for p in prs
     ]
-    issues = [
-        i
-        for i in gh_pages(f"repos/{r}/issues?state=open")
-        if "pull_request" not in i
-    ]
+    issues = [i for i in gh_pages(f"repos/{r}/issues?state=open") if "pull_request" not in i]
 
     def labels(i: dict[str, Any]) -> set[str]:
         return {lbl["name"] for lbl in i["labels"]}

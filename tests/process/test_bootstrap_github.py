@@ -1,4 +1,4 @@
-"""scripts/bootstrap_github.py: the plan is reproduced on a repository, offline with a fake GitHub."""
+"""scripts/bootstrap_github.py: the plan is reproduced on a repository, offline, fake GitHub."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import importlib.util
 import sys
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location("bootstrap", ROOT / "scripts/bootstrap_github.py")
@@ -89,11 +91,15 @@ class FakeGitHub:
 
 def run(target: FakeGitHub, source: FakeGitHub | None = None) -> int:
     p = bs.plan(DATA, set(target.labels), set(target.milestones), target.issues())
-    return bs.apply(p, target, target.issues_, source)
+    changes: int = bs.apply(p, target, target.issues_, source)
+    return changes
 
 
 def source_repo() -> FakeGitHub:
-    body = "Part of #10.\n\n## Outcome\nReplay.\n\n## Depends on\n- #11\n\n## Definition of done\nCloses #12"
+    body = (
+        "Part of #10.\n\n## Outcome\nReplay.\n\n## Depends on\n- #11\n\n"
+        "## Definition of done\nCloses #12"
+    )
     return FakeGitHub(
         {
             10: {"number": 10, "id": 10, "title": "Ledger", "body": "Epic."},
@@ -155,3 +161,14 @@ def test_dependencies_are_read_only_under_their_heading() -> None:
     assert bs.depends_on(body) == [7, 9]
     assert bs.depends_on("No heading, #3") == []
     assert bs.renumber("#7 and #70 and #9", {7: 17, 9: 19}) == "#17 and #70 and #19"
+
+
+def test_an_unmatched_item_has_no_target() -> None:
+    item = bs.Item(kind="task", planned=12, title="Ledger replay", milestone="M1", labels=[])
+    with pytest.raises(bs.UnmatchedItemError, match="task 'Ledger replay' has no issue"):
+        item.target()
+
+
+def test_a_matched_item_targets_its_issue() -> None:
+    item = bs.Item(kind="epic", planned=3, title="Ledger", milestone="M1", labels=[], number=57)
+    assert item.target() == 57

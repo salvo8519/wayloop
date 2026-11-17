@@ -95,10 +95,10 @@ def test_a_dependency_against_the_direction_is_named_as_such(crate: str, depende
 
 
 def test_the_allowlists_are_those_reviewed() -> None:
-    assert core_io.PURE_CRATES == {
+    assert {
         "wayloop-schemas": frozenset(),
         "wayloop-core": frozenset({"wayloop-schemas"}),
-    }
+    } == core_io.PURE_CRATES
 
 
 # The lint guards: clippy.toml and the forbid attribute at the crate root.
@@ -205,7 +205,8 @@ def workspace(tmp_path: Path, manifests: dict[str, str]) -> Path:
 
 
 def resolved(root: Path, crate: str = "wayloop-core") -> list[str]:
-    return core_io.refused(crate, core_io.cargo_tree(crate, root), frozenset())
+    problems: list[str] = core_io.refused(crate, core_io.cargo_tree(crate, root), frozenset())
+    return problems
 
 
 @needs_cargo
@@ -235,7 +236,10 @@ def test_cargo_resolves_a_target_specific_dependency(tmp_path: Path) -> None:
 def test_cargo_resolves_an_optional_dependency_behind_a_non_default_feature(
     tmp_path: Path,
 ) -> None:
-    body = '[features]\nnet = ["dep:reqwest"]\n[dependencies]\nreqwest = { path = "../reqwest", optional = true }\n'
+    body = (
+        '[features]\nnet = ["dep:reqwest"]\n'
+        '[dependencies]\nreqwest = { path = "../reqwest", optional = true }\n'
+    )
     root = workspace(tmp_path, {"wayloop-core": body, "reqwest": ""})
     assert resolved(root) == [
         (
@@ -254,7 +258,10 @@ def test_a_feature_enabled_by_another_member_is_not_blamed_on_the_pure_crate(
         {
             "wayloop-core": '[dependencies]\nhelper = { path = "../helper" }\n',
             "wayloop-cli": '[dependencies]\nhelper = { path = "../helper", features = ["rt"] }\n',
-            "helper": '[features]\nrt = ["dep:tokio"]\n[dependencies]\ntokio = { path = "../tokio", optional = true }\n',
+            "helper": (
+                '[features]\nrt = ["dep:tokio"]\n'
+                '[dependencies]\ntokio = { path = "../tokio", optional = true }\n'
+            ),
             "tokio": "",
         },
     )
@@ -291,7 +298,8 @@ def test_a_pure_crate_depending_on_the_runtime_is_refused(tmp_path: Path) -> Non
     )
     assert resolved(root) == [
         (
-            "wayloop-core -> wayloop-runtime: wayloop-runtime is not on the allowlist of wayloop-core"
+            "wayloop-core -> wayloop-runtime:"
+            " wayloop-runtime is not on the allowlist of wayloop-core"
             " (against the dependency direction, ADR 0006)"
         )
     ]

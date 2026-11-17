@@ -9,7 +9,7 @@ write the state by hand. The rule is recorded in
 | Component | Path | What it does today |
 | --- | --- | --- |
 | Schemas | `crates/wayloop-schemas` | Rust library with no I/O, home of the contract types that mirror the JSON schemas. It holds no type yet. |
-| Core | `crates/wayloop-core` | Rust library with no I/O. It fixes the vocabulary of the issue cycle: the nine steps in order, their stable identifiers, and which step is an approval state. |
+| Core | `crates/wayloop-core` | Rust library with no I/O. It fixes the vocabulary of the issue cycle: the nine steps in order, their stable identifiers, and which step is an approval state. It defines the error of every refusal ([below](#errors-are-values)). |
 | Runtime | `crates/wayloop-runtime` | Rust library that runs the work the core decides ([below](#synchronous-core-asynchronous-runtime)). It holds no code yet. |
 | Command line | `crates/wayloop-cli` | The `wayloop` binary, an adapter only: it parses arguments, calls the core and prints JSON. Commands: `version` and `steps` ([reference](../reference/index.md)). |
 | Agent content | `.agents/` | Roles and skills in the open Agent Skills format, with generated mirrors for Claude Code. They are used to build Wayloop itself. |
@@ -69,6 +69,15 @@ wayloop-schemas    contract types, no I/O
   `allow` further in. `cargo clippy` applies them in `just check` and in CI;
   `scripts/check_core_io.py` fails when the attribute or an entry of a `clippy.toml` is
   removed.
+- **No panic.** Every crate of the workspace refuses the Clippy lints that let code panic or
+  stop the process: `unwrap_used`, `expect_used`, `panic`, `todo`, `unimplemented`,
+  `unreachable`, `indexing_slicing`, `string_slice`, `get_unwrap`, `panic_in_result_fn`, `exit`
+  and `mem_forget`, on top of the `all` and `pedantic` groups. They are set in the workspace
+  manifest and fail `cargo clippy -D warnings` in `just check` and in CI. Tests may unwrap,
+  expect, panic and index: each `clippy.toml` allows it in test code only, the root one for the
+  runtime and the command line, the one of each pure crate for that crate, because a crate's
+  file replaces the root one. A failure is an error value; the command line turns it into an
+  exit code, even when it cannot write its output.
 
 ## Synchronous core, asynchronous runtime
 
@@ -97,3 +106,20 @@ Every input and output crossing the engine boundary is JSON with a versioned sch
 adapter that needs a new behaviour asks the engine for it; it never implements it. The
 envelope shared by every command, with its error codes and exit codes, is the subject of
 [ADR 0009](../project/adr/0009-contract-guidelines.md).
+
+### Errors are values
+
+The engine never panics on bad input: it returns `wayloop_core::Error`. The type is written by
+hand, with no dependency, so the core keeps its empty allowlist of external crates. It carries
+as data the fields of a refusal that an agent acts on (ADR 0009, C3):
+
+| Field | Meaning |
+| --- | --- |
+| `code` | Stable identifier of the refusal; a new meaning gets a new code, never a renamed one (C8) |
+| `reason` | One value of the documented enum: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale` |
+| `pointer` | RFC 6901 pointer from the root of the input sent; empty for the whole input |
+
+The type implements `Display` and `std::error::Error`. A code is a constant of the type `Code`,
+so that one place lists every code of the engine. The codes themselves, and the other fields
+of C3 (`message`, `pointers`, `expected`, `fix`, and the list `errors[]` of every error found
+in one pass), come with the specification of each command.

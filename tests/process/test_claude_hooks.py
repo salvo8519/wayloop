@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -108,7 +109,7 @@ def git(cwd: Path, *args: str) -> None:
 
 
 def run_env(
-    hook: str, payload: dict[str, object], cwd: Path, **env: str
+    hook: str, payload: Mapping[str, object], cwd: Path, **env: str
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [str(cwd / ".claude" / "hooks" / hook)],

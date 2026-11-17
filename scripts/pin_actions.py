@@ -48,7 +48,10 @@ def resolve(action: str, ref: str, cache: dict[tuple[str, str], str]) -> str:
             text=True,
             encoding="utf-8",
         )
-        refs = dict(reversed(line.split("\t")) for line in out.stdout.split("\n") if line)
+        refs = {
+            name: sha
+            for sha, name in (line.split("\t", 1) for line in out.stdout.split("\n") if line)
+        }
         sha = (
             refs.get(f"refs/tags/{ref}^{{}}")
             or refs.get(f"refs/tags/{ref}")

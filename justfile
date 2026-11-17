@@ -4,8 +4,14 @@ default:
     @just --list
 
 # Full local gate: run before every pull request (CI runs the same checks).
-check: style i18n process rust
+check: style i18n python process rust
     @echo "All checks passed."
+
+# Python of the process: lint (error handling included), format, strict types.
+python:
+    ruff check scripts tests .claude/hooks
+    ruff format --check scripts tests .claude/hooks
+    mypy
 
 # Process: tests of the process scripts, YAML, task ids, roadmap, sprint files, no I/O in the core.
 process:
@@ -46,7 +52,8 @@ rust:
 # Format everything.
 fmt:
     cargo fmt --all
-    ruff format scripts
+    ruff check --fix scripts tests .claude/hooks
+    ruff format scripts tests .claude/hooks
 
 # Build both documentation sites (English and Italian), strict.
 docs:
