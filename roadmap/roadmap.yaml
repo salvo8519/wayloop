@@ -99,7 +99,7 @@ milestones:
           - { issue: 192, title: "Standard for skills, agents and hooks, checked in CI", status: done }
           - { issue: 193, title: "Process agents of the project template", status: done }
           - { issue: 194, title: "Planning skills: roadmap update, specification, ADR and sprint planning", status: open }
-          - { issue: 195, title: "Delivery skills: implement, run a sprint, pre-PR gate, commit, verify, debug, apply review", status: open }
+          - { issue: 195, title: "Delivery skills: implement, run a sprint, pre-PR gate, commit, verify, debug, apply review", status: done }
           - { issue: 196, title: "Review and integration skills: pull request triage, explain changes, fix CI", status: open }
           - { issue: 197, title: "Documentation and release skills: translate, release, onboarding, retrospective, learnings, debt", status: open }
           - { issue: 198, title: "Skills for the work this repository repeats: add a command, contract cases, new skill or agent", status: open }
