@@ -1,6 +1,6 @@
 # ADR 0006: Synchronous pure core, asynchronous runtime
 
-Status: Proposed · 2026-11-17
+Status: Accepted · 2026-11-17 (decided by the maintainer in #10)
 
 ## Context
 
