@@ -63,7 +63,7 @@ milestones:
           - { issue: 140, title: "Required status checks kept in step with the workflows", status: done }
           - { issue: 141, title: "Workflows linted, actions pinned and dependencies scanned", status: done }
           - { issue: 142, title: "Weekly maintenance workflow", status: done }
-          - { issue: 143, title: "Claude Code hooks for documentation impact and formatting", status: open }
+          - { issue: 143, title: "Claude Code hooks for documentation impact and formatting", status: done }
           - { issue: 144, title: "Documentation kept in sync with the project by a deterministic check", status: done }
           - { issue: 145, title: "Automated review of pull requests and documentation", status: open }
           - { issue: 146, title: "Decide on a GitHub Projects board for the roadmap", tags: [maintainer, needs-decision], status: open }

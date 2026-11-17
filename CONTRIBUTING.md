@@ -20,6 +20,17 @@ uv run pre-commit install --hook-type pre-commit --hook-type commit-msg
 uv run just check
 ```
 
+## Working with Claude Code
+
+The project settings in `.claude/settings.json` register three hooks:
+
+- before each request, a reminder to propose roadmap changes before doing planned work;
+- after each edit, the written file is formatted (rustfmt for Rust, ruff for Python);
+- before the session ends, `scripts/docs_sync.py impact` lists changes that still need their
+  documentation, and the session continues until they have it.
+
+The hooks never block on a missing tool: they report it and the work goes on.
+
 ## Pull requests
 
 - One issue per pull request; the body says `Closes #<issue>`.
