@@ -2,7 +2,8 @@
 
 Reads git and GitHub (REST, through the GitHub CLI) and prints a Markdown briefing:
 current branch and its issue, uncommitted work, recent session journal, open pull requests
-with CI and review state, the active sprint, issues in progress and issues ready to start.
+with CI and review state, the active sprint, issues in progress and issues ready to start. Open
+issues labelled `bug` or `maintenance` (failures on main, weekly maintenance) come first.
 
     uv run python scripts/project_state.py            # briefing in Markdown
     uv run python scripts/project_state.py --json     # the same data, for agents
@@ -121,6 +122,26 @@ def ready_issues(pool: list[dict[str, Any]], busy_branches: set[str]) -> list[di
     ][:12]
 
 
+ATTENTION = ("bug", "maintenance")
+
+
+def attention_issues(issues: list[dict[str, Any]]) -> list[str]:
+    """Open bug issues, then maintenance issues, each by number: they go before new work."""
+
+    def first_label(i: dict[str, Any]) -> str | None:
+        names = {lbl["name"] for lbl in i["labels"]}
+        return next((label for label in ATTENTION if label in names), None)
+
+    flagged = [(first_label(i), i) for i in issues]
+    return [
+        f"#{i['number']} {i['title']} ({label})"
+        for label, i in sorted(
+            ((label, i) for label, i in flagged if label),
+            key=lambda pair: (ATTENTION.index(pair[0] or ""), int(pair[1]["number"])),
+        )
+    ]
+
+
 def repo() -> str:
     url = sh("git", "remote", "get-url", "origin")
     return re.sub(r"(\.git)?$", "", re.split(r"github\.com[:/]", url)[-1])
@@ -183,6 +204,7 @@ def collect() -> dict[str, Any]:
     def labels(i: dict[str, Any]) -> set[str]:
         return {lbl["name"] for lbl in i["labels"]}
 
+    state["attention"] = attention_issues(issues)
     state["in_progress"] = [
         f"#{i['number']} {i['title']}" for i in issues if "in-progress" in labels(i)
     ]
@@ -223,6 +245,9 @@ def render(s: dict[str, Any]) -> str:
         + (f", issue #{s['branch_issue']}" if s["branch_issue"] else "")
         + f"; {s['ahead_of_main']} commit(s) ahead of main, {s['behind_main']} behind; "
         f"{len(s['uncommitted_files'])} uncommitted file(s).",
+        "",
+        "## Bugs and maintenance first",
+        *([f"- {x}" for x in s.get("attention") or []] or ["- none"]),
         "",
         "## Recent commits",
         *[f"- {c}" for c in s["recent_commits"]],

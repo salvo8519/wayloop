@@ -129,3 +129,24 @@ def test_gh_pages_reads_every_page() -> None:
     items = ps.gh_pages("repos/o/r/issues?state=open", fetch)
     assert len(items) == 130
     assert calls[0] == "repos/o/r/issues?state=open&per_page=100&page=1"
+
+
+def test_attention_lists_open_bug_and_maintenance_issues_bugs_first() -> None:
+    def issue(number: int, *labels: str) -> dict[str, Any]:
+        return {"number": number, "title": f"t{number}", "labels": [{"name": n} for n in labels]}
+
+    pool = [
+        issue(9, "maintenance"),
+        issue(3, "task"),
+        issue(7, "bug"),
+        issue(5, "bug", "area:core"),
+    ]
+    assert ps.attention_issues(pool) == ["#5 t5 (bug)", "#7 t7 (bug)", "#9 t9 (maintenance)"]
+
+
+def test_briefing_shows_bugs_and_maintenance_before_everything_else() -> None:
+    data = {**briefing(None), "attention": ["#5 CI passes again on main (bug)"]}
+    text = ps.render(data)
+    assert text.index("## Bugs and maintenance first") < text.index("## Recent commits")
+    assert "- #5 CI passes again on main (bug)" in text
+    assert "## Bugs and maintenance first\n- none" in ps.render(briefing(None))
