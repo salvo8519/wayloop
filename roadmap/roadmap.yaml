@@ -81,7 +81,7 @@ milestones:
         labels: ["area:core"]
         tasks:
           - { issue: 3, title: "Approved specification of the artifact model and schemas", spec: "0001", status: open }
-          - { issue: 4, title: "Decide on ADR 0008 on identifiers and traceability", status: open }
+          - { issue: 4, title: "Decide on ADR 0008 on identifiers and traceability", status: done }
           - { issue: 5, title: "wayloop init creates a project structure that validates", spec: "0001", status: open }
           - { issue: 6, title: "Artifacts and their links are validated", spec: "0001", status: open }
           - { issue: 160, title: "Naming and linking rules validated by the engine", spec: "0001", status: open }

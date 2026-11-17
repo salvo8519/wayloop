@@ -19,9 +19,12 @@ Every rule on this page is checked by a script, by CI or by both.
 | Release note | `changes/<issue>.<type>.md` | `changes/12.feature.md` | issue |
 | Release | tag `v<semver>` | `v0.1.0` | CHANGELOG and release notes |
 
-The GitHub number (`#12`) is the code of an issue. It is unique, permanent, and GitHub links it
-automatically in commits, pull requests and comments; a second, parallel coding scheme would
-drift from it. Pull request numbers share the same sequence.
+The GitHub number (`#12`) is the key of an issue on the tracker. It is unique, permanent, and
+GitHub links it automatically in commits, pull requests and comments, so branches, commits,
+pull requests and release notes cite it. Pull request numbers share the same sequence. The
+artifact identifier of ADR 0008 (`TASK-0107`) is the identity of the artifact inside the engine:
+it lives in the structured block of the artifact, and the engine records and checks the pair of
+identifier and issue number. Nothing else cites it, so the two schemes cannot drift.
 
 ## Issues
 
