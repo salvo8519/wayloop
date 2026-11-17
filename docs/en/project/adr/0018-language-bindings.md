@@ -12,4 +12,5 @@ Python bindings use PyO3 and maturin; Node bindings use napi-rs. Both cross the 
 
 ## Consequences
 
-One behaviour in every language. A small serialization cost at the boundary.
+One behaviour in every language. A small serialization cost at the boundary. This decision is
+the binding-specific case of ADR 0028, which applies the same rule to every channel.

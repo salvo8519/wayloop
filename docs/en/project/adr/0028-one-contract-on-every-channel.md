@@ -1,6 +1,6 @@
 # ADR 0028: One contract on every channel, translation adapters and a channel reconciler
 
-Status: Proposed · 2026-11-17 (milestone M5 · Adapters and distribution; decision tracked in #220)
+Status: Accepted · 2026-11-17 (decided by the maintainer in #231)
 
 ## Context
 
