@@ -31,6 +31,12 @@ repos:
         language: system
         pass_filenames: false
         files: ^(roadmap/|specs/)
+      - id: agent-mirrors
+        name: .claude mirrors generated from .agents
+        entry: python3 scripts/sync_agents.py --check
+        language: system
+        pass_filenames: false
+        files: ^(\.agents/(agents|skills)/|\.claude/(agents|skills)/)
       - id: docs-coverage
         name: ADRs, specifications and navigation agree
         entry: python3 scripts/docs_sync.py coverage
