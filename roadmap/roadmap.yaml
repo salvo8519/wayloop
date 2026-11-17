@@ -96,7 +96,7 @@ milestones:
         issue: 205
         labels: ["area:agents"]
         tasks:
-          - { issue: 192, title: "Standard for skills, agents and hooks, checked in CI", status: open }
+          - { issue: 192, title: "Standard for skills, agents and hooks, checked in CI", status: done }
           - { issue: 193, title: "Process agents of the project template", status: open }
           - { issue: 194, title: "Planning skills: roadmap update, specification, ADR and sprint planning", status: open }
           - { issue: 195, title: "Delivery skills: implement, run a sprint, pre-PR gate, commit, verify, debug, apply review", status: open }

@@ -1,11 +1,14 @@
 ---
 name: session-end
-description: Close a working session on Wayloop so that any agent can resume it - run the gate, write the journal hand-over, post the hand-over comment on the issue, commit, push, open or update the pull request, and merge it when the rules allow. Use when the maintainer says the session is over, before switching to another issue, or before the context runs out.
+description: Closes a working session on Wayloop so that any agent can resume it. Use when the session is over, before switching issue, or before the context runs out.
 ---
 
-Talk to the maintainer in their preferred language; everything written to the repository or to
-GitHub is in English, without icons.
+Talk to the maintainer in their preferred language (`CLAUDE.local.md`); everything written to the repository or to GitHub is in English, without icons.
 
+## Produces
+A gate run, a journal hand-over, a commit and a pull request, a hand-over comment on the issue, and a merge when AGENTS.md allows it.
+
+## Steps
 1. **Gate.** Run `uv run just check`. If it fails, fix what belongs to this session's issue;
    otherwise record the failure under Not done and open the pull request as a draft.
 2. **Scope.** `git status` and `git diff origin/main...HEAD --stat`. Every changed file belongs
@@ -39,3 +42,13 @@ GitHub is in English, without icons.
     open question.
 11. **Report** to the maintainer: pull request and merge status, checks, what remains, next
     step.
+
+## Stop and ask
+- A pull request that changes `crates/`, `schemas/` or an SDK: ask the maintainer to confirm before merging.
+- A failing required check, an open review finding or an open question: do not merge.
+- Never force-push a branch someone else reviewed without telling the maintainer.
+
+## Report
+- Pull request and merge status, checks.
+- What remains not done and not verified, and the risks.
+- The very next step.

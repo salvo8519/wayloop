@@ -37,6 +37,12 @@ repos:
         language: system
         pass_filenames: false
         files: ^(\.agents/(agents|skills)/|\.claude/(agents|skills)/)
+      - id: agents-standard
+        name: skills, agents and hooks follow ADR 0027
+        entry: python3 scripts/check_agents.py
+        language: system
+        pass_filenames: false
+        files: ^(\.agents/|\.claude/)
       - id: docs-coverage
         name: ADRs, specifications and navigation agree
         entry: python3 scripts/docs_sync.py coverage

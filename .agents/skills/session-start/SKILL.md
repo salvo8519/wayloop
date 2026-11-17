@@ -1,12 +1,14 @@
 ---
 name: session-start
-description: Open a working session on Wayloop with full context (current branch and issue, the latest hand-over, open pull requests and who merges them, CI, sprint, roadmap drift, stale checkouts) and propose a plan; on the maintainer's choice, check the issue out so that no other agent takes it. Use at the beginning of every session, or when the maintainer asks where the project stands.
+description: Opens a working session on Wayloop with full context and checks the chosen issue out. Use when a session begins, or when the maintainer asks where the project stands.
 ---
 
-Talk to the maintainer in their preferred language (`CLAUDE.local.md`). Until the maintainer
-chooses what to work on, change no file and nothing on GitHub: this part only reads and
-proposes.
+Talk to the maintainer in their preferred language (`CLAUDE.local.md`); everything written to the repository or to GitHub is in English, without icons.
 
+## Produces
+A briefing (state, hand-over, merge queue, hygiene problems), a short plan, and, once the maintainer chooses, a checked-out issue: branch or worktree, `in-progress` label, checkout comment with a lease.
+
+## Steps
 1. **State, deterministically.** Run `uv run python scripts/project_state.py` (`--json` to
    process it). It prints the branch and its issue, uncommitted work, the latest journal
    entries, open pull requests with checks, reviews and who merges them, and the sprint. If the
@@ -51,3 +53,13 @@ proposes.
 
    An issue already `in-progress` with a valid lease belongs to its holder: do not take it.
    Ask the maintainer to release it, or wait for the lease to expire.
+
+## Stop and ask
+- Until the maintainer chooses, change no file and nothing on GitHub.
+- An issue `in-progress` under a valid lease belongs to its holder: ask the maintainer, do not take it.
+- Roadmap differences are proposed, never fixed silently.
+
+## Report
+- What was read and found: drift, stale checkouts, failing checks.
+- The plan proposed and the choice taken.
+- What was not checked (for example GitHub unreachable) and the risk.

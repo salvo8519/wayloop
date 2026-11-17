@@ -8,6 +8,7 @@ instructions are in `AGENTS.md` (all agents) and `CLAUDE.md` (Claude Code specif
 | `agents/<name>.md` | Base roles, used as subagents |
 | `skills/<name>/SKILL.md` | Workflows in the open Agent Skills format, read natively by Codex, Gemini CLI, Copilot and others |
 | `journal/` | Session hand-overs, one file per session |
+| `cases/<name>.md` | Behavioural case of each skill and agent: an input and the expected result |
 
 ## Base roles
 
@@ -27,6 +28,26 @@ instructions are in `AGENTS.md` (all agents) and `CLAUDE.md` (Claude Code specif
 | --- | --- |
 | `session-start` | Briefing, plan, and checkout of the chosen issue with a lease |
 | `session-end` | Gate, journal hand-over, pull request, hand-over comment, merge when allowed |
+
+## The standard (ADR 0027)
+
+`python scripts/check_agents.py` enforces it in CI, in `just check` and in the pre-commit hook.
+
+- **Description**: what it does, then its trigger starting with "Use when". Agents pick a skill
+  or a role from this line only.
+- **Skill sections**, in order: `Produces` (the artifact and its state at the end), `Steps`
+  (numbered; deterministic commands before judgement), `Stop and ask` (what goes to the
+  maintainer), `Report` (done, not done or not verified, risks).
+- **Agent sections**, in order: `Reads`, `Does`, `Never`, `Output`, `Hands off to`; front
+  matter `tools` with least privilege. Reviewers, the critic, auditors, the explorer and the CI
+  investigator are read-only. No role reviews its own work.
+- **Size**: at most about 3000 tokens for a skill and 1500 for an agent.
+- **Citations**: every script and repository path in backticks exists; placeholders such as
+  `NNNN` or `<slug>` are allowed.
+- **Behavioural case**: `cases/<name>.md` with `Input` and `Expected`, used to try the skill or
+  role with an agent before it is merged.
+- **Hooks**: one script per purpose in `.claude/hooks/`, registered in `.claude/settings.json`,
+  executable, never blocking on a missing tool, tested on real input.
 
 ## New roles
 
