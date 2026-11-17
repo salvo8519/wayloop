@@ -101,7 +101,7 @@ milestones:
           - { issue: 194, title: "Planning skills: roadmap update, specification, ADR and sprint planning", status: done }
           - { issue: 195, title: "Delivery skills: implement, run a sprint, pre-PR gate, commit, verify, debug, apply review", status: done }
           - { issue: 196, title: "Review and integration skills: pull request triage, explain changes, fix CI", status: done }
-          - { issue: 197, title: "Documentation and release skills: translate, release, onboarding, retrospective, learnings, debt", status: open }
+          - { issue: 197, title: "Documentation and release skills: translate, release, onboarding, retrospective, learnings, debt", status: done }
           - { issue: 198, title: "Skills for the work this repository repeats: add a command, contract cases, new skill or agent", status: open }
           - { issue: 199, title: "Process hooks: protect contracts, session briefing, hand-over reminder", status: done }
 

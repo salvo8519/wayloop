@@ -51,6 +51,12 @@ instructions are in `AGENTS.md` (all agents) and `CLAUDE.md` (Claude Code specif
 | `pr-triage` | The merge queue: checks, conventions, roadmap, review by tier, merge or confirmation request |
 | `explain-changes` | Commits, pull requests or a diff explained in the reader's language |
 | `fix-ci` | A red CI run diagnosed, external failures told apart, the smallest correct fix |
+| `translate` | The Italian edition brought up to date with the glossary, and stamped |
+| `release` | Readiness, version, release notes, changelog and the release pull request |
+| `onboarding` | A guided tour for a contributor or evaluator, in their language |
+| `retrospective` | A closed milestone reviewed against its evidence, with proposals |
+| `learnings` | Reusable learnings of the journal proposed for the agent instruction files |
+| `debt` | `shortcut:` comments collected into one list and proposed as tasks |
 
 ## The standard (ADR 0027)
 
