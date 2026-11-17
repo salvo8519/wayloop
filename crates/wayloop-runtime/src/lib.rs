@@ -10,6 +10,6 @@
 //! ready or whether a result is valid, is asked of `wayloop-core`.
 //!
 //! Dependency direction: the runtime may depend on `wayloop-core` and `wayloop-schemas`;
-//! neither of them may depend on the runtime. `scripts/check_core_io.py` keeps I/O crates out
-//! of the pure crates. The crate holds no code until the first component of the runtime is
-//! specified.
+//! neither of them may depend on the runtime. `scripts/check_core_io.py` holds the pure crates
+//! to their reviewed allowlists of dependencies, which enforces that direction. The crate holds
+//! no code until the first component of the runtime is specified.

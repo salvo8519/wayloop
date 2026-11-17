@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 3e5f0f431711
+source_hash: 87dec3e2033b
 ---
 # Architettura
 
@@ -28,8 +28,16 @@ Il motore è un workspace Cargo di quattro crate. Ognuno ha un solo ruolo, e le 
 vanno in una sola direzione: verso i crate puri.
 
 ```text
-wayloop-cli ------> wayloop-runtime ----> wayloop-core ----> wayloop-schemas
- (adattatore)         (I/O, nessuna decisione) (decisioni, niente I/O) (tipi dei contratti, niente I/O)
+wayloop-cli        adattatore: traduce un canale, non decide nulla
+     |
+     v
+wayloop-runtime    I/O, nessuna decisione
+     |
+     v
+wayloop-core       decisioni, niente I/O
+     |
+     v
+wayloop-schemas    tipi dei contratti, niente I/O
 ```
 
 | Crate | Ruolo | Può dipendere da | Fa I/O |
@@ -44,14 +52,29 @@ wayloop-cli ------> wayloop-runtime ----> wayloop-core ----> wayloop-schemas
   ([ADR 0028](https://salvo8519.github.io/wayloop/project/adr/0028-one-contract-on-every-channel/)).
   Appartiene alla radice di `wayloop-core`; gli adattatori la chiamano e si limitano a
   tradurne l'input e l'envelope.
-- **Niente I/O nei crate puri.** `scripts/check_core_io.py` legge il grafo delle dipendenze
-  risolto da Cargo e fallisce quando un crate di I/O noto (un runtime asincrono, un client
-  HTTP, un database, una libreria per file o processi, una libreria git) è raggiunto da
-  `wayloop-core` o da `wayloop-schemas` attraverso le dipendenze normali, e stampa il percorso
-  che lo raggiunge. Fallisce anche sull'I/O della libreria standard nel loro sorgente:
-  `std::fs`, `std::net`, `std::process`, `std::env`, gli stream standard e le macro di stampa.
-  Il controllo gira in `just check` e nella CI. Le dipendenze di sviluppo, usate solo dai test,
-  non sono controllate.
+- **Dipendenze solo da un elenco approvato.** Ogni crate puro può dipendere solo dai crate
+  della propria allowlist, approvata in revisione: `wayloop-schemas` da nessuno, `wayloop-core`
+  solo da `wayloop-schemas`. `scripts/check_core_io.py` risolve ogni crate puro da solo con
+  `cargo tree` (dipendenze normali, ogni target, tutte le sue feature, il lock file lasciato
+  invariato) e fallisce su ogni crate raggiunto fuori dall'allowlist, stampando il percorso
+  che lo raggiunge e indicando i crate di I/O noti. Le allowlist impongono anche la direzione
+  della tabella sopra: un crate puro non dipende mai dal runtime o da un adattatore, e gli
+  schemi non dipendono mai dal core. Una feature che un altro crate del workspace attiva su una
+  dipendenza condivisa non è attribuita a un crate puro. Le dipendenze di sviluppo (solo per i
+  test) e quelle di build (eseguite durante la compilazione) non fanno parte del crate
+  distribuito e non sono seguite. Estendere un'allowlist è una modifica dello script, soggetta
+  a revisione.
+- **Niente I/O nel sorgente.** Lo rifiuta il compilatore. Ogni crate puro vieta con `forbid`,
+  alla propria radice, i lint di Clippy `print_stdout`, `print_stderr`, `dbg_macro`,
+  `disallowed_methods` e `disallowed_types`, e il suo `clippy.toml` elenca le parti della
+  libreria standard che fanno I/O o leggono lo stato dell'ambiente: file (`std::fs`), rete
+  (`std::net`), processi (`std::process`), ambiente (`std::env`), stream standard, thread,
+  letture dell'orologio (`SystemTime::now`, `Instant::now`) e hash map con seme casuale
+  (`HashMap`, `HashSet`; al loro posto si usano `BTreeMap` e `BTreeSet`). I lint seguono la
+  risoluzione dei nomi, quindi un alias o un import annidato non li aggira, e `forbid`, a
+  differenza di `deny`, non può essere revocato da un `allow` più interno. `cargo clippy` li
+  applica in `just check` e nella CI; `scripts/check_core_io.py` fallisce se l'attributo o una
+  voce di un `clippy.toml` viene rimossa.
 
 ## Core sincrono, runtime asincrono
 

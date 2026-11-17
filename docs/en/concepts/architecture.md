@@ -24,8 +24,16 @@ The engine is a Cargo workspace of four crates. Each one has a single role, and 
 point in one direction only: towards the pure crates.
 
 ```text
-wayloop-cli ------> wayloop-runtime ----> wayloop-core ----> wayloop-schemas
- (adapter)            (I/O, no decisions)   (decisions, no I/O)  (contract types, no I/O)
+wayloop-cli        adapter: translates a channel, decides nothing
+     |
+     v
+wayloop-runtime    I/O, no decisions
+     |
+     v
+wayloop-core       decisions, no I/O
+     |
+     v
+wayloop-schemas    contract types, no I/O
 ```
 
 | Crate | Role | May depend on | Performs I/O |
@@ -39,13 +47,28 @@ wayloop-cli ------> wayloop-runtime ----> wayloop-core ----> wayloop-schemas
   input and context in, envelope out
   ([ADR 0028](../project/adr/0028-one-contract-on-every-channel.md)). It belongs at the root
   of `wayloop-core`; adapters call it and only translate its input and its envelope.
-- **No I/O in the pure crates.** `scripts/check_core_io.py` reads the dependency graph that
-  Cargo resolves and fails when a known I/O crate (an asynchronous runtime, an HTTP client, a
-  database, a file or process library, a git library) is reached from `wayloop-core` or
-  `wayloop-schemas` through normal dependencies, printing the path that reaches it. It also
-  fails on I/O of the standard library in their source: `std::fs`, `std::net`,
-  `std::process`, `std::env`, the standard streams and the print macros. The check runs in
-  `just check` and in CI. Development dependencies, used by tests only, are not checked.
+- **Allowlisted dependencies.** Each pure crate may depend only on the crates of its reviewed
+  allowlist: `wayloop-schemas` on none, `wayloop-core` on `wayloop-schemas` only.
+  `scripts/check_core_io.py` resolves each pure crate on its own with `cargo tree` (normal
+  dependencies, every target, all its features, the lock file left unchanged) and fails on
+  every crate reached outside the allowlist, printing the path that reaches it and naming
+  known I/O crates. The allowlists also enforce the direction of the table above: a pure crate
+  never depends on the runtime or an adapter, and the schemas never depend on the core. A
+  feature that another crate of the workspace enables on a shared dependency is not blamed on
+  a pure crate. Development dependencies (tests only) and build dependencies (run at build
+  time) are not part of the shipped crate and are skipped. Extending an allowlist is a
+  reviewed change to the script.
+- **No I/O in the source.** The compiler refuses it. Each pure crate forbids at its root the
+  Clippy lints `print_stdout`, `print_stderr`, `dbg_macro`, `disallowed_methods` and
+  `disallowed_types`, and its `clippy.toml` lists the parts of the standard library that
+  perform I/O or read ambient state: files (`std::fs`), the network (`std::net`), processes
+  (`std::process`), the environment (`std::env`), the standard streams, threads, clock reads
+  (`SystemTime::now`, `Instant::now`) and hash maps seeded at random (`HashMap`, `HashSet`;
+  `BTreeMap` and `BTreeSet` are used instead). The lints follow name resolution, so an alias
+  or a nested import does not escape them, and `forbid`, unlike `deny`, cannot be lifted by an
+  `allow` further in. `cargo clippy` applies them in `just check` and in CI;
+  `scripts/check_core_io.py` fails when the attribute or an entry of a `clippy.toml` is
+  removed.
 
 ## Synchronous core, asynchronous runtime
 

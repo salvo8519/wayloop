@@ -4,12 +4,25 @@
 //! TypeScript SDKs, MCP server) translate requests into calls to this crate and never
 //! decide anything themselves (ADR 0001). The single entry point of ADR 0028 (command,
 //! canonical input and context in, envelope out) belongs to this crate, at its root, and
-//! every channel calls it; it is not written yet (#221). `wayloop-runtime` executes the work this crate decides (ADR 0006).
-//! `scripts/check_core_io.py` refuses an I/O crate among the dependencies of this crate and
-//! I/O of the standard library in its source.
+//! every channel calls it; it is not written yet (#221). `wayloop-runtime` executes the work
+//! this crate decides (ADR 0006).
+//!
+//! The crate may depend only on the crates of its reviewed allowlist (`wayloop-schemas`), checked
+//! by `scripts/check_core_io.py`; I/O of the standard library in its source is refused by the
+//! Clippy lints forbidden below, with the paths listed in its `clippy.toml`.
 //!
 //! The crate is a placeholder until milestone M1: it fixes the vocabulary of the issue cycle
 //! so that the first specification has a stable starting point.
+
+// I/O is refused by the compiler: these lints read the clippy.toml of this crate, and forbid,
+// unlike deny, cannot be lifted by an inner allow. `scripts/check_core_io.py` keeps them here.
+#![forbid(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::dbg_macro,
+    clippy::disallowed_methods,
+    clippy::disallowed_types
+)]
 
 /// Version of the engine, taken from the workspace manifest.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -31,6 +31,12 @@ repos:
         language: system
         pass_filenames: false
         files: ^(roadmap/|specs/)
+      - id: pure-crates
+        name: pure crates keep their allowlists and lints
+        entry: python3 scripts/check_core_io.py
+        language: system
+        pass_filenames: false
+        files: ^(crates/|Cargo\.(toml|lock)$|scripts/check_core_io\.py$)
       - id: agent-mirrors
         name: .claude mirrors generated from .agents
         entry: python3 scripts/sync_agents.py --check
