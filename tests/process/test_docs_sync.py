@@ -84,6 +84,19 @@ def test_a_page_outside_the_navigation_is_reported(site: Path) -> None:
     [
         (["crates/wayloop-core/src/lib.rs"], ["engine changed"]),
         (["crates/wayloop-core/src/lib.rs", "specs/0002-state-machine/spec.md"], []),
+        (["crates/wayloop-runtime/src/lib.rs"], ["engine changed"]),
+        (["crates/wayloop-schemas/src/lib.rs"], ["engine changed"]),
+        (["crates/wayloop-runtime/src/lib.rs", "docs/en/concepts/architecture.md"], []),
+        # Every crate but the command line is engine, including crates added later.
+        (["crates/wayloop-mcp/src/lib.rs"], ["engine changed"]),
+        (["crates/wayloop-cli/src/main.rs"], ["command line changed"]),
+        (["crates/wayloop-core/Cargo.toml"], []),
+        # The guards of the pure crates are described on the architecture page.
+        (["scripts/check_core_io.py"], ["purity guard changed"]),
+        (["crates/wayloop-core/clippy.toml"], ["purity guard changed"]),
+        (["crates/wayloop-schemas/clippy.toml"], ["purity guard changed"]),
+        (["crates/wayloop-core/clippy.toml", "docs/en/concepts/architecture.md"], []),
+        (["scripts/check_core_io.py", "docs/en/concepts/index.md"], ["purity guard changed"]),
         (["crates/wayloop-cli/src/main.rs", "docs/en/reference/commands.md"], []),
         (["schemas/commands/next/v1.json"], ["schemas changed"]),
         (["scripts/roadmap.py"], ["process script changed"]),
@@ -169,3 +182,24 @@ def test_italian_pages_and_translated_readmes_are_public(public: Path) -> None:
     problems = ds.claims_problems(public)
     assert "README.it.md:3: Il motore sarà pronto." in problems
     assert "docs/it/concepts/page.md:3: Le guide verranno pubblicate." in problems
+
+
+def test_message_trailer_waives_the_staged_check(tmp_path: Path) -> None:
+    message = tmp_path / "COMMIT_EDITMSG"
+    message.write_text("fix(scripts): plain errors\n\nDocs-impact: none\n", encoding="utf-8")
+    assert ds.waived_by_message(message)
+
+
+def test_message_without_trailer_does_not_waive(tmp_path: Path) -> None:
+    message = tmp_path / "COMMIT_EDITMSG"
+    message.write_text("fix(scripts): plain errors\n\nRefs: #47\n", encoding="utf-8")
+    assert not ds.waived_by_message(message)
+
+
+def test_trailer_must_be_in_the_last_paragraph(tmp_path: Path) -> None:
+    message = tmp_path / "COMMIT_EDITMSG"
+    message.write_text(
+        "fix(scripts): plain errors\n\nDocs-impact: none\n\nSigned-off-by: A <a@b.c>\n",
+        encoding="utf-8",
+    )
+    assert not ds.waived_by_message(message)

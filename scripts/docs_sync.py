@@ -18,7 +18,8 @@ Three checks, used by `just`, pre-commit, CI and the Claude Code Stop hook:
 
 Only the standard library is used, so that hooks run without the project environment.
 Escape hatch for a change that genuinely needs no documentation: the pull request label
-`no-docs-needed`, or a commit trailer `Docs-impact: none` on the latest commit.
+`no-docs-needed`, or a commit trailer `Docs-impact: none` on the latest commit; the
+commit-msg hook reads the trailer from the message being written.
 """
 
 from __future__ import annotations
@@ -46,7 +47,7 @@ NOT_PAGES = ("assets/", "stylesheets/")
 # (changed path pattern, documentation that must change with it, reason)
 RULES: list[tuple[str, str, str]] = [
     (
-        r"^crates/wayloop-core/src/",
+        r"^crates/wayloop-(?!cli/)[^/]+/src/",
         r"^(docs/en/(concepts|reference)/|specs/\d{4}-[^/]+/)",
         "engine changed: update docs/en/concepts/, docs/en/reference/ or its specification",
     ),
@@ -54,6 +55,11 @@ RULES: list[tuple[str, str, str]] = [
         r"^crates/wayloop-cli/src/",
         r"^docs/en/(reference|guides|getting-started)/",
         "command line changed: update docs/en/reference/, guides/ or getting-started/",
+    ),
+    (
+        r"^(scripts/check_core_io\.py|crates/[^/]+/clippy\.toml)$",
+        r"^docs/en/concepts/architecture\.md$",
+        "purity guard changed: update the crate layout in docs/en/concepts/architecture.md",
     ),
     (
         r"^schemas/",
@@ -95,7 +101,27 @@ def missing_docs(files: list[str]) -> list[str]:
     return missing
 
 
+def waived_by_message(path: Path) -> bool:
+    """True when the trailer block of a commit message says `Docs-impact: none`."""
+    lines = [
+        line
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if not line.startswith("#")
+    ]
+    paragraphs = "\n".join(lines).strip().split("\n\n")
+    if len(paragraphs) < 2:
+        return False
+    for line in paragraphs[-1].splitlines():
+        key, _, value = line.partition(":")
+        if key.strip().lower() == "docs-impact" and value.strip().lower() == "none":
+            return True
+    return False
+
+
 def impact(args: argparse.Namespace) -> int:
+    if args.message_file and waived_by_message(Path(args.message_file)):
+        print("Docs impact waived by 'Docs-impact: none' trailer.")
+        return 0
     if not args.worktree and not args.staged:
         # In pull-request CI, HEAD is the merge commit GitHub creates, which carries no
         # trailers; the waiver belongs to the latest commit of the branch itself.
@@ -252,6 +278,11 @@ def main(argv: list[str] | None = None) -> int:
     group.add_argument("--staged", action="store_true")
     group.add_argument("--worktree", action="store_true")
     p.add_argument("--hook", action="store_true", help="exit 2 with stderr (Claude Code hook)")
+    p.add_argument(
+        "message_file",
+        nargs="?",
+        help="commit message file (commit-msg hook); its trailer may waive the check",
+    )
     args = parser.parse_args(argv)
     if args.cmd == "coverage":
         return coverage()

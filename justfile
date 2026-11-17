@@ -7,9 +7,10 @@ default:
 check: style i18n process rust
     @echo "All checks passed."
 
-# Process: tests of the process scripts, YAML, task ids, roadmap, sprint files.
+# Process: tests of the process scripts, YAML, task ids, roadmap, sprint files, no I/O in the core.
 process:
     python -m pytest tests/process
+    python scripts/check_core_io.py
     python scripts/required_checks.py check
     python scripts/docs_sync.py coverage
     python scripts/docs_sync.py claims
