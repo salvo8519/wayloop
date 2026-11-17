@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+
+import pytest
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -54,3 +56,35 @@ def test_briefing_without_state_files_has_no_state_heading() -> None:
 
 def test_briefing_without_an_active_sprint_names_the_milestone() -> None:
     assert "No active sprint. Current milestone: M0 · Foundations." in ps.render(briefing(None))
+
+
+@pytest.mark.parametrize(
+    ("paths", "tier"),
+    [
+        (["docs/en/index.md", "scripts/roadmap.py", ".github/workflows/ci.yml"], "agent"),
+        (["crates/wayloop-core/src/lib.rs"], "maintainer confirmation"),
+        (["README.md", "schemas/commands/next/v1.json"], "maintainer confirmation"),
+        ([], "agent"),
+    ],
+)
+def test_merge_tier_follows_the_changed_paths(paths: list[str], tier: str) -> None:
+    assert ps.merge_tier(paths) == tier
+
+
+def test_briefing_shows_who_merges_each_pull_request() -> None:
+    state = briefing(None)
+    state["pull_requests"] = [
+        {
+            "number": 7,
+            "title": "feat(state): add guards",
+            "branch": "feat/7-guards",
+            "draft": False,
+            "labels": [],
+            "checks": "green",
+            "reviews": [],
+            "merge": "maintainer confirmation",
+        }
+    ]
+    assert "| #7 | feat(state): add guards | green | none | maintainer confirmation |" in ps.render(
+        state
+    )

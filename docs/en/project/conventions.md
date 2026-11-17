@@ -109,6 +109,9 @@ Signed-off-by: Name Surname <email>
   are two pull requests.
 - **Roadmap**: the pull request marks its task `done` in `roadmap/roadmap.yaml` in the same
   change.
+- **Merge**: the agent that opened the pull request merges it when the gate of its tier holds;
+  changes to `crates/`, `schemas/` or an SDK wait for the maintainer's confirmation
+  ([AGENTS.md](https://github.com/salvo8519/wayloop/blob/main/AGENTS.md#merging)).
 - **Stacked pull requests**: a pull request built on another one targets that branch; before
   it is merged it is rebased onto `main` with its own commits only, and retargeted to `main`.
 - **Failures of external analyses**: CodeQL, dependency review and the other external analyses

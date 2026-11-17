@@ -31,6 +31,18 @@ def _sprint_module() -> Any:
     return module
 
 
+# Pull requests that change the engine, an adapter or a contract wait for the maintainer;
+# documentation, tooling and CI are merged by the agent (AGENTS.md, Merging).
+CONFIRMATION_PATHS = re.compile(r"^(crates/|schemas/|python/|typescript/|packages/)")
+
+
+def merge_tier(paths: list[str]) -> str:
+    """Who merges a pull request that changes these paths."""
+    if any(CONFIRMATION_PATHS.match(p) for p in paths):
+        return "maintainer confirmation"
+    return "agent"
+
+
 def _state_line(path: Path) -> str:
     """One line of per-issue sprint state for the briefing (scripts/sprint.py state files)."""
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -56,7 +68,9 @@ JOURNAL = ROOT / ".agents" / "journal"
 
 
 def sh(*args: str) -> str:
-    out = subprocess.run(args, cwd=ROOT, capture_output=True, text=True, encoding="utf-8")
+    out = subprocess.run(
+        args, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=False
+    )
     return out.stdout.strip() if out.returncode == 0 else ""
 
 
@@ -110,6 +124,12 @@ def collect() -> dict[str, Any]:
             "draft": p["draft"],
             "labels": [lbl["name"] for lbl in p["labels"]],
             "checks": checks_summary(r, p["head"]["sha"]),
+            "merge": merge_tier(
+                [
+                    f["filename"]
+                    for f in (gh(f"repos/{r}/pulls/{p['number']}/files?per_page=100") or [])
+                ]
+            ),
             "reviews": sorted(
                 {rv["state"] for rv in (gh(f"repos/{r}/pulls/{p['number']}/reviews") or [])}
             ),
@@ -185,12 +205,16 @@ def render(s: dict[str, Any]) -> str:
         "## Open pull requests",
     ]
     if s["pull_requests"]:
-        out += ["| PR | Title | Checks | Reviews | Labels |", "| --- | --- | --- | --- | --- |"]
+        out += [
+            "| PR | Title | Checks | Reviews | Merge | Labels |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
         for p in s["pull_requests"]:
             draft = " (draft)" if p["draft"] else ""
             out.append(
                 f"| #{p['number']}{draft} | {p['title']} | {p['checks']} | "
-                f"{', '.join(p['reviews']) or 'none'} | {', '.join(p['labels'])} |"
+                f"{', '.join(p['reviews']) or 'none'} | {p.get('merge', 'agent')} | "
+                f"{', '.join(p['labels'])} |"
             )
     else:
         out.append("None.")
