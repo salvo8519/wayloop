@@ -1,0 +1,34 @@
+name: Dependabot auto-merge
+
+# Grouped minor and patch updates of GitHub Actions and of the Python development tools merge
+# by themselves once the required checks pass: this job only enables auto-merge (squash), the
+# ruleset still decides. Rust dependencies (cargo) and major updates always wait for review.
+# Needs the repository setting "Allow auto-merge" (Settings, General). Policy:
+# docs/en/project/dependencies.md.
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  auto-merge:
+    name: Enable auto-merge for safe Dependabot updates
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2
+        id: meta
+      - name: Enable auto-merge (GitHub Actions or Python tools, minor or patch)
+        if: >-
+          (steps.meta.outputs.package-ecosystem == 'github_actions'
+            || steps.meta.outputs.package-ecosystem == 'uv'
+            || steps.meta.outputs.package-ecosystem == 'pip')
+          && (steps.meta.outputs.update-type == 'version-update:semver-minor'
+            || steps.meta.outputs.update-type == 'version-update:semver-patch')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"

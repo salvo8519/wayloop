@@ -26,12 +26,14 @@ are applied and who decides. Every tool listed is free for public open-source re
 
 | Signal | Tool | Cadence |
 | --- | --- | --- |
-| New versions of crates, Python packages and GitHub Actions | Dependabot version updates, grouped per ecosystem | Weekly |
+| New versions of crates, Python packages and GitHub Actions | Dependabot version updates (`cargo`, `uv` with its lock file, `github-actions`), minor and patch grouped per ecosystem | Weekly |
 | Known vulnerabilities | Dependabot security alerts; `cargo deny check advisories`; `pip-audit` | Immediate; every pull request and weekly |
 | A dependency with a vulnerability or a disallowed licence added by a pull request | Dependency review | Every pull request |
 | Vulnerable patterns in our code and workflows | CodeQL (Python, Rust, GitHub Actions) | Every push, pull request, weekly |
 | Supply-chain practices of the project | OpenSSF Scorecard | Weekly and on `main` |
 | Breakage coming with the next compatible versions | Weekly maintenance: tests with upgraded lock files | Weekly |
+| Tests that miss a change in the decision logic | Weekly maintenance: mutation testing of `wayloop-core` (cargo-mutants) | Weekly |
+| A failure of CI on `main` or of a scheduled workflow | Failure issues workflow: one issue labelled `bug` per workflow | Every completed run |
 | Unmaintained, yanked or wildcard crates, unknown sources | `cargo deny` | Every pull request |
 | Unsafe workflows: injection, permissions, persisted credentials, unpinned actions | zizmor | Every pull request |
 | Workflow syntax, runner labels, shell mistakes | actionlint with shellcheck | Every pull request |
@@ -39,8 +41,11 @@ are applied and who decides. Every tool listed is free for public open-source re
 | Broken links in the documentation | lychee | Weekly |
 | Required checks that no longer match the ruleset of `main` | `scripts/required_checks.py remote` | Weekly |
 
-A failure of the weekly maintenance opens one issue labelled `maintenance`, or comments on the
-open one. Cargo tools pinned in the workflows (`tool: <name>@<version>` and the
+A failure of the weekly maintenance opens one issue labelled `maintenance`, or updates the open
+one (its body with the latest report and the surviving mutants, a comment with the run); the
+next green run closes it. A failure of CI on `main`, of the documentation on `main`, or of a
+scheduled run of Security or Roadmap sync does the same with one issue labelled `bug` per
+workflow (`scripts/failure_issue.py`). The session briefing lists these issues first. Cargo tools pinned in the workflows (`tool: <name>@<version>` and the
 `cargo install --locked` fallback next to it) are not updated by Dependabot: the maintainer
 checks them at each weekly maintenance and updates both lines together in one `ci(deps)` pull
 request.
@@ -50,12 +55,22 @@ request.
 | Kind of update | When | How |
 | --- | --- | --- |
 | Security fix | Within seven days of the alert, immediately for a critical one | Dependabot security pull request, or a manual `fix(deps)` |
-| Patch and minor versions | Weekly, one grouped pull request per ecosystem | Merge after a green CI |
+| Patch and minor versions | Weekly, one grouped pull request per ecosystem | GitHub Actions and Python tools: merged automatically once the required checks pass; Rust crates: merged after review |
 | Major versions | Within one month, after reading the upstream changelog | One pull request per dependency |
 | Rust toolchain for the minimum supported version | Only on purpose, with `rust-version` in `Cargo.toml` | `build(deps)` pull request with the reason |
 
 A release is never made with an open security alert, a failed weekly maintenance run or a
 dependency pull request older than one month.
+
+## Updates that merge by themselves
+
+`.github/workflows/dependabot-auto-merge.yml` enables auto-merge (squash) on a Dependabot pull
+request when it updates GitHub Actions or the Python development tools (`uv`) by a minor or a
+patch version. The pull request merges only when every required check of the ruleset passes;
+a red check leaves it open for the maintainer. Rust dependencies (`cargo`) and major versions are
+never merged automatically: they change what ships, so they wait for review. The workflow needs
+the repository setting **Allow auto-merge** (Settings, General, Pull Requests), which the
+maintainer turns on once; without it the job fails and the pull request waits as before.
 
 ## GitHub Actions are pinned to commits
 
