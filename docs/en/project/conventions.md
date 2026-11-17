@@ -34,6 +34,11 @@ pull request workflow both run.
 
 ## Issues
 
+- **Title**: the outcome, as a short sentence in sentence case, without a type prefix and
+  without a full stop: `Ledger replay gives the same state on every platform`, not
+  `feat: ledger replay` or `[FEAT] replay`. A title may start with a command name
+  (`wayloop init creates ...`). Titles of tasks and epics are unique across the roadmap, so
+  that a title identifies one piece of work. `scripts/roadmap.py check` enforces both rules.
 - **Type**: chosen with the issue form, which applies the label: `task` for planned work,
   `bug` for a defect, `spec-request` for a proposed capability. Blank issues are disabled.
 - **Area**: one `area:*` label. Areas decide which issues can run in parallel; the area list of

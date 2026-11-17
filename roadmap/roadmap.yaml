@@ -56,7 +56,7 @@ milestones:
         tasks:
           - { issue: 137, title: "Process scripts are covered by tests that run in CI", status: done }
           - { issue: 138, title: "Issue forms for task, bug and specification request", status: done }
-          - { issue: 45, title: "Issue titles state the outcome, are unique and carry no type prefix", status: open }
+          - { issue: 45, title: "Issue titles state the outcome, are unique and carry no type prefix", status: done }
           - { issue: 139, title: "Roadmap file reproduced on GitHub by a script in the repository", status: open }
           - { issue: 140, title: "Required status checks kept in step with the workflows", status: open }
           - { issue: 141, title: "Workflows linted, actions pinned and dependencies scanned", status: open }
@@ -115,7 +115,7 @@ milestones:
           - { issue: 55, title: "JSON envelope, error codes and exit codes", spec: "0004", status: open }
           - { issue: 56, title: "wayloop.toml with schema and precedence", spec: "0004", status: open }
           - { issue: 57, title: "Next, status, history and rulings commands", spec: "0004", status: open }
-      - title: "Documentation"
+      - title: "Engine documentation"
         issue: 24
         labels: ["area:docs"]
         tasks:
@@ -252,7 +252,7 @@ milestones:
           - { issue: 116, title: "Reusable GitHub Action for validation and remote execution", status: open }
           - { issue: 118, title: "Pipeline to crates.io, PyPI, npm and plugin marketplaces", spec: "0018", status: open }
           - { issue: 119, title: "0.5.0 preview on every channel", tags: [maintainer], status: open }
-      - title: "Documentation"
+      - title: "Installation guides"
         issue: 38
         labels: ["area:docs"]
         tasks:

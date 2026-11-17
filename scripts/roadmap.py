@@ -54,6 +54,7 @@ TASK_KEYS = {"issue", "title", "tags", "status", "spec"}
 EPIC_KEYS = {"title", "issue", "labels", "tasks"}
 MILESTONE_KEYS = {"title", "gate", "release", "epics"}
 SEMVER = re.compile(r"^\d+\.\d+\.\d+\Z")
+TYPE_PREFIX = re.compile(r"^\[[^\]]*\]|^[a-z]+(\([^)]*\))?!?:\s")
 CLOSES = re.compile(r"(?im)^[ \t]*(?:closes|fixes|resolves)[ \t]+#(\d+)")
 HEADER = """\
 # Source of truth for the plan: milestones, epics (parent issues) and tasks (sub-issues).
@@ -199,6 +200,21 @@ def problems_of(data: dict[str, Any], pr_body: str | None = None) -> list[str]:
                 if n in seen:
                     problems.append(f"issue #{n} appears twice ({seen[n]} and {e['title']})")
                 seen[n] = e["title"]
+    titles: dict[str, str] = {}
+    for m in data["milestones"]:
+        for e in m["epics"]:
+            for kind, item in [("epic", e)] + [("task", t) for t in e["tasks"]]:
+                title = str(item.get("title", ""))
+                where = f"{m['title']} / {kind} '{title}'"
+                if TYPE_PREFIX.match(title) or title.endswith("."):
+                    problems.append(
+                        f"{where}: the title states the outcome, without a type prefix "
+                        "or a full stop"
+                    )
+                key = title.casefold()
+                if key in titles:
+                    problems.append(f"{where} has the same title as {titles[key]}")
+                titles.setdefault(key, where)
     for spec in sorted(spec_ids - referenced):
         problems.append(f"spec {spec} is not referenced by any roadmap task")
     if ROADMAP.read_text(encoding="utf-8") != dump(data):
