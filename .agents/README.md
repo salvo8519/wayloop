@@ -21,6 +21,15 @@ instructions are in `AGENTS.md` (all agents) and `CLAUDE.md` (Claude Code specif
 | `reviewer` | Review of a branch against AGENTS.md, the ADRs and the specification | No |
 | `critic` | Counter-review: gaps, edge cases, contradictions | No |
 | `planner` | Sprints, lanes with disjoint paths, roadmap proposals | Planning files |
+| `test-engineer` | Tests and contract cases from acceptance criteria, before the code | Tests |
+| `docs-writer` | Concept pages, guides and reference, in step with the code | Documentation |
+| `translator` | Italian edition from the English source, with the glossary | Documentation |
+| `security-reviewer` | Dependencies, workflows, permissions, secrets, injection | No |
+| `contract-auditor` | Schemas, envelope, error codes and tool definitions against ADR 0009 and ADR 0024 | No |
+| `release-manager` | Release readiness, version, notes, release pull request | Release files |
+| `ci-investigator` | Root cause of a red CI run and the smallest correct fix | No |
+| `explorer` | Locates code and returns file and line tables | No |
+| `simplifier` | Review lens: code that need not exist, missed reuse, over-engineering | No |
 
 ## Skills
 
