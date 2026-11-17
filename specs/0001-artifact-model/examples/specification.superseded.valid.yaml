@@ -1,0 +1,24 @@
+# Valid superseded living specification. Part of the example project validated as one set.
+# Its replacement is listed in superseded_by, the fix that SPEC-0001 R4 reports.
+kind: specification
+schema_version: 1
+id: SPEC-0003
+title: Time entries in a CSV log
+status: superseded
+superseded_by:
+  - SPEC-0001
+capability: csv-log
+owner: "@example-owner"
+milestone: M1
+commit_scope: core
+problem: Freelancers need to record time without leaving the terminal.
+scope_in:
+  - Recording time entries in a CSV file
+requirements:
+  - id: R1
+    text: WHEN the user runs the record command, THE TOOL SHALL append one CSV row to the log.
+acceptance_criteria:
+  - id: AC1
+    requirements: [R1]
+    text: Given an empty log, when an entry is recorded, then the log holds one row.
+    verification: [tdd]

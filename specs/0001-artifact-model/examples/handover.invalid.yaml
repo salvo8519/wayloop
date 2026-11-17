@@ -1,0 +1,19 @@
+# Invalid hand-over record. Breaks SPEC-0001 R1: the schema requires next_step
+# (content of SPEC-0003 R12).
+# Expected: pointer /next_step, reason missing.
+kind: handover
+schema_version: 1
+id: HANDOVER-12-2
+issue: 12
+task: TASK-0001
+session: session-2027-01-16-01
+holder: agent-lane-1
+executor: claude_code
+branch: feat/12-record-time-entry
+step: verify
+files_touched: []
+not_done: []
+open_questions: []
+rulings: []
+recorded_at: "2027-01-16T09:10:00Z"
+tokens: 120

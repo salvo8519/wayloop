@@ -74,7 +74,8 @@ the main change. One branch per issue; branches are short-lived and deleted afte
 issue worked in a sprint lane uses `sprint/SNN/<issue>-<slug>` instead: on those branches CI
 also checks that the pull request changes only the files of the lane
 ([sprints](https://github.com/salvo8519/wayloop/blob/main/sprints/README.md)). Exempt:
-`dependabot/*`, `release/v*`.
+`dependabot/*`, `release/v*`, and `revert-<n>-*`, the branch GitHub creates for the
+Revert button.
 
 ## Commits
 

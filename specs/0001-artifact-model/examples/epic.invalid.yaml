@@ -1,0 +1,10 @@
+# Invalid epic. Breaks SPEC-0001 R7: the title carries a bracket tag.
+# Expected: pointer /title, reason syntax, fix "Monthly export of time entries".
+kind: epic
+schema_version: 1
+id: EPIC-0002
+title: "[EPIC] Monthly export of time entries"
+status: draft
+milestone: M1
+outcome: A user exports the entries of a month as CSV.
+area: core

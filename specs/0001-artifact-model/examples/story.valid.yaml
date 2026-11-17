@@ -1,0 +1,19 @@
+# Valid story. Part of the example project validated as one set.
+kind: story
+schema_version: 1
+id: STORY-0001
+title: Record a time entry with one command
+status: implementing
+epic: EPIC-0001
+as_a: freelance developer
+i_want: to record a time entry with one command
+so_that: I do not leave the terminal
+acceptance_criteria:
+  - id: AC1
+    given: an empty log
+    when: I run the record command with a duration and a project
+    then: the log holds one entry with that duration and project
+specification:
+  - SPEC-0001
+milestone: M1
+issue: 11

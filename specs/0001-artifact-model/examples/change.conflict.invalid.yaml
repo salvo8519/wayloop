@@ -1,0 +1,16 @@
+# Invalid change delta. Breaks SPEC-0001 R20 (AC29): two operations on one requirement.
+# Expected: pointer /operations/1, code delta_conflict, reason conflict, pointers
+# /operations/0 and /operations/1.
+kind: change
+schema_version: 1
+id: CHANGE-0003
+title: Durations in hours
+status: draft
+specification: SPEC-0001
+proposal: Invoices count hours.
+operations:
+  - op: modified
+    requirement: R2
+    text: THE TOOL SHALL store durations in hours.
+  - op: removed
+    requirement: R2

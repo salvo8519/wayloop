@@ -1,0 +1,15 @@
+# Invalid change delta. Breaks SPEC-0001 R3 (and SPEC-0009 AC1): it modifies R7, which
+# SPEC-0001 of the example project does not have.
+# Expected: pointer /operations/0/requirement, code link_missing, reason missing,
+# target SPEC-0001 R7.
+kind: change
+schema_version: 1
+id: CHANGE-0002
+title: Rounding of durations
+status: draft
+specification: SPEC-0001
+proposal: Invoices round to quarter hours.
+operations:
+  - op: modified
+    requirement: R7
+    text: THE TOOL SHALL round durations to 15 minutes on export.

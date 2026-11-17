@@ -1,0 +1,10 @@
+# Valid gate issue. Part of the example project validated as one set. The approval of
+# BRIEF-0001 was given on issue 2 and recorded in the ledger (SPEC-0001 R17).
+kind: gate
+schema_version: 1
+id: GATE-0001
+title: Approve the brief on terminal time tracking
+status: done
+subject: BRIEF-0001
+issue: 2
+approved_by: "@example-owner"

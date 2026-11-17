@@ -1,0 +1,20 @@
+# Invalid story. Breaks SPEC-0001 R4 (AC7): the linked specification is superseded.
+# Expected: the error names STORY-0003, pointer /specification/0, code link_superseded,
+# reason state, target SPEC-0003, fix SPEC-0001 (its superseded_by).
+kind: story
+schema_version: 1
+id: STORY-0003
+title: Record a time entry in a CSV row
+status: approved
+epic: EPIC-0001
+milestone: M1
+as_a: freelance developer
+i_want: to record a time entry as a CSV row
+so_that: I open the log in a spreadsheet
+acceptance_criteria:
+  - id: AC1
+    given: an empty log
+    when: I record an entry
+    then: the log holds one row
+specification:
+  - SPEC-0003

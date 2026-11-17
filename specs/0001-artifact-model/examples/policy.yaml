@@ -1,0 +1,5 @@
+# Subset of the project policy that the artifact model reads (SPEC-0001, Project policy).
+# The full schema of the policy is specified by SPEC-0021. Areas carry no label prefix.
+types: [feat, fix, perf, refactor, docs, test, build, ci, chore, revert]
+scopes: [core, cli, docs, specs, ci]
+areas: [core, cli, docs]

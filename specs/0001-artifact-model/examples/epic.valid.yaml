@@ -1,0 +1,10 @@
+# Valid epic. Part of the example project validated as one set.
+kind: epic
+schema_version: 1
+id: EPIC-0001
+title: Time entries are recorded from the terminal
+status: implementing
+milestone: M1
+outcome: A user records a time entry with one command and lists the entries of a day.
+area: core
+issue: 10

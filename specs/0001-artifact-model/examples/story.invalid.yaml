@@ -1,0 +1,20 @@
+# Invalid story. Breaks SPEC-0001 R3 and R4 (AC2): the linked specification does not exist.
+# Expected: the error names STORY-0002, pointer /specification/0,
+# code link_missing, reason missing, target SPEC-0042.
+kind: story
+schema_version: 1
+id: STORY-0002
+title: List the entries of a day
+status: approved
+epic: EPIC-0001
+as_a: freelance developer
+i_want: to list the entries of a day
+so_that: I check what I recorded
+acceptance_criteria:
+  - id: AC1
+    given: two entries recorded today
+    when: I run the list command
+    then: both entries are shown in order
+milestone: M1
+specification:
+  - SPEC-0042

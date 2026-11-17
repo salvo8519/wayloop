@@ -1,0 +1,22 @@
+# Invalid living specification. Breaks SPEC-0001 R5: "published" is not a status of the type.
+# Expected: pointer /status, reason enum, expected draft, approved, surveyed, implementing,
+# done, superseded.
+kind: specification
+schema_version: 1
+id: SPEC-0002
+title: Monthly export
+status: published
+capability: monthly-export
+owner: "@example-owner"
+commit_scope: core
+problem: Freelancers need the entries of a month to write an invoice.
+scope_in:
+  - CSV export of one month
+requirements:
+  - id: R1
+    text: WHEN the user runs the export command for a month, THE TOOL SHALL write one CSV row per entry.
+acceptance_criteria:
+  - id: AC1
+    requirements: [R1]
+    text: Given three entries in March, when March is exported, then the file has three rows.
+    verification: [tdd]

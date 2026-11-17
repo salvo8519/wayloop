@@ -1,0 +1,17 @@
+# Valid change delta. Part of the example project validated as one set. The added
+# requirement has no identifier until the delta is merged; it will be R5, because R4
+# is recorded as removed in SPEC-0001 (R20).
+kind: change
+schema_version: 1
+id: CHANGE-0001
+title: Durations in seconds
+status: draft
+specification: SPEC-0001
+proposal: Short tasks need a finer unit than minutes.
+design: Convert existing entries once, when the log is first read.
+operations:
+  - op: modified
+    requirement: R2
+    text: THE TOOL SHALL store durations in seconds.
+  - op: added
+    text: WHEN a log in minutes is read, THE TOOL SHALL convert it to seconds.

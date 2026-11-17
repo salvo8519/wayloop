@@ -1,0 +1,34 @@
+# Valid council report. Part of the example project validated as one set.
+kind: council_report
+schema_version: 1
+id: COUNCIL-0001
+title: Council report on terminal time tracking
+status: approved
+brief: BRIEF-0001
+mode: one_mind
+roles:
+  - product_and_business
+  - software_architecture
+  - critic
+decisions:
+  - id: D1
+    statement: Store entries in a local file, one line per entry.
+    reason: Works offline and stays readable without the tool.
+rejected_alternatives:
+  - option: A hosted service
+    reason: Breaks the offline constraint.
+dissent:
+  - role: product_and_business
+    position: Synchronisation between devices matters from the first release.
+    decision: D1
+risks:
+  - description: Concurrent writes from two terminals.
+    mitigation: Append-only writes with a lock.
+questions:
+  - id: Q1
+    question: Is synchronisation in the first milestone?
+    options:
+      - "Yes"
+      - "No"
+    recommendation: "No"
+    answer: "No"

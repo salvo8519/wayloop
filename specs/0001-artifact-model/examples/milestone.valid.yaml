@@ -1,0 +1,10 @@
+# Valid milestone. Part of the example project validated as one set.
+kind: milestone
+schema_version: 1
+id: M1
+title: Time entries
+status: implementing
+gate: A user records, lists and exports the entries of a month offline.
+council_report: COUNCIL-0001
+due: "2027-03-31"
+tracker_number: 1

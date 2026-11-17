@@ -1,0 +1,9 @@
+# Valid commit input (SPEC-0001 R11): a breaking change with its paragraph.
+header: "feat(core)!: store durations in seconds [SPEC-0001 R2]"
+body: |
+  Durations were minutes; short tasks need seconds.
+
+  BREAKING CHANGE: logs written in minutes are converted on first read.
+
+  Refs: #12
+  Signed-off-by: Example Owner <owner@example.org>
