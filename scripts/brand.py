@@ -65,9 +65,7 @@ def mark_body(seal: str, ring: str, gate: str, token: str) -> str:
 
 def mark(inverted: bool = False) -> str:
     return (
-        mark_body(WHITE, INK, AMBER, TEAL)
-        if inverted
-        else mark_body(INK, WHITE, AMBER, TEAL_LIGHT)
+        mark_body(WHITE, INK, AMBER, TEAL) if inverted else mark_body(INK, WHITE, AMBER, TEAL_LIGHT)
     )
 
 
