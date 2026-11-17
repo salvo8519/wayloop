@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 14f439754d13
+source_hash: 449f64b82c59
 ---
 # Architettura
 
@@ -129,5 +129,7 @@ esterni. Porta come dati i campi di un rifiuto su cui un agente agisce (ADR 0009
 | `reason` | Un valore dell'enum documentato: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale` |
 | `pointer` | Puntatore RFC 6901 dalla radice dell'input inviato; vuoto per l'intero input |
 
-Il tipo implementa `Display` e `std::error::Error`. I codici, il messaggio, i valori accettati
-e la correzione suggerita di C3 arrivano con la specifica di ogni comando.
+Il tipo implementa `Display` e `std::error::Error`. Un codice è una costante del tipo `Code`,
+così un solo punto elenca tutti i codici del motore. I codici, e gli altri campi di C3
+(`message`, `pointers`, `expected`, `fix` e l'elenco `errors[]` di tutti gli errori trovati in
+un solo passaggio), arrivano con la specifica di ogni comando.

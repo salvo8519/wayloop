@@ -15,7 +15,7 @@ dev = [
   "pyyaml>=6",
   "pytest>=8",
   "tomli-w>=1.0",
-  "ruff>=0.6",
+  "ruff>=0.17,<0.18",
   "rust-just>=1.40",
   "typos>=1.30",
   "pre-commit>=4",
@@ -37,8 +37,10 @@ target-version = "py312"
 # ruff's own checks (RUF), and error handling: no blind except (BLE), exceptions raised and
 # caught with care (TRY), no silent try-except-pass (S110), explicit encoding (PLW1514).
 select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF", "BLE", "TRY", "S110", "PLW1514"]
-# PLW1514 is a preview rule in ruff; explicit-preview-rules keeps every other preview rule off
-# unless it is selected by its exact code.
+# PLW1514 is a preview rule in ruff. `preview` also turns on the preview behaviour of the
+# stable rules selected above; explicit-preview-rules keeps every other preview rule off unless
+# it is selected by its exact code. ruff is pinned to a minor range so that a lock refresh
+# cannot change the rules without a review.
 preview = true
 explicit-preview-rules = true
 

@@ -330,7 +330,7 @@ def main(root: Path = ROOT) -> None:
     for crate, allowed in PURE_CRATES.items():
         try:
             problems += refused(crate, cargo_tree(crate, root), allowed)
-        except CargoError as error:
+        except (CargoError, TreeLineError) as error:
             problems.append(f"{crate}: cargo tree failed: {error}")
         problems += [
             f"crates/{crate}: {problem}" for problem in missing_guards(root / "crates" / crate)

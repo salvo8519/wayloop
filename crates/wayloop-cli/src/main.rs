@@ -62,7 +62,8 @@ fn run(args: &[String], out: &mut impl Write) -> Result<(), Failure> {
         }
         _ => return Err(Failure::Usage),
     };
-    writeln!(out, "{text}").map_err(Failure::Output)
+    writeln!(out, "{text}").map_err(Failure::Output)?;
+    out.flush().map_err(Failure::Output)
 }
 
 #[cfg(test)]

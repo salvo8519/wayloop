@@ -119,5 +119,7 @@ as data the fields of a refusal that an agent acts on (ADR 0009, C3):
 | `reason` | One value of the documented enum: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale` |
 | `pointer` | RFC 6901 pointer from the root of the input sent; empty for the whole input |
 
-The type implements `Display` and `std::error::Error`. The codes, the message, the accepted
-values and the suggested fix of C3 come with the specification of each command.
+The type implements `Display` and `std::error::Error`. A code is a constant of the type `Code`,
+so that one place lists every code of the engine. The codes themselves, and the other fields
+of C3 (`message`, `pointers`, `expected`, `fix`, and the list `errors[]` of every error found
+in one pass), come with the specification of each command.

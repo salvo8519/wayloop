@@ -3,8 +3,9 @@
 //! The type is written by hand, with no dependency, so that the core stays on its allowlist.
 //! It carries as data the fields of a refusal that an agent acts on: the stable code, the
 //! reason from the documented enum, and the RFC 6901 pointer to the part of the input that
-//! caused it. The message, the expected values and the suggested fix of C3 are added with
-//! the first command that needs them, as are the codes themselves (C8).
+//! caused it. The message, the other pointers (`pointers`), the expected values and the
+//! suggested fix of C3, and the list `errors[]` of every error found in one pass, are added
+//! with the first command that needs them, as are the codes themselves (C8).
 
 use core::fmt;
 
@@ -80,10 +81,35 @@ impl fmt::Display for Reason {
     }
 }
 
+/// A stable error code. Codes are never renamed or reused (ADR 0009 C8); every code of the
+/// engine is a constant of this type, so that one place lists them all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Code(&'static str);
+
+impl Code {
+    /// A code with the given `snake_case` identifier.
+    #[must_use]
+    pub const fn new(id: &'static str) -> Self {
+        Self(id)
+    }
+
+    /// The identifier written in the error report.
+    #[must_use]
+    pub const fn id(self) -> &'static str {
+        self.0
+    }
+}
+
+impl fmt::Display for Code {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.0)
+    }
+}
+
 /// A refusal of the engine, with the code, reason and pointer of ADR 0009 C3.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Error {
-    code: &'static str,
+    code: Code,
     reason: Reason,
     pointer: String,
 }
@@ -92,7 +118,7 @@ impl Error {
     /// A refusal with its stable `code` (never renamed or reused, ADR 0009 C8), its `reason`,
     /// and the RFC 6901 `pointer` from the root of the input sent; `""` is the whole input.
     #[must_use]
-    pub fn new(code: &'static str, reason: Reason, pointer: impl Into<String>) -> Self {
+    pub fn new(code: Code, reason: Reason, pointer: impl Into<String>) -> Self {
         Self {
             code,
             reason,
@@ -102,7 +128,7 @@ impl Error {
 
     /// Stable error code.
     #[must_use]
-    pub const fn code(&self) -> &'static str {
+    pub const fn code(&self) -> Code {
         self.code
     }
 
@@ -133,7 +159,38 @@ impl std::error::Error for Error {}
 
 #[cfg(test)]
 mod tests {
-    use super::{Error, Reason};
+    use super::{Code, Error, Reason};
+
+    const INVALID_INPUT: Code = Code::new("invalid_input");
+    const STALE_REVISION: Code = Code::new("stale_revision");
+
+    // Exhaustive: a new variant does not compile until it gets a position here, and then
+    // the test fails until ALL lists it in that position.
+    const fn position(reason: Reason) -> usize {
+        match reason {
+            Reason::Syntax => 0,
+            Reason::Missing => 1,
+            Reason::UnknownField => 2,
+            Reason::Duplicate => 3,
+            Reason::Type => 4,
+            Reason::Enum => 5,
+            Reason::Conflict => 6,
+            Reason::Requires => 7,
+            Reason::Range => 8,
+            Reason::Length => 9,
+            Reason::State => 10,
+            Reason::Stale => 11,
+        }
+    }
+
+    #[test]
+    fn all_lists_every_reason_once_in_order() {
+        const COUNT: usize = 12;
+        assert_eq!(Reason::ALL.len(), COUNT);
+        for (i, reason) in Reason::ALL.into_iter().enumerate() {
+            assert_eq!(position(reason), i);
+        }
+    }
 
     #[test]
     fn reasons_are_the_documented_enum_of_adr_0009() {
@@ -159,17 +216,17 @@ mod tests {
 
     #[test]
     fn an_error_carries_its_code_reason_and_pointer_as_data() {
-        let error = Error::new("invalid_input", Reason::Missing, "/issue/title");
-        assert_eq!(error.code(), "invalid_input");
+        let error = Error::new(INVALID_INPUT, Reason::Missing, "/issue/title");
+        assert_eq!(error.code().id(), "invalid_input");
         assert_eq!(error.reason(), Reason::Missing);
         assert_eq!(error.pointer(), "/issue/title");
     }
 
     #[test]
     fn display_names_the_code_the_reason_and_the_place() {
-        let error = Error::new("invalid_input", Reason::UnknownField, "/stpe");
+        let error = Error::new(INVALID_INPUT, Reason::UnknownField, "/stpe");
         assert_eq!(error.to_string(), "invalid_input: unknown_field at /stpe");
-        let root = Error::new("invalid_input", Reason::Syntax, "");
+        let root = Error::new(INVALID_INPUT, Reason::Syntax, "");
         assert_eq!(
             root.to_string(),
             "invalid_input: syntax at the root of the input"
@@ -179,7 +236,7 @@ mod tests {
     #[test]
     fn it_is_a_standard_error_without_a_source() {
         let error: Box<dyn std::error::Error> =
-            Box::new(Error::new("stale_revision", Reason::Stale, "/revision"));
+            Box::new(Error::new(STALE_REVISION, Reason::Stale, "/revision"));
         assert!(error.source().is_none());
         assert_eq!(error.to_string(), "stale_revision: stale at /revision");
     }

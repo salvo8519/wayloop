@@ -823,7 +823,7 @@ dev = [
     { name = "pre-commit", specifier = ">=4" },
     { name = "pytest", specifier = ">=8" },
     { name = "pyyaml", specifier = ">=6" },
-    { name = "ruff", specifier = ">=0.6" },
+    { name = "ruff", specifier = ">=0.17,<0.18" },
     { name = "rust-just", specifier = ">=1.40" },
     { name = "tomli-w", specifier = ">=1.0" },
     { name = "towncrier", specifier = ">=24.8" },

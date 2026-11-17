@@ -230,14 +230,14 @@ def apply(p: Plan, gh: GitHub, issues: dict[int, dict[str, Any]], source: GitHub
             for c in (
                 []
                 if gh.dry_run and epic.how == "create"
-                else gh.pages(f"issues/{epic.number}/sub_issues")
+                else gh.pages(f"issues/{epic.target()}/sub_issues")
             )
         }
         for task in (i for i in p.items if i.parent is epic):
-            if task.number not in children:
+            if task.target() not in children:
                 gh.api(
                     "POST",
-                    f"issues/{epic.number}/sub_issues",
+                    f"issues/{epic.target()}/sub_issues",
                     {"sub_issue_id": issues[task.target()]["id"], "replace_parent": True},
                 )
                 changes += 1
@@ -252,13 +252,13 @@ def apply(p: Plan, gh: GitHub, issues: dict[int, dict[str, Any]], source: GitHub
         have = (
             set()
             if task.how == "create" and gh.dry_run
-            else {d["number"] for d in gh.pages(f"issues/{task.number}/dependencies/blocked_by")}
+            else {d["number"] for d in gh.pages(f"issues/{task.target()}/dependencies/blocked_by")}
         )
         for blocker in wanted:
             if blocker not in have and blocker in issues:
                 gh.api(
                     "POST",
-                    f"issues/{task.number}/dependencies/blocked_by",
+                    f"issues/{task.target()}/dependencies/blocked_by",
                     {"issue_id": issues[blocker]["id"]},
                 )
                 changes += 1
