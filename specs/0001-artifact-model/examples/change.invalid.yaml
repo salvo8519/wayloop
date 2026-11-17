@@ -1,6 +1,7 @@
 # Invalid change delta. Breaks SPEC-0001 R3 (and SPEC-0009 AC1): it modifies R7, which
 # SPEC-0001 of the example project does not have.
-# Expected: pointer /operations/0/requirement, reason missing, target SPEC-0001 R7.
+# Expected: pointer /operations/0/requirement, code link_missing, reason missing,
+# target SPEC-0001 R7.
 kind: change
 schema_version: 1
 id: CHANGE-0002

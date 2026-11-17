@@ -10,7 +10,7 @@ story: STORY-0001
 specification:
   - spec: SPEC-0001
     requirements: [R1, R2]
-verification: tdd
+verification: [tdd]
 area: core
 depends_on: []
 complexity: 3

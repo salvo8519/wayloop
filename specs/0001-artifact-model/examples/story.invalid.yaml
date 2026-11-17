@@ -1,5 +1,6 @@
 # Invalid story. Breaks SPEC-0001 R3 and R4 (AC2): the linked specification does not exist.
-# Expected: the error names STORY-0002, pointer /specification, reason missing, target SPEC-0042.
+# Expected: the error names STORY-0002, pointer /specification/0,
+# code link_missing, reason missing, target SPEC-0042.
 kind: story
 schema_version: 1
 id: STORY-0002
@@ -14,4 +15,6 @@ acceptance_criteria:
     given: two entries recorded today
     when: I run the list command
     then: both entries are shown in order
-specification: SPEC-0042
+milestone: M1
+specification:
+  - SPEC-0042

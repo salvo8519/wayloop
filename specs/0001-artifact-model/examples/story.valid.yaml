@@ -13,6 +13,7 @@ acceptance_criteria:
     given: an empty log
     when: I run the record command with a duration and a project
     then: the log holds one entry with that duration and project
-specification: SPEC-0001
+specification:
+  - SPEC-0001
 milestone: M1
 issue: 11

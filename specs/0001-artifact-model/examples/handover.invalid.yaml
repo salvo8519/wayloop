@@ -3,7 +3,7 @@
 # Expected: pointer /next_step, reason missing.
 kind: handover
 schema_version: 1
-id: HANDOVER-0002
+id: HANDOVER-12-2
 issue: 12
 task: TASK-0001
 session: session-2027-01-16-01

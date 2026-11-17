@@ -9,5 +9,5 @@ milestone: M1
 specification:
   - spec: SPEC-0001
     requirements: [R3]
-verification: property
+verification: [property]
 area: core

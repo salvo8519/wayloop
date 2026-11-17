@@ -1,0 +1,10 @@
+# Invalid hand-over input. Breaks SPEC-0001 R22 (AC31): tokens is set by the engine.
+# Expected: pointer /tokens, code handover_input, reason unknown_field.
+schema_version: 1
+step: verify
+files_touched: []
+not_done: []
+open_questions: []
+rulings: []
+next_step: Run the property test of AC2.
+tokens: 10

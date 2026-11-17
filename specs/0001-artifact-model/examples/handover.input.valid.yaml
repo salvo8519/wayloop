@@ -1,0 +1,15 @@
+# Valid hand-over input, as submitted by the agent (SPEC-0001 R22). It holds only the
+# fields set by the agent; the engine adds the others and records HANDOVER-12-1.
+schema_version: 1
+step: build
+files_touched:
+  - src/record.rs
+  - tests/record.rs
+not_done:
+  - Error message for a missing project
+open_questions: []
+rulings:
+  - decision: Store the log as JSON Lines.
+    reason: Append-only writes and one entry per line, as COUNCIL-0001 D1 states.
+    cost_if_wrong: One migration of the log format.
+next_step: Make the test for AC1 of SPEC-0001 pass.

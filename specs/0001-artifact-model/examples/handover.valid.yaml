@@ -1,7 +1,8 @@
-# Valid hand-over record. Part of the example project validated as one set.
+# Valid hand-over record, as recorded by the engine (SPEC-0001, Hand-over record).
+# Part of the example project validated as one set.
 kind: handover
 schema_version: 1
-id: HANDOVER-0001
+id: HANDOVER-12-1
 issue: 12
 task: TASK-0001
 session: session-2027-01-15-01

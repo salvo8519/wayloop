@@ -1,5 +1,6 @@
 # Valid living specification, in the normalised form of its Markdown file (SPEC-0001 R12).
-# Part of the example project validated as one set.
+# Part of the example project validated as one set. R4 was removed and stays recorded, so
+# the next added requirement is R5 (R20).
 kind: specification
 schema_version: 1
 id: SPEC-0001
@@ -18,6 +19,8 @@ scope_out:
   - Export (a later specification)
 stories:
   - STORY-0001
+user_stories:
+  - As a freelance developer, I want to see the total of a day, so that I check my timesheet.
 requirements:
   - id: R1
     name: Record
@@ -26,17 +29,29 @@ requirements:
     text: THE TOOL SHALL store durations in minutes.
   - id: R3
     text: IF the duration is not positive, THEN THE TOOL SHALL refuse the entry.
+  - id: R4
+    text: THE TOOL SHALL ask for a project when none is given.
+    status: removed
 acceptance_criteria:
   - id: AC1
     requirements: [R1, R2]
     text: Given an empty log, when an entry of 90 minutes is recorded, then the log holds one entry of 90 minutes.
-    verification: tdd
+    verification: [tdd]
   - id: AC2
     requirements: [R3]
     text: Given any duration of zero or less, when recorded, then it is refused.
-    verification: property
+    verification: [property]
+  - id: AC3
+    requirements: [R1]
+    text: Given the help of the record command, when read by a new user, then it explains duration and project.
+    verification: [judge]
+    rubric: Score 1 to 5; 4 or more when duration format, project and one example are all stated.
 interfaces:
   - "timesheet record <duration> <project>"
 open_questions:
-  - text: Is a project required for every entry?
+  - id: Q1
+    text: Is a project required for every entry?
     resolved: true
+extra_sections:
+  - heading: Notes
+    text: The log format follows COUNCIL-0001 D1.

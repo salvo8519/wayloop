@@ -19,8 +19,9 @@ specs/
 | Status | Meaning | Who moves it |
 | --- | --- | --- |
 | `Draft` | Being written; open questions allowed | anyone |
+| `Surveyed` | Written by the survey from existing code (SPEC-0011 R4); waits for approval | engine; the maintainer approves it |
 | `Approved` | Requirements frozen; implementation may start | maintainer |
-| `Implementing` | Tasks in progress; pull requests cite the specification | implementer |
+| `Implementing` | Tasks in progress; pull requests cite the specification | engine, when the first task that cites the specification is claimed |
 | `Done` | Every acceptance criterion verified by a test; documentation published | maintainer |
 | `Superseded` | Replaced by a newer specification (linked) | maintainer |
 

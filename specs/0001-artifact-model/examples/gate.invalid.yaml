@@ -1,0 +1,9 @@
+# Invalid gate issue. Breaks SPEC-0001 R1: a gate in status done needs approved_by.
+# Expected: pointer /approved_by, code artifact_schema, reason requires.
+kind: gate
+schema_version: 1
+id: GATE-0002
+title: Approve the council report on terminal time tracking
+status: done
+subject: COUNCIL-0001
+issue: 3

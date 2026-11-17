@@ -21,7 +21,7 @@ The plan lives in GitHub issues (ADR 0002). The engine must read and write it re
 - As a maintainer, I want my manual edits on an issue never to be overwritten by the engine.
 
 ## Requirements (EARS)
-- **R1**: THE ENGINE SHALL map epics and stories to parent issues and sub-issues, and dependencies to native blocked-by relations.
+- **R1**: THE ENGINE SHALL map every epic to a parent issue, every story and every task to a sub-issue of its epic, and dependencies to native blocked-by relations.
 - **R2**: THE ENGINE SHALL keep its own fields in a structured block of the issue body, validated by a schema.
 - **R3**: IF the structured block does not validate, THEN THE ENGINE SHALL raise a question on the issue and leave it unchanged.
 - **R4**: THE ENGINE SHALL maintain a local cache updated incrementally and rebuildable from the tracker at any time.
