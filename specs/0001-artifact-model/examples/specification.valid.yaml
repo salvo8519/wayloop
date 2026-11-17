@@ -1,0 +1,42 @@
+# Valid living specification, in the normalised form of its Markdown file (SPEC-0001 R12).
+# Part of the example project validated as one set.
+kind: specification
+schema_version: 1
+id: SPEC-0001
+title: Time entries
+status: implementing
+capability: time-entries
+owner: "@example-owner"
+milestone: M1
+commit_scope: core
+related:
+  - COUNCIL-0001
+problem: Freelancers need to record time without leaving the terminal.
+scope_in:
+  - Recording and listing time entries
+scope_out:
+  - Export (a later specification)
+stories:
+  - STORY-0001
+requirements:
+  - id: R1
+    name: Record
+    text: WHEN the user runs the record command, THE TOOL SHALL append one entry to the log.
+  - id: R2
+    text: THE TOOL SHALL store durations in minutes.
+  - id: R3
+    text: IF the duration is not positive, THEN THE TOOL SHALL refuse the entry.
+acceptance_criteria:
+  - id: AC1
+    requirements: [R1, R2]
+    text: Given an empty log, when an entry of 90 minutes is recorded, then the log holds one entry of 90 minutes.
+    verification: tdd
+  - id: AC2
+    requirements: [R3]
+    text: Given any duration of zero or less, when recorded, then it is refused.
+    verification: property
+interfaces:
+  - "timesheet record <duration> <project>"
+open_questions:
+  - text: Is a project required for every entry?
+    resolved: true

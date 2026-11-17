@@ -1,0 +1,19 @@
+# Invalid council report. Breaks SPEC-0001 R3 and R4: the brief it links does not exist.
+# Expected: pointer /brief, reason missing, target BRIEF-0002.
+kind: council_report
+schema_version: 1
+id: COUNCIL-0002
+title: Council report on invoice export
+status: draft
+brief: BRIEF-0002
+mode: independent
+roles:
+  - software_architecture
+decisions:
+  - id: D1
+    statement: Export to CSV first.
+    reason: Every accounting tool imports it.
+rejected_alternatives: []
+dissent: []
+risks: []
+questions: []

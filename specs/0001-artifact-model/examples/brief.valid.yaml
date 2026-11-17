@@ -1,0 +1,20 @@
+# Valid brief. Part of the example project validated as one set (SPEC-0001, Examples).
+kind: brief
+schema_version: 1
+id: BRIEF-0001
+title: Freelancers record their working time from the terminal
+status: approved
+origin: light_requirements
+owner: "@example-owner"
+problem: Freelancers lose billable hours because recording time breaks their flow.
+goals:
+  - Record a time entry with one command
+  - Export the entries of a month for an invoice
+users:
+  - Freelance developers
+scope_in:
+  - Time entries and monthly export
+scope_out:
+  - Invoicing
+constraints:
+  - Works offline

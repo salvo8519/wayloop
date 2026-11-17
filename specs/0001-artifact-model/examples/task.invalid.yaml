@@ -1,0 +1,13 @@
+# Invalid task. Breaks SPEC-0001 R9: a task needs a parent epic.
+# Expected: the error names TASK-0002, pointer /epic, reason missing.
+kind: task
+schema_version: 1
+id: TASK-0002
+title: Durations that are not positive are refused
+status: approved
+milestone: M1
+specification:
+  - spec: SPEC-0001
+    requirements: [R3]
+verification: property
+area: core

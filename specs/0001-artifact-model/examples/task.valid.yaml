@@ -1,0 +1,18 @@
+# Valid task. Part of the example project validated as one set.
+kind: task
+schema_version: 1
+id: TASK-0001
+title: timesheet record appends one entry to the log
+status: implementing
+epic: EPIC-0001
+milestone: M1
+story: STORY-0001
+specification:
+  - spec: SPEC-0001
+    requirements: [R1, R2]
+verification: tdd
+area: core
+depends_on: []
+complexity: 3
+parallel: false
+issue: 12

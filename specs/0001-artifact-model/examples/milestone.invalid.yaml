@@ -1,0 +1,8 @@
+# Invalid milestone. Breaks SPEC-0001 R14: the identifier does not match M<n>.
+# Expected: pointer /id, reason syntax, expected "M<n>".
+kind: milestone
+schema_version: 1
+id: Milestone 2
+title: Monthly export
+status: draft
+gate: A user exports the entries of a month as CSV.

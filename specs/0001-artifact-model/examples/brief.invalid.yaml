@@ -1,0 +1,17 @@
+# Invalid brief. Breaks SPEC-0001 R6: keys must be in English.
+# Expected: pointer /problema, reason unknown_field, fix "problem";
+# then pointer /problem, reason missing (R1).
+kind: brief
+schema_version: 1
+id: BRIEF-0003
+title: Freelancers record their working time from the terminal
+status: draft
+origin: light_requirements
+owner: "@example-owner"
+problema: Freelancers lose billable hours because recording time breaks their flow.
+goals:
+  - Record a time entry with one command
+users:
+  - Freelance developers
+scope_in:
+  - Time entries

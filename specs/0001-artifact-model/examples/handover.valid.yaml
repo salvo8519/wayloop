@@ -1,0 +1,24 @@
+# Valid hand-over record. Part of the example project validated as one set.
+kind: handover
+schema_version: 1
+id: HANDOVER-0001
+issue: 12
+task: TASK-0001
+session: session-2027-01-15-01
+holder: agent-lane-1
+executor: claude_code
+branch: feat/12-record-time-entry
+step: build
+files_touched:
+  - src/record.rs
+  - tests/record.rs
+not_done:
+  - Error message for a missing project
+open_questions: []
+rulings:
+  - decision: Store the log as JSON Lines.
+    reason: Append-only writes and one entry per line, as COUNCIL-0001 D1 states.
+    cost_if_wrong: One migration of the log format.
+next_step: Make the test for AC1 of SPEC-0001 pass.
+recorded_at: "2027-01-15T17:42:00Z"
+tokens: 412
