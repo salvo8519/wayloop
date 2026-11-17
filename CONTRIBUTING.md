@@ -31,6 +31,12 @@ The project settings in `.claude/settings.json` register three hooks:
 
 The hooks never block on a missing tool: they report it and the work goes on.
 
+On GitHub, every pull request that is ready for review receives an automated first review
+against `.agents/agents/reviewer.md` and AGENTS.md; the label `docs-sync` asks Claude to bring
+the documentation of a pull request in line; maintainers and collaborators can mention
+`@claude` in issues and pull requests. All three need the repository secret
+`ANTHROPIC_API_KEY` and are skipped or inactive without it.
+
 ## Pull requests
 
 - One issue per pull request; the body says `Closes #<issue>`.
