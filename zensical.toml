@@ -33,6 +33,7 @@ nav = [
     "project/changelog.md",
     "project/contributing.md",
     "project/conventions.md",
+    "project/dependencies.md",
     { "Decisions (ADR)" = [
       "project/adr/index.md",
       "project/adr/0001-rust-engine-thin-adapters.md",
