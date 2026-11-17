@@ -61,7 +61,12 @@ def test_an_index_row_without_its_file_is_reported(site: Path) -> None:
 def test_a_specification_needs_a_valid_status(site: Path) -> None:
     spec = next((site / "specs").glob("0001-*/spec.md"))
     spec.write_text(
-        spec.read_text(encoding="utf-8").replace("| Status | Draft |", "| Status | Done-ish |")
+        re.sub(
+            r"\| Status \| \w+ \|",
+            "| Status | Done-ish |",
+            spec.read_text(encoding="utf-8"),
+            count=1,
+        )
     )
     assert any("0001-" in p and "Status" in p for p in ds.coverage_problems(site))
 
