@@ -5,14 +5,14 @@
 | Status | Draft |
 | Milestone | M5 · Adapters and distribution |
 | Owner | @salvo8519 |
-| Related | ADR 0024, #107, #110, #113 |
+| Related | ADR 0024, ADR 0028, #107, #110, #113, #222 |
 | Commit scope | mcp |
 
 ## Problem
 Any compatible agent should use the engine without a dedicated plugin, with tools designed for agents rather than for people.
 
 ## Scope
-**In scope:** Server over stdio and streamable HTTP; a small set of tools (next, status, find, history, rulings, validate, propose); progressive disclosure; budgets on outputs; read-only mode.
+**In scope:** Server over stdio and streamable HTTP; a small set of tools (next, status, find, history, rulings, validate, propose); progressive disclosure; budgets on outputs and read-only mode, both passed to the engine as context (ADR 0028).
 
 **Out of scope:** Remote hosting.
 
@@ -26,7 +26,7 @@ Any compatible agent should use the engine without a dedicated plugin, with tool
 - **R4**: THE SERVER SHALL report the command version and status in the _meta of each tool.
 - **R5**: THE SERVER SHALL offer a compact profile and a selection of tools by area that accept exactly the inputs of the full definitions.
 - **R6**: THE SERVER SHALL expose at most a small, documented set of tools by default and more on request.
-- **R7**: THE SERVER SHALL return compact JSON within a budget for every tool.
+- **R7**: THE SERVER SHALL pass the output budget of every tool call to the engine as context and return the envelope of the engine unchanged; the engine applies the budget (SPEC-0004 R6, ADR 0028).
 - **R8**: THE SERVER SHALL offer a read-only mode that exposes no writing tool.
 - **R9**: THE SERVER SHALL pass the protocol conformance checks of the MCP inspector.
 
