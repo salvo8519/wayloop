@@ -57,6 +57,10 @@ instructions are in `AGENTS.md` (all agents) and `CLAUDE.md` (Claude Code specif
 | `retrospective` | A closed milestone reviewed against its evidence, with proposals |
 | `learnings` | Reusable learnings of the journal proposed for the agent instruction files |
 | `debt` | `shortcut:` comments collected into one list and proposed as tasks |
+| `add-command` | Every file a new engine command touches, in order, contract cases first |
+| `contract-case` | Golden inputs and outputs of a command, minimal, maximal and per error reason |
+| `skill-new` | A new skill to the standard, with its behavioural case |
+| `agent-new` | A new role with least privilege and a hand-off, with its behavioural case |
 
 ## The standard (ADR 0027)
 
