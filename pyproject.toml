@@ -13,6 +13,7 @@ package = false
 [dependency-groups]
 dev = [
   "pyyaml>=6",
+  "pytest>=8",
   "tomli-w>=1.0",
   "ruff>=0.6",
   "rust-just>=1.40",
@@ -58,3 +59,7 @@ showcontent = true
 directory = "fix"
 name = "Fixed"
 showcontent = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

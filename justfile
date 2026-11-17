@@ -7,8 +7,9 @@ default:
 check: style i18n process rust
     @echo "All checks passed."
 
-# Process: YAML, task ids, roadmap, sprint files, agent mirrors.
+# Process: tests of the process scripts, YAML, task ids, roadmap, sprint files.
 process:
+    python -m pytest tests/process
     python scripts/check_yaml.py
     python scripts/check_task_ids.py
     python scripts/roadmap.py check
