@@ -17,7 +17,12 @@ The journal complements, and never replaces, the other sources of project memory
 
 - One file per branch and day: `YYYY-MM-DD-<branch-slug>.md` (slashes in the branch name
   become dashes). Separate files avoid merge conflicts between parallel branches.
-- Written by the `session-end` skill, read by the `session-start` skill.
+- Written by the `session-end` skill, read by the `session-start` skill, whatever agent runs
+  them: an entry is complete when another agent of another vendor can continue from it alone.
+- The Checkout section says who held the work, on which branch and worktree, which step was
+  reached and whether the work is released. The `session-start` skill posts a checkout
+  comment on the issue with a lease; the `session-end` skill posts the hand-over there.
+- `python scripts/journal.py search <issue | area:name | date | text>` finds the entries.
 - English, short sentences, no icons. Facts only: no client data, no secrets.
 - Committed with the work it describes. Entries are never edited after merge; a later session
   writes a new entry.
@@ -27,5 +32,6 @@ The journal complements, and never replaces, the other sources of project memory
 
 Copy `_template.md`.
 
-Once the Wayloop engine runs this repository (milestone M1), the hand-over moves to a
-structured comment on the issue (ADR 0003); until then the journal is the hand-over.
+When the engine runs this repository, checkout and hand-over become ledger events with a
+lease (SPEC-0003 R10 to R13, #162); until then this journal and the issue comments are the
+hand-over.

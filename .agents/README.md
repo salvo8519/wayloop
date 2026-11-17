@@ -21,6 +21,13 @@ instructions are in `AGENTS.md` (all agents) and `CLAUDE.md` (Claude Code specif
 | `critic` | Counter-review: gaps, edge cases, contradictions | No |
 | `planner` | Sprints, lanes with disjoint paths, roadmap proposals | Planning files |
 
+## Skills
+
+| Skill | Use |
+| --- | --- |
+| `session-start` | Briefing, plan, and checkout of the chosen issue with a lease |
+| `session-end` | Gate, journal hand-over, pull request, hand-over comment, merge when allowed |
+
 ## New roles
 
 A specialised role is added only through a pull request: generated from the common schema of

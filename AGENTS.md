@@ -104,6 +104,7 @@ change and the order of dependent branches stays with whoever built them.
 | Preview the documentation | `uv run just docs-serve` or `uv run just docs-serve it` |
 | Translation status | `uv run just i18n-status` |
 | Briefing for a new session | `uv run just state` |
+| Session hand-overs: search | `uv run python scripts/journal.py search <issue \| area:name \| date \| text>` |
 | Roadmap: plan, sync with GitHub | `uv run python scripts/roadmap.py list --open` / `sync` |
 | Roadmap: reproduce the plan on a repository | `uv run python scripts/bootstrap_github.py --dry-run` |
 | Required checks: offline, against the ruleset | `uv run python scripts/required_checks.py check` / `remote` |

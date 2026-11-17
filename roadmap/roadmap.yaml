@@ -89,7 +89,7 @@ milestones:
         labels: ["area:agents"]
         tasks:
           - { issue: 7, title: "Claude Code and Codex mirrors generated from .agents", tags: [parallel], status: done }
-          - { issue: 8, title: "Session-start and session-end skills", tags: [parallel], status: open }
+          - { issue: 8, title: "Session-start and session-end skills", tags: [parallel], status: done }
           - { issue: 159, title: "Agents merge their own pull requests; engine and contract changes wait for confirmation", status: done }
 
   - title: "M1 · Engine core"
