@@ -18,10 +18,11 @@ the code.
 
 ## Scopes
 
-Engine: `core`, `runtime`, `ledger`, `state`, `tracker`, `survey`, `schemas`. Adapters: `cli`,
+Engine: `core`, `runtime`, `ledger`, `state`, `tracker`, `survey`, `schemas`, `security`.
+Adapters: `cli`,
 `python`, `typescript`, `mcp`, `plugins`. Documentation and project: `docs`, `i18n`, `brand`,
 `specs`, `adr`, `agents`, `project`, `roadmap`. Build and delivery: `ci`, `deps`, `release`,
-`scripts`. The list is enforced by `scripts/conventions.py`, which the commit-msg hook and the
+`scripts`, `benchmark`. The list is enforced by `scripts/conventions.py`, which the commit-msg hook and the
 pull request workflow both run.
 
 ## Traceability

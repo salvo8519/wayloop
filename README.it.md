@@ -1,4 +1,4 @@
-<!-- i18n source: README.md source_hash: a0033f667cd9 -->
+<!-- i18n source: README.md source_hash: e5b5be23add7 -->
 <div align="center">
 
 <a href="https://salvo8519.github.io/wayloop/it/">
@@ -96,19 +96,6 @@ loop, il piano vive nel tuo issue tracker e le persone decidono ai gate.
 
 Gli adattatori traducono; solo il motore decide. Le ragioni di ogni scelta sono registrate
 nelle [decisioni di architettura](https://salvo8519.github.io/wayloop/project/adr/).
-
-## Roadmap
-
-| Milestone | Contenuto |
-| --- | --- |
-| M0 Fondamenta | Repository, sito della documentazione, schemi degli artefatti, `init` |
-| M1 Esecuzione | Macchina a stati, ledger, ciclo delle issue, sprint a corsie, passaggio di mano tra sessioni |
-| M2 Specifiche vive | Rilievo dei progetti esistenti, specifiche e modifiche a delta, controlli di coerenza |
-| M3 A monte | Brief, comitato di esperti, roadmap dal verbale, user story |
-| M4 Distribuzione | SDK Python e TypeScript, server MCP, plugin, rilascio 0.1 |
-
-Il piano di dettaglio vive nelle issue del repository e nella
-[pagina della roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
 ## Documentazione
 

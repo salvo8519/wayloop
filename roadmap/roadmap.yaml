@@ -20,13 +20,24 @@ labels:
   - { name: "no-release-note", color: "cfd3d7" }
   - { name: "spec", color: "0F766E" }
   - { name: "adr", color: "12325C" }
+  - { name: "area:tracker", color: "1d76db" }
+  - { name: "area:survey", color: "1d76db" }
+  - { name: "area:sdk", color: "1d76db" }
+  - { name: "area:mcp", color: "1d76db" }
+  - { name: "area:plugins", color: "1d76db" }
+  - { name: "area:release", color: "1d76db" }
+  - { name: "area:security", color: "b60205" }
+  - { name: "area:benchmark", color: "0F766E" }
+  - { name: "contract", color: "b60205" }
+  - { name: "epic", color: "0B1F3A" }
 
 milestones:
   - title: "M0 · Foundations"
-    gate: "wayloop init on an empty repository produces a structure that passes validation."
+    gate: "wayloop init on an empty repository produces a structure that passes wayloop validate."
     release: "0.0.1"
     epics:
       - title: "Repository and governance"
+        issue: 17
         labels: ["area:infra"]
         tasks:
           - { issue: 1, title: "Enable GitHub Pages and upload the social preview", tags: [maintainer], status: open }
@@ -34,41 +45,253 @@ milestones:
           - { issue: 15, title: "Specs, roadmap as code, sprints and process checks", status: done }
           - { issue: 10, title: "Decide on ADR 0006 and ADR 0007", tags: [maintainer, needs-decision], status: open }
           - { issue: 9, title: "Header colour of the site follows the brand palette", status: open }
+          - { issue: 43, title: "Roadmap to version 1.0 with specifications, ADRs and issues", status: done }
+          - { issue: 44, title: "README and documentation follow the structure of the shared project template", status: open }
+      - title: "Process parity with the project template"
+        issue: 136
+        labels: ["area:infra"]
+        tasks:
+          - { issue: 137, title: "Process scripts are covered by tests that run in CI", status: open }
+          - { issue: 138, title: "Issue forms for task, bug and specification request", status: open }
+          - { issue: 45, title: "Issue titles state the outcome, are unique and carry no type prefix", status: open }
+          - { issue: 139, title: "Roadmap file reproduced on GitHub by a script in the repository", status: open }
+          - { issue: 140, title: "Required status checks kept in step with the workflows", status: open }
+          - { issue: 141, title: "Workflows linted, actions pinned and dependencies scanned", status: open }
+          - { issue: 142, title: "Weekly maintenance workflow", status: open }
+          - { issue: 143, title: "Claude Code hooks for documentation impact and formatting", status: open }
+          - { issue: 144, title: "Documentation kept in sync with the project by a deterministic check", status: open }
+          - { issue: 145, title: "Automated review of pull requests and documentation", status: open }
+          - { issue: 146, title: "Decide on a GitHub Projects board for the roadmap", tags: [maintainer, needs-decision], status: open }
       - title: "Artifact model"
+        issue: 18
         labels: ["area:core"]
         tasks:
-          - { issue: 3, title: "Specification: artifact model and schemas", status: open }
-          - { issue: 4, title: "ADR 0008: identifiers and traceability between artifacts", status: open }
-          - { issue: 5, title: "wayloop init creates a project structure that validates", status: open }
-          - { issue: 6, title: "Validate artifacts and their links", status: open }
+          - { issue: 3, title: "Approved specification of the artifact model and schemas", spec: "0001", status: open }
+          - { issue: 4, title: "Decide on ADR 0008 on identifiers and traceability", status: open }
+          - { issue: 5, title: "wayloop init creates a project structure that validates", spec: "0001", status: open }
+          - { issue: 6, title: "Artifacts and their links are validated", spec: "0001", status: open }
       - title: "Agent process"
+        issue: 19
         labels: ["area:agents"]
         tasks:
-          - { issue: 7, title: "Generate the Claude Code and Codex mirrors of .agents", tags: [parallel], status: open }
+          - { issue: 7, title: "Claude Code and Codex mirrors generated from .agents", tags: [parallel], status: open }
           - { issue: 8, title: "Session-start and session-end skills", tags: [parallel], status: open }
 
-  - title: "M1 · Execution"
-    gate: "A real project runs its issues through the loop end to end."
-    release: "0.0.2"
+  - title: "M1 · Engine core"
+    gate: "The engine replays a ledger to the same state on every platform and drives the issue cycle in a dry run on local fixtures."
+    release: "0.1.0"
     epics:
       - title: "Engine foundations"
+        issue: 20
         labels: ["area:core"]
         tasks:
-          - { issue: 11, title: "Specification: state machine of the project and of the issue cycle", status: open }
-          - { issue: 12, title: "Specification: ledger events, hash chain and replay", status: open }
-          - { issue: 13, title: "Specification: GitHub tracker adapter and local cache", status: open }
+          - { issue: 46, title: "Decide on ADR 0009, ADR 0010 and ADR 0024", tags: [maintainer, needs-decision], status: open }
+          - { issue: 47, title: "Crate layout for core, runtime and adapters", status: open }
+      - title: "State machine"
+        issue: 21
+        labels: ["area:core"]
+        tasks:
+          - { issue: 11, title: "Approved specification of the state machine", spec: "0002", status: open }
+          - { issue: 48, title: "Implement the transition table and guards", spec: "0002", status: open }
+          - { issue: 49, title: "Next step and ready work", spec: "0002", status: open }
+          - { issue: 58, title: "Dry run of the issue cycle on local fixtures", spec: "0002", status: open }
+      - title: "Ledger"
+        issue: 22
+        labels: ["area:core"]
+        tasks:
+          - { issue: 12, title: "Approved specification of the ledger", spec: "0003", status: open }
+          - { issue: 50, title: "Append-only writer with hash chain", spec: "0003", status: open }
+          - { issue: 51, title: "Projection, replay and snapshots", spec: "0003", status: open }
+          - { issue: 52, title: "Session, issue and milestone summaries with roll-up", spec: "0003", status: open }
+      - title: "Command-line interface"
+        issue: 23
+        labels: ["area:cli"]
+        tasks:
+          - { issue: 53, title: "Approved specification of the command-line interface and the JSON contracts", spec: "0004", status: open }
+          - { issue: 54, title: "Command schemas snapshotted with an index and a contract check in CI", spec: "0004", status: open }
+          - { issue: 55, title: "JSON envelope, error codes and exit codes", spec: "0004", status: open }
+          - { issue: 56, title: "wayloop.toml with schema and precedence", spec: "0004", status: open }
+          - { issue: 57, title: "Next, status, history and rulings commands", spec: "0004", status: open }
+      - title: "Documentation"
+        issue: 24
+        labels: ["area:docs"]
+        tasks:
+          - { issue: 59, title: "Engine core concepts and command reference, English and Italian", status: open }
 
-  - title: "M2 · Living specifications"
-    gate: "A complete change on an existing codebase managed as a delta."
-    release: "0.0.3"
-    epics: []
+  - title: "M2 · Tracker and loop"
+    gate: "Wayloop runs the issues of its own repository end to end: claim, build, verify, pull request, with gates on GitHub."
+    release: "0.2.0"
+    epics:
+      - title: "Tracker"
+        issue: 25
+        labels: ["area:tracker"]
+        tasks:
+          - { issue: 13, title: "Approved specification of the GitHub tracker adapter", spec: "0005", status: open }
+          - { issue: 60, title: "Decide on ADR 0011, 0012 and 0013", tags: [maintainer, needs-decision], status: open }
+          - { issue: 64, title: "Read issues, sub-issues, dependencies and milestones into the cache", spec: "0005", status: open }
+          - { issue: 65, title: "Write with structured block and optimistic concurrency", spec: "0005", status: open }
+      - title: "Loop runtime"
+        issue: 26
+        labels: ["area:runtime"]
+        tasks:
+          - { issue: 61, title: "Specification: loop runtime, worktrees and budgets", spec: "0006", status: open }
+          - { issue: 66, title: "Queue, worker pool and single ledger writer", spec: "0006", status: open }
+          - { issue: 67, title: "Worktree per issue and lane checks", spec: "0006", status: open }
+          - { issue: 68, title: "Token budgets per phase and per sprint", spec: "0006", status: open }
+          - { issue: 76, title: "wayloop run in session and unattended modes", spec: "0006", status: open }
+      - title: "Executors"
+        issue: 27
+        labels: ["area:runtime"]
+        tasks:
+          - { issue: 63, title: "Specification: agent executors and minimal briefs", spec: "0008", status: open }
+          - { issue: 69, title: "Executor interface, fake executor and brief builder", spec: "0008", status: open }
+          - { issue: 70, title: "Claude Code executor (headless and agent SDK)", spec: "0008", status: open }
+          - { issue: 71, title: "Codex executor and generic command executor", tags: [parallel], spec: "0008", status: open }
+      - title: "Gates and reconciliation"
+        issue: 28
+        labels: ["area:core"]
+        tasks:
+          - { issue: 62, title: "Specification: gates, questions and reconciliation", spec: "0007", status: open }
+          - { issue: 72, title: "Questions on issues and resumption after answers", spec: "0007", status: open }
+          - { issue: 73, title: "Reconciliation of events into roadmap proposals", spec: "0007", status: open }
+          - { issue: 74, title: "Hand-over comment rendered from the session summary", spec: "0007", status: open }
+          - { issue: 75, title: "Reusable workflow that restarts reconciliation on merge", spec: "0007", status: open }
+      - title: "Dogfooding"
+        issue: 29
+        labels: ["area:agents"]
+        tasks:
+          - { issue: 77, title: "Run the Wayloop repository with Wayloop", tags: [maintainer], status: open }
 
-  - title: "M3 · Upstream"
-    gate: "A new project taken from an idea to its issues."
-    release: "0.0.4"
-    epics: []
+  - title: "M3 · Living specifications and survey"
+    gate: "A change on an existing codebase is surveyed, specified as a delta, implemented and merged into the living specification."
+    release: "0.3.0"
+    epics:
+      - title: "Living specifications"
+        issue: 30
+        labels: ["area:core"]
+        tasks:
+          - { issue: 78, title: "Decide on ADR 0014 and ADR 0015", tags: [maintainer, needs-decision], status: open }
+          - { issue: 79, title: "Specification: living specifications and change deltas", spec: "0009", status: open }
+          - { issue: 82, title: "Capability specifications, deltas, merge and archive", spec: "0009", status: open }
+          - { issue: 83, title: "Consistency analysis, clarification and requirement checklists", spec: "0009", status: open }
+          - { issue: 84, title: "Convergence of code and specification", spec: "0009", status: open }
+          - { issue: 85, title: "Verification technique per task (TDD, BDD, end-to-end, visual, property, contract)", spec: "0009", status: open }
+      - title: "Survey"
+        issue: 31
+        labels: ["area:survey"]
+        tasks:
+          - { issue: 80, title: "Specification: survey scan, map and index", spec: "0010", status: open }
+          - { issue: 81, title: "Specification: documentation with evidence and gap report", spec: "0011", status: open }
+          - { issue: 86, title: "Scan of modules, languages, entry points and token counts", spec: "0010", status: open }
+          - { issue: 87, title: "Tree-sitter symbols, reference graph and ranked map within budget", spec: "0010", status: open }
+          - { issue: 88, title: "SQLite full-text and symbol index derived from files", spec: "0010", status: open }
+          - { issue: 89, title: "Documentation with citations and unverified section", spec: "0011", status: open }
+          - { issue: 90, title: "Surveyed specifications and gap report", spec: "0011", status: open }
+          - { issue: 91, title: "Brownfield run on an external codebase", tags: [maintainer], status: open }
 
-  - title: "M4 · Distribution"
-    gate: "Installation in an external repository in less than five minutes."
-    release: "0.1.0"
-    epics: []
+  - title: "M4 · Upstream planning"
+    gate: "A new project goes from a brief to a council report, a roadmap, user stories and generated issues, with every gate approved by a person."
+    release: "0.4.0"
+    epics:
+      - title: "Council"
+        issue: 32
+        labels: ["area:agents"]
+        tasks:
+          - { issue: 92, title: "Decide on ADR 0016, ADR 0017 and ADR 0025", tags: [maintainer, needs-decision], status: open }
+          - { issue: 93, title: "Specification: expert council", spec: "0012", status: open }
+          - { issue: 95, title: "Brief from light requirements or a scope of work", spec: "0001", status: open }
+          - { issue: 96, title: "Council roles and domain configuration", spec: "0012", status: open }
+          - { issue: 97, title: "API executor for steps that do not edit code", tags: [needs-decision], spec: "0008", status: open }
+          - { issue: 98, title: "Council rounds and moderator report", spec: "0012", status: open }
+          - { issue: 103, title: "Proposed specialist roles with behaviour tests and usage registry", status: open }
+      - title: "Decomposition"
+        issue: 33
+        labels: ["area:tracker"]
+        tasks:
+          - { issue: 94, title: "Specification: decomposition, complexity and issue generation", spec: "0013", status: open }
+          - { issue: 99, title: "Roadmap proposal from the approved council report", spec: "0013", status: open }
+          - { issue: 100, title: "User stories with acceptance criteria", spec: "0013", status: open }
+          - { issue: 101, title: "Complexity scoring and expansion of large tasks", spec: "0013", status: open }
+          - { issue: 102, title: "Idempotent issue generation with two-way status", spec: "0013", status: open }
+          - { issue: 104, title: "Greenfield run from a brief to issues", tags: [maintainer], status: open }
+
+  - title: "M5 · Adapters and distribution"
+    gate: "Wayloop installs from crates.io, PyPI and npm, and as a plugin for Claude Code and Codex, in an external repository in less than five minutes on Linux, macOS and Windows."
+    release: "0.5.0"
+    epics:
+      - title: "SDKs"
+        issue: 34
+        labels: ["area:sdk"]
+        tasks:
+          - { issue: 106, title: "Approved specifications of the Python and TypeScript SDKs", spec: "0014", status: open }
+          - { issue: 111, title: "SDK with PyO3, typed API and wheels", spec: "0014", status: open }
+          - { issue: 112, title: "SDK with napi-rs and npx wayloop", spec: "0015", status: open }
+      - title: "MCP"
+        issue: 35
+        labels: ["area:mcp"]
+        tasks:
+          - { issue: 107, title: "Approved specification of the MCP server", spec: "0016", status: open }
+          - { issue: 110, title: "Tool definitions generated from the command schemas", spec: "0016", status: open }
+          - { issue: 113, title: "Server with a small tool set, budgets and read-only mode", spec: "0016", status: open }
+      - title: "Plugins and skills"
+        issue: 36
+        labels: ["area:plugins"]
+        tasks:
+          - { issue: 108, title: "Approved specification of plugins and skills", spec: "0017", status: open }
+          - { issue: 114, title: "Claude Code plugin with skills, roles, hooks and MCP", spec: "0017", status: open }
+          - { issue: 115, title: "Codex skills and package", tags: [parallel], spec: "0017", status: open }
+      - title: "Distribution"
+        issue: 37
+        labels: ["area:release"]
+        tasks:
+          - { issue: 105, title: "Decide on ADR 0018, 0019 and 0020", tags: [maintainer, needs-decision], status: open }
+          - { issue: 109, title: "Approved specification of the release pipeline", spec: "0018", status: open }
+          - { issue: 116, title: "Reusable GitHub Action for validation and remote execution", status: open }
+          - { issue: 118, title: "Pipeline to crates.io, PyPI, npm and plugin marketplaces", spec: "0018", status: open }
+          - { issue: 119, title: "0.5.0 preview on every channel", tags: [maintainer], status: open }
+      - title: "Documentation"
+        issue: 38
+        labels: ["area:docs"]
+        tasks:
+          - { issue: 117, title: "Installation guides for every channel, English and Italian", status: open }
+
+  - title: "M6 · Benchmark and hardening"
+    gate: "The benchmark results are published, the threat model is tested, performance budgets hold and no blocking defect is open."
+    release: "0.9.0"
+    epics:
+      - title: "Benchmark"
+        issue: 39
+        labels: ["area:benchmark"]
+        tasks:
+          - { issue: 120, title: "Decide on ADR 0021 and ADR 0022", tags: [maintainer, needs-decision], status: open }
+          - { issue: 121, title: "Approved specifications of the benchmark and of security and performance", spec: "0019", status: open }
+          - { issue: 122, title: "Corpus of greenfield, brownfield, back-end and front-end tasks", spec: "0019", status: open }
+          - { issue: 123, title: "Harness with baseline, repetitions and per-phase cost", spec: "0019", status: open }
+          - { issue: 124, title: "Published results page, English and Italian", status: open }
+      - title: "Security"
+        issue: 40
+        labels: ["area:security"]
+        tasks:
+          - { issue: 125, title: "Injection test suite and content-as-data enforcement", spec: "0020", status: open }
+          - { issue: 126, title: "Least-privilege executors and workflows, secret handling", spec: "0020", status: open }
+      - title: "Hardening"
+        issue: 41
+        labels: ["area:core"]
+        tasks:
+          - { issue: 127, title: "Performance budgets for scan, index, next and sync", spec: "0020", status: open }
+          - { issue: 128, title: "Complete reference, guides and concepts in English and Italian", status: open }
+          - { issue: 129, title: "GitLab adapter (free tier with structured fallback)", tags: [parallel], spec: "0005", status: open }
+          - { issue: 130, title: "0.9.0 release candidate and contract freeze review", tags: [maintainer], status: open }
+
+  - title: "M7 · Version 1.0"
+    gate: "Wayloop 1.0.0 is published on every channel with frozen contracts and a stability policy."
+    release: "1.0.0"
+    epics:
+      - title: "Version 1.0"
+        issue: 42
+        labels: ["area:release"]
+        tasks:
+          - { issue: 131, title: "Decide on ADR 0023", tags: [maintainer, needs-decision], status: open }
+          - { issue: 132, title: "Stability and deprecation policy published", status: open }
+          - { issue: 133, title: "Results on the 1.0 candidate", status: open }
+          - { issue: 134, title: "Wayloop 1.0.0 on crates.io, PyPI, npm and plugin marketplaces", tags: [maintainer], status: open }
