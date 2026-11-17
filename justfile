@@ -10,6 +10,7 @@ check: style i18n process rust
 # Process: tests of the process scripts, YAML, task ids, roadmap, sprint files.
 process:
     python -m pytest tests/process
+    python scripts/required_checks.py check
     python scripts/check_yaml.py
     python scripts/check_task_ids.py
     python scripts/roadmap.py check
