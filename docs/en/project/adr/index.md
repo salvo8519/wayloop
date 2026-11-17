@@ -27,8 +27,8 @@ consequences. A decision is changed only by a new record that supersedes it.
 | [0020](0020-plugin-and-skill-packaging.md) | Plugins and skills generated from one source | Proposed |
 | [0021](0021-benchmark-methodology.md) | Benchmark methodology | Proposed |
 | [0022](0022-threat-model.md) | Threat model: content is data, executors have least privilege | Proposed |
+| [0023](0023-stability-policy.md) | Stability policy for 1.0 | Proposed |
 | [0024](0024-tool-definitions-for-agents.md) | Tool definitions for agents: MCP and function calling from one source | Proposed |
 | [0025](0025-api-executor.md) | API executor for steps that do not edit code | Proposed |
-| [0023](0023-stability-policy.md) | Stability policy for 1.0 | Proposed |
 | [0026](0026-process-policy-in-the-core.md) | Process policy as registries, rules in the core and a ledger of results | Proposed |
 | [0027](0027-skills-agents-hooks-standard.md) | One standard and one source for skills, agents and hooks | Proposed |
