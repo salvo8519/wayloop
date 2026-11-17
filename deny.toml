@@ -1,5 +1,5 @@
 # cargo-deny: licenses, bans and advisories of the Rust dependencies.
-# The rule that wayloop-core has no I/O dependency is checked separately (planned in M1).
+# The rule that wayloop-core has no I/O dependency is checked by scripts/check_core_io.py.
 [licenses]
 allow = ["Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0", "Zlib", "Apache-2.0 WITH LLVM-exception"]
 
