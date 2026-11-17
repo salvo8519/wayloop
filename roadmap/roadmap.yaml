@@ -53,7 +53,7 @@ milestones:
           - { issue: 1, title: "Enable GitHub Pages and upload the social preview", tags: [maintainer], status: open }
           - { issue: 2, title: "Cap the Pages deploy timeout at the allowed maximum", status: done }
           - { issue: 15, title: "Specs, roadmap as code, sprints and process checks", status: done }
-          - { issue: 10, title: "Decide on ADR 0006 and ADR 0007", tags: [maintainer, needs-decision], status: open }
+          - { issue: 10, title: "Decide on ADR 0006 and ADR 0007", tags: [maintainer, needs-decision], status: done }
           - { issue: 9, title: "Header colour of the site follows the brand palette", status: done }
           - { issue: 43, title: "Roadmap to version 1.0 with specifications, ADRs and issues", status: done }
           - { issue: 44, title: "README and documentation follow the structure of the shared project template", status: done }

@@ -1,6 +1,6 @@
 # ADR 0007: Files as the source, SQLite as a derived index
 
-Status: Proposed · 2026-11-17
+Status: Accepted · 2026-11-17 (decided by the maintainer in #10)
 
 ## Context
 
