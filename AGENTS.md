@@ -109,4 +109,5 @@ change and the order of dependent branches stays with whoever built them.
 | Required checks: offline, against the ruleset | `uv run python scripts/required_checks.py check` / `remote` |
 | Pin GitHub Actions to commits | `uv run python scripts/pin_actions.py` (`--check` in CI) |
 | Documentation in sync: coverage, impact of a change | `uv run python scripts/docs_sync.py coverage` / `impact --base origin/main` |
+| Regenerate the Claude Code mirrors of roles and skills | `uv run python scripts/sync_agents.py` (`--check` in CI) |
 | Sprint: validate, state | `uv run python scripts/sprint.py validate sprints/SNN.yaml` |

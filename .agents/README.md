@@ -6,7 +6,8 @@ instructions are in `AGENTS.md` (all agents) and `CLAUDE.md` (Claude Code specif
 | Path | Content |
 | --- | --- |
 | `agents/<name>.md` | Base roles, used as subagents |
-| `skills/<name>/SKILL.md` | Workflows in the open Agent Skills format (from milestone M1) |
+| `skills/<name>/SKILL.md` | Workflows in the open Agent Skills format, read natively by Codex, Gemini CLI, Copilot and others |
+| `journal/` | Session hand-overs, one file per session |
 
 ## Base roles
 
@@ -26,5 +27,9 @@ A specialised role is added only through a pull request: generated from the comm
 the files in `agents/`, tested on a small behavioural case, and recorded here. Unused roles are
 proposed for removal.
 
-Mirrors for each agent tool (for example `.claude/agents/`) will be generated from this folder;
-they are never edited by hand.
+## Mirrors
+
+Claude Code reads `.claude/agents/` and `.claude/skills/`. Both are generated from this folder
+by `python scripts/sync_agents.py`, with a notice at the top of each file, and are never edited
+by hand: `sync_agents.py --check` fails in CI, in `just check` and in the pre-commit hook when a
+mirror is stale, edited or has no source. Mirrors for other agents follow the same rule (#168).
