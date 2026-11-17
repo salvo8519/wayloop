@@ -89,7 +89,9 @@ to its state on GitHub.
 1. **Plan**: the `planner` role proposes `sprints/SNN.yaml` from the open issues of the current
    milestone. The maintainer edits and approves it.
 2. **Run**: the main session acts as orchestrator and delegates each issue, lane by lane.
-   Every issue ends as a pull request; nothing is merged without the maintainer.
+   Every issue ends as a pull request, merged by the orchestrator under the rules of AGENTS.md
+   (Merging): small ones when their gate holds, engine and contract changes after the
+   maintainer confirms.
 3. **Track**: `uv run python scripts/sprint.py status sprints/SNN.yaml`.
 4. **Close**: the maintainer sets `status: done`; unfinished issues move to the next sprint.
 

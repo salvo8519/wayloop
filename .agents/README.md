@@ -37,6 +37,13 @@ instructions are in `AGENTS.md` (all agents) and `CLAUDE.md` (Claude Code specif
 | --- | --- |
 | `session-start` | Briefing, plan, and checkout of the chosen issue with a lease |
 | `session-end` | Gate, journal hand-over, pull request, hand-over comment, merge when allowed |
+| `implement-spec` | Tasks of an approved specification, test first, one task per commit |
+| `run-sprint` | Lanes of a sprint delegated to agents in separate worktrees, merged bottom up |
+| `pre-pr` | Full gate, review lenses and the pull request description |
+| `commit` | Conventional Commit in English, with a translation for the maintainer |
+| `verify` | The commands that prove a claim, run before the claim is made |
+| `debug` | Reproduce, isolate, prove the cause, fix at the narrowest layer |
+| `apply-review` | Verify each review finding, apply the confirmed ones, record the rejected ones |
 
 ## The standard (ADR 0027)
 
