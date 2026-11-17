@@ -13,6 +13,7 @@ process:
     python scripts/required_checks.py check
     python scripts/docs_sync.py coverage
     python scripts/sync_agents.py --check
+    python scripts/check_agents.py
     python scripts/check_yaml.py
     python scripts/check_task_ids.py
     python scripts/roadmap.py check
