@@ -93,19 +93,6 @@ the plan lives in your issue tracker, and people decide at the gates.
 Adapters translate; only the engine decides. The reasoning behind each choice is recorded in
 the [architecture decisions](https://salvo8519.github.io/wayloop/project/adr/).
 
-## Roadmap
-
-| Milestone | Scope |
-| --- | --- |
-| M0 Foundations | Repository, documentation site, schemas of the artifacts, `init` |
-| M1 Execution | State machine, ledger, issue cycle, sprints with lanes, session hand-over |
-| M2 Living specifications | Survey of existing codebases, specifications and change deltas, consistency checks |
-| M3 Upstream | Brief, expert council, roadmap from the council report, user stories |
-| M4 Distribution | Python and TypeScript SDKs, MCP server, plugins, release 0.1 |
-
-The detailed plan lives in the repository issues and on the
-[roadmap page](https://salvo8519.github.io/wayloop/project/roadmap/).
-
 ## Documentation
 
 The documentation is published in English and Italian and rebuilt automatically on every

@@ -20,13 +20,13 @@ from pathlib import Path
 TYPES = ("feat", "fix", "perf", "refactor", "docs", "test", "build", "ci", "chore", "revert")
 SCOPES = (
     # engine
-    "core", "runtime", "ledger", "state", "tracker", "survey", "schemas",
+    "core", "runtime", "ledger", "state", "tracker", "survey", "schemas", "security",
     # adapters
     "cli", "python", "typescript", "mcp", "plugins",
     # documentation and project
     "docs", "i18n", "brand", "specs", "adr", "agents", "project", "roadmap",
     # build and delivery
-    "ci", "deps", "release", "scripts",
+    "ci", "deps", "release", "scripts", "benchmark",
 )  # fmt: skip
 MAX_HEADER = 72
 BOTS = ("dependabot[bot]", "github-actions[bot]", "renovate[bot]")
