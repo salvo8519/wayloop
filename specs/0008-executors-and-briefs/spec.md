@@ -5,7 +5,7 @@
 | Status | Draft |
 | Milestone | M2 · Tracker and loop |
 | Owner | @salvo8519 |
-| Related | ADR 0011, ADR 0025, #63, #69, #70, #71, #97 |
+| Related | ADR 0011, ADR 0025, #63, #69, #70, #71, #97, #164, #165, #166 |
 | Commit scope | runtime |
 
 ## Problem
@@ -28,11 +28,20 @@ The engine never calls a model itself (ADR 0011). It must drive existing coding 
 - **R5**: THE ENGINE SHALL allow one executor per role, configurable per project.
 - **R6**: WHERE the API executor is configured, THE ENGINE SHALL use it only for steps that do not edit code, with the Wayloop commands as its only tools (ADR 0025).
 - **R7**: IF an executor fails or times out, THEN THE ENGINE SHALL record the failure and apply the retry policy of the step.
+- **R8**: THE ENGINE SHALL reduce test output, build logs, JSON, YAML and CSV returned to an agent deterministically, keep the original on disk and name it in the reduced output.
+- **R9**: THE ENGINE SHALL choose model and effort for each step from a routing table by step type and complexity score, allow an override per issue and record the choice.
+- **R10**: THE ENGINE SHALL build briefs with a stable prefix (role, rules, project facts) before the variable part, so that provider prompt caches are reused.
+- **R11**: THE ENGINE SHALL instruct implementers to prefer, in order: no new code, code already in the project, the standard library, an installed dependency, the minimum new code; validation, error handling, security and accessibility are never cut.
+- **R12**: THE ENGINE SHALL ask agents for summaries, questions and hand-overs in controlled English: answer first, one idea per sentence, negations and numbers kept, code and paths verbatim, full sentences for security and irreversible actions.
+- **R13**: THE ENGINE SHALL pass text written by the maintainer to agents unchanged.
 
 ## Acceptance criteria
 - **AC1**: Given a fake executor, when the issue cycle runs, then every step receives a brief within budget. Verification: TDD.
 - **AC2**: Given an invalid result, when returned, then an error event is recorded and the state is unchanged. Verification: TDD.
 - **AC3**: Given Claude Code and Codex installed, when a demo issue runs, then both complete a step. Verification: end-to-end.
+- **AC4**: Given a test output with three failures in ten thousand lines, when reduced, then the result names the three failures and the path of the original. Verification: property test.
+- **AC5**: Given two briefs for the same role, when built, then their prefixes are byte-identical. Verification: TDD.
+- **AC6**: Given an override for an issue, when a step runs, then the executor receives the overridden model and effort and the ledger records it. Verification: TDD.
 
 ## Interfaces
 - Executor trait; configuration executors.<role>.
