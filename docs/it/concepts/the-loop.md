@@ -1,11 +1,18 @@
 ---
 source: concepts/the-loop.md
-source_hash: a51cde3b1553
+source_hash: 2926cbe2d3a2
 ---
 # Il loop
 
 Il loop tiene allineati il piano e il lavoro. Scompone il progetto, esegue il lavoro e, a ogni
 evento, propone come dovrebbe cambiare il piano. Non cambia mai il piano da solo.
+
+!!! note "Stato"
+    Questa pagina descrive il progetto del loop, registrato nelle
+    [decisioni di architettura](https://salvo8519.github.io/wayloop/project/adr/) e nelle specifiche. Il core fissa i passi
+    del ciclo di un'issue, che `wayloop steps` stampa in ordine
+    ([riferimento](../reference/index.md)); il resto del loop non è costruito. Ciò che viene
+    dopo è nella [roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
 ## Quattro movimenti
 

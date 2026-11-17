@@ -3,6 +3,13 @@
 The loop keeps the plan and the work aligned. It decomposes the project, runs the work and,
 at every event, proposes how the plan should change. It never changes the plan on its own.
 
+!!! note "Status"
+    This page describes the design of the loop, recorded in the
+    [architecture decisions](../project/adr/index.md) and the specifications. The core fixes
+    the steps of the issue cycle, which `wayloop steps` prints in order
+    ([reference](../reference/index.md)); the rest of the loop is not built. What comes next
+    is in the [roadmap](../project/roadmap.md).
+
 ## Four movements
 
 1. **Decompose.** From an idea, or from the survey of an existing codebase, the engine guides

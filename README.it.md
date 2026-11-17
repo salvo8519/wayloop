@@ -1,4 +1,4 @@
-<!-- i18n source: README.md source_hash: e5b5be23add7 -->
+<!-- i18n source: README.md source_hash: b206f176fb06 -->
 <div align="center">
 
 <a href="https://salvo8519.github.io/wayloop/it/">
@@ -40,8 +40,10 @@ dall'idea al codice unito, dentro le tue issue, con le persone ai gate.
 
 ---
 
-> Stato: pre-alpha, fase di progettazione. Non c'è ancora nulla da installare. L'architettura
-> è descritta nella documentazione e la prima milestone viene pianificata in pubblico.
+> Stato: pre-alpha. Non c'è ancora una release. Il progetto è registrato nelle
+> [decisioni di architettura](https://salvo8519.github.io/wayloop/project/adr/) e nelle
+> [specifiche](specs/README.md); ciò che viene dopo è nella
+> [roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
 ## Perché Wayloop
 
@@ -57,57 +59,90 @@ Due famiglie di strumenti affrontano ciascuna metà del problema.
 - **I loop agentici** tengono un agente al lavoro finché l'obiettivo è raggiunto, ma non
   conoscono il piano del progetto su cui lavorano.
 
-Wayloop unisce le due cose alla scala di un intero progetto: un motore deterministico guida il
-loop, il piano vive nel tuo issue tracker e le persone decidono ai gate.
+Wayloop è progettato per unire le due cose alla scala di un intero progetto: un motore
+deterministico guida il loop, il piano vive nel tuo issue tracker e le persone decidono ai
+gate. Il loop ha quattro movimenti: scomporre un'idea o un codice esistente in milestone, epic,
+story, specifiche e issue; eseguire ogni issue con lo stesso ciclo; riconciliare ogni evento in
+una proposta di modifica del piano; ripianificare dopo l'approvazione di una persona. Il
+progetto è descritto in
+[Come funziona il loop](https://salvo8519.github.io/wayloop/it/concepts/the-loop/).
 
-## Come funziona il loop
+## Installazione
 
-1. **Scomposizione.** Un'idea, o un codice già esistente, diventa milestone, epic, user story,
-   specifiche, task e issue. Gli agenti scrivono ogni livello; il motore lo valida prima che
-   parta il livello successivo.
-2. **Esecuzione.** Ogni issue segue lo stesso ciclo: presa in carico, rianalisi,
-   controdeduzione critica, checklist del task, sviluppo, verifica deterministica, review
-   proporzionata al rischio, pull request.
-3. **Riconciliazione.** Ogni evento (una pull request unita, un'issue chiusa, una nuova
-   richiesta, lavoro scoperto durante lo sviluppo) produce una proposta di modifica della
-   roadmap. Niente cambia il piano in silenzio.
-4. **Ripianificazione.** Approvata la modifica, il motore ricalcola dipendenze, prossimi task
-   e avanzamento di ogni milestone, e aggiorna il tracker.
+Wayloop non ha ancora una release, quindi non c'è nulla da installare; il lavoro verso la
+prima release è nella [roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
-## Cosa lo rende diverso
+## Guida rapida
 
-| Principio | In pratica |
-| --- | --- |
-| Il motore decide, gli agenti scrivono | Una macchina a stati scritta in Rust sceglie ogni passo e lo verifica con controlli deterministici. Un modello non dichiara mai finito il proprio lavoro. |
-| Il tracker è la base dati | Piano, avanzamento, decisioni e domande vivono nelle issue di GitHub. Le specifiche vivono nel repository. In locale restano solo i checkpoint delle sessioni. Togli Wayloop e il progetto resta leggibile. |
-| Le persone ai gate | Stati di approvazione che il loop non può superare da solo: il verbale del comitato, la roadmap, una specifica approvata, un merge. Gli agenti fanno domande sull'issue, in un formato fisso. |
-| Un ledger deterministico | Eventi in sola aggiunta, concatenati da hash. Lo stato è una funzione del ledger. I riassunti di sessione sono JSON validato, non prosa libera. |
-| I token sono un budget | Ogni fase ne ha uno, e il ledger misura il costo di ogni issue e di ogni fase. |
-| Progetti nuovi ed esistenti | Per un codice esistente, una fase di rilievo mappa il codice in modo deterministico e scrive una documentazione che cita file e riga per ogni affermazione. Senza embedding. |
+Non ancora disponibile: non c'è una release da eseguire; vedi la
+[roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
-## Architettura prevista
+## Usarlo da un agente AI
 
-- **Motore e CLI** in Rust: un solo motore, un solo binario, JSON in ingresso e in uscita.
-- **SDK Python** (PyO3) e **SDK TypeScript** (napi-rs, disponibile tramite `npx`).
-- **Server MCP**, perché qualunque agente compatibile possa usare il motore.
-- **Plugin e skill** per Claude Code e Codex, nel formato aperto Agent Skills.
-- **Integrazione con GitHub**: workflow riusabili per la validazione e l'esecuzione remota
-  delle issue.
+Non ancora disponibile: il motore non espone strumenti agli agenti; vedi la
+[roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
-Gli adattatori traducono; solo il motore decide. Le ragioni di ogni scelta sono registrate
-nelle [decisioni di architettura](https://salvo8519.github.io/wayloop/project/adr/).
+## Comandi
 
-## Documentazione
+Nessun comando è ancora rilasciato. Una build dai sorgenti risponde a `wayloop version` e
+`wayloop steps` ([riferimento](https://salvo8519.github.io/wayloop/it/reference/)); i comandi
+del loop sono nella [roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
-La documentazione è pubblicata in inglese e in italiano e si ricostruisce automaticamente a
-ogni modifica su `main`: [English](https://salvo8519.github.io/wayloop/) ·
-[Italiano](https://salvo8519.github.io/wayloop/it/). Gli agenti possono leggere
-[`llms.txt`](https://salvo8519.github.io/wayloop/llms.txt).
+## Architettura
 
-## Contribuire
+Un solo motore decide; adattatori sottili traducono. Il motore non chiama mai un modello, e gli
+agenti non scrivono mai lo stato a mano
+([ADR 0001](https://salvo8519.github.io/wayloop/project/adr/0001-rust-engine-thin-adapters/)).
 
-Wayloop è costruito con il processo che descrive. Prima di aprire una pull request leggi
-[CONTRIBUTING.md](CONTRIBUTING.md) e [AGENTS.md](AGENTS.md).
+| Parte | Percorso | Cosa fa oggi |
+| --- | --- | --- |
+| Core | [`crates/wayloop-core`](crates/wayloop-core) | Libreria Rust senza I/O. Fissa il vocabolario del ciclo di un'issue: nove passi in ordine, i loro identificativi stabili e quale passo è uno stato di approvazione. |
+| Riga di comando | [`crates/wayloop-cli`](crates/wayloop-cli) | Il binario `wayloop`, solo un adattatore: legge gli argomenti, chiama il core e stampa JSON. |
+| Contenuti per agenti | [`.agents/`](.agents) | Ruoli e skill nel formato aperto Agent Skills, con mirror generati per Claude Code. Servono a costruire Wayloop stesso. |
+| Processo | [`roadmap/`](roadmap), [`specs/`](specs), [`sprints/`](sprints), [`scripts/`](scripts) | Il piano come codice, sincronizzato con le issue di GitHub; specifiche con requisiti numerati; corsie degli sprint con percorsi disgiunti; i controlli eseguiti dalla CI. |
+
+Dettagli in [Architettura](https://salvo8519.github.io/wayloop/it/concepts/architecture/).
+
+## Il contratto del loop
+
+Queste regole valgono per ogni parte di Wayloop. Vengono dalla
+[costituzione](specs/constitution.md) e dalle decisioni di architettura, e cambiarne una
+richiede un nuovo ADR e l'approvazione del maintainer.
+
+1. **Decisioni deterministiche.** Tutta la logica di decisione vive nel core. Lo stesso stato
+   e lo stesso evento producono sempre lo stesso stato successivo. Un modello non dichiara mai
+   finito il proprio lavoro: lo fa un controllo deterministico.
+2. **Contratti JSON.** Ogni ingresso e ogni uscita che attraversano il confine del motore sono
+   JSON con uno schema versionato; una modifica incompatibile è una nuova versione, mai una
+   modifica della vecchia. Un unico envelope per tutti i comandi, con codici di errore e codici
+   di uscita stabili, è descritto
+   nell'[ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/).
+3. **Gate.** Il loop non può superare gli stati di approvazione: il verbale del comitato, la
+   roadmap, una specifica approvata, un merge. Gli agenti fanno domande sull'issue, in un
+   formato fisso. Nel core di oggi, `merge` è il passo di approvazione del ciclo di un'issue.
+4. **Ledger.** Il ledger è in sola aggiunta, concatenato da hash e scritto solo dal motore.
+   Lo stato è una funzione del ledger e si verifica con il replay. Le uscite dei modelli entrano
+   nello stato solo dopo la validazione dello schema.
+5. **Il tracker è la base dati.** Il piano vive nelle issue, le specifiche nel repository. Un
+   progetto resta leggibile senza Wayloop.
+6. **Il costo si misura.** Ogni fase ha un budget di token. Niente embedding e niente vector
+   store ([ADR 0004](https://salvo8519.github.io/wayloop/project/adr/0004-no-embeddings/)).
+
+Lo stato di ogni decisione è
+nell'[indice degli ADR](https://salvo8519.github.io/wayloop/project/adr/).
+
+## Sviluppato in modo aperto, a partire dalle specifiche
+
+Wayloop è costruito con il processo che descrive. Ogni modifica parte da un'issue della
+[roadmap](roadmap/roadmap.yaml); il comportamento del motore parte da una specifica con
+requisiti numerati ([`specs/`](specs/README.md)); le scelte strutturali partono da un ADR.
+Agenti e persone seguono le stesse regole ([AGENTS.md](AGENTS.md)), e la CI controlla il piano,
+le convenzioni, lo stile e la documentazione a ogni pull request.
+
+- Comincia da [CONTRIBUTING.md](CONTRIBUTING.md).
+- La documentazione è pubblicata in [inglese](https://salvo8519.github.io/wayloop/) e in
+  [italiano](https://salvo8519.github.io/wayloop/it/), ricostruita a ogni modifica su `main`.
+  Gli agenti possono leggere [`llms.txt`](https://salvo8519.github.io/wayloop/llms.txt).
 
 ## Licenza
 

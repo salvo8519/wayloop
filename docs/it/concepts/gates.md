@@ -1,11 +1,17 @@
 ---
 source: concepts/gates.md
-source_hash: b800b967ae1c
+source_hash: de1463cf7cfd
 ---
 # Gate
 
 Un gate è uno stato che il loop non può superare da solo. Tra un gate e l'altro il loop gira
 senza sorveglianza; a un gate si ferma, chiede e aspetta una persona.
+
+!!! note "Stato"
+    Questa pagina descrive il progetto dei gate. Nel core, `merge` è il passo di approvazione
+    del ciclo di un'issue. In questo repository i gate si applicano a mano: gli agenti fanno
+    domande con l'etichetta `needs-decision`, e il maintainer approva la roadmap, le specifiche
+    e i merge delle modifiche al motore. Ciò che viene dopo è nella [roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
 ## Stati di approvazione
 

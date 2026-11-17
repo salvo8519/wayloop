@@ -1,12 +1,19 @@
 ---
 source: concepts/state-in-the-tracker.md
-source_hash: d8b1079f1330
+source_hash: 6803baf28507
 ---
 # Lo stato nel tracker
 
 Wayloop non ha uno stato proprio. Il piano, l'avanzamento, le decisioni e le domande vivono
 nell'issue tracker; le specifiche vivono nel repository; in locale restano solo i checkpoint
 delle sessioni.
+
+!!! note "Stato"
+    Questa pagina descrive il progetto registrato
+    nell'[ADR 0002](https://salvo8519.github.io/wayloop/project/adr/0002-tracker-as-database/). Oggi il motore non ha un
+    adattatore per il tracker. Questo repository applica il progetto a mano: il piano è
+    `roadmap/roadmap.yaml`, e `scripts/roadmap.py sync` vi copia da GitHub lo stato di ogni
+    issue. Ciò che viene dopo è nella [roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
 | Cosa | Dove vive | Perché |
 | --- | --- | --- |
@@ -28,8 +35,8 @@ delle sessioni.
   un'etichetta di gate; l'approvazione resta nella cronologia dell'issue.
 - **Concorrenza.** Un'issue viene presa in carico con un assegnatario e un'etichetta, e
   scritta solo se non è cambiata dall'ultima lettura.
-- **GitLab.** Sul piano gratuito le relazioni "blocks" e le epic non sono disponibili.
-  L'adattatore GitLab ripiega sul blocco strutturato. GitHub è il primo backend.
+- **Tracker senza relazioni native.** Sul piano gratuito di GitLab le relazioni "blocks" e
+  le epic non sono disponibili; le porta invece il blocco strutturato.
 - **Eventi a catena.** Un merge riavvia la riconciliazione tramite un workflow. Gli eventi
   prodotti dal bot creano solo proposte, sono idempotenti e vengono raggruppati, così il loop
   non si alimenta da solo.

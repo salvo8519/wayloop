@@ -39,8 +39,10 @@ from idea to merged code, in your issues, with humans at the gates.
 
 ---
 
-> Status: pre-alpha, design phase. Nothing is installable yet. The architecture is described
-> in the documentation and the first milestone is being planned in the open.
+> Status: pre-alpha. There is no release yet. The design is recorded in the
+> [architecture decisions](https://salvo8519.github.io/wayloop/project/adr/) and the
+> [specifications](specs/README.md); what comes next is in the
+> [roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
 ## Why Wayloop
 
@@ -54,56 +56,87 @@ Two families of tools address half of the problem each.
 - **Agentic loops** keep an agent working until a goal is met, but do not know the plan of the
   project they are working on.
 
-Wayloop joins the two at the scale of a whole project: a deterministic engine runs the loop,
-the plan lives in your issue tracker, and people decide at the gates.
+Wayloop is designed to join the two at the scale of a whole project: a deterministic engine
+runs the loop, the plan lives in your issue tracker, and people decide at the gates. The loop
+has four movements: decompose an idea or an existing codebase into milestones, epics, stories,
+specifications and issues; execute every issue through the same cycle; reconcile every event
+into a proposed change to the plan; re-plan once a person approves it. The design is described
+in [How the loop works](https://salvo8519.github.io/wayloop/concepts/the-loop/).
 
-## How the loop works
+## Install
 
-1. **Decompose.** An idea, or an existing codebase, becomes milestones, epics, user stories,
-   specifications, tasks and issues. Agents write each level; the engine validates it before
-   the next level starts.
-2. **Execute.** Every issue follows the same cycle: claim, re-analysis, critical
-   counter-review, task checklist, build, deterministic verification, review by risk, pull
-   request.
-3. **Reconcile.** Every event (a merged pull request, a closed issue, a new request, work
-   discovered during development) produces a proposed change to the roadmap. Nothing changes
-   the plan silently.
-4. **Re-plan.** Once a change is approved, the engine recomputes dependencies, the next tasks
-   and the progress of each milestone, and updates the tracker.
+Wayloop has no release yet, so there is nothing to install; the work towards the first
+release is in the [roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
-## What makes it different
+## Quickstart
 
-| Principle | In practice |
-| --- | --- |
-| The engine decides, agents write | A state machine written in Rust chooses every step and verifies it with deterministic checks. A model never declares its own work finished. |
-| Your tracker is the database | Plan, progress, decisions and questions live in GitHub issues. Specifications live in the repository. Only session checkpoints stay on the local machine. Remove Wayloop and the project still reads. |
-| Humans at the gates | Approval states that the loop cannot pass on its own: the council report, the roadmap, an approved specification, a merge. Agents ask questions on the issue, in a fixed format. |
-| A deterministic ledger | Append-only, hash-chained events. The state is a function of the ledger. Session summaries are validated JSON, not free prose. |
-| Tokens are a budget | Every phase has one, and the ledger measures the cost of each issue and each phase. |
-| Greenfield and brownfield | For an existing codebase, a survey step maps the code deterministically and writes documentation that cites file and line for every claim. No embeddings. |
+Not available yet: there is no release to run; see the
+[roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
-## Planned architecture
+## Use it from an AI agent
 
-- **Core and CLI** in Rust: one engine, one binary, JSON in and out.
-- **Python SDK** (PyO3) and **TypeScript SDK** (napi-rs, available through `npx`).
-- **MCP server**, so that any compatible agent can use the engine.
-- **Plugins and skills** for Claude Code and Codex, in the open Agent Skills format.
-- **GitHub integration**: reusable workflows for validation, and remote execution of issues.
+Not available yet: the engine exposes no tools to agents; see the
+[roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
-Adapters translate; only the engine decides. The reasoning behind each choice is recorded in
-the [architecture decisions](https://salvo8519.github.io/wayloop/project/adr/).
+## Commands
 
-## Documentation
+No command is released yet. A build from source answers `wayloop version` and `wayloop steps`
+([reference](https://salvo8519.github.io/wayloop/reference/)); the commands of the loop are in
+the [roadmap](https://salvo8519.github.io/wayloop/project/roadmap/).
 
-The documentation is published in English and Italian and rebuilt automatically on every
-change to `main`: [English](https://salvo8519.github.io/wayloop/) ·
-[Italiano](https://salvo8519.github.io/wayloop/it/). Agents can read
-[`llms.txt`](https://salvo8519.github.io/wayloop/llms.txt).
+## Architecture
 
-## Contributing
+One engine decides; thin adapters translate. The engine never calls a model, and agents never
+write the state by hand ([ADR 0001](https://salvo8519.github.io/wayloop/project/adr/0001-rust-engine-thin-adapters/)).
 
-Wayloop is built with the process it describes. Read [CONTRIBUTING.md](CONTRIBUTING.md) and
-[AGENTS.md](AGENTS.md) before opening a pull request.
+| Part | Path | What it does today |
+| --- | --- | --- |
+| Core | [`crates/wayloop-core`](crates/wayloop-core) | Rust library with no I/O. It fixes the vocabulary of the issue cycle: nine steps in order, their stable identifiers, and which step is an approval state. |
+| Command line | [`crates/wayloop-cli`](crates/wayloop-cli) | The `wayloop` binary, an adapter only: it parses arguments, calls the core and prints JSON. |
+| Agent content | [`.agents/`](.agents) | Roles and skills in the open Agent Skills format, with generated mirrors for Claude Code. They are used to build Wayloop itself. |
+| Process | [`roadmap/`](roadmap), [`specs/`](specs), [`sprints/`](sprints), [`scripts/`](scripts) | The plan as code, synchronised with the GitHub issues; specifications with numbered requirements; sprint lanes of disjoint paths; the checks run by CI. |
+
+Details in [Architecture](https://salvo8519.github.io/wayloop/concepts/architecture/).
+
+## The loop contract
+
+These rules bind every part of Wayloop. They come from the
+[constitution](specs/constitution.md) and the architecture decisions, and a change to any of
+them needs a new ADR and the maintainer's approval.
+
+1. **Deterministic decisions.** All decision logic lives in the core. The same state and the
+   same event always produce the same next state. A model never declares its own work
+   finished: a deterministic check does.
+2. **JSON contracts.** Every input and output crossing the engine boundary is JSON with a
+   versioned schema; a breaking change is a new version, never an edit of the old one. One
+   envelope for every command, with stable error codes and exit codes, is set out in
+   [ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/).
+3. **Gates.** Approval states cannot be passed by the loop: the council report, the roadmap,
+   an approved specification, a merge. Agents ask questions on the issue, in a fixed format.
+   In the core today, `merge` is the approval step of the issue cycle.
+4. **Ledger.** The ledger is append-only and hash-chained, and written only by the engine.
+   The state is a function of the ledger and is tested by replay. Model output enters the
+   state only after schema validation.
+5. **The tracker is the database.** The plan lives in the issues, the specifications in the
+   repository. A project stays readable without Wayloop.
+6. **Cost is measured.** Every phase has a token budget. No embeddings and no vector store
+   ([ADR 0004](https://salvo8519.github.io/wayloop/project/adr/0004-no-embeddings/)).
+
+The status of each decision is in the
+[ADR index](https://salvo8519.github.io/wayloop/project/adr/).
+
+## Built in the open, spec-first
+
+Wayloop is built with the process it describes. Every change starts from an issue in the
+[roadmap](roadmap/roadmap.yaml); behaviour of the engine starts from a specification with
+numbered requirements ([`specs/`](specs/README.md)); structural choices start from an ADR.
+Agents and people follow the same rules ([AGENTS.md](AGENTS.md)), and CI checks the plan, the
+conventions, the house style and the documentation on every pull request.
+
+- Start with [CONTRIBUTING.md](CONTRIBUTING.md).
+- The documentation is published in [English](https://salvo8519.github.io/wayloop/) and
+  [Italian](https://salvo8519.github.io/wayloop/it/), rebuilt on every change to `main`.
+  Agents can read [`llms.txt`](https://salvo8519.github.io/wayloop/llms.txt).
 
 ## License
 

@@ -6,13 +6,19 @@ site_description: "Spec-driven agentic loop. Dall'idea al codice unito, dentro l
 copyright: "Copyright &copy; 2026 The Wayloop Authors &middot; Apache License 2.0"
 sections:
   Home: Home
+  Getting started: Per iniziare
+  Guides: Guide
   Concepts: Concetti
+  Reference: Riferimento
   Project: Progetto
   Decisions (ADR): Decisioni (ADR)
 # Pages that must exist in Italian (glob patterns relative to docs/en)
 required:
   - index.md
+  - getting-started/*.md
+  - guides/*.md
   - concepts/*.md
+  - reference/*.md
 # Pages kept in English only: the Italian site links to the English version
 english_only:
   - project/*.md

@@ -4,6 +4,11 @@ The ledger is an append-only log of events, written only by the engine and never
 The state of the loop is a function of the ledger: replaying the events from the start always
 gives the same state.
 
+!!! note "Status"
+    This page describes the design of the ledger, recorded in
+    [ADR 0003](../project/adr/0003-deterministic-ledger.md). No code writes or reads a ledger
+    today. What comes next is in the [roadmap](../project/roadmap.md).
+
 | Element | Format | Rule |
 | --- | --- | --- |
 | Event | JSON Lines, one event per line | Fixed fields: sequence, UTC instant, actor, issue, step, outcome, tokens, hash of the input, hash of the previous event |
@@ -17,8 +22,8 @@ gives the same state.
   output becomes an error event, never a corrupted state.
 - **Hash chain.** Every event carries the hash of the previous one: an edit or a gap in the log
   is visible immediately.
-- **Replay is tested.** A CI test replays the ledger and compares the state with the YAML
-  projection.
+- **Replay is a test.** The design requires a CI test that replays the ledger and compares
+  the state with the YAML projection.
 
 ## Long life cycles
 
@@ -37,7 +42,7 @@ hand-over comment: a small context of known size, whatever the history of the pr
 ## Finding things
 
 The files are the source; an SQLite index with full-text search is built from them and can
-always be rebuilt. Agents query it through the CLI and the MCP server, never directly. See
+always be rebuilt. Agents query it through the engine, never directly. See
 [ADR 0007](../project/adr/0007-files-as-source-sqlite-as-index.md).
 
 ## Two memories, stated plainly
