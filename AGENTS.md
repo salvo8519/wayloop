@@ -68,14 +68,30 @@ built with the process it describes. Read `docs/en/project/vision.md` and the AD
 
 ## Review effort proportional to risk
 
-| Tier | Pull requests | Gate before merge |
-| --- | --- | --- |
-| Small | Documentation, tooling, CI | `just check`, green CI, the diff read by the orchestrator |
-| Substantial | Engine logic, contracts, adapters | One review pass on the whole branch |
-| Contract change | Schemas of artifacts, events or commands | Review plus maintainer approval |
+| Tier | Pull requests | Gate before merge | Who merges |
+| --- | --- | --- | --- |
+| Small | Documentation, tooling, CI | `just check`, green CI, the diff read by the orchestrator | The agent |
+| Substantial | Engine logic, adapters | One review pass on the whole branch | The agent, after the maintainer confirms |
+| Contract change | Schemas of artifacts, events or commands | Review plus maintainer approval | The agent, after the maintainer approves |
 
 Every finding of a review is fixed in the same pull request. At most three agents run in
 parallel; each brief names the files to read.
+
+## Merging
+
+The agent that opens a pull request also merges it, so the loop does not stop at every small
+change and the order of dependent branches stays with whoever built them.
+
+- Merge only when the gate of the tier holds: required checks green, or a failure documented
+  as external (conventions page, Pull requests); `roadmap.py check` passes with the pull
+  request body.
+- A pull request that changes `crates/`, `schemas/` or an SDK waits for the maintainer: ask
+  for confirmation with the summary of the change and its review, then merge. The session
+  briefing (`just state`) shows who merges each open pull request.
+- Squash-merge with the pull request title as the commit title; delete the branch afterwards.
+- Stacked pull requests are merged bottom up. Before each merge, rebase the branch onto `main`
+  with its own commits only, retarget it to `main` and wait for its checks.
+- Never merge to bypass a failing required check, a review finding or an open question.
 
 ## Commands
 
