@@ -51,6 +51,15 @@ pull request workflow both run.
   verification technique, references to specifications and ADRs, dependencies, and the
   definition of done.
 
+## Documentation in sync
+
+- `scripts/docs_sync.py coverage`: every ADR has its row in the ADR index, its entry in the
+  navigation and a valid status line; every specification has a valid status; every page of
+  the navigation exists and every page is in the navigation.
+- `scripts/docs_sync.py impact`: a change to the engine, the command line, the schemas or a
+  process script comes with the matching documentation. A change that genuinely needs none is
+  labelled `no-docs-needed`, or its latest commit carries the trailer `Docs-impact: none`.
+
 ## House style
 
 No icons, emoji or decorative symbols in any file, commit message, issue or pull request.
