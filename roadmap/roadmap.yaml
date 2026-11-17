@@ -53,6 +53,7 @@ milestones:
           - { issue: 9, title: "Header colour of the site follows the brand palette", status: open }
           - { issue: 43, title: "Roadmap to version 1.0 with specifications, ADRs and issues", status: done }
           - { issue: 44, title: "README and documentation follow the structure of the shared project template", status: open }
+          - { issue: 157, title: "Plan the work checkout, the pull request ledger, naming rules in the engine, token saving and agent compatibility", status: done }
       - title: "Process parity with the project template"
         issue: 136
         labels: ["area:infra"]
@@ -68,6 +69,7 @@ milestones:
           - { issue: 144, title: "Documentation kept in sync with the project by a deterministic check", status: done }
           - { issue: 145, title: "Automated review of pull requests and documentation", status: done }
           - { issue: 146, title: "Decide on a GitHub Projects board for the roadmap", tags: [maintainer, needs-decision], status: open }
+          - { issue: 158, title: "Traceability rules of the project template written down and checked", status: open }
       - title: "Artifact model"
         issue: 18
         labels: ["area:core"]
@@ -76,12 +78,14 @@ milestones:
           - { issue: 4, title: "Decide on ADR 0008 on identifiers and traceability", status: open }
           - { issue: 5, title: "wayloop init creates a project structure that validates", spec: "0001", status: open }
           - { issue: 6, title: "Artifacts and their links are validated", spec: "0001", status: open }
+          - { issue: 160, title: "Naming and linking rules validated by the engine", spec: "0001", status: open }
       - title: "Agent process"
         issue: 19
         labels: ["area:agents"]
         tasks:
           - { issue: 7, title: "Claude Code and Codex mirrors generated from .agents", tags: [parallel], status: open }
           - { issue: 8, title: "Session-start and session-end skills", tags: [parallel], status: open }
+          - { issue: 159, title: "Agents merge their own pull requests; engine and contract changes wait for confirmation", status: open }
 
   - title: "M1 · Engine core"
     gate: "The engine replays a ledger to the same state on every platform and drives the issue cycle in a dry run on local fixtures."
@@ -109,6 +113,8 @@ milestones:
           - { issue: 50, title: "Append-only writer with hash chain", spec: "0003", status: open }
           - { issue: 51, title: "Projection, replay and snapshots", spec: "0003", status: open }
           - { issue: 52, title: "Session, issue and milestone summaries with roll-up", spec: "0003", status: open }
+          - { issue: 161, title: "Pull request events recorded in the ledger", spec: "0003", status: open }
+          - { issue: 162, title: "Work checkout with a lease and a hand-over record any agent can resume", spec: "0003", status: open }
       - title: "Command-line interface"
         issue: 23
         labels: ["area:cli"]
@@ -118,6 +124,7 @@ milestones:
           - { issue: 55, title: "JSON envelope, error codes and exit codes", spec: "0004", status: open }
           - { issue: 56, title: "wayloop.toml with schema and precedence", spec: "0004", status: open }
           - { issue: 57, title: "Next, status, history and rulings commands", spec: "0004", status: open }
+          - { issue: 163, title: "Cost report per issue, phase and role", spec: "0004", status: open }
       - title: "Engine documentation"
         issue: 24
         labels: ["area:docs"]
@@ -153,6 +160,9 @@ milestones:
           - { issue: 69, title: "Executor interface, fake executor and brief builder", spec: "0008", status: open }
           - { issue: 70, title: "Claude Code executor (headless and agent SDK)", spec: "0008", status: open }
           - { issue: 71, title: "Codex executor and generic command executor", tags: [parallel], spec: "0008", status: open }
+          - { issue: 164, title: "Output reducers for test output, logs and structured data", spec: "0008", status: open }
+          - { issue: 165, title: "Model and effort routing by step and complexity", spec: "0008", status: open }
+          - { issue: 166, title: "Briefs with a stable prefix, a simplicity rule and controlled English", spec: "0008", status: open }
       - title: "Gates and reconciliation"
         issue: 28
         labels: ["area:core"]
@@ -162,6 +172,7 @@ milestones:
           - { issue: 73, title: "Reconciliation of events into roadmap proposals", spec: "0007", status: open }
           - { issue: 74, title: "Hand-over comment rendered from the session summary", spec: "0007", status: open }
           - { issue: 75, title: "Reusable workflow that restarts reconciliation on merge", spec: "0007", status: open }
+          - { issue: 167, title: "Deferred shortcuts become roadmap proposals", spec: "0007", status: open }
       - title: "Dogfooding"
         issue: 29
         labels: ["area:agents"]
@@ -246,6 +257,7 @@ milestones:
           - { issue: 108, title: "Approved specification of plugins and skills", spec: "0017", status: open }
           - { issue: 114, title: "Claude Code plugin with skills, roles, hooks and MCP", spec: "0017", status: open }
           - { issue: 115, title: "Codex skills and package", tags: [parallel], spec: "0017", status: open }
+          - { issue: 168, title: "Instructions for other coding agents generated from one source", spec: "0017", status: open }
       - title: "Distribution"
         issue: 37
         labels: ["area:release"]

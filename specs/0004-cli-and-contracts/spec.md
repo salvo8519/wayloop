@@ -5,7 +5,7 @@
 | Status | Draft |
 | Milestone | M1 · Engine core |
 | Owner | @salvo8519 |
-| Related | ADR 0009, ADR 0010, #53, #54, #55, #56, #57 |
+| Related | ADR 0009, ADR 0010, #53, #54, #55, #56, #57, #163 |
 | Commit scope | cli |
 
 ## Problem
@@ -30,6 +30,7 @@ Agents and people drive the engine through commands. Every command must speak th
 - **R7**: THE ENGINE SHALL read one configuration file with documented precedence: flags, environment, project file, defaults.
 - **R8**: WHEN a command changes files or the tracker, THE ENGINE SHALL support a dry run that reports the changes without applying them.
 - **R9**: THE ENGINE SHALL publish the JSON Schema of every command input and output.
+- **R10**: THE ENGINE SHALL report tokens in and out, cost, duration and turns from the ledger, grouped by issue, phase, role and executor, for a time range (wayloop cost).
 
 ## Acceptance criteria
 - **AC1**: Given each command, when run with an input holding three independent errors, then errors lists all three, each with pointer, reason, expected and fix. Verification: contract test.
@@ -37,6 +38,7 @@ Agents and people drive the engine through commands. Every command must speak th
 - **AC3**: Given a schema snapshot, when an output field is renamed without a version bump, then CI fails. Verification: contract test.
 - **AC4**: Given an output larger than the budget, when returned, then it is truncated with a warning and a way to page. Verification: TDD.
 - **AC5**: Given a dry run of init, when executed, then no file changes and the planned changes are listed. Verification: end-to-end.
+- **AC6**: Given a ledger fixture, when wayloop cost runs, then totals equal the sum of the events in the range. Verification: TDD.
 
 ## Interfaces
 - schemas/commands/<command>/v<N>.json and v<N>.output.json; schemas/index.json; error codes and reasons documented in the reference (ADR 0009).

@@ -5,7 +5,7 @@
 | Status | Draft |
 | Milestone | M2 · Tracker and loop |
 | Owner | @salvo8519 |
-| Related | ADR 0012, #62, #72, #73, #74, #75 |
+| Related | ADR 0012, #62, #72, #73, #74, #75, #167 |
 | Commit scope | state |
 
 ## Problem
@@ -27,11 +27,13 @@ People decide at the gates, and the plan must follow reality. Questions must rea
 - **R4**: THE ENGINE SHALL never apply a roadmap change without approval.
 - **R5**: THE ENGINE SHALL publish a hand-over comment at the end of every session, rendered from the validated summary.
 - **R6**: THE ENGINE SHALL ignore events produced by its own bot except to create proposals, and group them.
+- **R7**: WHEN a merge adds or removes code comments of the form `shortcut: <limit>, <when to revisit>`, THE ENGINE SHALL propose discovered work for the new ones and close the proposals of the removed ones.
 
 ## Acceptance criteria
 - **AC1**: Given a question answered by a person without permission, when processed, then it is ignored and the reason recorded. Verification: TDD.
 - **AC2**: Given a merged pull request that leaves a story incomplete, when reconciled, then a proposal adds the missing task. Verification: end-to-end.
 - **AC3**: Given ten bot events in one minute, when processed, then one grouped proposal is created. Verification: TDD.
+- **AC4**: Given a merge that adds two shortcuts, when reconciled, then one proposal lists both with file and line. Verification: TDD.
 
 ## Interfaces
 - Labels needs-decision and approved; reusable GitHub workflow on pull request merge.
