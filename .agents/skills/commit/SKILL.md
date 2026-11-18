@@ -35,7 +35,8 @@ One signed-off commit of one concern, with a message that passes `scripts/conven
    `CLAUDE.local.md` does not exist or names English, show the message only.
 6. **Commit** after approval, or directly when the maintainer has said that commits in this
    session need no review: `git commit -s -F <file>`. The commit-msg hook runs the same check.
-   Never use `--no-verify`.
+   The pre-commit hook formats and applies safe fixes: when it stops the commit once with
+   files modified, review and stage them, then commit again. Never use `--no-verify`.
 7. **Confirm.** Run `git log -1 --format=%B` and `git status`: the commit exists with the
    sign-off, and nothing intended for it was left unstaged.
 
