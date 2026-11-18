@@ -196,26 +196,33 @@ Problems are fixed where they appear, without the maintainer watching for them:
 - **Agents**: the Claude Code Stop hook `.claude/hooks/quality-gate.sh` runs the fast checks on
   the files changed against `HEAD` (staged, unstaged and untracked): `rustfmt --check` and
   `cargo clippy -p <crate> --all-targets -- -D warnings` for the touched crates, `ruff check`,
-  `ruff format --check` and `mypy` for changed Python. Findings block the end of the turn once,
-  so the agent fixes them first; the checks share a budget of 60 seconds, and a check that does
-  not finish in time is reported without blocking.
+  `ruff format --check` and `mypy` for changed Python. It runs when the session and when a
+  subagent stop. Findings block the end of the turn, so the agent fixes them first; the same
+  findings never block twice in a row, and a session is blocked at most three times. The checks
+  share a budget of 60 seconds; a check that does not finish in time, or a missing tool, is
+  reported without blocking.
 - **Commits**: pre-commit applies `cargo fmt`, `ruff check --fix` and `ruff format` to the
   staged files. A commit with unformatted code stops once with the files already fixed: stage
   them and commit again. CI runs the same tools in check mode.
 - **Coverage**: CI runs the Rust tests instrumented by cargo-llvm-cov and the process tests with
   pytest-cov, and writes both line coverage tables to the job summary. Line coverage of
   `wayloop-core` must stay at or above the floor in the `justfile` (`core_coverage_floor`,
-  90 percent). The core holds all the decision logic and is fully covered today; the floor
-  leaves room for a few lines that only a defensive path reaches, and mutation testing judges
-  the strength of the tests better than a higher number would. `just coverage` measures
+  95 percent). The core holds all the decision logic and performs no I/O, so every line can be
+  tested without mocks. The floor stays below 100 because a `const fn` that runs only at
+  compile time is counted as not covered, and because mutation testing judges the strength of
+  the tests better than the last few percent would. `just coverage` measures
   locally (it needs the `llvm-tools-preview` component); `just coverage 100` tries a floor.
 - **Mutation testing**: every week the maintenance workflow runs cargo-mutants on
   `wayloop-core` (`just mutants` locally). A mutant that survives means a change in the logic
   that no test notices; the surviving mutants are listed in the maintenance issue.
 - **Failures**: a failure of CI or of the documentation on `main`, or of a scheduled workflow,
   opens or updates one issue labelled `bug` per workflow with the failing jobs and the link to
-  the log, and the next green run closes it (`scripts/failure_issue.py`). The session briefing
-  lists open `bug` and `maintenance` issues before anything else.
+  the log, and the next green run closes it (`scripts/failure_issue.py`). A fix references such
+  an issue with `Refs #<issue>`, not `Closes`, because the green run closes it. The session
+  briefing lists open `bug` and `maintenance` issues before anything else.
+- **Dependency updates**: Dependabot pull requests are merged by the session agent in
+  pull-request triage once the required checks are green; Rust crates and ruff wait for review
+  (`docs/en/project/dependencies.md`).
 
 ## House style
 

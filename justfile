@@ -1,7 +1,7 @@
 # Run with `uv run just <recipe>` (just is installed by uv).
 
 # Floor of line coverage for wayloop-core, in percent (docs/en/project/conventions.md, Code quality).
-core_coverage_floor := "90"
+core_coverage_floor := "95"
 
 default:
     @just --list
@@ -60,8 +60,10 @@ coverage floor=core_coverage_floor:
     just coverage-floor {{floor}}
     python -m pytest tests/process --cov=scripts --cov-report=term
 
-# Fails when the line coverage of wayloop-core, measured by the last instrumented run, is below the floor.
+# Fails when the line coverage of wayloop-core, measured by the last instrumented run, is below the
+# floor. The first line lets an error of the tool through as itself, not as a coverage failure.
 coverage-floor floor=core_coverage_floor:
+    cargo llvm-cov report --package wayloop-core --summary-only >/dev/null
     cargo llvm-cov report --package wayloop-core --summary-only --fail-under-lines {{floor}} >/dev/null || { echo "Line coverage of wayloop-core is below the floor of {{floor}} percent: add the missing tests." >&2; exit 1; }
 
 # Mutation testing of wayloop-core (cargo-mutants); surviving mutants in target/mutants/mutants.out/missed.txt.
