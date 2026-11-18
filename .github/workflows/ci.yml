@@ -20,7 +20,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
-          components: rustfmt, clippy
+          components: rustfmt, clippy, llvm-tools-preview
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
@@ -38,8 +38,11 @@ jobs:
           uv run ruff format --check scripts tests .claude/hooks
       - name: Python types (mypy strict)
         run: uv run mypy
-      - name: Process scripts tested
-        run: uv run pytest tests/process
+      - name: Process scripts tested, line coverage in the summary (pytest-cov)
+        run: |
+          echo '### Line coverage of the process scripts' >> "$GITHUB_STEP_SUMMARY"
+          uv run pytest tests/process --cov=scripts --cov-report=term \
+            --cov-report=markdown-append:"$GITHUB_STEP_SUMMARY"
       - name: Required checks reported on pull requests
         run: uv run python scripts/required_checks.py check
       - name: Agent mirrors generated from .agents
@@ -91,7 +94,31 @@ jobs:
         run: uv run python scripts/check_core_io.py
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      # The Rust tests run once, instrumented: cargo-llvm-cov 0.9.1, pinned like the other tools.
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        id: llvm-cov-install
+        continue-on-error: true
+        timeout-minutes: 5
+        with:
+          tool: cargo-llvm-cov@0.9.1
+          fallback: none
+      - name: Build cargo-llvm-cov from crates.io (download failed)
+        if: steps.llvm-cov-install.outcome == 'failure'
+        run: cargo install --locked cargo-llvm-cov@0.9.1
+      - name: Rust tests with line coverage (cargo-llvm-cov)
+        run: cargo llvm-cov --workspace --no-report
+      - name: Rust documentation tests (not instrumented on stable)
+        run: cargo test --workspace --doc
+      - name: Rust line coverage in the summary
+        run: |
+          {
+            echo '### Line coverage of the Rust crates'
+            echo '```'
+            cargo llvm-cov report --summary-only
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Line coverage of wayloop-core at or above its floor (justfile)
+        run: uv run just coverage-floor
 
   workflows:
     name: Quality · workflows, pins, unused dependencies

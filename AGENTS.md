@@ -108,6 +108,7 @@ change and the order of dependent branches stays with whoever built them.
 | Full gate | `uv run just check` |
 | Format | `uv run just fmt` |
 | Python: lint, format check, strict types | `uv run just python` |
+| Line coverage with the floor of `wayloop-core`; mutation testing of the core | `uv run just coverage` / `uv run just mutants` |
 | Build the documentation | `uv run just docs` |
 | Preview the documentation | `uv run just docs-serve` or `uv run just docs-serve it` |
 | Translation status | `uv run just i18n-status` |

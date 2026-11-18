@@ -4,24 +4,27 @@ default_install_hook_types: [pre-commit, commit-msg]
 repos:
   - repo: local
     hooks:
+      # The formatters fix the staged files instead of only checking them: a commit with
+      # unformatted code stops once, with the files already fixed; stage them and commit again.
+      # CI runs the same tools in check mode.
       - id: cargo-fmt
-        name: cargo fmt
-        entry: cargo fmt --all --check
+        name: cargo fmt (applies the format)
+        entry: cargo fmt --all
         language: system
         types: [rust]
         pass_filenames: false
       - id: ruff-check
-        name: ruff check (Python lint and error handling)
-        entry: uv run ruff check scripts tests .claude/hooks
+        name: ruff check --fix (Python lint and error handling, safe fixes applied)
+        entry: uv run ruff check --fix
         language: system
         types: [python]
-        pass_filenames: false
+        files: ^(scripts|tests|\.claude/hooks)/
       - id: ruff-format
-        name: ruff format
-        entry: uv run ruff format --check scripts tests .claude/hooks
+        name: ruff format (applies the format)
+        entry: uv run ruff format
         language: system
         types: [python]
-        pass_filenames: false
+        files: ^(scripts|tests|\.claude/hooks)/
       - id: mypy
         name: mypy strict
         entry: uv run mypy

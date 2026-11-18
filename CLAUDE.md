@@ -60,6 +60,9 @@ never edit `.claude/agents` or `.claude/skills` directly.
 - Before an edit: released contract snapshots under `schemas/` cannot be changed; write the next
   version.
 - After an edit: `.rs` and `.py` files are formatted.
+- Before the session or a subagent ends: the fast checks on the changed files (rustfmt, clippy
+  on the touched crates, ruff, mypy); findings go back to the agent, never twice the same and at
+  most three times per session.
 - Before the session ends: documentation impact, and a hand-over in `.agents/journal/` when the
   session committed.
 

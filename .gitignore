@@ -22,3 +22,5 @@ CLAUDE.local.md
 
 # Internal research, market analysis and design notes: never published (maintainer decision)
 /internal/
+# Data file of pytest-cov (`just coverage`, CI)
+.coverage
