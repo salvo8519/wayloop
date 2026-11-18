@@ -127,19 +127,14 @@ ATTENTION = ("bug", "maintenance")
 
 def attention_issues(issues: list[dict[str, Any]]) -> list[str]:
     """Open bug issues, then maintenance issues, each by number: they go before new work."""
-
-    def first_label(i: dict[str, Any]) -> str | None:
-        names = {lbl["name"] for lbl in i["labels"]}
-        return next((label for label in ATTENTION if label in names), None)
-
-    flagged = [(first_label(i), i) for i in issues]
-    return [
-        f"#{i['number']} {i['title']} ({label})"
-        for label, i in sorted(
-            ((label, i) for label, i in flagged if label),
-            key=lambda pair: (ATTENTION.index(pair[0] or ""), int(pair[1]["number"])),
-        )
-    ]
+    lines: list[str] = []
+    seen: set[int] = set()
+    for label in ATTENTION:
+        for i in sorted(issues, key=lambda i: int(i["number"])):
+            if i["number"] not in seen and label in {lbl["name"] for lbl in i["labels"]}:
+                seen.add(i["number"])
+                lines.append(f"#{i['number']} {i['title']} ({label})")
+    return lines
 
 
 def repo() -> str:
