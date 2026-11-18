@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location(
@@ -35,7 +36,13 @@ class FakeGh:
     def flag(args: list[str], name: str) -> str:
         return args[args.index(name) + 1]
 
-    def __call__(self, args: list[str]) -> str:
+    @staticmethod
+    def body(args: list[str], stdin: str | None) -> str:
+        assert FakeGh.flag(args, "--body-file") == "-"
+        assert stdin is not None
+        return stdin
+
+    def __call__(self, args: list[str], stdin: str | None = None) -> str:
         self.calls.append(args)
         match args[:2]:
             case ["issue", "list"]:
@@ -44,23 +51,25 @@ class FakeGh:
                     [
                         {"number": n, "title": i["title"], "body": i["body"]}
                         for n, i in self.issues.items()
-                        if i["state"] == "open" and label in i["labels"]
+                        if i["state"] == "open"
+                        and label in i["labels"]
+                        and i.get("author", "app/github-actions") == self.flag(args, "--author")
                     ]
                 )
             case ["issue", "create"]:
                 number = len(self.issues) + 1
                 self.issues[number] = {
                     "title": self.flag(args, "--title"),
-                    "body": self.flag(args, "--body"),
+                    "body": self.body(args, stdin),
                     "labels": [self.flag(args, "--label")],
                     "state": "open",
                 }
                 return f"https://github.com/o/r/issues/{number}"
             case ["issue", "edit"]:
-                self.issues[int(args[2])]["body"] = self.flag(args, "--body")
+                self.issues[int(args[2])]["body"] = self.body(args, stdin)
                 return ""
             case ["issue", "comment"]:
-                self.comments.setdefault(int(args[2]), []).append(self.flag(args, "--body"))
+                self.comments.setdefault(int(args[2]), []).append(self.body(args, stdin))
                 return ""
             case ["issue", "close"]:
                 self.issues[int(args[2])]["state"] = "closed"
@@ -202,3 +211,50 @@ def test_main_reads_the_details_file(tmp_path: Path, monkeypatch: pytest.MonkeyP
     ]
     assert failure_issue.main(argv) == 0
     assert "Surviving mutants: 2" in open_issues(gh)[0]["body"]
+
+
+def test_issues_not_opened_by_the_workflow_are_never_touched() -> None:
+    gh = FakeGh(failed_jobs=["Build"])
+    marker = failure_issue.marker("CI")
+    gh.issues[1] = {
+        "title": "CI passes again on main",
+        "body": marker,
+        "labels": ["bug"],
+        "state": "open",
+        "author": "someone",
+    }
+    assert report(gh, "failure", 11) == "opened #2"
+    assert report(gh, "success", 12) == "closed #2"
+    assert gh.issues[1]["state"] == "open" and gh.issues[1]["body"] == marker
+
+
+def test_the_body_says_how_to_reference_the_issue() -> None:
+    gh = FakeGh(failed_jobs=["Build"])
+    report(gh, "failure", 11)
+    assert "Refs #1" not in open_issues(gh)[0]["body"]  # the number is not known yet
+    assert "`Refs #<this issue>`" in open_issues(gh)[0]["body"]
+
+
+def test_the_same_run_reported_twice_changes_nothing() -> None:
+    gh = FakeGh(failed_jobs=["Build"])
+    report(gh, "failure", 11)
+    assert report(gh, "failure", 11) == "already reported in #1"
+    assert 1 not in gh.comments
+
+
+def test_every_watched_workflow_exists_under_its_exact_name() -> None:
+    workflows = ROOT / ".github" / "workflows"
+    names = {yaml.safe_load(f.read_text(encoding="utf-8"))["name"] for f in workflows.glob("*.yml")}
+    trigger = yaml.safe_load((workflows / "failure-issue.yml").read_text(encoding="utf-8"))
+    # PyYAML reads the key `on` as the boolean True (YAML 1.1).
+    watched = trigger[True]["workflow_run"]["workflows"]
+    assert watched and set(watched) <= names, set(watched) - names
+
+
+def test_an_empty_job_list_is_explicit(monkeypatch: pytest.MonkeyPatch) -> None:
+    gh = FakeGh(failed_jobs=["Build"])
+    monkeypatch.setattr(failure_issue, "gh_cli", gh)
+    argv = ["report", "--repo=o/r", "--workflow=CI", "--run-id=5", f"--run-url={RUN}5"]
+    argv += ["--conclusion=success", "--event=push", "--branch=main", "--jobs="]
+    assert failure_issue.main(argv) == 0
+    assert not any(call[0] == "api" for call in gh.calls)

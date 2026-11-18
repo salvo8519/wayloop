@@ -137,7 +137,7 @@ jobs:
           delimiter="survivors-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
           { echo "missed<<$delimiter"; cat survivors.txt; echo "$delimiter"; } >> "$GITHUB_OUTPUT"
           # 2: mutants survived, 3: a mutant timed out; anything else non-zero is a tool failure.
-          exit "$STATUS"
+          exit "${STATUS:-1}"
 
   report:
     name: Open, update or close the maintenance issue
@@ -166,6 +166,9 @@ jobs:
             *=cancelled*) conclusion=cancelled ;;
             *) conclusion=success ;;
           esac
+          # Only the jobs that did not succeed go into the issue.
+          jobs=$(printf '%s' "$RESULTS" | tr ',' '\n' | sed 's/^ *//' \
+            | grep -v -E '^$|=(success|skipped)$' | paste -sd, -) || jobs=""
           {
             echo "Triage with the dependency policy (docs/en/project/dependencies.md)."
             if [ -n "$MISSED" ]; then
@@ -179,4 +182,4 @@ jobs:
           python3 scripts/failure_issue.py report --repo "$GITHUB_REPOSITORY" \
             --workflow "Weekly maintenance" --run-id "$GITHUB_RUN_ID" --run-url "$RUN_URL" \
             --conclusion "$conclusion" --event schedule --branch main --label maintenance \
-            --title "Weekly maintenance report" --jobs "$RESULTS" --details details.md
+            --title "Weekly maintenance report" --jobs "$jobs" --details details.md

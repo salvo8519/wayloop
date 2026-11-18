@@ -20,6 +20,11 @@ concurrency:
 jobs:
   report:
     name: Open, update or close the failure issue
+    # Only runs of this repository (never of a fork) on a push or a schedule; the script checks
+    # the branch and the event again.
+    if: >-
+      github.event.workflow_run.head_repository.full_name == github.repository
+      && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'schedule')
     runs-on: ubuntu-latest
     permissions:
       actions: read  # the jobs of the completed run
