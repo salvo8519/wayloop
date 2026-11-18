@@ -61,6 +61,7 @@ milestones:
           - { issue: 171, title: "Plan the process policy in the engine and the loop improvements", status: done }
           - { issue: 191, title: "Plan the process and system skills, agents and hooks", status: done }
           - { issue: 220, title: "Plan one contract on every channel with translation adapters and a channel reconciler", status: done }
+          - { issue: 242, title: "Plan the execution modes, loop continuation, batches and composed agents", status: done }
       - title: "Process parity with the project template"
         issue: 136
         labels: ["area:infra"]
@@ -179,6 +180,8 @@ milestones:
           - { issue: 68, title: "Token budgets per phase and per sprint", spec: "0006", status: open }
           - { issue: 76, title: "wayloop run in session and unattended modes", spec: "0006", status: open }
           - { issue: 178, title: "Failed attempts discarded with a note the next attempt starts from", spec: "0006", status: open }
+          - { issue: 243, title: "Parallel sub-agents in the session from a batch of ready work", spec: "0006", status: open }
+          - { issue: 244, title: "The loop continues at every stop until the engine reports a stop reason", spec: "0006", status: open }
       - title: "Executors"
         issue: 27
         labels: ["area:runtime"]
@@ -192,6 +195,7 @@ milestones:
           - { issue: 166, title: "Briefs with a stable prefix, a simplicity rule and controlled English", spec: "0008", status: open }
           - { issue: 173, title: "Review by a different agent, of another vendor when one is available", spec: "0008", status: open }
           - { issue: 176, title: "Usage limits handled by executors, in-session mode first for subscription users", spec: "0008", status: open }
+          - { issue: 245, title: "Provider batch interfaces for non-interactive steps", spec: "0008", status: open }
       - title: "Gates and reconciliation"
         issue: 28
         labels: ["area:core"]
@@ -306,6 +310,7 @@ milestones:
           - { issue: 202, title: "System skills for delivery, from checkout to hand-over", spec: "0022", status: open }
           - { issue: 203, title: "System skills for existing code and support: survey, document, gaps, debug, learnings", spec: "0022", status: open }
           - { issue: 204, title: "System agents shipped with the plugins", spec: "0022", status: open }
+          - { issue: 246, title: "Agents composed per task and new project roles behind a gate", spec: "0022", status: open }
       - title: "Distribution"
         issue: 37
         labels: ["area:release"]

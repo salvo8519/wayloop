@@ -53,5 +53,5 @@ The engine never calls a model itself (ADR 0011). It must drive existing coding 
 - Executor trait; configuration executors.<role>.
 
 ## Open questions
-- [ ] Support provider batch interfaces for non-interactive steps in 1.0 or later?
+- [x] Support provider batch interfaces for non-interactive steps in 1.0 or later? Decided by the maintainer on 2026-11-17: yes, in M2 (#245).
 - [ ] Accept ADR 0025 (API executor) for 1.0 or move it after 1.0?
