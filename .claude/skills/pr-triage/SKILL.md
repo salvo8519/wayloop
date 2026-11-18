@@ -60,6 +60,8 @@ maintainer in merge order.
    a failure recorded as external in step 3; `roadmap.py check --pr-body` passes; no open
    review finding; no open question.
    - Small pull requests: `gh pr merge <n> --squash --subject "<title> (#<n>)" --delete-branch`.
+   - Dependabot pull requests are small: merge them once the required checks are green, except
+     cargo updates and ruff updates (pinned to a minor range), which wait for review.
    - Pull requests that change `crates/`, `schemas/` or an SDK: ask the maintainer to confirm,
      with the summary of the change and its review; merge only after the confirmation.
    - Stacked pull requests, bottom up: after the lower one is merged, rebase the next branch

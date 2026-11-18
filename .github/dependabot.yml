@@ -1,22 +1,27 @@
-# Weekly updates, minor and patch grouped into one pull request per ecosystem.
-# .github/workflows/dependabot-auto-merge.yml enables auto-merge for grouped minor and patch
-# updates of GitHub Actions and of the Python development tools, which merge once the required
-# checks pass. Rust dependencies always wait for review. Policy: docs/en/project/dependencies.md.
+# Weekly updates, minor and patch grouped into one pull request per ecosystem. A new version is
+# proposed only after a cooldown of 7 days, so that a compromised or broken release is usually
+# yanked before it reaches the repository; security updates are not delayed by it.
+# Dependabot pull requests are merged by the session agent during pull-request triage once the
+# required checks are green; Rust crates and ruff (pinned to a minor range) wait for review.
+# Policy: docs/en/project/dependencies.md.
 version: 2
 updates:
   - package-ecosystem: cargo
     directory: "/"
     schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
     commit-message: { prefix: "build", include: scope }
     groups: { cargo: { patterns: ["*"], update-types: [minor, patch] } }
   # The uv ecosystem updates pyproject.toml and uv.lock together.
   - package-ecosystem: uv
     directory: "/"
     schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
     commit-message: { prefix: "build", include: scope }
     groups: { python: { patterns: ["*"], update-types: [minor, patch] } }
   - package-ecosystem: github-actions
     directory: "/"
     schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
     commit-message: { prefix: "ci", include: scope }
     groups: { actions: { patterns: ["*"], update-types: [minor, patch] } }
