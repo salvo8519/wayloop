@@ -25,10 +25,12 @@ def git(cwd: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=cwd, env={**os.environ, **GIT_ENV}, check=True)
 
 
-def run(project: Path, active: bool = False, **env: str) -> subprocess.CompletedProcess[str]:
+def run(
+    project: Path, active: bool = False, session: str = "s1", **env: str
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [str(project / ".claude" / "hooks" / "quality-gate.sh")],
-        input=json.dumps({"stop_hook_active": active}),
+        input=json.dumps({"stop_hook_active": active, "session_id": session}),
         capture_output=True,
         text=True,
         env={**os.environ, "CLAUDE_PROJECT_DIR": str(project), **env},
@@ -119,20 +121,83 @@ def test_blocks_on_unformatted_rust(project: Path) -> None:
     assert "rustfmt --check" in result.stderr
 
 
+def system_message(result: subprocess.CompletedProcess[str]) -> str:
+    return str(json.loads(result.stdout)["systemMessage"])
+
+
 @pytest.mark.skipif(not (ROOT / ".venv").is_dir(), reason="the Python tools are in .venv")
-def test_reports_without_blocking_a_second_time(project: Path) -> None:
+def test_changed_findings_block_again_even_when_a_stop_hook_is_active(project: Path) -> None:
+    tool = project / "scripts" / "tool.py"
+    tool.write_text("import os\n", encoding="utf-8")
+    assert run(project).returncode == 2
+    tool.write_text("import sys\n", encoding="utf-8")
+    result = run(project, active=True)
+    assert result.returncode == 2
+    assert "imported but unused" in result.stderr
+
+
+@pytest.mark.skipif(not (ROOT / ".venv").is_dir(), reason="the Python tools are in .venv")
+def test_identical_findings_on_a_repeated_stop_do_not_block(project: Path) -> None:
     (project / "scripts" / "tool.py").write_text("import os\n", encoding="utf-8")
+    assert run(project).returncode == 2
     result = run(project, active=True)
     assert result.returncode == 0
-    assert "imported but unused" in result.stderr
+    assert "imported but unused" in system_message(result)
+    assert run(project, session="s2").returncode == 2  # another session starts afresh
+
+
+@pytest.mark.skipif(not (ROOT / ".venv").is_dir(), reason="the Python tools are in .venv")
+def test_blocks_at_most_three_times_per_session(project: Path) -> None:
+    tool = project / "scripts" / "tool.py"
+    codes = []
+    for module in ("os", "sys", "re", "json"):
+        tool.write_text(f"import {module}\n", encoding="utf-8")
+        codes.append(run(project).returncode)
+    assert codes == [2, 2, 2, 0]
 
 
 @pytest.mark.skipif(not (ROOT / ".venv").is_dir(), reason="the Python tools are in .venv")
 def test_a_timeout_is_reported_without_blocking(project: Path) -> None:
     (project / "scripts" / "tool.py").write_text("import os\n", encoding="utf-8")
-    result = run(project, WAYLOOP_QUALITY_BUDGET="0")
+    for budget in ("0", "0.001"):
+        result = run(project, WAYLOOP_QUALITY_BUDGET=budget)
+        assert result.returncode == 0
+        assert "time budget" in system_message(result)
+        assert result.stderr == ""
+
+
+@pytest.mark.skipif(not (ROOT / ".venv").is_dir(), reason="the Python tools are in .venv")
+def test_an_invalid_budget_falls_back_to_the_default(project: Path) -> None:
+    (project / "scripts" / "tool.py").write_text("import os\n", encoding="utf-8")
+    assert run(project, WAYLOOP_QUALITY_BUDGET="soon").returncode == 2
+
+
+def test_a_missing_clippy_or_rustfmt_component_never_blocks(
+    project: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    bin_dir = tmp_path_factory.mktemp("bin")
+    for tool in ("cargo", "rustfmt"):
+        fake = bin_dir / tool
+        fake.write_text("#!/bin/sh\necho 'component not installed' >&2\nexit 1\n", encoding="utf-8")
+        fake.chmod(0o755)
+    (project / "crates" / "demo" / "src" / "lib.rs").write_text("pub fn  f(){}\n", encoding="utf-8")
+    result = run(project, PATH=f"{bin_dir}:{os.environ['PATH']}")
     assert result.returncode == 0
-    assert "time budget" in result.stderr
+    message = system_message(result)
+    assert "rustfmt --check: tool not found" in message
+    assert "cargo clippy -p demo: tool not found" in message
+
+
+@pytest.mark.skipif(not (ROOT / ".venv").is_dir(), reason="the Python tools are in .venv")
+def test_a_staged_rename_and_a_non_ascii_name_are_checked(project: Path) -> None:
+    git(project, "mv", "scripts/tool.py", "scripts/renamed.py")
+    (project / "scripts" / "renamed.py").write_text("import os\n", encoding="utf-8")
+    git(project, "add", "-A")
+    (project / "scripts" / "r\u00e9sum\u00e9.py").write_text("import sys\n", encoding="utf-8")
+    result = run(project)
+    assert result.returncode == 2
+    assert "scripts/renamed.py" in result.stderr
+    assert "r\u00e9sum\u00e9.py" in result.stderr
 
 
 def test_deleted_files_and_other_files_are_ignored(project: Path) -> None:

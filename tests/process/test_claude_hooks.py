@@ -40,7 +40,7 @@ def run(hook: str, payload: dict[str, object], cwd: Path) -> subprocess.Complete
 
 def test_every_hook_is_registered_and_executable() -> None:
     files = sorted(p.name for p in HOOKS.glob("*.sh"))
-    assert sorted(registered()) == files
+    assert sorted(set(registered())) == files
     assert all(os.access(HOOKS / f, os.X_OK) for f in files)
 
 
@@ -60,6 +60,13 @@ def project(tmp_path: Path) -> Path:
     for cmd in (["init", "-q", "-b", "main"], ["add", "."], ["commit", "-q", "-m", "base"]):
         subprocess.run(["git", *cmd], cwd=tmp_path, env=env, check=True)
     return tmp_path
+
+
+def test_quality_gate_runs_when_the_session_and_a_subagent_stop() -> None:
+    settings = json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    for event in ("Stop", "SubagentStop"):
+        commands = [h["command"] for g in settings["hooks"][event] for h in g["hooks"]]
+        assert any(c.endswith("/.claude/hooks/quality-gate.sh") for c in commands), event
 
 
 def test_stop_hook_sends_missing_documentation_back(project: Path) -> None:

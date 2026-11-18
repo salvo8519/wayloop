@@ -20,6 +20,11 @@ uv run pre-commit install --hook-type pre-commit --hook-type commit-msg
 uv run just check
 ```
 
+The pre-commit hook formats the staged files and applies the safe fixes of ruff: a commit with
+unformatted code stops once with the files already fixed; stage them and commit again. CI runs
+the same tools in check mode. `uv run just coverage` measures line coverage and needs the
+`llvm-tools-preview` component of rustup (`rustup component add llvm-tools-preview`).
+
 ## Working with Claude Code
 
 The project settings in `.claude/settings.json` register these hooks:
@@ -29,6 +34,9 @@ The project settings in `.claude/settings.json` register these hooks:
 - before each edit, a released contract snapshot (`schemas/**/v<N>.json`) cannot be changed:
   the next version is written instead;
 - after each edit, the written file is formatted (rustfmt for Rust, ruff for Python);
+- before the session or a subagent ends, the fast checks run on the changed files (rustfmt and
+  clippy on the touched crates, ruff and mypy on changed Python) and send their findings back,
+  never twice for the same findings and at most three times per session;
 - before the session ends, `scripts/docs_sync.py impact` lists changes that still need their
   documentation, and a session that committed today without a hand-over in
   `.agents/journal/` is asked to write it.
