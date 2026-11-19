@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: bd0fe4470a94
+source_hash: 8dafddd3ed22
 ---
 # Architettura
 
@@ -131,16 +131,17 @@ valore errato:
 | --- | --- |
 | `code` | Identificativo stabile del rifiuto; un nuovo significato riceve un nuovo codice, mai uno rinominato (C8) |
 | `message` | Che cosa non va, per una persona |
-| `pointer` | Puntatore RFC 6901 dalla radice dell'input inviato; vuoto per l'intero input |
+| `pointer` | Puntatore RFC 6901 dalla radice dell'input inviato; vuoto per l'intero input; un valore del tipo `Pointer`, verificato quando viene costruito |
 | `pointers` | Puntatori alle altre parti dell'input coinvolte, come i due lati di un conflitto; facoltativo |
 | `reason` | Un valore dell'enum documentato: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale` |
-| `expected` | I valori accettati in `pointer`, mai un pattern; facoltativo |
+| `expected` | I valori accettati in `pointer`, mai un pattern; facoltativo, e `[]` quando nessun valore è accettato |
 | `fix` | Il campo più vicino a una chiave scritta male, o un valore corretto; facoltativo |
-| `source` | Dove è salvato il valore: `{file, line}` per un file del repository, `{issue}` per una issue del tracker, `{milestone}` per una milestone del tracker; assente per un documento inviato direttamente |
+| `source` | Dove è salvato il valore: `{file, line}` per un file del repository, `{issue}` per una issue del tracker, `{milestone}` per una milestone del tracker, con righe e numeri a partire da 1; assente per un documento inviato direttamente |
 
-Un campo facoltativo assente è omesso dalla forma JSON. Il report degli errori,
-`wayloop_core::ErrorReport`, elenca in `errors` tutti gli errori trovati in un solo passaggio,
-nell'ordine in cui sono stati trovati, e ripete il primo al livello superiore, così `errors[0]`
-è sempre uguale al livello superiore. Il tipo `Error` implementa `Display` e
-`std::error::Error`. Un codice è una costante del tipo `Code`, così un solo punto elenca tutti
+Un campo facoltativo non fornito è omesso dalla forma JSON; una lista fornita vuota è scritta
+`[]`, perché assente significa non fornito e `[]` significa nessuno (ADR 0009, C2). Il report
+degli errori, `wayloop_core::ErrorReport`, elenca in `errors` tutti gli errori trovati in un
+solo passaggio, nell'ordine in cui sono stati trovati, e ripete il primo al livello superiore,
+così `errors[0]` è sempre uguale al livello superiore. `Error` ed `ErrorReport` implementano
+`Display` e `std::error::Error`. Un codice è una costante del tipo `Code`, così un solo punto elenca tutti
 i codici del motore; i codici arrivano con la specifica di ogni comando.

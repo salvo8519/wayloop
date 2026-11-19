@@ -25,7 +25,7 @@
     clippy::disallowed_types
 )]
 
-pub use wayloop_schemas::{Code, Error, ErrorReport, Reason, Source};
+pub use wayloop_schemas::{Code, Error, ErrorReport, Pointer, Reason, Source};
 
 /// Version of the engine, taken from the workspace manifest.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

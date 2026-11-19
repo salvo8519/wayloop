@@ -5,10 +5,12 @@
 //! field of a refusal that an agent acts on (`code`, `message`, `pointer`, `pointers`,
 //! `reason`, `expected`, `fix`) and `source`, where the faulty value is stored (SPEC-0001
 //! Errors, R12). An [`ErrorReport`] lists every error found in one pass in `errors`, the first
-//! one repeated at the top level. Optional fields are left out of the serialised form when
-//! absent. The codes themselves are constants of the core (C8).
+//! one repeated at the top level. An optional field that is not given is left out of the
+//! serialised form, and an empty list is written `[]`: absent means not given, `[]` means none
+//! (C2). The codes themselves are constants of the core (C8).
 
 use core::fmt;
+use core::num::NonZeroU64;
 
 use serde::{Serialize, Serializer};
 use serde_json::Value;
@@ -114,45 +116,91 @@ impl fmt::Display for Code {
     }
 }
 
+/// An RFC 6901 JSON pointer from the root of the input sent: empty for the whole input, or a
+/// sequence of `/`-prefixed reference tokens in which `~` is escaped as `~0` or `~1`. It
+/// serialises as its string.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize)]
+#[serde(transparent)]
+pub struct Pointer(String);
+
+impl Pointer {
+    /// The pointer to the whole input, `""`.
+    #[must_use]
+    pub const fn root() -> Self {
+        Self(String::new())
+    }
+
+    /// The pointer written as `text`, or `None` when `text` is not in the form of RFC 6901.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        if !(text.is_empty() || text.starts_with('/')) {
+            return None;
+        }
+        let mut chars = text.chars();
+        while let Some(c) = chars.next() {
+            if c == '~' && !matches!(chars.next(), Some('0' | '1')) {
+                return None;
+            }
+        }
+        Some(Self(text.to_owned()))
+    }
+
+    /// The pointer as written.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for Pointer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 /// Where the faulty value is stored (SPEC-0001 Errors, R12): the field `source` of an error.
-/// It serialises as the object of its form, with no tag.
+///
+/// It serialises as the object of its form, with no tag, because the field names tell the
+/// forms apart and the field is output only. A `Deserialize`, if one is ever added, must put
+/// `#[serde(deny_unknown_fields)]` on each form, or an untagged enum would accept an object
+/// with extra fields as the first form that matches.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum Source {
     /// A repository file: its path relative to the root, with `/` separators, and the line of
-    /// the value, from 1.
+    /// the value.
     File {
         /// Path of the file relative to the root of the repository.
         file: String,
-        /// Line of the faulty value, from 1.
-        line: u64,
+        /// Line of the faulty value; lines are counted from 1.
+        line: NonZeroU64,
     },
     /// A tracker issue, by its number.
     Issue {
         /// Number of the issue.
-        issue: u64,
+        issue: NonZeroU64,
     },
     /// A tracker milestone, by its number.
     Milestone {
         /// Number of the milestone.
-        milestone: u64,
+        milestone: NonZeroU64,
     },
 }
 
 /// A refusal of the engine, with the fields of ADR 0009 C3 and its `source`.
 ///
 /// `pointers`, `expected`, `fix` and `source` are optional and left out of the serialised form
-/// when absent; an empty list counts as absent.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+/// when not given; a list given empty is written `[]` (C2).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Error {
     code: Code,
     message: String,
-    pointer: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pointers: Vec<String>,
+    pointer: Pointer,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pointers: Option<Vec<Pointer>>,
     reason: Reason,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    expected: Vec<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expected: Option<Vec<Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     fix: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -160,48 +208,40 @@ pub struct Error {
 }
 
 impl Error {
-    /// A refusal with its stable `code` (never renamed or reused, ADR 0009 C8), its `reason`,
-    /// the RFC 6901 `pointer` from the root of the input sent (`""` is the whole input), and a
-    /// `message` for a person.
+    /// A refusal with its stable `code` (never renamed or reused, ADR 0009 C8), a `message`
+    /// for a person, the `pointer` to the refused part of the input, and its `reason`: the
+    /// required fields of C3, in its order.
     #[must_use]
-    pub fn new(
-        code: Code,
-        reason: Reason,
-        pointer: impl Into<String>,
-        message: impl Into<String>,
-    ) -> Self {
+    pub fn new(code: Code, message: impl Into<String>, pointer: Pointer, reason: Reason) -> Self {
         Self {
             code,
             message: message.into(),
-            pointer: pointer.into(),
-            pointers: Vec::new(),
+            pointer,
+            pointers: None,
             reason,
-            expected: Vec::new(),
+            expected: None,
             fix: None,
             source: None,
         }
     }
 
-    /// The error with the RFC 6901 pointers of the other parts of the input involved, such as
-    /// both sides of a conflict.
+    /// The error with the pointers of the other parts of the input involved, such as both
+    /// sides of a conflict.
     #[must_use]
-    pub fn with_pointers<I>(mut self, pointers: I) -> Self
-    where
-        I: IntoIterator,
-        I::Item: Into<String>,
-    {
-        self.pointers = pointers.into_iter().map(Into::into).collect();
+    pub fn with_pointers(mut self, pointers: impl IntoIterator<Item = Pointer>) -> Self {
+        self.pointers = Some(pointers.into_iter().collect());
         self
     }
 
-    /// The error with the values the input accepts at `pointer`; never a pattern.
+    /// The error with the values the input accepts at `pointer`, never a pattern; an empty
+    /// list says that no value is accepted.
     #[must_use]
     pub fn with_expected<I>(mut self, expected: I) -> Self
     where
         I: IntoIterator,
         I::Item: Into<Value>,
     {
-        self.expected = expected.into_iter().map(Into::into).collect();
+        self.expected = Some(expected.into_iter().map(Into::into).collect());
         self
     }
 
@@ -226,34 +266,34 @@ impl Error {
         self.code
     }
 
-    /// Why the input was refused.
-    #[must_use]
-    pub const fn reason(&self) -> Reason {
-        self.reason
-    }
-
-    /// RFC 6901 pointer to the refused part of the input; empty for the whole input.
-    #[must_use]
-    pub fn pointer(&self) -> &str {
-        &self.pointer
-    }
-
     /// What went wrong, for a person.
     #[must_use]
     pub fn message(&self) -> &str {
         &self.message
     }
 
-    /// Pointers to the other parts of the input involved; empty when there are none.
+    /// Pointer to the refused part of the input; [`Pointer::root`] for the whole input.
     #[must_use]
-    pub fn pointers(&self) -> &[String] {
-        &self.pointers
+    pub const fn pointer(&self) -> &Pointer {
+        &self.pointer
     }
 
-    /// Values accepted at `pointer`; empty when they are not listed.
+    /// Pointers to the other parts of the input involved; `None` when not given.
     #[must_use]
-    pub fn expected(&self) -> &[Value] {
-        &self.expected
+    pub fn pointers(&self) -> Option<&[Pointer]> {
+        self.pointers.as_deref()
+    }
+
+    /// Why the input was refused.
+    #[must_use]
+    pub const fn reason(&self) -> Reason {
+        self.reason
+    }
+
+    /// Values accepted at `pointer`; `None` when not given, empty when none is accepted.
+    #[must_use]
+    pub fn expected(&self) -> Option<&[Value]> {
+        self.expected.as_deref()
     }
 
     /// Suggested fix, if one can be derived.
@@ -272,7 +312,7 @@ impl Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.pointer.is_empty() {
+        if self.pointer.as_str().is_empty() {
             write!(f, "{}: {} at the root of the input", self.code, self.reason)?;
         } else {
             write!(f, "{}: {} at {}", self.code, self.reason, self.pointer)?;
@@ -285,7 +325,7 @@ impl std::error::Error for Error {}
 
 /// Every error found in one pass (ADR 0009 C3). It serialises as the first error, with all
 /// the errors in `errors`, so that `errors[0]` equals the top level by construction.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ErrorReport {
     first: Error,
     rest: Vec<Error>,
@@ -339,6 +379,19 @@ impl Serialize for ErrorReport {
         .serialize(serializer)
     }
 }
+
+/// Every error on its own line, in the order found.
+impl fmt::Display for ErrorReport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.first)?;
+        for error in &self.rest {
+            write!(f, "\n{error}")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for ErrorReport {}
 
 #[cfg(test)]
 mod tests {
