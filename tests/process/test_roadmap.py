@@ -401,3 +401,24 @@ def test_an_issue_without_a_creation_time_is_never_in_the_grace_period() -> None
     drift, issues = _unplanned("2026-11-19T21:55:00Z")
     del issues[99997]["created_at"]
     assert roadmap.recently_created(drift, issues, now) == set()
+
+
+def _open_issue(n: int, login: str, labels: list[str]) -> dict[str, Any]:
+    return {
+        "number": n,
+        "title": f"Issue {n}",
+        "state": "open",
+        "milestone": None,
+        "user": {"login": login},
+        "labels": [{"name": label} for label in labels],
+    }
+
+
+def test_reports_of_the_automation_are_not_untriaged() -> None:
+    d = data()
+    issues = github_view(d)
+    issues[99990] = _open_issue(99990, "github-actions[bot]", ["bug"])
+    issues[99991] = _open_issue(99991, "github-actions[bot]", ["maintenance"])
+    issues[99992] = _open_issue(99992, "someone", ["bug"])
+    _, untriaged = roadmap.differences(copy.deepcopy(d), issues)
+    assert [u.split()[0] for u in untriaged] == ["#99992"]

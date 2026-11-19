@@ -82,6 +82,7 @@ milestones:
           - { issue: 226, title: "Defects found during any work are fixed in the same change or filed at once", status: done }
           - { issue: 240, title: "Quality problems surface and are fixed without the maintainer watching", status: done }
           - { issue: 249, title: "Roadmap sync tolerates issues created moments before their roadmap change", status: done }
+          - { issue: 280, title: "Roadmap sync runs only when a real difference can appear", status: done }
       - title: "Artifact model"
         issue: 18
         labels: ["area:core"]

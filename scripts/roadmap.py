@@ -282,6 +282,16 @@ def github_milestones() -> dict[str, int]:
     return {m["title"]: m["number"] for m in gh(f"repos/{REPO}/milestones?state=all&per_page=100")}
 
 
+AUTOMATION = "github-actions[bot]"
+REPORT_LABELS = {"bug", "maintenance"}
+
+
+def automation_report(issue: dict[str, Any]) -> bool:
+    """An issue opened by the workflows to report a failure, not planned work."""
+    labels = {label["name"] for label in issue.get("labels", [])}
+    return (issue.get("user") or {}).get("login") == AUTOMATION and bool(labels & REPORT_LABELS)
+
+
 def differences(
     data: dict[str, Any], issues: dict[int, dict[str, Any]]
 ) -> tuple[list[tuple[int, str]], list[str]]:
@@ -324,6 +334,9 @@ def differences(
         title = json.dumps(issue["title"], ensure_ascii=False)
         if issue.get("milestone"):
             drift.append((n, f"#{n} {title}: {NOT_PLANNED}"))
+        elif automation_report(issue):
+            # Failure and maintenance reports close themselves (scripts/failure_issue.py).
+            continue
         else:
             # Reports from users: triage decides whether they enter the roadmap.
             untriaged.append(f"#{n} {title}")
