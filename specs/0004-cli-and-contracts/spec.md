@@ -38,7 +38,7 @@ Agents and people drive the engine through commands. Every command must speak th
 - **R15**: THE ENGINE SHALL return, for the same input and the same context, the same envelope byte for byte in canonical JSON on every channel and platform, and SHALL place no clock time, host name or absolute path in the envelope.
 - **R16**: WHEN a command is refused, EVERY CHANNEL SHALL carry the whole envelope in its native error form: exit code of ADR 0009 C7 for the command line, a typed exception holding the envelope for the SDKs, an error result holding the envelope for the MCP server.
 - **R17**: THE PROJECT SHALL check every channel with a channel reconciler that sends each golden contract case through the translation of the channel, rebuilds the envelope with the inverse translation and compares it with the envelope of the entry point, reporting the channel and the JSON pointer of every difference.
-- **R18**: WHEN a command is refused, THE ENGINE SHALL put the error report in the top-level field `error` of the envelope and leave `data` out; a result that is not refused has `data` and no `error` (ADR 0009 C1).
+- **R18**: WHEN a command is refused or fails, THE ENGINE SHALL put the error report in the top-level field `error` of the envelope and leave `data` out; a result that succeeded has `data` and no `error` (ADR 0009 C1, amended on 2026-11-20).
 
 ## Acceptance criteria
 - **AC1**: Given each command, when run with an input holding three independent errors, then errors lists all three, each with pointer, reason, expected and fix. Verification: contract test.

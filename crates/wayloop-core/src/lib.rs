@@ -12,8 +12,11 @@
 //! I/O of the standard library in its source is refused by the Clippy lints forbidden below,
 //! with the paths listed in its `clippy.toml`.
 //!
-//! The crate is a placeholder until milestone M1: it fixes the vocabulary of the issue cycle
-//! so that the first specification has a stable starting point.
+//! The crate fixes the vocabulary of the issue cycle, and holds the parts of the envelope of
+//! ADR 0009 that the entry point needs: the canonical JSON of RFC 8785 ([`canonical`]), a
+//! hand-written SHA-256 ([`sha256`]) and the hash of the input with the meta of a result
+//! ([`envelope`]). The envelope types themselves are contract types of `wayloop-schemas`,
+//! re-exported here.
 
 // I/O is refused by the compiler: these lints read the clippy.toml of this crate, and forbid,
 // unlike deny, cannot be lifted by an inner allow. `scripts/check_core_io.py` keeps them here.
@@ -25,7 +28,15 @@
     clippy::disallowed_types
 )]
 
-pub use wayloop_schemas::{Code, Error, ErrorReport, Pointer, Reason, Source};
+pub mod canonical;
+pub mod envelope;
+pub mod sha256;
+
+pub use wayloop_schemas::{
+    Check, Code, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope, Error,
+    ErrorReport, ExitCode, InputHash, Meta, NotDone, NotDoneReason, Outcome, Pointer, Reason,
+    Source,
+};
 
 /// Version of the engine, taken from the workspace manifest.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

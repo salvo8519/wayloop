@@ -17,6 +17,16 @@ repository = "https://github.com/salvo8519/wayloop"
 homepage = "https://salvo8519.github.io/wayloop/"
 authors = ["The Wayloop Authors"]
 
+# Dependencies shared by several crates, declared once so that every crate gets the same
+# features.
+[workspace.dependencies]
+# float_roundtrip: numbers are read as the nearest double, as every other JSON parser reads
+# them; the default parser can be one unit in the last place off, and input_hash would then
+# differ between channels (SPEC-0004 R15). It adds no crate. arbitrary_precision must stay off:
+# the canonical JSON writes every number as a double (RFC 8785). Tests in
+# crates/wayloop-core/src/canonical.rs fail if either changes.
+serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"

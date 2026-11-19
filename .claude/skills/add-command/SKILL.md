@@ -39,12 +39,14 @@ changes in place.
    - input fields: type, required or optional, default and its reason (C2); flat shapes, at
      most four levels, a choice as a kind enum plus fields, snake_case enum values each with a
      meaning, ISO 8601 dates (C4);
-   - output fields of `data`, and what `diagnostics` (warnings, not_done, checks) may carry;
-     nothing command-specific outside `data` (C1);
+   - output fields of `data`, and what `diagnostics` may carry: warnings, `not_done` entries
+     `{check, reason}` and the `checks` run, each check a `snake_case` identifier; nothing
+     command-specific outside `data` (C1);
    - one row per refusal: code, reason from the C3 enum (syntax, missing, unknown_field,
      duplicate, type, enum, conflict, requires, range, length, state, stale), pointer,
      expected; a new meaning gets a new code, never a reused or renamed one (C8). Search the
-     existing codes first: `rg -n '<code>' crates docs/en`;
+     existing codes first: `rg -n '<code>' crates docs/en`. A failure of the engine itself
+     uses the reason `internal` and exits with 5, never 1;
    - exit code per outcome (C7): 0 success, 1 input error, 2 usage error, 3 environment error,
      4 stopped at a gate, 5 computation or internal error;
    - whether the command changes state: then it takes an expected revision and refuses a stale

@@ -12,6 +12,12 @@ authors.workspace = true
 [dependencies]
 # The version follows the workspace version; crates.io requires it on a path dependency.
 wayloop-schemas = { path = "../wayloop-schemas", version = "0.0.0" }
+# With float_roundtrip, from the workspace manifest.
+serde_json.workspace = true
+
+[dev-dependencies]
+# Test-only oracle for the hand-written SHA-256 (SPEC-0001 plan, D3); never shipped.
+sha2 = { version = "0.11.0", default-features = false }
 
 [lints]
 workspace = true
