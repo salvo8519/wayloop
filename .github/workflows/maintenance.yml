@@ -114,11 +114,11 @@ jobs:
       - name: Build cargo-mutants from crates.io (download failed)
         if: steps.mutants-install.outcome == 'failure'
         run: cargo install --locked cargo-mutants@27.1.0
-      - name: cargo mutants on wayloop-core (same command as just mutants)
+      - name: cargo mutants on the pure crates (same command as just mutants)
         id: run
         run: |
           status=0
-          cargo mutants --package wayloop-core --no-shuffle --output target/mutants || status=$?
+          cargo mutants --package wayloop-core --package wayloop-schemas --no-shuffle --output target/mutants || status=$?
           echo "status=$status" >> "$GITHUB_OUTPUT"
       - name: Surviving mutants in the summary and in the job output
         id: result
@@ -173,7 +173,7 @@ jobs:
             echo "Triage with the dependency policy (docs/en/project/dependencies.md)."
             if [ -n "$MISSED" ]; then
               echo
-              echo "Surviving mutants of wayloop-core (cargo-mutants): add a test that kills each one."
+              echo "Surviving mutants of the pure crates (cargo-mutants): add a test that kills each one."
               echo '```'
               printf '%s\n' "$MISSED"
               echo '```'

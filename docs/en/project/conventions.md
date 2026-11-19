@@ -214,15 +214,15 @@ Problems are fixed where they appear, without the maintainer watching for them:
   them and commit again. CI runs the same tools in check mode.
 - **Coverage**: CI runs the Rust tests instrumented by cargo-llvm-cov and the process tests with
   pytest-cov, and writes both line coverage tables to the job summary. Line coverage of
-  `wayloop-core` must stay at or above the floor in the `justfile` (`core_coverage_floor`,
-  95 percent). The core holds all the decision logic and performs no I/O, so every line can be
-  tested without mocks. The floor stays below 100 because a `const fn` that runs only at
+  `wayloop-core` and `wayloop-schemas`, the pure crates, must stay at or above the floor in the
+  `justfile` (`core_coverage_floor`, 95 percent). They hold the decision logic and the contract
+  types and perform no I/O, so every line can be tested without mocks. The floor stays below 100 because a `const fn` that runs only at
   compile time is counted as not covered, and because mutation testing judges the strength of
   the tests better than the last few percent would. `just coverage` measures
   locally (it needs the `llvm-tools-preview` component); `just coverage 100` tries a floor.
-- **Mutation testing**: every week the maintenance workflow runs cargo-mutants on
-  `wayloop-core` (`just mutants` locally). A mutant that survives means a change in the logic
-  that no test notices; the surviving mutants are listed in the maintenance issue.
+- **Mutation testing**: every week the maintenance workflow runs cargo-mutants on `wayloop-core`
+  and `wayloop-schemas` (`just mutants` locally). A mutant that survives means a change in the
+  logic that no test notices; the surviving mutants are listed in the maintenance issue.
 - **Failures**: a failure of CI or of the documentation on `main`, or of a scheduled workflow,
   opens or updates one issue labelled `bug` per workflow with the failing jobs and the link to
   the log, and the next green run closes it (`scripts/failure_issue.py`). A fix references such

@@ -129,7 +129,7 @@ jobs:
             cargo llvm-cov report --summary-only
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Line coverage of wayloop-core at or above its floor (justfile)
+      - name: Line coverage of the pure crates at or above their floor (justfile)
         run: uv run just coverage-floor
 
   workflows:
