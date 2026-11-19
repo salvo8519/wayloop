@@ -81,6 +81,7 @@ milestones:
           - { issue: 224, title: "Session briefing proposes only issues that can start now", status: done }
           - { issue: 226, title: "Defects found during any work are fixed in the same change or filed at once", status: done }
           - { issue: 240, title: "Quality problems surface and are fixed without the maintainer watching", status: done }
+          - { issue: 249, title: "Roadmap sync tolerates issues created moments before their roadmap change", status: done }
       - title: "Artifact model"
         issue: 18
         labels: ["area:core"]
