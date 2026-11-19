@@ -1,11 +1,12 @@
 //! The error of the engine: a refusal is a value, never a panic (ADR 0009 C3).
 //!
-//! The type is written by hand, with no dependency, so that the core stays on its allowlist.
-//! It carries as data the fields of a refusal that an agent acts on: the stable code, the
-//! reason from the documented enum, and the RFC 6901 pointer to the part of the input that
-//! caused it. The message, the other pointers (`pointers`), the expected values and the
-//! suggested fix of C3, and the list `errors[]` of every error found in one pass, are added
-//! with the first command that needs them, as are the codes themselves (C8).
+//! The types are contract types: they live in this crate and `wayloop-core` re-exports them,
+//! so that the engine is reached at `wayloop_core::Error`. An error carries as data the fields
+//! of a refusal that an agent acts on: the stable code, the reason from the documented enum,
+//! and the RFC 6901 pointer to the part of the input that caused it. The message, the other
+//! pointers (`pointers`), the expected values and the suggested fix of C3, and the list
+//! `errors[]` of every error found in one pass, are added with the first command that needs
+//! them, as are the codes themselves (C8).
 
 use core::fmt;
 
