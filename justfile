@@ -16,10 +16,12 @@ python:
     ruff format --check scripts tests .claude/hooks
     mypy
 
-# Process: tests of the process scripts, YAML, task ids, roadmap, sprint files, no I/O in the core.
+# Process: tests of the process scripts, YAML, task ids, roadmap, sprint files, no I/O in the core,
+# released schema snapshots unchanged against origin/main.
 process:
     python -m pytest tests/process
     python scripts/check_core_io.py
+    python scripts/check_schemas.py
     python scripts/required_checks.py check
     python scripts/docs_sync.py coverage
     python scripts/docs_sync.py claims

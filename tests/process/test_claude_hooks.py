@@ -131,17 +131,21 @@ def run_env(
 
 @pytest.fixture
 def contracts(project: Path) -> Path:
-    snapshot = project / "schemas" / "commands" / "next" / "v1.json"
-    snapshot.parent.mkdir(parents=True)
-    snapshot.write_text("{}\n", encoding="utf-8")
+    for path in ("schemas/commands/next/v1.json", "schemas/handover/v1.input.json"):
+        snapshot = project / path
+        snapshot.parent.mkdir(parents=True)
+        snapshot.write_text("{}\n", encoding="utf-8")
     git(project, "add", ".")
     git(project, "commit", "-q", "-m", "snapshot")
     git(project, "checkout", "-q", "-b", "feat/7-next")
     return project
 
 
-def test_an_existing_contract_snapshot_cannot_be_edited(contracts: Path) -> None:
-    existing = contracts / "schemas" / "commands" / "next" / "v1.json"
+@pytest.mark.parametrize(
+    "path", ["schemas/commands/next/v1.json", "schemas/handover/v1.input.json"]
+)
+def test_an_existing_contract_snapshot_cannot_be_edited(contracts: Path, path: str) -> None:
+    existing = contracts / path
     result = run_env(
         "protect-contracts.sh",
         {"tool_input": {"file_path": str(existing)}},
@@ -153,7 +157,12 @@ def test_an_existing_contract_snapshot_cannot_be_edited(contracts: Path) -> None
 
 
 def test_a_new_snapshot_and_other_files_stay_editable(contracts: Path) -> None:
-    for path in ("schemas/commands/next/v2.json", "schemas/index.json", "docs/en/x.md"):
+    for path in (
+        "schemas/commands/next/v2.json",
+        "schemas/handover/v2.input.json",
+        "schemas/index.json",
+        "docs/en/x.md",
+    ):
         payload = {"tool_input": {"file_path": str(contracts / path)}}
         assert (
             run_env(
