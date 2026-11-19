@@ -184,7 +184,11 @@ Each allowlist entry lists every crate reached, transitive ones included, as
 `scripts/check_core_io.py` requires; the exact list is fixed by the task that adds the
 dependency, with `cargo tree` output in the pull request.
 
-## Decisions for the maintainer
+## Decisions
+
+Decided by the maintainer on 2026-11-19: every recommendation below is adopted (D1 (b),
+D2 (a), D3 (a), D4 (a) and (i), D5 (a), D6 (a), D7 (a), D8 (a)). The full template of #5 is
+#275 (M2).
 
 - **D1. Where YAML is parsed.** (a) In the core, from text: one parser for every channel, but a
   large parser and its dependencies on the pure allowlist. (b) In the runtime, into JSON values
@@ -309,15 +313,17 @@ hook and adds the CI check that AC3 requires, before the first snapshot merges.
 
 ## Open questions
 
-- [ ] **Q1. `wayloop init` on a file that exists with other content.** (a) Exit code 0, the
+Decided by the maintainer on 2026-11-19: the recommendation of each question is adopted.
+
+- [x] **Q1. `wayloop init` on a file that exists with other content.** (a) Exit code 0, the
   file kept and listed as a warning with a new code `init_conflict`; (b) exit code 1, a
   refusal listing every conflict, nothing written. Recommendation: (a), since nothing is
   overwritten and the rest of the structure is useful; the code is added to SPEC-0004.
-- [ ] **Q2. A task without `epic`.** The schema requires `epic` in every status, and R9 refuses
+- [x] **Q2. A task without `epic`.** The schema requires `epic` in every status, and R9 refuses
   a missing parent in a non-terminal status. Recommendation: one error only, `artifact_schema`
   with reason `missing` at `/epic`, as in `task.invalid.yaml`; `link_missing` is kept for an
   identifier that is present but resolves to nothing.
-- [ ] **Q3. ADR citations (Q5 of the specification).** The warning for `ADR <NNNN>` needs the
+- [x] **Q3. ADR citations (Q5 of the specification).** The warning for `ADR <NNNN>` needs the
   list of ADR numbers of the project, which SPEC-0001 does not locate. Recommendation: an
   optional field `adrs` (list of integers) in the canonical input, filled by the runtime from
   `docs/en/project/adr/` in this repository and from a configured folder later (ADR 0010).
