@@ -83,6 +83,7 @@ milestones:
           - { issue: 240, title: "Quality problems surface and are fixed without the maintainer watching", status: done }
           - { issue: 249, title: "Roadmap sync tolerates issues created moments before their roadmap change", status: done }
           - { issue: 280, title: "Roadmap sync runs only when a real difference can appear", status: done }
+          - { issue: 283, title: "Pull requests fail only on their own changes, not on a new toolchain", status: done }
       - title: "Artifact model"
         issue: 18
         labels: ["area:core"]
