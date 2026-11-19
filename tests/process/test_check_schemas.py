@@ -143,8 +143,81 @@ def test_main_exits_with_the_problems(repo: Path, monkeypatch: pytest.MonkeyPatc
         schemas.main(["--base", "main"])
 
 
+def test_a_snapshot_added_on_a_lower_branch_stays_editable_against_main(repo: Path) -> None:
+    write(repo, "schemas/commands/next/v2.json")
+    git(repo, "add", ".")
+    git(repo, "commit", "-q", "-m", "lower branch")
+    git(repo, "checkout", "-q", "-b", "feat/2-upper")
+    write(repo, "schemas/commands/next/v2.json", '{"type": "object"}\n')
+    git(repo, "commit", "-q", "-am", "upper branch")
+    assert problems(repo, "main") == []
+    assert problems(repo, "feat/1-x") == [
+        "schemas/commands/next/v2.json: released on feat/1-x and changed"
+    ], "the base decides what is released: CI passes origin/main"
+
+
+def test_a_snapshot_released_on_the_base_after_the_fork_is_not_deleted(repo: Path) -> None:
+    git(repo, "checkout", "-q", "main")
+    write(repo, "schemas/commands/next/v2.json")
+    git(repo, "add", ".")
+    git(repo, "commit", "-q", "-m", "released later")
+    git(repo, "checkout", "-q", "feat/1-x")
+    assert problems(repo) == []
+
+
+def test_without_a_merge_base_the_tip_of_the_base_is_released(repo: Path) -> None:
+    git(repo, "checkout", "-q", "--orphan", "other")
+    git(repo, "rm", "-q", "-r", "--cached", ".")
+    git(repo, "add", ".")
+    git(repo, "commit", "-q", "-m", "unrelated history")
+    write(repo, "schemas/handover/v1.input.json", "[]\n")
+    assert problems(repo) == ["schemas/handover/v1.input.json: released on main and changed"]
+
+
+def test_a_snapshot_with_a_non_ascii_path_is_protected(repo: Path) -> None:
+    write(repo, "schemas/\u00e9/v1.json")
+    git(repo, "add", ".")
+    git(repo, "commit", "-q", "-m", "accented")
+    git(repo, "branch", "-q", "-f", "main")
+    write(repo, "schemas/\u00e9/v1.json", "[]\n")
+    assert problems(repo) == ["schemas/\u00e9/v1.json: released on main and changed"]
+
+
+def test_a_released_snapshot_replaced_by_a_symlink_fails(repo: Path) -> None:
+    path = "schemas/commands/next/v1.json"
+    (repo / "copy.json").write_bytes((repo / path).read_bytes())
+    (repo / path).unlink()
+    (repo / path).symlink_to(repo / "copy.json")
+    assert problems(repo) == [f"{path}: released on main and replaced by a symlink"]
+
+
+def test_a_released_snapshot_with_a_changed_mode_fails(repo: Path) -> None:
+    path = repo / "schemas/commands/next/v1.json"
+    path.chmod(0o755)
+    assert problems(repo) == [
+        "schemas/commands/next/v1.json: released on main and its mode changed (100644 to 100755)"
+    ]
+
+
+def test_an_incomplete_answer_of_git_is_a_clear_error(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = schemas._git
+
+    def short(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        result: subprocess.CompletedProcess[str] = real(root, *args)
+        if args[0] == "hash-object":
+            result.stdout = ""
+        return result
+
+    monkeypatch.setattr(schemas, "_git", short)
+    with pytest.raises(SystemExit, match="git hash-object returned 0 ids for 3 files"):
+        problems(repo)
+
+
 def test_the_check_and_the_hook_recognise_the_same_snapshots() -> None:
     assert schemas.SNAPSHOT.pattern == hook.SNAPSHOT.pattern
+    assert schemas.SNAPSHOT.search("schemas/a/v12.output.json")["version"] == "12"
     for path in ("schemas/a/v1.json", "schemas/a/v12.output.json", "schemas/a/v1.input.json"):
         assert hook.SNAPSHOT.search(path), path
     for path in ("schemas/index.json", "schemas/a/v1.yaml", "docs/a/v1.json"):

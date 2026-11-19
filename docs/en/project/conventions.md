@@ -156,7 +156,7 @@ list, the workflows and the roadmap file in agreement.
 A schema under `schemas/` named `v<N>.json`, `v<N>.output.json` or `v<N>.input.json` is a
 snapshot (ADR 0009, C5). Once on `main` it never changes and is never deleted: a schema change
 ships as a new `v<N+1>` beside the unchanged `v<N>`, and the versions of one folder run from 1
-without a gap. The hook `.claude/hooks/protect_contracts.py` blocks the edit;
+without a gap; `v0` and zero-padded versions such as `v01` are refused. The hook `.claude/hooks/protect_contracts.py` blocks the edit;
 `scripts/check_schemas.py` refuses it in `just process` and in CI.
 
 ## Release notes

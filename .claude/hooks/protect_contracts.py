@@ -19,7 +19,7 @@ import re
 import subprocess
 import sys
 
-SNAPSHOT = re.compile(r"(^|/)schemas/(.+/)?v\d+(\.output|\.input)?\.json$")
+SNAPSHOT = re.compile(r"(^|/)schemas/(.+/)?v(?P<version>\d+)(\.output|\.input)?\.json$")
 
 
 def _git(*args: str, cwd: str) -> subprocess.CompletedProcess[str]:
