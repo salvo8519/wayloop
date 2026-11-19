@@ -580,7 +580,8 @@ Every refusal is the error report of ADR 0009 C3, with every error found in one 
 follow RFC 6901 from the root of the document model sent to validation, which is the input of
 C3 (R12). Each error also carries `source`, the location in the stored form: `{file, line}`
 for a repository file, `{issue}` for a tracker issue, `{milestone}` for a tracker milestone.
-`source` is absent when the document was sent directly in the normalised form.
+`source` is absent when the document was sent directly in the normalised form. `source` has no
+tag naming its form, on purpose: it is output only, and its field names tell the forms apart.
 
 `expected` lists accepted values, never a pattern. For a format error (`syntax`), `expected`
 is absent and `fix` carries a corrected value when one can be derived, for example `M2` for

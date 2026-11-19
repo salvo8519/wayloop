@@ -7,9 +7,10 @@
 //! every channel calls it; it is not written yet (#221). `wayloop-runtime` executes the work
 //! this crate decides (ADR 0006).
 //!
-//! The crate may depend only on the crates of its reviewed allowlist (`wayloop-schemas`), checked
-//! by `scripts/check_core_io.py`; I/O of the standard library in its source is refused by the
-//! Clippy lints forbidden below, with the paths listed in its `clippy.toml`.
+//! The crate may depend only on the crates of its reviewed allowlist (`wayloop-schemas`, and
+//! `serde` and `serde_json` with the crates they reach), checked by `scripts/check_core_io.py`;
+//! I/O of the standard library in its source is refused by the Clippy lints forbidden below,
+//! with the paths listed in its `clippy.toml`.
 //!
 //! The crate is a placeholder until milestone M1: it fixes the vocabulary of the issue cycle
 //! so that the first specification has a stable starting point.
@@ -24,9 +25,7 @@
     clippy::disallowed_types
 )]
 
-mod error;
-
-pub use error::{Code, Error, Reason};
+pub use wayloop_schemas::{Code, Error, ErrorReport, Pointer, Reason, Source};
 
 /// Version of the engine, taken from the workspace manifest.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
