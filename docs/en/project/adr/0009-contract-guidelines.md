@@ -20,6 +20,7 @@ Wayloop is driven mainly by agents. An agent that has to guess the shape of a re
 ## Amendments
 
 - 2026-11-17, at acceptance: the computation of `input_hash` (C1) and the definition of the revision (C6) were made explicit.
+- 2026-11-19, decided by the maintainer with the plan of SPEC-0001 (D6): a refused result carries the error report in a top-level field `error` and has no `data` (C1); the error report gains `source`, the location of the faulty value in the repository (C3).
 - 2026-11-17, decided by the maintainer in #233: staleness (C6) is scoped to the issue of the command, or to phase, gates and plan for a command on the project.
 
 ## Consequences

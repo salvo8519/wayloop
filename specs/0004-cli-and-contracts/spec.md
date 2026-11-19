@@ -22,7 +22,7 @@ Agents and people drive the engine through commands. Every command must speak th
 
 ## Requirements (EARS)
 - **R1**: THE ENGINE SHALL return every result in the envelope of ADR 0009 C1, with meta.envelope_version and meta.command_version.
-- **R2**: THE ENGINE SHALL report every refusal as {code, message, pointer, pointers, reason, expected, fix} and list every input error found in one pass in errors.
+- **R2**: THE ENGINE SHALL report every refusal as {code, message, pointer, pointers, reason, expected, fix, source} and list every input error found in one pass in errors; `source` locates the faulty value in the repository (`{file, line}`, `{issue}` or `{milestone}`) and is absent for a document sent directly (SPEC-0001 Errors).
 - **R3**: THE ENGINE SHALL treat absent and null as not given and list every default applied in meta.defaults_applied.
 - **R4**: THE ENGINE SHALL snapshot every command input and output schema and bump the command version on a breaking change (ADR 0009 C5).
 - **R5**: WHEN a command changes state, THE ENGINE SHALL require the expected revision and refuse a stale one with reason stale.
@@ -38,6 +38,7 @@ Agents and people drive the engine through commands. Every command must speak th
 - **R15**: THE ENGINE SHALL return, for the same input and the same context, the same envelope byte for byte in canonical JSON on every channel and platform, and SHALL place no clock time, host name or absolute path in the envelope.
 - **R16**: WHEN a command is refused, EVERY CHANNEL SHALL carry the whole envelope in its native error form: exit code of ADR 0009 C7 for the command line, a typed exception holding the envelope for the SDKs, an error result holding the envelope for the MCP server.
 - **R17**: THE PROJECT SHALL check every channel with a channel reconciler that sends each golden contract case through the translation of the channel, rebuilds the envelope with the inverse translation and compares it with the envelope of the entry point, reporting the channel and the JSON pointer of every difference.
+- **R18**: WHEN a command is refused, THE ENGINE SHALL put the error report in the top-level field `error` of the envelope and leave `data` out; a result that is not refused has `data` and no `error` (ADR 0009 C1).
 
 ## Acceptance criteria
 - **AC1**: Given each command, when run with an input holding three independent errors, then errors lists all three, each with pointer, reason, expected and fix. Verification: contract test.
@@ -54,6 +55,7 @@ Agents and people drive the engine through commands. Every command must speak th
 - **AC12**: Given a refused input, when sent through every channel, then each native error form carries the same envelope (R16). Verification: contract test.
 - **AC13**: Given an adapter that drops one output field, when the channel reconciler runs, then it fails naming the channel and the pointer of the field (R17). Verification: contract test.
 - **AC14**: Given the same input in the function-calling format of each supported provider, when translated, then every translation gives the same `input_hash` (R14, R15). Verification: contract test.
+- **AC15**: Given an input with one unknown field and one missing field, when validated, then the envelope has `error` with both errors in `errors`, no `data`, and exit code 1 (R2, R18). Verification: contract test.
 
 ## Interfaces
 - schemas/commands/<command>/v<N>.json and v<N>.output.json; schemas/index.json; error codes and reasons documented in the reference (ADR 0009).
