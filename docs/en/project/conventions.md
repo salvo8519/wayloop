@@ -151,6 +151,14 @@ list, the workflows and the roadmap file in agreement.
 | `docs-sync` | asks the automated documentation sync for this pull request |
 | `maintenance` | the issue of the weekly maintenance run |
 
+## Contract snapshots
+
+A schema under `schemas/` named `v<N>.json`, `v<N>.output.json` or `v<N>.input.json` is a
+snapshot (ADR 0009, C5). Once on `main` it never changes and is never deleted: a schema change
+ships as a new `v<N+1>` beside the unchanged `v<N>`, and the versions of one folder run from 1
+without a gap. The hook `.claude/hooks/protect_contracts.py` blocks the edit;
+`scripts/check_schemas.py` refuses it in `just process` and in CI.
+
 ## Release notes
 
 A change to `crates/*/src/` or `schemas/` adds one fragment `changes/<issue>.<type>.md`, with

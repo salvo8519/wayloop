@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          fetch-depth: 0  # the docs impact check compares the branch with its base
+          fetch-depth: 0  # the docs impact and schema snapshot checks compare with the base
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
@@ -90,6 +90,10 @@ jobs:
         run: |
           git fetch --no-tags --depth=50 origin "$BASE_SHA"
           uv run python scripts/sprint.py check-diff --branch "$HEAD_REF" --base "$BASE_SHA"
+      - name: Released schema snapshots unchanged, versions without gaps (ADR 0009, C5)
+        env:
+          BASE_REF: ${{ github.base_ref || 'main' }}
+        run: uv run python scripts/check_schemas.py --base "origin/$BASE_REF"
       - name: Pure crates perform no I/O (ADR 0001, ADR 0006)
         run: uv run python scripts/check_core_io.py
       - run: cargo fmt --all --check

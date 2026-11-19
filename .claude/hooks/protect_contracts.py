@@ -1,11 +1,12 @@
 """PreToolUse hook: block edits to contract snapshots that already exist on the base branch.
 
-A contract snapshot is a versioned JSON Schema under `schemas/`, named `v<N>.json` or
-`v<N>.output.json` (ADR 0009, C5). It is protected when its path, relative to the root of the
-git worktree that contains it, exists on the base branch (`origin/main`, or
-`WAYLOOP_CONTRACT_BASE`). Snapshots added on the current branch stay editable until they merge.
+A contract snapshot is a versioned JSON Schema under `schemas/`, named `v<N>.json`,
+`v<N>.output.json` (ADR 0009, C5) or `v<N>.input.json` (hand-over input, SPEC-0001 R1). It
+is protected when its path, relative to the root of the git worktree that contains it, exists
+on the base branch (`origin/main`, or `WAYLOOP_CONTRACT_BASE`). Snapshots added on the current
+branch stay editable until they merge.
 Outside a git repository, or when the base branch is unknown, every existing snapshot is
-protected. CI is the second line of defence.
+protected. CI is the second line of defence (`scripts/check_schemas.py`, same pattern).
 
 Exit status 2 blocks the edit; the message on stderr is shown to the agent.
 """
@@ -18,7 +19,7 @@ import re
 import subprocess
 import sys
 
-SNAPSHOT = re.compile(r"(^|/)schemas/(.+/)?v\d+(\.output)?\.json$")
+SNAPSHOT = re.compile(r"(^|/)schemas/(.+/)?v\d+(\.output|\.input)?\.json$")
 
 
 def _git(*args: str, cwd: str) -> subprocess.CompletedProcess[str]:
