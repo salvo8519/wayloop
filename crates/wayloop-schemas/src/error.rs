@@ -1,17 +1,22 @@
-//! The error of the engine: a refusal is a value, never a panic (ADR 0009 C3).
+//! The error report of the engine: a refusal is a value, never a panic (ADR 0009 C3).
 //!
 //! The types are contract types: they live in this crate and `wayloop-core` re-exports them,
-//! so that the engine is reached at `wayloop_core::Error`. An error carries as data the fields
-//! of a refusal that an agent acts on: the stable code, the reason from the documented enum,
-//! and the RFC 6901 pointer to the part of the input that caused it. The message, the other
-//! pointers (`pointers`), the expected values and the suggested fix of C3, and the list
-//! `errors[]` of every error found in one pass, are added with the first command that needs
-//! them, as are the codes themselves (C8).
+//! so that the engine is reached at `wayloop_core::Error`. An [`Error`] carries as data every
+//! field of a refusal that an agent acts on (`code`, `message`, `pointer`, `pointers`,
+//! `reason`, `expected`, `fix`) and `source`, where the faulty value is stored (SPEC-0001
+//! Errors, R12). An [`ErrorReport`] lists every error found in one pass in `errors`, the first
+//! one repeated at the top level. Optional fields are left out of the serialised form when
+//! absent. The codes themselves are constants of the core (C8).
 
 use core::fmt;
 
-/// Why the engine refused an input: the documented enum of ADR 0009 C3.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+use serde::{Serialize, Serializer};
+use serde_json::Value;
+
+/// Why the engine refused an input: the documented enum of ADR 0009 C3. It serialises as
+/// [`Reason::id`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Reason {
     /// The input is not well-formed.
     Syntax,
@@ -83,8 +88,10 @@ impl fmt::Display for Reason {
 }
 
 /// A stable error code. Codes are never renamed or reused (ADR 0009 C8); every code of the
-/// engine is a constant of this type, so that one place lists them all.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// engine is a constant of this type, so that one place lists them all. It serialises as its
+/// identifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(transparent)]
 pub struct Code(&'static str);
 
 impl Code {
@@ -107,24 +114,110 @@ impl fmt::Display for Code {
     }
 }
 
-/// A refusal of the engine, with the code, reason and pointer of ADR 0009 C3.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Where the faulty value is stored (SPEC-0001 Errors, R12): the field `source` of an error.
+/// It serialises as the object of its form, with no tag.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub enum Source {
+    /// A repository file: its path relative to the root, with `/` separators, and the line of
+    /// the value, from 1.
+    File {
+        /// Path of the file relative to the root of the repository.
+        file: String,
+        /// Line of the faulty value, from 1.
+        line: u64,
+    },
+    /// A tracker issue, by its number.
+    Issue {
+        /// Number of the issue.
+        issue: u64,
+    },
+    /// A tracker milestone, by its number.
+    Milestone {
+        /// Number of the milestone.
+        milestone: u64,
+    },
+}
+
+/// A refusal of the engine, with the fields of ADR 0009 C3 and its `source`.
+///
+/// `pointers`, `expected`, `fix` and `source` are optional and left out of the serialised form
+/// when absent; an empty list counts as absent.
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Error {
     code: Code,
-    reason: Reason,
+    message: String,
     pointer: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pointers: Vec<String>,
+    reason: Reason,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    expected: Vec<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fix: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source: Option<Source>,
 }
 
 impl Error {
     /// A refusal with its stable `code` (never renamed or reused, ADR 0009 C8), its `reason`,
-    /// and the RFC 6901 `pointer` from the root of the input sent; `""` is the whole input.
+    /// the RFC 6901 `pointer` from the root of the input sent (`""` is the whole input), and a
+    /// `message` for a person.
     #[must_use]
-    pub fn new(code: Code, reason: Reason, pointer: impl Into<String>) -> Self {
+    pub fn new(
+        code: Code,
+        reason: Reason,
+        pointer: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
         Self {
             code,
-            reason,
+            message: message.into(),
             pointer: pointer.into(),
+            pointers: Vec::new(),
+            reason,
+            expected: Vec::new(),
+            fix: None,
+            source: None,
         }
+    }
+
+    /// The error with the RFC 6901 pointers of the other parts of the input involved, such as
+    /// both sides of a conflict.
+    #[must_use]
+    pub fn with_pointers<I>(mut self, pointers: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: Into<String>,
+    {
+        self.pointers = pointers.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// The error with the values the input accepts at `pointer`; never a pattern.
+    #[must_use]
+    pub fn with_expected<I>(mut self, expected: I) -> Self
+    where
+        I: IntoIterator,
+        I::Item: Into<Value>,
+    {
+        self.expected = expected.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// The error with a suggested fix: the closest field for a misspelt key, or a corrected
+    /// value.
+    #[must_use]
+    pub fn with_fix(mut self, fix: impl Into<Value>) -> Self {
+        self.fix = Some(fix.into());
+        self
+    }
+
+    /// The error with the place where the faulty value is stored, serialised as `source`.
+    #[must_use]
+    pub fn with_location(mut self, source: Source) -> Self {
+        self.source = Some(source);
+        self
     }
 
     /// Stable error code.
@@ -144,19 +237,108 @@ impl Error {
     pub fn pointer(&self) -> &str {
         &self.pointer
     }
+
+    /// What went wrong, for a person.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    /// Pointers to the other parts of the input involved; empty when there are none.
+    #[must_use]
+    pub fn pointers(&self) -> &[String] {
+        &self.pointers
+    }
+
+    /// Values accepted at `pointer`; empty when they are not listed.
+    #[must_use]
+    pub fn expected(&self) -> &[Value] {
+        &self.expected
+    }
+
+    /// Suggested fix, if one can be derived.
+    #[must_use]
+    pub const fn fix(&self) -> Option<&Value> {
+        self.fix.as_ref()
+    }
+
+    /// Where the faulty value is stored, serialised as `source`; absent for a document sent
+    /// directly. Named apart from [`std::error::Error::source`], which is the cause of an error.
+    #[must_use]
+    pub const fn location(&self) -> Option<&Source> {
+        self.source.as_ref()
+    }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.pointer.is_empty() {
-            write!(f, "{}: {} at the root of the input", self.code, self.reason)
+            write!(f, "{}: {} at the root of the input", self.code, self.reason)?;
         } else {
-            write!(f, "{}: {} at {}", self.code, self.reason, self.pointer)
+            write!(f, "{}: {} at {}", self.code, self.reason, self.pointer)?;
         }
+        write!(f, ": {}", self.message)
     }
 }
 
 impl std::error::Error for Error {}
+
+/// Every error found in one pass (ADR 0009 C3). It serialises as the first error, with all
+/// the errors in `errors`, so that `errors[0]` equals the top level by construction.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ErrorReport {
+    first: Error,
+    rest: Vec<Error>,
+}
+
+impl ErrorReport {
+    /// The report of `errors`, in the order they were found; `None` when there is none.
+    #[must_use]
+    pub fn from_errors(errors: impl IntoIterator<Item = Error>) -> Option<Self> {
+        let mut errors = errors.into_iter();
+        let first = errors.next()?;
+        Some(Self {
+            first,
+            rest: errors.collect(),
+        })
+    }
+
+    /// The first error, repeated at the top level.
+    #[must_use]
+    pub const fn first(&self) -> &Error {
+        &self.first
+    }
+
+    /// Every error, the first included, in the order found.
+    pub fn errors(&self) -> impl Iterator<Item = &Error> {
+        core::iter::once(&self.first).chain(&self.rest)
+    }
+}
+
+impl Serialize for ErrorReport {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        #[derive(Serialize)]
+        struct Wire<'a> {
+            #[serde(flatten)]
+            top: &'a Error,
+            errors: Errors<'a>,
+        }
+
+        struct Errors<'a>(&'a ErrorReport);
+
+        impl Serialize for Errors<'_> {
+            fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                serializer.collect_seq(self.0.errors())
+            }
+        }
+
+        Wire {
+            top: &self.first,
+            errors: Errors(self),
+        }
+        .serialize(serializer)
+    }
+}
 
 #[cfg(test)]
 mod tests {

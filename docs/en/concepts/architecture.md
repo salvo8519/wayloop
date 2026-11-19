@@ -48,7 +48,10 @@ wayloop-schemas    contract types, no I/O
   ([ADR 0028](../project/adr/0028-one-contract-on-every-channel.md)). It belongs at the root
   of `wayloop-core`; adapters call it and only translate its input and its envelope.
 - **Allowlisted dependencies.** Each pure crate may depend only on the crates of its reviewed
-  allowlist: `wayloop-schemas` on none, `wayloop-core` on `wayloop-schemas` only.
+  allowlist. Both may use `serde` with its derive macros and `serde_json`, which perform no
+  I/O, with the crates they reach (`serde_core`, `serde_derive`, `proc-macro2`, `quote`,
+  `syn`, `unicode-ident`, `itoa`, `zmij`, `memchr`); `wayloop-core` may also use
+  `wayloop-schemas`, and `wayloop-schemas` no Wayloop crate.
   `scripts/check_core_io.py` resolves each pure crate on its own with `cargo tree` (normal
   dependencies, every target, all its features, the lock file left unchanged) and fails on
   every crate reached outside the allowlist, printing the path that reaches it and naming
@@ -109,17 +112,24 @@ envelope shared by every command, with its error codes and exit codes, is the su
 
 ### Errors are values
 
-The engine never panics on bad input: it returns `wayloop_core::Error`. The type is written by
-hand, with no dependency, so the core keeps its empty allowlist of external crates. It carries
-as data the fields of a refusal that an agent acts on (ADR 0009, C3):
+The engine never panics on bad input: it returns `wayloop_core::Error`. The type is a contract
+type: it is defined in `wayloop-schemas` and re-exported by the core. It carries as data every
+field of a refusal that an agent acts on (ADR 0009, C3), and where the faulty value is stored:
 
 | Field | Meaning |
 | --- | --- |
 | `code` | Stable identifier of the refusal; a new meaning gets a new code, never a renamed one (C8) |
-| `reason` | One value of the documented enum: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale` |
+| `message` | What went wrong, for a person |
 | `pointer` | RFC 6901 pointer from the root of the input sent; empty for the whole input |
+| `pointers` | Pointers to the other parts of the input involved, such as both sides of a conflict; optional |
+| `reason` | One value of the documented enum: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale` |
+| `expected` | The values accepted at `pointer`, never a pattern; optional |
+| `fix` | The closest field for a misspelt key, or a corrected value; optional |
+| `source` | Where the value is stored: `{file, line}` for a repository file, `{issue}` for a tracker issue, `{milestone}` for a tracker milestone; absent for a document sent directly |
 
-The type implements `Display` and `std::error::Error`. A code is a constant of the type `Code`,
-so that one place lists every code of the engine. The codes themselves, and the other fields
-of C3 (`message`, `pointers`, `expected`, `fix`, and the list `errors[]` of every error found
-in one pass), come with the specification of each command.
+An optional field that is absent is left out of the JSON form. The error report,
+`wayloop_core::ErrorReport`, lists every error found in one pass in `errors`, in the order
+found, and repeats the first one at the top level, so `errors[0]` always equals the top level.
+The type `Error` implements `Display` and `std::error::Error`. A code is a constant of the type
+`Code`, so that one place lists every code of the engine; the codes themselves come with the
+specification of each command.

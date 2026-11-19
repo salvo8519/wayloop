@@ -39,9 +39,28 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 # Reviewed allowlist of each pure crate: every crate reachable through normal dependencies.
+# serde with derive and serde_json perform no I/O and every contract type needs them (SPEC-0001
+# plan, D2). The set lists every crate `cargo tree` reaches from them: serde_core, serde_derive
+# and its macro crates (proc-macro2, quote, syn, unicode-ident), and the number and search
+# helpers of serde_json (itoa, zmij, memchr).
+SERDE = frozenset(
+    {
+        "serde",
+        "serde_core",
+        "serde_derive",
+        "proc-macro2",
+        "quote",
+        "syn",
+        "unicode-ident",
+        "serde_json",
+        "itoa",
+        "memchr",
+        "zmij",
+    }
+)
 PURE_CRATES: dict[str, frozenset[str]] = {
-    "wayloop-schemas": frozenset(),
-    "wayloop-core": frozenset({"wayloop-schemas"}),
+    "wayloop-schemas": SERDE,
+    "wayloop-core": SERDE | {"wayloop-schemas"},
 }
 
 # Dependencies point one way: a crate may depend only on the crates before it (ADR 0006).

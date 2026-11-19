@@ -93,7 +93,7 @@ milestones:
           - { issue: 6, title: "Artifacts and their links are validated", spec: "0001", status: open }
           - { issue: 160, title: "Naming and linking rules validated by the engine", spec: "0001", status: open }
           - { issue: 229, title: "Existing specifications follow the Markdown rules of the artifact model", spec: "0001", status: open }
-          - { issue: 252, title: "Complete the error report of ADR 0009 in the core", spec: "0001", status: open }
+          - { issue: 252, title: "Complete the error report of ADR 0009 in the core", spec: "0001", status: done }
           - { issue: 253, title: "Add canonical JSON, SHA-256 and the envelope to the core", spec: "0001", status: open }
           - { issue: 254, title: "Refuse in CI any change to a released schema snapshot", spec: "0001", status: done }
           - { issue: 255, title: "Interpret the JSON Schema subset in the core", spec: "0001", status: open }

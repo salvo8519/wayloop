@@ -22,4 +22,4 @@
 
 mod error;
 
-pub use error::{Code, Error, Reason};
+pub use error::{Code, Error, ErrorReport, Reason, Source};

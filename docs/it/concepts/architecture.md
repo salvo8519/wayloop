@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 449f64b82c59
+source_hash: bd0fe4470a94
 ---
 # Architettura
 
@@ -53,8 +53,11 @@ wayloop-schemas    tipi dei contratti, niente I/O
   Appartiene alla radice di `wayloop-core`; gli adattatori la chiamano e si limitano a
   tradurne l'input e l'envelope.
 - **Dipendenze solo da un elenco approvato.** Ogni crate puro può dipendere solo dai crate
-  della propria allowlist, approvata in revisione: `wayloop-schemas` da nessuno, `wayloop-core`
-  solo da `wayloop-schemas`. `scripts/check_core_io.py` risolve ogni crate puro da solo con
+  della propria allowlist, approvata in revisione. Entrambi possono usare `serde` con le sue
+  macro derive e `serde_json`, che non fanno I/O, con i crate che raggiungono (`serde_core`,
+  `serde_derive`, `proc-macro2`, `quote`, `syn`, `unicode-ident`, `itoa`, `zmij`, `memchr`);
+  `wayloop-core` può usare anche `wayloop-schemas`, e `wayloop-schemas` nessun crate di
+  Wayloop. `scripts/check_core_io.py` risolve ogni crate puro da solo con
   `cargo tree` (dipendenze normali, ogni target, tutte le sue feature, il lock file lasciato
   invariato) e fallisce su ogni crate raggiunto fuori dall'allowlist, stampando il percorso
   che lo raggiunge e indicando i crate di I/O noti. Le allowlist impongono anche la direzione
@@ -120,16 +123,24 @@ l'oggetto dell'[ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-c
 ### Gli errori sono valori
 
 Il motore non va mai in panic su un input errato: restituisce `wayloop_core::Error`. Il tipo è
-scritto a mano, senza dipendenze, così il core mantiene vuota la sua allowlist di crate
-esterni. Porta come dati i campi di un rifiuto su cui un agente agisce (ADR 0009, C3):
+un tipo del contratto: è definito in `wayloop-schemas` e riesportato dal core. Porta come dati
+ogni campo di un rifiuto su cui un agente agisce (ADR 0009, C3), e il punto in cui è salvato il
+valore errato:
 
 | Campo | Significato |
 | --- | --- |
 | `code` | Identificativo stabile del rifiuto; un nuovo significato riceve un nuovo codice, mai uno rinominato (C8) |
-| `reason` | Un valore dell'enum documentato: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale` |
+| `message` | Che cosa non va, per una persona |
 | `pointer` | Puntatore RFC 6901 dalla radice dell'input inviato; vuoto per l'intero input |
+| `pointers` | Puntatori alle altre parti dell'input coinvolte, come i due lati di un conflitto; facoltativo |
+| `reason` | Un valore dell'enum documentato: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale` |
+| `expected` | I valori accettati in `pointer`, mai un pattern; facoltativo |
+| `fix` | Il campo più vicino a una chiave scritta male, o un valore corretto; facoltativo |
+| `source` | Dove è salvato il valore: `{file, line}` per un file del repository, `{issue}` per una issue del tracker, `{milestone}` per una milestone del tracker; assente per un documento inviato direttamente |
 
-Il tipo implementa `Display` e `std::error::Error`. Un codice è una costante del tipo `Code`,
-così un solo punto elenca tutti i codici del motore. I codici, e gli altri campi di C3
-(`message`, `pointers`, `expected`, `fix` e l'elenco `errors[]` di tutti gli errori trovati in
-un solo passaggio), arrivano con la specifica di ogni comando.
+Un campo facoltativo assente è omesso dalla forma JSON. Il report degli errori,
+`wayloop_core::ErrorReport`, elenca in `errors` tutti gli errori trovati in un solo passaggio,
+nell'ordine in cui sono stati trovati, e ripete il primo al livello superiore, così `errors[0]`
+è sempre uguale al livello superiore. Il tipo `Error` implementa `Display` e
+`std::error::Error`. Un codice è una costante del tipo `Code`, così un solo punto elenca tutti
+i codici del motore; i codici arrivano con la specifica di ogni comando.
