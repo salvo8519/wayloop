@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 3c5d5c6168e1
+source_hash: 0b05d2a5b362
 ---
 # Architettura
 
@@ -208,7 +208,7 @@ posto, è rifiutato quando viene caricato: nessuna regola di uno schema è ignor
 
 | Parola chiave | Significato | Motivo dell'errore |
 | --- | --- | --- |
-| `type` | `null`, `boolean`, `integer`, `string`, `array` o `object`; un intero è un numero finito senza parte frazionaria, quindi `2.0` lo è | `type`, e su quel valore non si controlla altro |
+| `type` | `boolean`, `integer`, `string`, `array` o `object`; un intero è un numero finito senza parte frazionaria, quindi `2.0` lo è | `type`, e su quel valore non si controlla altro |
 | `enum`, `const` | Valori accettati: stringhe, interi, booleani o `null`, confrontati per valore | `enum`, con i valori accettati in `expected` |
 | `minLength`, `maxLength` | Limiti di una stringa, in code point Unicode | `length` |
 | `minItems`, `maxItems` | Limiti di un array | `length` |
@@ -231,6 +231,10 @@ identificativi delle parti (`requirement-id`, `criterion-id`, `decision-id`, `qu
 con le forme canoniche della SPEC-0001. La documentazione del modulo elenca ogni forma e ogni
 correzione.
 
+- **Null.** Un membro di un oggetto impostato a `null` non è dato, esattamente come un membro
+  assente (ADR 0009 C2): accettato se facoltativo, `missing` se obbligatorio, mai un campo
+  sconosciuto, e assente per una condizione. Un elemento `null` di un array è un valore come
+  gli altri e non supera `type`, perché nessun tipo del sottoinsieme è `null`.
 - **Ordine degli errori.** Gli errori seguono l'ordine del documento: gli errori di un valore
   prima di quelli al suo interno, i membri di un oggetto nell'ordine dei byte delle chiavi, gli
   elementi di un array per indice, e i membri assenti di un oggetto dopo quelli presenti. Un

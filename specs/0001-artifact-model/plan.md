@@ -119,8 +119,9 @@ values. A meta-test refuses a schema that uses a keyword outside the subset.
 
 The interpreter maps keywords to the reasons of C3: `required` to `missing`, a `required`
 inside `then` to `requires`, `additionalProperties` to `unknown_field` with `fix` the closest
-declared key (Damerau-Levenshtein distance at most a third of the key length, ties by schema
-order), `type` to `type`, `enum` and `const` to `enum` with `expected`, length keywords to
+declared key (Damerau-Levenshtein distance at most a third of the key length, ties by the
+byte order of the key, because `serde_json` without `preserve_order` keeps no order of the
+keys of a schema and that feature would add crates to the allowlist), `type` to `type`, `enum` and `const` to `enum` with `expected`, length keywords to
 `length`, numeric bounds to `range`, `format` to `syntax`. Errors on `/id` are left to the
 identifier stage, so that each fault gets one error with its own code (`identifier_format`).
 

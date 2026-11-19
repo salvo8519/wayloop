@@ -54,7 +54,6 @@ const THEN_KEYWORDS: [&str; 1] = ["required"];
 /// A type of the subset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Type {
-    Null,
     Boolean,
     Integer,
     String,
@@ -65,7 +64,6 @@ pub(super) enum Type {
 impl Type {
     fn named(name: &str) -> Option<Self> {
         Some(match name {
-            "null" => Type::Null,
             "boolean" => Type::Boolean,
             "integer" => Type::Integer,
             "string" => Type::String,
@@ -77,7 +75,6 @@ impl Type {
 
     pub(super) fn name(self) -> &'static str {
         match self {
-            Type::Null => "null",
             Type::Boolean => "boolean",
             Type::Integer => "integer",
             Type::String => "string",
@@ -438,7 +435,7 @@ impl Loader {
             rules.kind = Some(kind.as_str().and_then(Type::named).ok_or_else(|| {
                 invalid(
                     &pointer.join("type"),
-                    "the type is one of null, boolean, integer, string, array, object",
+                    "the type is one of boolean, integer, string, array, object",
                 )
             })?);
         }

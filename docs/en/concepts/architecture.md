@@ -194,7 +194,7 @@ silently ignored.
 
 | Keyword | Meaning | Reason of the error |
 | --- | --- | --- |
-| `type` | `null`, `boolean`, `integer`, `string`, `array` or `object`; an integer is a finite number without a fraction, so `2.0` is one | `type`, and nothing else is checked on that value |
+| `type` | `boolean`, `integer`, `string`, `array` or `object`; an integer is a finite number without a fraction, so `2.0` is one | `type`, and nothing else is checked on that value |
 | `enum`, `const` | Accepted values: strings, integers, booleans or `null`, compared by value | `enum`, with the accepted values in `expected` |
 | `minLength`, `maxLength` | Bounds of a string, in Unicode code points | `length` |
 | `minItems`, `maxItems` | Bounds of an array | `length` |
@@ -216,6 +216,10 @@ artifact type (`brief-id`, `council-id`, `gate-id`, `epic-id`, `story-id`, `spec
 (`requirement-id`, `criterion-id`, `decision-id`, `question-id`), with the canonical forms of
 SPEC-0001. The documentation of the module lists each form and each fix.
 
+- **Null.** A member of an object set to `null` is not given, exactly as an absent member
+  (ADR 0009 C2): accepted when optional, `missing` when required, never an unknown field, and
+  absent for a condition. A `null` element of an array is a value like any other and fails
+  `type`, since no type of the subset is `null`.
 - **Order of the errors.** Errors come in document order: the errors of a value before the
   errors inside it, the members of an object in the byte order of their keys, the elements of
   an array by index, and the absent members of an object after its present ones. A member

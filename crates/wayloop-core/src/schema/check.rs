@@ -60,7 +60,6 @@ fn type_of(value: &Value) -> &'static str {
 
 fn has_type(kind: Type, value: &Value) -> bool {
     match kind {
-        Type::Null => value.is_null(),
         Type::Boolean => value.is_boolean(),
         Type::Integer => integer(value).is_some(),
         Type::String => value.is_string(),
@@ -209,7 +208,9 @@ impl Checker<'_> {
     }
 
     fn object(&mut self, rules: &Rules, members: &Map<String, Value>, pointer: &Pointer) {
-        for (key, member) in members {
+        // ADR 0009 C2: a member set to null is not given, exactly as an absent one.
+        let given = |key: &str| members.get(key).is_some_and(|v| !v.is_null());
+        for (key, member) in members.iter().filter(|(_, v)| !v.is_null()) {
             let at = pointer.join(key);
             if let Some(&schema) = rules.properties.get(key) {
                 self.check(schema, member, &at);
@@ -218,7 +219,7 @@ impl Checker<'_> {
                     .properties
                     .keys()
                     .map(String::as_str)
-                    .filter(|k| !members.contains_key(*k));
+                    .filter(|k| !given(k));
                 let mut error =
                     self.error(format!("Unknown field `{key}`."), &at, Reason::UnknownField);
                 if let Some(fix) = closest(key, absent) {
@@ -228,7 +229,7 @@ impl Checker<'_> {
             }
         }
         let mut reported: BTreeSet<&str> = BTreeSet::new();
-        for name in rules.required.iter().filter(|n| !members.contains_key(*n)) {
+        for name in rules.required.iter().filter(|n| !given(n)) {
             reported.insert(name);
             let message = format!("The required field `{name}` is missing.");
             self.push(message, &pointer.join(name), Reason::Missing);
@@ -245,12 +246,12 @@ impl Checker<'_> {
                     c.properties
                         .keys()
                         .map(String::as_str)
-                        .filter(|k| members.contains_key(*k))
+                        .filter(|k| given(k))
                         .collect()
                 })
                 .unwrap_or_default();
             for name in &conditional.then {
-                if members.contains_key(name) || !reported.insert(name) {
+                if given(name) || !reported.insert(name) {
                     continue;
                 }
                 let message = if tested.is_empty() {
@@ -294,16 +295,22 @@ impl Checker<'_> {
     }
 
     /// [`Self::matches`] for an object, without building a value of it. `enum` and `const`
-    /// hold scalars only, so an object never matches them.
+    /// hold scalars only, so an object never matches them. A member set to null is absent
+    /// (ADR 0009 C2).
     fn matches_object(&self, index: usize, members: &Map<String, Value>) -> bool {
         let Some(condition) = self.schema.conditions.get(index) else {
             return true;
         };
         condition.values.is_none()
-            && condition.required.iter().all(|n| members.contains_key(n))
             && condition
-                .properties
+                .required
                 .iter()
-                .all(|(key, child)| members.get(key).is_none_or(|m| self.matches(*child, m)))
+                .all(|n| members.get(n).is_some_and(|m| !m.is_null()))
+            && condition.properties.iter().all(|(key, child)| {
+                members
+                    .get(key)
+                    .filter(|m| !m.is_null())
+                    .is_none_or(|m| self.matches(*child, m))
+            })
     }
 }

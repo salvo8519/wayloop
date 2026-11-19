@@ -128,12 +128,29 @@ fn check(schema: &Value, document: &Value) -> Vec<Error> {
     // The oracle knows no bound on integers: the decision of the maintainer of 2026-11-20 is
     // added to its verdict, checked on every number of the document.
     assert_eq!(
-        oracle(schema).is_valid(document) && !beyond_safe(document),
+        oracle(schema).is_valid(&without_nulls(document)) && !beyond_safe(document),
         errors.is_empty(),
         "the oracle disagrees on {document} against {schema}: {errors:?}"
     );
     assert_eq!(loaded.validate(document, CODE), errors, "not deterministic");
     errors
+}
+
+/// `value` without the members of objects set to null, at any depth; elements of arrays are
+/// kept. ADR 0009 C2 reads a member set to null as absent, which JSON Schema does not: the
+/// oracle is given the document as the interpreter reads it.
+fn without_nulls(value: &Value) -> Value {
+    match value {
+        Value::Object(members) => Value::Object(
+            members
+                .iter()
+                .filter(|(_, v)| !v.is_null())
+                .map(|(k, v)| (k.clone(), without_nulls(v)))
+                .collect(),
+        ),
+        Value::Array(items) => Value::Array(items.iter().map(without_nulls).collect()),
+        other => other.clone(),
+    }
 }
 
 /// Whether `value` holds an integer beyond plus or minus (2^53 - 1), checked with the
@@ -350,9 +367,75 @@ fn type_maps_to_type_and_stops_at_the_value() {
 }
 
 #[test]
-fn null_is_a_value_of_its_own_type() {
-    let errors = check(&brief(), &with(valid_brief(), "owner", Value::Null));
-    assert_eq!(found(&errors), [("/owner".to_owned(), Reason::Type)]);
+fn an_optional_member_set_to_null_is_absent() {
+    // ADR 0009 C2, SPEC-0001: absent and null mean not given.
+    assert_eq!(
+        check(&brief(), &with(valid_brief(), "owner", Value::Null)),
+        []
+    );
+    assert_eq!(
+        check(&brief(), &with(valid_brief(), "superseded_by", Value::Null)),
+        []
+    );
+    // An unknown member set to null is not given either.
+    assert_eq!(
+        check(&brief(), &with(valid_brief(), "titolo", Value::Null)),
+        []
+    );
+}
+
+#[test]
+fn a_required_member_set_to_null_is_missing() {
+    let errors = check(&brief(), &with(valid_brief(), "problem", Value::Null));
+    let error = only(&errors);
+    assert_eq!(error.pointer(), &at("/problem"));
+    assert_eq!(error.reason(), Reason::Missing);
+    // A condition reads null as absent: a null status selects nothing.
+    assert_eq!(
+        found(&check(
+            &brief(),
+            &with(valid_brief(), "status", Value::Null)
+        )),
+        [("/status".to_owned(), Reason::Missing)]
+    );
+    // A member required by a `then` and set to null is reported as absent.
+    let superseded = with(
+        with(valid_brief(), "status", json!("superseded")),
+        "superseded_by",
+        Value::Null,
+    );
+    assert_eq!(
+        found(&check(&brief(), &superseded)),
+        [("/superseded_by".to_owned(), Reason::Requires)]
+    );
+}
+
+#[test]
+fn a_null_element_of_an_array_is_a_value() {
+    let errors = check(
+        &brief(),
+        &with(valid_brief(), "goals", json!(["One", null])),
+    );
+    assert_eq!(found(&errors), [("/goals/1".to_owned(), Reason::Type)]);
+    assert_eq!(only(&errors).message(), "Expected string, found null.");
+}
+
+#[test]
+fn the_fix_may_name_a_member_set_to_null() {
+    let document = with(
+        with(valid_brief(), "problem", Value::Null),
+        "problema",
+        json!("..."),
+    );
+    let errors = check(&brief(), &document);
+    assert_eq!(
+        found(&errors),
+        [
+            ("/problema".to_owned(), Reason::UnknownField),
+            ("/problem".to_owned(), Reason::Missing)
+        ]
+    );
+    assert_eq!(errors[0].fix(), Some(&json!("problem")));
 }
 
 #[test]
@@ -460,7 +543,6 @@ fn integers_of_a_schema_are_within_the_safe_range() {
 #[test]
 fn every_type_of_the_subset_is_checked() {
     let cases = [
-        ("null", Value::Null, json!(0)),
         ("boolean", json!(true), json!("true")),
         ("integer", json!(7), json!(7.5)),
         ("string", json!("s"), json!(1)),
@@ -992,6 +1074,7 @@ fn invalid(schema: &Value) -> Pointer {
 fn malformed_values_of_keywords_are_refused_with_their_place() {
     let cases = [
         (json!({"type": "number"}), "/type"),
+        (json!({"type": "null"}), "/type"),
         (json!({"type": ["string", "null"]}), "/type"),
         (
             json!({"$schema": "http://json-schema.org/draft-07/schema#"}),
@@ -1226,6 +1309,28 @@ proptest! {
         prop_assert!(errors.iter().all(|e| e.code() == CODE));
     }
 
+    /// ADR 0009 C2: setting optional members to null never adds an error, wherever the
+    /// faults are.
+    #[test]
+    fn nulling_optional_members_adds_no_error(
+        nulled in proptest::collection::vec(any::<bool>(), 7),
+        faulty in any::<bool>(),
+    ) {
+        let mut document = faults_document();
+        if faulty {
+            document["status"] = json!("open");
+        }
+        let before = found(&check(&faults_schema(), &document));
+        let optional = ["count", "mode", "nested", "owner", "reason", "status", "tags"];
+        for (name, null) in optional.iter().zip(&nulled) {
+            if *null {
+                document[*name] = Value::Null;
+            }
+        }
+        let after = found(&check(&faults_schema(), &document));
+        prop_assert!(after.iter().all(|e| before.contains(e)), "{:?} then {:?}", before, after);
+    }
+
     /// Every named format agrees with the check of the oracle, and a fix, when given, is a
     /// value the format accepts.
     #[test]
@@ -1264,7 +1369,7 @@ fn messages_name_the_types_and_the_values_for_a_person() {
             "Expected string, found a number with a fraction.",
         ),
         ("integer", json!("x"), "Expected integer, found a string."),
-        ("null", json!(3), "Expected null, found an integer."),
+        ("string", json!(3), "Expected string, found an integer."),
         ("boolean", json!([]), "Expected boolean, found an array."),
         ("array", json!({}), "Expected array, found an object."),
         ("object", json!(true), "Expected object, found a boolean."),

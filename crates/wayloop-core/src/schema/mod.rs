@@ -13,7 +13,7 @@
 //!
 //! | Keyword | Meaning | Reason of the error |
 //! | --- | --- | --- |
-//! | `type` | One of `null`, `boolean`, `integer`, `string`, `array`, `object`; an integer is a number without a fraction, so `2.0` is one | `type`; the other keywords of the value are not checked |
+//! | `type` | One of `boolean`, `integer`, `string`, `array`, `object`; an integer is a number without a fraction, so `2.0` is one | `type`; the other keywords of the value are not checked |
 //! | `enum`, `const` | Accepted values: strings, integers, booleans or `null`; numbers compare by value, so `4364.0` equals `4364` | `enum`, with the accepted values in `expected` |
 //! | `minLength`, `maxLength` | Bounds of a string, in Unicode code points | `length` |
 //! | `minItems`, `maxItems` | Bounds of an array | `length` |
@@ -29,6 +29,12 @@
 //! | `$defs` | Definitions, at the root only; a definition is not itself a `$ref` | |
 //! | `$schema` | At the root only, and only `https://json-schema.org/draft/2020-12/schema` | |
 //! | `$id`, `$comment`, `title`, `description` | Annotations, never checked; `$id` at the root only | |
+//!
+//! A member of an object set to `null` is not given, exactly as an absent member (ADR 0009
+//! C2, SPEC-0001): it is accepted when optional, reported as `missing` when required (or
+//! `requires` under a `then`), never reported as unknown, and read as absent by a condition.
+//! A `null` element of an array is a value, checked like any other, and since no type of the
+//! subset is `null` it fails `type`.
 //!
 //! Every integer the interpreter checks, whatever its schema, lies within plus or minus
 //! (2^53 - 1), the largest integers every JSON parser holds exactly (decision of the
