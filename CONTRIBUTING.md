@@ -12,7 +12,9 @@ today are questions, objections and real use cases, opened as issues.
 
 ## Set up
 
-Install [uv](https://docs.astral.sh/uv/) and Rust stable, then:
+Install [uv](https://docs.astral.sh/uv/) and [rustup](https://rustup.rs/). rustup installs the
+Rust version pinned in `rust-toolchain.toml` on the first `cargo` command, the same one CI uses
+(docs/en/project/conventions.md, Code quality). Then:
 
 ```bash
 uv sync --all-groups

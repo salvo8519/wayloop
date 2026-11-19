@@ -184,6 +184,17 @@ type `breaking`, `feature`, `improvement` or `fix`, unless the pull request is l
 Linters enforce the quality of the code and how it handles errors; `just check`, pre-commit and
 CI run the same commands.
 
+- **Rust toolchain**: one version, pinned in `rust-toolchain.toml` at the root with the
+  `rustfmt` and `clippy` components. rustup reads the file for every local `cargo` command, and
+  CI installs the version written there, so a pull request fails only on its own changes and
+  never on a lint released upstream. The weekly maintenance workflow builds, tests and runs
+  clippy with the newest stable instead, and lists its findings in the maintenance issue. A
+  bump is a deliberate step of the maintainer: one small `build(deps)` pull request that
+  changes the `channel` in `rust-toolchain.toml` and fixes the new lints in the same change.
+  The minimum supported version (`rust-version` in `Cargo.toml`) is separate from the pinned
+  one: the CI job "Minimum supported Rust version" builds every crate with it on each pull
+  request.
+
 - **Rust**: `cargo clippy --workspace --all-targets -- -D warnings` with the `all` and
   `pedantic` groups and the restriction lints of the workspace manifest that refuse a panic in
   the code that ships: `unwrap_used`, `expect_used`, `panic`, `todo`, `unimplemented`,

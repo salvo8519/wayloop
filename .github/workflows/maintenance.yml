@@ -1,9 +1,11 @@
 name: Weekly maintenance
 
-# Early warning, never blocking: tests against the newest compatible dependencies, security
-# advisories, broken links, the required checks of the ruleset and mutation testing of
-# wayloop-core. A failure opens (or updates) one issue labelled `maintenance`, with the surviving
-# mutants in its body; the next green run closes it (scripts/failure_issue.py).
+# Early warning, never blocking: tests against the newest compatible dependencies, build, tests
+# and lints with the newest stable Rust (pull requests use the toolchain pinned in
+# rust-toolchain.toml), security advisories, broken links, the required checks of the ruleset
+# and mutation testing of wayloop-core. A failure opens (or updates) one issue labelled
+# `maintenance`, with the surviving mutants and the new lints in its body; the next green run
+# closes it (scripts/failure_issue.py).
 # Policy: docs/en/project/dependencies.md.
 on:
   schedule:
@@ -24,9 +26,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Rust toolchain pinned in rust-toolchain.toml
+        id: toolchain
+        run: python3 -c 'import tomllib; print("channel=" + tomllib.load(open("rust-toolchain.toml", "rb"))["toolchain"]["channel"])' >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          toolchain: stable
+          toolchain: ${{ steps.toolchain.outputs.channel }}
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - name: Upgrade lock files (not committed)
         run: |
@@ -34,6 +39,50 @@ jobs:
           uv lock --upgrade 2>&1 | tee uv-upgrade.txt
       - run: cargo test --workspace --locked
       - run: uv sync --all-groups && uv run pytest -q
+
+  latest-toolchain:
+    name: Build, tests and lints with the newest stable Rust
+    runs-on: ubuntu-latest
+    env:
+      # Overrides rust-toolchain.toml: what the next bump of the pinned toolchain would meet.
+      RUSTUP_TOOLCHAIN: stable
+    outputs:
+      findings: ${{ steps.result.outputs.findings }}
+      version: ${{ steps.result.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          components: clippy
+      - name: Clippy and tests with the newest stable (findings in the job output)
+        id: result
+        run: |
+          status=0
+          cargo clippy --workspace --all-targets --locked --message-format json -- -D warnings \
+            > clippy.json || status=$?
+          jq -r 'select(.reason == "compiler-message") | .message
+            | select(.level == "error" or .level == "warning") | select(.spans | length > 0)
+            | "\(.spans[0].file_name):\(.spans[0].line_start): \(.code.code // "error") \(.message)"' \
+            clippy.json | sort -u > findings.txt
+          cargo test --workspace --locked || status=$?
+          {
+            echo "### Newest stable Rust: $(rustc -V)"
+            echo "Clippy findings: $(wc -l < findings.txt)."
+            echo '```'
+            cat findings.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          delimiter="findings-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+          {
+            echo "version=$(rustc -V)"
+            echo "findings<<$delimiter"
+            cat findings.txt
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+          exit "$status"
 
   audit:
     name: Security advisories
@@ -101,9 +150,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Rust toolchain pinned in rust-toolchain.toml
+        id: toolchain
+        run: python3 -c 'import tomllib; print("channel=" + tomllib.load(open("rust-toolchain.toml", "rb"))["toolchain"]["channel"])' >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          toolchain: stable
+          toolchain: ${{ steps.toolchain.outputs.channel }}
       - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         id: mutants-install
         continue-on-error: true
@@ -141,7 +193,7 @@ jobs:
 
   report:
     name: Open, update or close the maintenance issue
-    needs: [latest-deps, audit, links, required-checks, mutants]
+    needs: [latest-deps, latest-toolchain, audit, links, required-checks, mutants]
     if: always() && github.event_name == 'schedule'
     runs-on: ubuntu-latest
     permissions:
@@ -155,11 +207,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           RESULTS: >-
-            latest-deps=${{ needs.latest-deps.result }}, audit=${{ needs.audit.result }},
+            latest-deps=${{ needs.latest-deps.result }},
+            latest-toolchain=${{ needs.latest-toolchain.result }},
+            audit=${{ needs.audit.result }},
             links=${{ needs.links.result }},
             required-checks=${{ needs.required-checks.result }},
             mutants=${{ needs.mutants.result }}
           MISSED: ${{ needs.mutants.outputs.missed }}
+          RUST_FINDINGS: ${{ needs.latest-toolchain.outputs.findings }}
+          RUST_LATEST: ${{ needs.latest-toolchain.outputs.version }}
         run: |
           case "$RESULTS" in
             *=failure*) conclusion=failure ;;
@@ -176,6 +232,15 @@ jobs:
               echo "Surviving mutants of the pure crates (cargo-mutants): add a test that kills each one."
               echo '```'
               printf '%s\n' "$MISSED"
+              echo '```'
+            fi
+            if [ -n "$RUST_FINDINGS" ]; then
+              echo
+              echo "Clippy findings with the newest stable Rust ($RUST_LATEST), not with the pinned"
+              echo "toolchain: fix them in the pull request that bumps rust-toolchain.toml"
+              echo "(docs/en/project/conventions.md, Code quality)."
+              echo '```'
+              printf '%s\n' "$RUST_FINDINGS"
               echo '```'
             fi
           } > details.md

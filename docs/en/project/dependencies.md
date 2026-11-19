@@ -58,6 +58,7 @@ maintenance and updates both lines together in one `ci(deps)` pull request.
 | Security fix | Within seven days of the alert, immediately for a critical one | Dependabot security pull request, or a manual `fix(deps)` |
 | Patch and minor versions | Weekly, one grouped pull request per ecosystem, at least 7 days after the release | GitHub Actions and Python tools: merged by the session agent in pull-request triage once the required checks are green; Rust crates and ruff: merged after review |
 | Major versions | Within one month, after reading the upstream changelog | One pull request per dependency |
+| Rust toolchain of builds and CI (`rust-toolchain.toml`) | After a weekly maintenance run reports the newest stable, when the maintainer decides | One `build(deps)` pull request that changes the pinned version and fixes the new lints |
 | Rust toolchain for the minimum supported version | Only on purpose, with `rust-version` in `Cargo.toml` | `build(deps)` pull request with the reason |
 
 A release is never made with an open security alert, a failed weekly maintenance run or a
