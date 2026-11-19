@@ -18,7 +18,7 @@ manifest.
 $ cargo run -q -p wayloop-cli -- version
 {"name":"wayloop","version":"0.0.0"}
 $ cargo run -q -p wayloop-cli -- steps
-{"issue_steps":["claim","reanalysis","counter-review","checklist","build","verify","review","pull-request","merge"]}
+{"issue_steps":["claim","reanalysis","counter_review","checklist","build","verify","review","pull_request","merge"]}
 ```
 
 Any other command, or no command, prints a usage line on standard error and exits with code 2:
@@ -33,5 +33,9 @@ closed, the command prints the cause on standard error and exits with code 3, an
 error. The exit codes follow
 [ADR 0009](../project/adr/0009-contract-guidelines.md) (C7).
 
-The step identifiers are stable: a step is never renamed. The steps themselves are described
-in [The loop](../concepts/the-loop.md#the-issue-cycle).
+The step identifiers are `snake_case` values of the contract, as every enum value of the JSON
+contracts ([ADR 0009](../project/adr/0009-contract-guidelines.md), C4), and have the same
+spelling in every channel. Other spellings, such as the labels of the issue tracker, are
+produced by the adapters from these values. Adding a step is an additive change; renaming or
+removing a step is a breaking change of the contract. The steps themselves are described in
+[The loop](../concepts/the-loop.md#the-issue-cycle).

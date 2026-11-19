@@ -69,18 +69,22 @@ impl IssueStep {
         IssueStep::Merge,
     ];
 
-    /// Stable identifier used in the ledger and in the tracker.
+    /// Identifier of the step in the contract: in the ledger, in hand-overs and in the JSON
+    /// output of every channel. It is a `snake_case` value, as every enum value of the
+    /// contract (ADR 0009 C4, SPEC-0001), and has one spelling everywhere. Other spellings,
+    /// such as the kebab-case labels of a tracker or of the command line, are produced by
+    /// the adapters from this value; the core never spells them.
     #[must_use]
     pub const fn id(self) -> &'static str {
         match self {
             IssueStep::Claim => "claim",
             IssueStep::Reanalysis => "reanalysis",
-            IssueStep::CounterReview => "counter-review",
+            IssueStep::CounterReview => "counter_review",
             IssueStep::Checklist => "checklist",
             IssueStep::Build => "build",
             IssueStep::Verify => "verify",
             IssueStep::Review => "review",
-            IssueStep::PullRequest => "pull-request",
+            IssueStep::PullRequest => "pull_request",
             IssueStep::Merge => "merge",
         }
     }
@@ -104,6 +108,38 @@ mod tests {
         unique.dedup();
         assert_eq!(unique.len(), ids.len());
         assert!(IssueStep::ALL.windows(2).all(|w| w[0] < w[1]));
+    }
+
+    /// Whether `id` matches `^[a-z][a-z0-9_]*$`, the spelling of contract enum values
+    /// (ADR 0009 C4).
+    fn is_snake_case(id: &str) -> bool {
+        let mut chars = id.chars();
+        chars.next().is_some_and(|c| c.is_ascii_lowercase())
+            && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+    }
+
+    #[test]
+    fn identifiers_are_snake_case_contract_values() {
+        for step in IssueStep::ALL {
+            assert!(is_snake_case(step.id()), "{:?} -> {}", step, step.id());
+        }
+        assert_eq!(IssueStep::CounterReview.id(), "counter_review");
+        assert_eq!(IssueStep::PullRequest.id(), "pull_request");
+    }
+
+    #[test]
+    fn the_snake_case_check_refuses_other_spellings() {
+        for id in [
+            "",
+            "_claim",
+            "1claim",
+            "Claim",
+            "counter-review",
+            "pull request",
+        ] {
+            assert!(!is_snake_case(id), "{id}");
+        }
+        assert!(is_snake_case("a1_b"));
     }
 
     #[test]
