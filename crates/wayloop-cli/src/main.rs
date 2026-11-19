@@ -102,9 +102,11 @@ mod tests {
             )
         );
         assert_eq!(output(&["--version"]).unwrap(), version);
-        let steps = output(&["steps"]).unwrap();
-        assert!(steps.starts_with("{\"issue_steps\":[\"claim\","));
-        assert!(steps.ends_with("\"merge\"]}\n"));
+        assert_eq!(
+            output(&["steps"]).unwrap(),
+            "{\"issue_steps\":[\"claim\",\"reanalysis\",\"counter_review\",\"checklist\",\
+             \"build\",\"verify\",\"review\",\"pull_request\",\"merge\"]}\n"
+        );
     }
 
     #[test]

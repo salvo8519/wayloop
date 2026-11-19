@@ -90,6 +90,14 @@ def check_pull_request(
     problems = [f"title: {p}" for p in check_header(title, bot=bot)]
     if bot:
         return problems
+    header = HEADER.match(title)
+    breaking = bool(header and header["breaking"])
+    if breaking and "breaking-change" not in labels:
+        problems.append("labels: a breaking title ('!') needs the label 'breaking-change'.")
+    if breaking and not re.search(r"^BREAKING CHANGE: \S", body or "", re.MULTILINE):
+        problems.append("body: a breaking title ('!') needs a 'BREAKING CHANGE: <what>' paragraph.")
+    if "breaking-change" in labels and not breaking:
+        problems.append("title: the label 'breaking-change' needs '!' after the scope.")
     linked = {int(n) for n in ISSUE_LINK.findall(body or "")}
     b = BRANCH.match(branch)
     if not b and not BRANCH_EXEMPT.match(branch):

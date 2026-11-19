@@ -7,7 +7,7 @@
 ## Checkout
 - Holder: <agent and vendor, for example Claude Code (Anthropic) or Codex (OpenAI)>, session <id or date-time>
 - Branch: <type>/<issue>-<slug>, worktree <path or none>
-- Step reached: <claim | reanalysis | counter-review | checklist | build | verify | review | pull request | merge>
+- Step reached: <claim | reanalysis | counter_review | checklist | build | verify | review | pull_request | merge>
 - Released: <yes, with this hand-over | no, lease until YYYY-MM-DDTHH:MMZ>
 
 ## Done
