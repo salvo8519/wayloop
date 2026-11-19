@@ -33,6 +33,7 @@ import os
 import re
 import subprocess
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -322,7 +323,7 @@ def differences(
             continue
         title = json.dumps(issue["title"], ensure_ascii=False)
         if issue.get("milestone"):
-            drift.append((n, f"#{n} {title}: in a milestone on GitHub but not in the roadmap"))
+            drift.append((n, f"#{n} {title}: {NOT_PLANNED}"))
         else:
             # Reports from users: triage decides whether they enter the roadmap.
             untriaged.append(f"#{n} {title}")
@@ -390,6 +391,28 @@ def pending_in(
     return resolved
 
 
+NOT_PLANNED = "in a milestone on GitHub but not in the roadmap"
+# `roadmap.py new` creates the issue first and the pull request that plans it a few minutes
+# later; until then the difference is expected, not drift.
+GRACE = timedelta(minutes=30)
+
+
+def parse_time(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def recently_created(
+    drift: list[tuple[int, str]], issues: dict[int, dict[str, Any]], now: datetime
+) -> set[int]:
+    """Issues missing from the roadmap only because they were created less than GRACE ago."""
+    recent = set()
+    for n, msg in drift:
+        created = issues.get(n, {}).get("created_at")
+        if msg.endswith(NOT_PLANNED) and created and now - parse_time(created) < GRACE:
+            recent.add(n)
+    return recent
+
+
 def sync(write: bool, apply_milestones: bool) -> int:
     data = load()
     issues = github_issues()
@@ -420,6 +443,9 @@ def sync(write: bool, apply_milestones: bool) -> int:
             f"{msg} (resolved by pull request #{pending[n]})" for n, msg in drift if n in pending
         ]
         drift = [(n, msg) for n, msg in drift if n not in pending]
+        recent = recently_created(drift, issues, datetime.now(UTC))
+        waiting += [f"{msg} (created moments ago)" for n, msg in drift if n in recent]
+        drift = [(n, msg) for n, msg in drift if n not in recent]
         if waiting:
             print(
                 "Differences resolved by open pull requests (warning):\n  " + "\n  ".join(waiting)

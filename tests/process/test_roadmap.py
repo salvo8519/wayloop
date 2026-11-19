@@ -367,3 +367,37 @@ def test_a_native_dependency_satisfies_the_depends_on_section() -> None:
     blockers[task] = {3, 4}
     assert roadmap.link_problems(d, issues, children, blockers, labels) == []
     assert roadmap.depends_on("## Depends on\n- #3 (x)\n- #4\n\n## Next\n- #5") == [3, 4]
+
+
+def _unplanned(created_at: str) -> tuple[list[tuple[int, str]], dict[int, dict[str, Any]]]:
+    main = data()
+    issues = github_view(main)
+    issues[99997] = {
+        "number": 99997,
+        "title": "Just created",
+        "state": "open",
+        "milestone": {"title": main["milestones"][0]["title"]},
+        "created_at": created_at,
+    }
+    drift, _ = roadmap.differences(copy.deepcopy(main), issues)
+    return drift, issues
+
+
+def test_issue_created_moments_ago_is_within_the_grace_period() -> None:
+    now = roadmap.parse_time("2026-11-19T22:00:00Z")
+    drift, issues = _unplanned("2026-11-19T21:55:00Z")
+    assert [n for n, _ in drift] == [99997]
+    assert roadmap.recently_created(drift, issues, now) == {99997}
+
+
+def test_issue_created_hours_ago_is_a_difference() -> None:
+    now = roadmap.parse_time("2026-11-19T22:00:00Z")
+    drift, issues = _unplanned("2026-11-19T20:00:00Z")
+    assert roadmap.recently_created(drift, issues, now) == set()
+
+
+def test_an_issue_without_a_creation_time_is_never_in_the_grace_period() -> None:
+    now = roadmap.parse_time("2026-11-19T22:00:00Z")
+    drift, issues = _unplanned("2026-11-19T21:55:00Z")
+    del issues[99997]["created_at"]
+    assert roadmap.recently_created(drift, issues, now) == set()
