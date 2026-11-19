@@ -192,7 +192,8 @@ CI run the same commands.
   bump is a deliberate step of the maintainer: one small `build(deps)` pull request that
   changes the `channel` in `rust-toolchain.toml` and fixes the new lints in the same change.
   The minimum supported version (`rust-version` in `Cargo.toml`) is separate from the pinned
-  one.
+  one: the CI job "Minimum supported Rust version" builds every crate with it on each pull
+  request.
 
 - **Rust**: `cargo clippy --workspace --all-targets -- -D warnings` with the `all` and
   `pedantic` groups and the restriction lints of the workspace manifest that refuse a panic in

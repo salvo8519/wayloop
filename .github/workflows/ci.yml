@@ -182,3 +182,22 @@ jobs:
         run: cargo install --locked cargo-deny@0.20.2
       - name: cargo deny check
         run: cargo deny --locked --all-features check
+
+  msrv:
+    name: Minimum supported Rust version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      # rust-version of [workspace.package] in Cargo.toml; independent of rust-toolchain.toml.
+      - name: Minimum supported Rust version from Cargo.toml
+        id: msrv
+        run: python3 -c 'import tomllib; print("version=" + tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["rust-version"])' >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+      - name: Build every crate with the minimum supported version
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
+        run: cargo check --workspace --all-targets --locked
