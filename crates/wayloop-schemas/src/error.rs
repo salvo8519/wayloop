@@ -160,10 +160,12 @@ impl std::error::Error for Error {}
 
 #[cfg(test)]
 mod tests {
-    use super::{Code, Error, Reason};
+    use super::{Code, Error, ErrorReport, Reason, Source};
+    use serde_json::json;
 
     const INVALID_INPUT: Code = Code::new("invalid_input");
     const STALE_REVISION: Code = Code::new("stale_revision");
+    const DELTA_CONFLICT: Code = Code::new("delta_conflict");
 
     // Exhaustive: a new variant does not compile until it gets a position here, and then
     // the test fails until ALL lists it in that position.
@@ -216,29 +218,201 @@ mod tests {
     }
 
     #[test]
-    fn an_error_carries_its_code_reason_and_pointer_as_data() {
-        let error = Error::new(INVALID_INPUT, Reason::Missing, "/issue/title");
+    fn an_error_carries_its_code_reason_pointer_and_message_as_data() {
+        let error = Error::new(
+            INVALID_INPUT,
+            Reason::Missing,
+            "/issue/title",
+            "The issue has no title.",
+        );
         assert_eq!(error.code().id(), "invalid_input");
         assert_eq!(error.reason(), Reason::Missing);
         assert_eq!(error.pointer(), "/issue/title");
+        assert_eq!(error.message(), "The issue has no title.");
+        assert!(error.pointers().is_empty());
+        assert!(error.expected().is_empty());
+        assert_eq!(error.fix(), None);
+        assert_eq!(error.location(), None);
     }
 
     #[test]
-    fn display_names_the_code_the_reason_and_the_place() {
-        let error = Error::new(INVALID_INPUT, Reason::UnknownField, "/stpe");
-        assert_eq!(error.to_string(), "invalid_input: unknown_field at /stpe");
-        let root = Error::new(INVALID_INPUT, Reason::Syntax, "");
+    fn display_names_the_code_the_reason_the_place_and_the_message() {
+        let error = Error::new(
+            INVALID_INPUT,
+            Reason::UnknownField,
+            "/stpe",
+            "Unknown field.",
+        );
+        assert_eq!(
+            error.to_string(),
+            "invalid_input: unknown_field at /stpe: Unknown field."
+        );
+        let root = Error::new(INVALID_INPUT, Reason::Syntax, "", "Not JSON.");
         assert_eq!(
             root.to_string(),
-            "invalid_input: syntax at the root of the input"
+            "invalid_input: syntax at the root of the input: Not JSON."
         );
     }
 
     #[test]
     fn it_is_a_standard_error_without_a_source() {
-        let error: Box<dyn std::error::Error> =
-            Box::new(Error::new(STALE_REVISION, Reason::Stale, "/revision"));
+        let error: Box<dyn std::error::Error> = Box::new(Error::new(
+            STALE_REVISION,
+            Reason::Stale,
+            "/revision",
+            "The revision is stale.",
+        ));
         assert!(error.source().is_none());
-        assert_eq!(error.to_string(), "stale_revision: stale at /revision");
+        assert_eq!(
+            error.to_string(),
+            "stale_revision: stale at /revision: The revision is stale."
+        );
+    }
+
+    #[test]
+    fn every_reason_serialises_as_its_identifier() {
+        for reason in Reason::ALL {
+            assert_eq!(serde_json::to_value(reason).unwrap(), json!(reason.id()));
+        }
+    }
+
+    #[test]
+    fn a_code_serialises_as_its_identifier() {
+        assert_eq!(
+            serde_json::to_value(INVALID_INPUT).unwrap(),
+            json!("invalid_input")
+        );
+    }
+
+    #[test]
+    fn absent_fields_are_left_out_of_the_serialised_error() {
+        let error = Error::new(INVALID_INPUT, Reason::Missing, "/problem", "No problem.");
+        assert_eq!(
+            serde_json::to_value(&error).unwrap(),
+            json!({
+                "code": "invalid_input",
+                "message": "No problem.",
+                "pointer": "/problem",
+                "reason": "missing",
+            })
+        );
+    }
+
+    #[test]
+    fn an_error_serialises_every_field_of_c3_with_its_source() {
+        let error = Error::new(
+            DELTA_CONFLICT,
+            Reason::Conflict,
+            "/operations/1",
+            "Two operations change R2.",
+        )
+        .with_pointers(["/operations/0", "/operations/1"])
+        .with_expected([json!(1), json!("two")])
+        .with_fix("removed")
+        .with_location(Source::File {
+            file: "specs/0001-artifact-model/spec.md".into(),
+            line: 42,
+        });
+        assert_eq!(error.pointers(), ["/operations/0", "/operations/1"]);
+        assert_eq!(error.expected(), [json!(1), json!("two")]);
+        assert_eq!(error.fix(), Some(&json!("removed")));
+        assert_eq!(
+            serde_json::to_value(&error).unwrap(),
+            json!({
+                "code": "delta_conflict",
+                "message": "Two operations change R2.",
+                "pointer": "/operations/1",
+                "pointers": ["/operations/0", "/operations/1"],
+                "reason": "conflict",
+                "expected": [1, "two"],
+                "fix": "removed",
+                "source": {"file": "specs/0001-artifact-model/spec.md", "line": 42},
+            })
+        );
+    }
+
+    #[test]
+    fn each_form_of_source_serialises_with_its_own_fields() {
+        let cases = [
+            (
+                Source::File {
+                    file: "plan/items/TASK-0001.yaml".into(),
+                    line: 7,
+                },
+                json!({"file": "plan/items/TASK-0001.yaml", "line": 7}),
+            ),
+            (Source::Issue { issue: 252 }, json!({"issue": 252})),
+            (Source::Milestone { milestone: 3 }, json!({"milestone": 3})),
+        ];
+        for (source, expected) in cases {
+            let error = Error::new(INVALID_INPUT, Reason::Missing, "/title", "No title.")
+                .with_location(source.clone());
+            assert_eq!(error.location(), Some(&source));
+            assert_eq!(serde_json::to_value(&error).unwrap()["source"], expected);
+        }
+    }
+
+    #[test]
+    fn a_report_needs_at_least_one_error() {
+        assert!(ErrorReport::from_errors([]).is_none());
+    }
+
+    #[test]
+    fn a_report_keeps_its_first_error_at_the_top_level() {
+        let first = Error::new(
+            INVALID_INPUT,
+            Reason::UnknownField,
+            "/problema",
+            "Unknown field.",
+        )
+        .with_fix("problem");
+        let second = Error::new(INVALID_INPUT, Reason::Missing, "/problem", "No problem.");
+        let report = ErrorReport::from_errors([first.clone(), second.clone()]).unwrap();
+        assert_eq!(report.first(), &first);
+        assert_eq!(
+            report.errors().collect::<Vec<_>>(),
+            [&first, &second],
+            "every error, in the order found"
+        );
+        let value = serde_json::to_value(&report).unwrap();
+        assert_eq!(
+            value,
+            json!({
+                "code": "invalid_input",
+                "message": "Unknown field.",
+                "pointer": "/problema",
+                "reason": "unknown_field",
+                "fix": "problem",
+                "errors": [
+                    {
+                        "code": "invalid_input",
+                        "message": "Unknown field.",
+                        "pointer": "/problema",
+                        "reason": "unknown_field",
+                        "fix": "problem",
+                    },
+                    {
+                        "code": "invalid_input",
+                        "message": "No problem.",
+                        "pointer": "/problem",
+                        "reason": "missing",
+                    },
+                ],
+            })
+        );
+        let mut top = value.as_object().unwrap().clone();
+        top.remove("errors");
+        assert_eq!(serde_json::Value::Object(top), value["errors"][0]);
+    }
+
+    #[test]
+    fn a_report_of_one_error_lists_it_once_in_errors() {
+        let only = Error::new(STALE_REVISION, Reason::Stale, "/revision", "Stale.");
+        let report = ErrorReport::from_errors([only.clone()]).unwrap();
+        assert_eq!(report.errors().collect::<Vec<_>>(), [&only]);
+        assert_eq!(
+            serde_json::to_value(&report).unwrap()["errors"],
+            json!([serde_json::to_value(&only).unwrap()])
+        );
     }
 }

@@ -95,9 +95,26 @@ def test_a_dependency_against_the_direction_is_named_as_such(crate: str, depende
 
 
 def test_the_allowlists_are_those_reviewed() -> None:
+    # serde with derive and serde_json, with every crate `cargo tree` reaches from them
+    # (SPEC-0001 plan, D2): the derive macro crates and the number and search helpers.
+    serde = frozenset(
+        {
+            "serde",
+            "serde_core",
+            "serde_derive",
+            "proc-macro2",
+            "quote",
+            "syn",
+            "unicode-ident",
+            "serde_json",
+            "itoa",
+            "memchr",
+            "zmij",
+        }
+    )
     assert {
-        "wayloop-schemas": frozenset(),
-        "wayloop-core": frozenset({"wayloop-schemas"}),
+        "wayloop-schemas": serde,
+        "wayloop-core": serde | {"wayloop-schemas"},
     } == core_io.PURE_CRATES
 
 
