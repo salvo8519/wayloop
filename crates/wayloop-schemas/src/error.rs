@@ -151,6 +151,30 @@ impl Pointer {
         Some(Self(text.to_owned()))
     }
 
+    /// The pointer to the member `token` of the value at this pointer: `token` is appended as
+    /// one reference token, with `~` written `~0` and `/` written `~1` (RFC 6901).
+    #[must_use]
+    pub fn join(&self, token: &str) -> Self {
+        let mut text =
+            String::with_capacity(self.0.len().saturating_add(token.len()).saturating_add(1));
+        text.push_str(&self.0);
+        text.push('/');
+        for c in token.chars() {
+            match c {
+                '~' => text.push_str("~0"),
+                '/' => text.push_str("~1"),
+                other => text.push(other),
+            }
+        }
+        Self(text)
+    }
+
+    /// The pointer to the element `index` of the array at this pointer.
+    #[must_use]
+    pub fn join_index(&self, index: usize) -> Self {
+        Self(format!("{}/{index}", self.0))
+    }
+
     /// The pointer as written.
     #[must_use]
     pub fn as_str(&self) -> &str {
@@ -478,6 +502,21 @@ mod tests {
             assert_eq!(at(valid).as_str(), valid);
             assert_eq!(at(valid).to_string(), valid);
         }
+    }
+
+    #[test]
+    fn a_pointer_grows_by_one_escaped_token_at_a_time() {
+        let root = Pointer::root();
+        assert_eq!(root.join("issue").as_str(), "/issue");
+        assert_eq!(root.join("issue").join("title").as_str(), "/issue/title");
+        assert_eq!(root.join("a/b~c").as_str(), "/a~1b~0c");
+        assert_eq!(root.join("~1").as_str(), "/~01");
+        assert_eq!(root.join("").as_str(), "/");
+        assert_eq!(root.join("goals").join_index(0).as_str(), "/goals/0");
+        assert_eq!(root.join_index(12).as_str(), "/12");
+        // Every pointer built this way is one that parse accepts as written.
+        let built = root.join("x~/y").join_index(3).join("");
+        assert_eq!(Pointer::parse(built.as_str()), Some(built));
     }
 
     #[test]

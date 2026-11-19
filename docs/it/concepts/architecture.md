@@ -131,7 +131,7 @@ valore errato:
 | --- | --- |
 | `code` | Identificativo stabile del rifiuto; un nuovo significato riceve un nuovo codice, mai uno rinominato (C8) |
 | `message` | Che cosa non va, per una persona |
-| `pointer` | Puntatore RFC 6901 dalla radice dell'input inviato; vuoto per l'intero input; un valore del tipo `Pointer`, verificato quando viene costruito |
+| `pointer` | Puntatore RFC 6901 dalla radice dell'input inviato; vuoto per l'intero input; un valore del tipo `Pointer`, verificato quando è letto da un testo, oppure costruito un token alla volta con l'escape (`join`, `join_index`) |
 | `pointers` | Puntatori alle altre parti dell'input coinvolte, come i due lati di un conflitto; facoltativo |
 | `reason` | Un valore dell'enum documentato: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale`, e `internal` per un guasto del motore stesso, che non è un rifiuto dell'input |
 | `expected` | I valori accettati in `pointer`, mai un pattern; facoltativo, e `[]` quando nessun valore è accettato |

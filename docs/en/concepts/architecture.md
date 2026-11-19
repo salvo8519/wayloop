@@ -120,7 +120,7 @@ field of a refusal that an agent acts on (ADR 0009, C3), and where the faulty va
 | --- | --- |
 | `code` | Stable identifier of the refusal; a new meaning gets a new code, never a renamed one (C8) |
 | `message` | What went wrong, for a person |
-| `pointer` | RFC 6901 pointer from the root of the input sent; empty for the whole input; a value of the type `Pointer`, checked when it is built |
+| `pointer` | RFC 6901 pointer from the root of the input sent; empty for the whole input; a value of the type `Pointer`, checked when it is parsed from text, or built one escaped token at a time (`join`, `join_index`) |
 | `pointers` | Pointers to the other parts of the input involved, such as both sides of a conflict; optional |
 | `reason` | One value of the documented enum: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale`, and `internal` for a failure of the engine itself, which is not a refusal of the input |
 | `expected` | The values accepted at `pointer`, never a pattern; optional, and `[]` when no value is accepted |
