@@ -1,7 +1,7 @@
 # Run with `uv run just <recipe>` (just is installed by uv).
 
 # Floor of line coverage for the pure crates (wayloop-core, wayloop-schemas), in percent (docs/en/project/conventions.md, Code quality).
-core_coverage_floor := "95"
+pure_coverage_floor := "95"
 
 default:
     @just --list
@@ -56,17 +56,22 @@ rust:
 
 # Line coverage: Rust tests instrumented (cargo-llvm-cov, needs the llvm-tools-preview component),
 # the floor of the pure crates, and the process scripts (pytest-cov). `just coverage 100` tries a floor.
-coverage floor=core_coverage_floor:
+coverage floor=pure_coverage_floor:
     cargo llvm-cov --workspace --no-report
     cargo llvm-cov report --summary-only
     just coverage-floor {{floor}}
     python -m pytest tests/process --cov=scripts --cov-report=term
 
-# Fails when the line coverage of the pure crates, measured by the last instrumented run, is below the
-# floor. The first line lets an error of the tool through as itself, not as a coverage failure.
-coverage-floor floor=core_coverage_floor:
-    cargo llvm-cov report --package wayloop-core --package wayloop-schemas --summary-only >/dev/null
-    cargo llvm-cov report --package wayloop-core --package wayloop-schemas --summary-only --fail-under-lines {{floor}} >/dev/null || { echo "Line coverage of the pure crates is below the floor of {{floor}} percent: add the missing tests." >&2; exit 1; }
+# Fails when the line coverage of a pure crate, measured by the last instrumented run, is below the
+# floor; each crate is held to the floor on its own, so one cannot hide the gaps of the other. The
+# first report of each crate lets an error of the tool through as itself, not as a coverage failure.
+coverage-floor floor=pure_coverage_floor:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for crate in wayloop-core wayloop-schemas; do
+        cargo llvm-cov report --package "$crate" --summary-only >/dev/null
+        cargo llvm-cov report --package "$crate" --summary-only --fail-under-lines {{floor}} >/dev/null || { echo "Line coverage of $crate is below the floor of {{floor}} percent: add the missing tests." >&2; exit 1; }
+    done
 
 # Mutation testing of the pure crates (cargo-mutants); surviving mutants in target/mutants/mutants.out/missed.txt.
 mutants:
