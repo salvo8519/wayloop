@@ -8,8 +8,8 @@ write the state by hand. The rule is recorded in
 
 | Component | Path | What it does today |
 | --- | --- | --- |
-| Schemas | `crates/wayloop-schemas` | Rust library with no I/O, home of the contract types that mirror the JSON schemas. It holds no type yet. |
-| Core | `crates/wayloop-core` | Rust library with no I/O. It fixes the vocabulary of the issue cycle: the nine steps in order, their stable identifiers, and which step is an approval state. It defines the error of every refusal ([below](#errors-are-values)). |
+| Schemas | `crates/wayloop-schemas` | Rust library with no I/O, home of the contract types that mirror the JSON schemas: the error report ([below](#errors-are-values)) and the envelope with its exit codes ([below](#the-envelope)). |
+| Core | `crates/wayloop-core` | Rust library with no I/O. It fixes the vocabulary of the issue cycle: the nine steps in order, their stable identifiers, and which step is an approval state. It re-exports the error of every refusal and the envelope, and computes the hash of an input from its canonical JSON ([below](#the-envelope)). |
 | Runtime | `crates/wayloop-runtime` | Rust library that runs the work the core decides ([below](#synchronous-core-asynchronous-runtime)). It holds no code yet. |
 | Command line | `crates/wayloop-cli` | The `wayloop` binary, an adapter only: it parses arguments, calls the core and prints JSON. Commands: `version` and `steps` ([reference](../reference/index.md)). |
 | Agent content | `.agents/` | Roles and skills in the open Agent Skills format, with generated mirrors for Claude Code. They are used to build Wayloop itself. |
@@ -134,3 +134,43 @@ order found, and repeats the first one at the top level, so `errors[0]` always e
 level. `Error` and `ErrorReport` implement `Display` and `std::error::Error`. A code is a constant of the type
 `Code`, so that one place lists every code of the engine; the codes themselves come with the
 specification of each command.
+
+### The envelope
+
+Every command returns one envelope (ADR 0009, C1), a contract type of `wayloop-schemas`
+re-exported as `wayloop_core::Envelope`:
+
+| Field | Meaning |
+| --- | --- |
+| `command` | Identifier of the command |
+| `data` | The result; present only when the command was not refused |
+| `error` | The error report ([above](#errors-are-values)); present only when the command was refused or failed, and then `data` is absent |
+| `diagnostics` | `warnings` in the shape of an error, `not_done` (checks not run) and `checks` (checks run); each list is always written, `[]` when empty |
+| `meta` | `engine_version`, `envelope_version` (1), `command_version`, `input_hash`, `dry_run` and `defaults_applied` (`{pointer, value, reason}` for each default the engine applied) |
+
+`Envelope::exit_code()` gives the exit code of ADR 0009 C7: 0 for a result with `data`, 1 for a
+refused input, 5 for an internal error of the engine; it is the one place where an outcome is
+mapped to an exit code. An internal error is written in `error` as a refusal is; the code of its
+errors tells the two apart. The envelope holds nothing that depends on the machine or the
+moment: no clock time, host name or absolute path.
+
+`meta.input_hash` is the SHA-256 of the input serialised as canonical JSON (RFC 8785), in
+lower-case hexadecimal, so the same input gives the same hash on every channel and platform:
+
+- **Canonical JSON** (`wayloop_core::canonical`). Object members are sorted by the UTF-16 code
+  units of their keys, never by the order of the map; strings are escaped as ECMAScript
+  `JSON.stringify` escapes them; numbers are written as the IEEE 754 double they denote, in the
+  ECMAScript form, so `4.50` is written `4.5` and `1E30` is written `1e+30`. An integer beyond
+  2^53 in magnitude is written as the nearest double, as RFC 8785 requires, so two such integers
+  can share a hash. NaN and the infinities cannot be held in a JSON value, so the function is
+  total. The writer keeps its own stack, so a deeply nested input cannot exhaust the call stack.
+  It is checked against the examples and the number samples of RFC 8785.
+- **Number parsing.** The core enables the `float_roundtrip` feature of `serde_json`, which adds
+  no crate: every number is read as the nearest double, as other JSON parsers read it. The
+  default parser of `serde_json` can be one unit in the last place off, and the same input
+  would then hash differently on two channels.
+- **SHA-256** (`wayloop_core::sha256`). Written by hand from FIPS 180-4, so that the core needs
+  no hashing crate (SPEC-0001 plan, D3). It is checked against the published test vectors and,
+  on random inputs, against a hashing crate used in tests only (`sha2`, a development
+  dependency, which is never shipped and is not on the allowlist of the core). The hash
+  identifies content and protects no secret, so it makes no attempt at constant time.

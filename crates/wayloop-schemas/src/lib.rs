@@ -8,7 +8,8 @@
 //! is built on it. It depends only on the crates of its reviewed allowlist, checked by
 //! `scripts/check_core_io.py`; I/O of the standard library in its source is refused by the
 //! Clippy lints forbidden below, with the paths listed in its `clippy.toml`. It holds the error
-//! report of ADR 0009 C3; the types of the command schemas come with the first command.
+//! report of ADR 0009 C3 and the envelope of C1 with the exit codes of C7; the types of the
+//! command schemas come with the first command.
 
 // I/O is refused by the compiler: these lints read the clippy.toml of this crate, and forbid,
 // unlike deny, cannot be lifted by an inner allow. `scripts/check_core_io.py` keeps them here.
@@ -20,6 +21,10 @@
     clippy::disallowed_types
 )]
 
+mod envelope;
 mod error;
 
+pub use envelope::{
+    DefaultApplied, Diagnostics, ENVELOPE_VERSION, Envelope, ExitCode, InputHash, Meta, Outcome,
+};
 pub use error::{Code, Error, ErrorReport, Pointer, Reason, Source};

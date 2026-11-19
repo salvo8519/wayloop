@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 8dafddd3ed22
+source_hash: 5220f3c85e94
 ---
 # Architettura
 
@@ -12,8 +12,8 @@ nell'[ADR 0001](https://salvo8519.github.io/wayloop/project/adr/0001-rust-engine
 
 | Componente | Percorso | Cosa fa oggi |
 | --- | --- | --- |
-| Schemi | `crates/wayloop-schemas` | Libreria Rust senza I/O, sede dei tipi dei contratti che rispecchiano gli schemi JSON. Non contiene ancora tipi. |
-| Core | `crates/wayloop-core` | Libreria Rust senza I/O. Fissa il vocabolario del ciclo di un'issue: i nove passi in ordine, i loro identificativi stabili e quale passo è uno stato di approvazione. Definisce l'errore di ogni rifiuto ([sotto](#gli-errori-sono-valori)). |
+| Schemi | `crates/wayloop-schemas` | Libreria Rust senza I/O, sede dei tipi dei contratti che rispecchiano gli schemi JSON: il report degli errori ([sotto](#gli-errori-sono-valori)) e l'envelope con i suoi codici di uscita ([sotto](#lenvelope)). |
+| Core | `crates/wayloop-core` | Libreria Rust senza I/O. Fissa il vocabolario del ciclo di un'issue: i nove passi in ordine, i loro identificativi stabili e quale passo è uno stato di approvazione. Riesporta l'errore di ogni rifiuto e l'envelope, e calcola l'hash di un input dal suo JSON canonico ([sotto](#lenvelope)). |
 | Runtime | `crates/wayloop-runtime` | Libreria Rust che esegue il lavoro deciso dal core ([sotto](#core-sincrono-runtime-asincrono)). Non contiene ancora codice. |
 | Riga di comando | `crates/wayloop-cli` | Il binario `wayloop`, solo un adattatore: legge gli argomenti, chiama il core e stampa JSON. Comandi: `version` e `steps` ([riferimento](../reference/index.md)). |
 | Contenuti per agenti | `.agents/` | Ruoli e skill nel formato aperto Agent Skills, con mirror generati per Claude Code. Servono a costruire Wayloop stesso. |
@@ -145,3 +145,44 @@ solo passaggio, nell'ordine in cui sono stati trovati, e ripete il primo al live
 così `errors[0]` è sempre uguale al livello superiore. `Error` ed `ErrorReport` implementano
 `Display` e `std::error::Error`. Un codice è una costante del tipo `Code`, così un solo punto elenca tutti
 i codici del motore; i codici arrivano con la specifica di ogni comando.
+
+### L'envelope
+
+Ogni comando restituisce un solo envelope (ADR 0009, C1), un tipo del contratto di
+`wayloop-schemas` riesportato come `wayloop_core::Envelope`:
+
+| Campo | Significato |
+| --- | --- |
+| `command` | Identificativo del comando |
+| `data` | Il risultato; presente solo quando il comando non è stato rifiutato |
+| `error` | Il report degli errori ([sopra](#gli-errori-sono-valori)); presente solo quando il comando è stato rifiutato o è fallito, e allora `data` è assente |
+| `diagnostics` | `warnings` nella forma di un errore, `not_done` (controlli non eseguiti) e `checks` (controlli eseguiti); ogni lista è sempre scritta, `[]` quando è vuota |
+| `meta` | `engine_version`, `envelope_version` (1), `command_version`, `input_hash`, `dry_run` e `defaults_applied` (`{pointer, value, reason}` per ogni valore predefinito applicato dal motore) |
+
+`Envelope::exit_code()` dà il codice di uscita dell'ADR 0009 C7: 0 per un risultato con `data`,
+1 per un input rifiutato, 5 per un errore interno del motore; è l'unico punto in cui un esito
+diventa un codice di uscita. Un errore interno è scritto in `error` come un rifiuto; il codice
+dei suoi errori distingue i due casi. L'envelope non contiene nulla che dipenda dalla macchina o
+dal momento: nessun orario, nome host o percorso assoluto.
+
+`meta.input_hash` è lo SHA-256 dell'input serializzato come JSON canonico (RFC 8785), in
+esadecimale minuscolo, così lo stesso input dà lo stesso hash su ogni canale e piattaforma:
+
+- **JSON canonico** (`wayloop_core::canonical`). I membri di un oggetto sono ordinati per unità
+  di codice UTF-16 delle chiavi, mai secondo l'ordine della mappa; le stringhe sono escapate
+  come le escapa `JSON.stringify` di ECMAScript; i numeri sono scritti come il double IEEE 754
+  che denotano, nella forma ECMAScript, quindi `4.50` diventa `4.5` e `1E30` diventa `1e+30`. Un
+  intero oltre 2^53 in valore assoluto è scritto come il double più vicino, come richiede la RFC
+  8785, quindi due interi così possono avere lo stesso hash. NaN e gli infiniti non possono
+  stare in un valore JSON, quindi la funzione è totale. Lo scrittore tiene una propria pila,
+  così un input annidato in profondità non può esaurire lo stack delle chiamate. È verificato
+  sugli esempi e sui campioni numerici della RFC 8785.
+- **Lettura dei numeri.** Il core abilita la feature `float_roundtrip` di `serde_json`, che non
+  aggiunge crate: ogni numero è letto come il double più vicino, come lo leggono gli altri
+  parser JSON. Il parser predefinito di `serde_json` può sbagliare di un'unità nell'ultima cifra
+  binaria, e lo stesso input avrebbe allora hash diversi su due canali.
+- **SHA-256** (`wayloop_core::sha256`). Scritto a mano da FIPS 180-4, così il core non ha
+  bisogno di un crate di hashing (piano della SPEC-0001, D3). È verificato sui vettori di test
+  pubblicati e, su input casuali, contro un crate di hashing usato solo nei test (`sha2`, una
+  dipendenza di sviluppo, mai distribuita e non presente nella allowlist del core). L'hash
+  identifica un contenuto e non protegge segreti, quindi non cerca di avere tempo costante.
