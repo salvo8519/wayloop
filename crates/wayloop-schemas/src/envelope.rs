@@ -697,7 +697,7 @@ mod tests {
         assert_eq!(meta.command_version().get(), 2);
         assert_eq!(meta.input_hash(), &hash());
         assert!(!meta.dry_run());
-        assert!(meta.defaults_applied().is_empty());
+        assert_eq!(meta.defaults_applied(), []);
         let envelope = envelope(Outcome::Refused(refusal()));
         assert_eq!(envelope.command(), "validate");
         assert_eq!(envelope.outcome(), &Outcome::Refused(refusal()));

@@ -191,6 +191,6 @@ mod tests {
         assert_eq!(meta.command_version(), NonZeroU32::MIN);
         assert_eq!(meta.input_hash(), &input_hash(&input));
         assert!(meta.dry_run());
-        assert!(meta.defaults_applied().is_empty());
+        assert_eq!(meta.defaults_applied(), []);
     }
 }
