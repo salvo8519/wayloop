@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 5220f3c85e94
+source_hash: 3c5d5c6168e1
 ---
 # Architettura
 
@@ -133,7 +133,7 @@ valore errato:
 | `message` | Che cosa non va, per una persona |
 | `pointer` | Puntatore RFC 6901 dalla radice dell'input inviato; vuoto per l'intero input; un valore del tipo `Pointer`, verificato quando viene costruito |
 | `pointers` | Puntatori alle altre parti dell'input coinvolte, come i due lati di un conflitto; facoltativo |
-| `reason` | Un valore dell'enum documentato: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale` |
+| `reason` | Un valore dell'enum documentato: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale`, e `internal` per un guasto del motore stesso, che non è un rifiuto dell'input |
 | `expected` | I valori accettati in `pointer`, mai un pattern; facoltativo, e `[]` quando nessun valore è accettato |
 | `fix` | Il campo più vicino a una chiave scritta male, o un valore corretto; facoltativo |
 | `source` | Dove è salvato il valore: `{file, line}` per un file del repository, `{issue}` per una issue del tracker, `{milestone}` per una milestone del tracker, con righe e numeri a partire da 1; assente per un documento inviato direttamente |
@@ -154,15 +154,19 @@ Ogni comando restituisce un solo envelope (ADR 0009, C1), un tipo del contratto 
 | Campo | Significato |
 | --- | --- |
 | `command` | Identificativo del comando |
-| `data` | Il risultato; presente solo quando il comando non è stato rifiutato |
+| `data` | Il risultato; presente solo quando il comando è riuscito |
 | `error` | Il report degli errori ([sopra](#gli-errori-sono-valori)); presente solo quando il comando è stato rifiutato o è fallito, e allora `data` è assente |
-| `diagnostics` | `warnings` nella forma di un errore, `not_done` (controlli non eseguiti) e `checks` (controlli eseguiti); ogni lista è sempre scritta, `[]` quando è vuota |
-| `meta` | `engine_version`, `envelope_version` (1), `command_version`, `input_hash`, `dry_run` e `defaults_applied` (`{pointer, value, reason}` per ogni valore predefinito applicato dal motore) |
+| `diagnostics` | `warnings` nella forma di un errore; `not_done`, un `{check, reason}` per ogni controllo non eseguito, con la reason `not_built` (la parte del motore che lo esegue non è ancora costruita) o `input_absent` (l'input che gli serve non è stato fornito); `checks`, i controlli eseguiti. Ogni lista è sempre scritta, `[]` quando è vuota |
+| `meta` | `engine_version`, `envelope_version` (1), `command_version`, `input_hash`, `dry_run` e `defaults_applied`: un `{pointer, value, reason, message}` per ogni valore predefinito applicato dal motore, dove `reason` è un identificativo e `message`, per le persone, è facoltativo |
+
+Ogni identificativo nell'envelope (un controllo, una reason, un codice di errore) è un valore
+`snake_case` stabile, documentato con il comando che lo scrive; i client accettano i valori che
+non conoscono (ADR 0009, C5).
 
 `Envelope::exit_code()` dà il codice di uscita dell'ADR 0009 C7: 0 per un risultato con `data`,
 1 per un input rifiutato, 5 per un errore interno del motore; è l'unico punto in cui un esito
-diventa un codice di uscita. Un errore interno è scritto in `error` come un rifiuto; il codice
-dei suoi errori distingue i due casi. L'envelope non contiene nulla che dipenda dalla macchina o
+diventa un codice di uscita. Un errore interno è scritto in `error` come un rifiuto; i suoi
+errori hanno la reason `internal`, che distingue i due casi nel JSON. L'envelope non contiene nulla che dipenda dalla macchina o
 dal momento: nessun orario, nome host o percorso assoluto.
 
 `meta.input_hash` è lo SHA-256 dell'input serializzato come JSON canonico (RFC 8785), in
@@ -173,14 +177,20 @@ esadecimale minuscolo, così lo stesso input dà lo stesso hash su ogni canale e
   come le escapa `JSON.stringify` di ECMAScript; i numeri sono scritti come il double IEEE 754
   che denotano, nella forma ECMAScript, quindi `4.50` diventa `4.5` e `1E30` diventa `1e+30`. Un
   intero oltre 2^53 in valore assoluto è scritto come il double più vicino, come richiede la RFC
-  8785, quindi due interi così possono avere lo stesso hash. NaN e gli infiniti non possono
+  8785, quindi due interi così possono avere lo stesso hash. `4364.0` e `4364` denotano lo stesso
+  double, quindi hanno lo stesso hash. NaN e gli infiniti non possono
   stare in un valore JSON, quindi la funzione è totale. Lo scrittore tiene una propria pila,
   così un input annidato in profondità non può esaurire lo stack delle chiamate. È verificato
-  sugli esempi e sui campioni numerici della RFC 8785.
-- **Lettura dei numeri.** Il core abilita la feature `float_roundtrip` di `serde_json`, che non
-  aggiunge crate: ogni numero è letto come il double più vicino, come lo leggono gli altri
-  parser JSON. Il parser predefinito di `serde_json` può sbagliare di un'unità nell'ultima cifra
-  binaria, e lo stesso input avrebbe allora hash diversi su due canali.
+  sugli esempi e sui campioni numerici della RFC 8785. Un valore JSON non può contenere chiavi
+  duplicate, che la RFC 8785 rifiuta: `serde_json` tiene l'ultima di due chiavi uguali, quindi
+  chi legge un testo JSON deve rifiutarle prima, con la reason `duplicate`.
+- **Lettura dei numeri.** Il workspace dichiara `serde_json` una sola volta, con la feature
+  `float_roundtrip`, che non aggiunge crate: ogni numero è letto come il double più vicino, come
+  lo leggono gli altri parser JSON. Il parser predefinito di `serde_json` può sbagliare di
+  un'unità nell'ultima cifra binaria, e lo stesso input avrebbe allora hash diversi su due
+  canali. Alcuni test del core falliscono se `float_roundtrip` viene tolta o se un crate
+  qualsiasi abilita `arbitrary_precision`, che conserva il testo di un numero invece del suo
+  double.
 - **SHA-256** (`wayloop_core::sha256`). Scritto a mano da FIPS 180-4, così il core non ha
   bisogno di un crate di hashing (piano della SPEC-0001, D3). È verificato sui vettori di test
   pubblicati e, su input casuali, contro un crate di hashing usato solo nei test (`sha2`, una

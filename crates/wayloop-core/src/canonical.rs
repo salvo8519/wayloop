@@ -5,13 +5,18 @@
 //!
 //! - Object members are sorted by the UTF-16 code units of their keys, never by the order of
 //!   the map. The keys of a [`serde_json::Map`] are unique, so the duplicate keys that RFC 8785
-//!   refuses cannot reach this function.
+//!   refuses cannot reach this function. Parsing does not refuse them: `serde_json` keeps the
+//!   last of two equal keys. Whoever parses JSON text must therefore refuse duplicate keys
+//!   before building the value, with the reason `duplicate` of ADR 0009 C3.
 //! - Strings are written as ECMAScript `JSON.stringify` writes them: `"` and `\` escaped, the
 //!   control characters U+0000 to U+001F written as `\b`, `\t`, `\n`, `\f`, `\r` or `\u00xx`
 //!   with lower-case hexadecimal, every other character as itself in UTF-8.
 //! - Numbers are IEEE 754 doubles written in the ECMAScript form (RFC 8785, 3.2.2.3): an
 //!   integer outside the exact range of a double (beyond 2^53 in magnitude) is written as the
-//!   nearest double, as the RFC requires, so two such integers can share a canonical form.
+//!   nearest double, as the RFC requires, so two such integers can share a canonical form, and
+//!   `4364.0` and `4364` have the same one. The plan of SPEC-0001 (Schemas and their
+//!   interpreter) bounds schema integers to ±(2^53 − 1) and compares numbers by value, so that
+//!   these cases never reach a valid input.
 //!   NaN and the infinities, which RFC 8785 refuses, cannot be held in a
 //!   [`serde_json::Value`], so the function is total.
 //! - No white space is written.
@@ -327,6 +332,32 @@ mod tests {
         let one: Value = serde_json::from_str(r#"{"b":1,"a":{"y":2,"x":[1,2]}}"#).unwrap();
         let two: Value = serde_json::from_str(r#"{"a":{"x":[1,2],"y":2},"b":1}"#).unwrap();
         assert_eq!(canonical_json(&one), canonical_json(&two));
+    }
+
+    /// Guards the features of `serde_json`, which the workspace declares once: `float_roundtrip`
+    /// reads every number as the nearest double, and `arbitrary_precision`, which would keep the
+    /// text of a number instead of its double, stays off, also through feature unification.
+    #[test]
+    fn the_parser_reads_every_number_as_the_nearest_double() {
+        // The default parser of serde_json reads both one unit in the last place off.
+        for (text, bits) in [
+            ("333333333.33333329", 0x41b3_de43_5555_5555_u64),
+            ("4.0e182", 0x65d8_1965_1531_f9e8),
+        ] {
+            let value: Value = serde_json::from_str(text).unwrap();
+            assert_eq!(value.as_f64().unwrap().to_bits(), bits, "{text}");
+        }
+    }
+
+    #[test]
+    fn a_number_beyond_u64_is_held_as_a_double_not_as_its_text() {
+        let value: Value = serde_json::from_str("18446744073709551616").unwrap();
+        assert!(value.is_f64());
+        assert_eq!(
+            serde_json::to_string(&value).unwrap(),
+            "1.8446744073709552e+19"
+        );
+        assert_eq!(canonical_json(&value), "18446744073709552000");
     }
 
     #[test]

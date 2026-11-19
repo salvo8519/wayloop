@@ -33,8 +33,9 @@ pub mod envelope;
 pub mod sha256;
 
 pub use wayloop_schemas::{
-    Code, DefaultApplied, Diagnostics, ENVELOPE_VERSION, Envelope, Error, ErrorReport, ExitCode,
-    InputHash, Meta, Outcome, Pointer, Reason, Source,
+    Check, Code, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope, Error,
+    ErrorReport, ExitCode, InputHash, Meta, NotDone, NotDoneReason, Outcome, Pointer, Reason,
+    Source,
 };
 
 /// Version of the engine, taken from the workspace manifest.

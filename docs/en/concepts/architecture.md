@@ -122,7 +122,7 @@ field of a refusal that an agent acts on (ADR 0009, C3), and where the faulty va
 | `message` | What went wrong, for a person |
 | `pointer` | RFC 6901 pointer from the root of the input sent; empty for the whole input; a value of the type `Pointer`, checked when it is built |
 | `pointers` | Pointers to the other parts of the input involved, such as both sides of a conflict; optional |
-| `reason` | One value of the documented enum: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale` |
+| `reason` | One value of the documented enum: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale`, and `internal` for a failure of the engine itself, which is not a refusal of the input |
 | `expected` | The values accepted at `pointer`, never a pattern; optional, and `[]` when no value is accepted |
 | `fix` | The closest field for a misspelt key, or a corrected value; optional |
 | `source` | Where the value is stored: `{file, line}` for a repository file, `{issue}` for a tracker issue, `{milestone}` for a tracker milestone, with lines and numbers from 1; absent for a document sent directly |
@@ -143,15 +143,19 @@ re-exported as `wayloop_core::Envelope`:
 | Field | Meaning |
 | --- | --- |
 | `command` | Identifier of the command |
-| `data` | The result; present only when the command was not refused |
+| `data` | The result; present only when the command succeeded |
 | `error` | The error report ([above](#errors-are-values)); present only when the command was refused or failed, and then `data` is absent |
-| `diagnostics` | `warnings` in the shape of an error, `not_done` (checks not run) and `checks` (checks run); each list is always written, `[]` when empty |
-| `meta` | `engine_version`, `envelope_version` (1), `command_version`, `input_hash`, `dry_run` and `defaults_applied` (`{pointer, value, reason}` for each default the engine applied) |
+| `diagnostics` | `warnings` in the shape of an error; `not_done`, one `{check, reason}` for each check not run, with the reason `not_built` (the part of the engine that runs it is not built yet) or `input_absent` (the input it needs was not given); `checks`, the checks run. Each list is always written, `[]` when empty |
+| `meta` | `engine_version`, `envelope_version` (1), `command_version`, `input_hash`, `dry_run` and `defaults_applied`: one `{pointer, value, reason, message}` for each default the engine applied, where `reason` is an identifier and `message`, for people, is optional |
+
+Every identifier in the envelope (a check, a reason, an error code) is a stable `snake_case`
+value, documented with the command that writes it; clients accept values they do not know
+(ADR 0009, C5).
 
 `Envelope::exit_code()` gives the exit code of ADR 0009 C7: 0 for a result with `data`, 1 for a
 refused input, 5 for an internal error of the engine; it is the one place where an outcome is
-mapped to an exit code. An internal error is written in `error` as a refusal is; the code of its
-errors tells the two apart. The envelope holds nothing that depends on the machine or the
+mapped to an exit code. An internal error is written in `error` as a refusal is; its errors have
+the reason `internal`, which tells the two apart in the JSON. The envelope holds nothing that depends on the machine or the
 moment: no clock time, host name or absolute path.
 
 `meta.input_hash` is the SHA-256 of the input serialised as canonical JSON (RFC 8785), in
@@ -162,13 +166,17 @@ lower-case hexadecimal, so the same input gives the same hash on every channel a
   `JSON.stringify` escapes them; numbers are written as the IEEE 754 double they denote, in the
   ECMAScript form, so `4.50` is written `4.5` and `1E30` is written `1e+30`. An integer beyond
   2^53 in magnitude is written as the nearest double, as RFC 8785 requires, so two such integers
-  can share a hash. NaN and the infinities cannot be held in a JSON value, so the function is
+  can share a hash. `4364.0` and `4364` denote the same double, so they hash the same. NaN and the infinities cannot be held in a JSON value, so the function is
   total. The writer keeps its own stack, so a deeply nested input cannot exhaust the call stack.
-  It is checked against the examples and the number samples of RFC 8785.
-- **Number parsing.** The core enables the `float_roundtrip` feature of `serde_json`, which adds
-  no crate: every number is read as the nearest double, as other JSON parsers read it. The
-  default parser of `serde_json` can be one unit in the last place off, and the same input
-  would then hash differently on two channels.
+  It is checked against the examples and the number samples of RFC 8785. A JSON value cannot
+  hold duplicate keys, which RFC 8785 refuses: `serde_json` keeps the last of two equal keys, so
+  whoever parses JSON text must refuse them first, with the reason `duplicate`.
+- **Number parsing.** The workspace declares `serde_json` once, with the `float_roundtrip`
+  feature, which adds no crate: every number is read as the nearest double, as other JSON
+  parsers read it. The default parser of `serde_json` can be one unit in the last place off, and
+  the same input would then hash differently on two channels. Tests of the core fail if
+  `float_roundtrip` is dropped or if `arbitrary_precision`, which keeps the text of a number
+  instead of its double, is enabled by any crate.
 - **SHA-256** (`wayloop_core::sha256`). Written by hand from FIPS 180-4, so that the core needs
   no hashing crate (SPEC-0001 plan, D3). It is checked against the published test vectors and,
   on random inputs, against a hashing crate used in tests only (`sha2`, a development

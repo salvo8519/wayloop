@@ -12,10 +12,8 @@ authors.workspace = true
 [dependencies]
 # The version follows the workspace version; crates.io requires it on a path dependency.
 wayloop-schemas = { path = "../wayloop-schemas", version = "0.0.0" }
-# float_roundtrip: numbers are parsed to the nearest double, as every other JSON parser does;
-# the default parser can be one unit in the last place off, and input_hash would then differ
-# between channels (SPEC-0004 R15). It adds no crate.
-serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
+# With float_roundtrip, from the workspace manifest.
+serde_json.workspace = true
 
 [dev-dependencies]
 # Test-only oracle for the hand-written SHA-256 (SPEC-0001 plan, D3); never shipped.

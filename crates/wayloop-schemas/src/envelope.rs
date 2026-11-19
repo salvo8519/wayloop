@@ -1,16 +1,20 @@
-//! The envelope of every command result (ADR 0009 C1, with its amendment of 2026-11-19) and
-//! the exit codes of C7.
+//! The envelope of every command result (ADR 0009 C1, with its amendments of 2026-11-19 and
+//! 2026-11-20) and the exit codes of C7.
 //!
 //! The types are contract types: they live in this crate, the core fills them and re-exports
 //! them. The envelope is
 //! `{command, data | error, diagnostics {warnings, not_done, checks}, meta {engine_version,
-//! envelope_version, command_version, input_hash, dry_run, defaults_applied}}`. A result that is
-//! not refused has `data` and no `error`; a refused one has `error`, the [`ErrorReport`], and no
-//! `data` (SPEC-0004 R18). Lists are always written, `[]` when empty (C2). Nothing in the
+//! envelope_version, command_version, input_hash, dry_run, defaults_applied}}`. A result that
+//! succeeded has `data` and no `error`; a refused or failed one has `error`, the
+//! [`ErrorReport`], and no `data` (SPEC-0004 R18). A failure is told apart from a refusal by the
+//! reason `internal` of its errors (C3, amended on 2026-11-20) and by its exit code: 5 for a
+//! failure, 1 for a refusal. Lists are always written, `[]` when empty (C2). Every identifier is
+//! a stable `snake_case` value, and clients accept values they do not know (C5). Nothing in the
 //! envelope depends on the machine or the moment: it has no field for a clock time, a host name
 //! or an absolute path (SPEC-0004 R15), and the values the engine writes in it come from the
 //! input, the command and the engine version only.
 
+use core::fmt;
 use core::num::NonZeroU32;
 
 use serde::ser::SerializeMap;
@@ -92,24 +96,62 @@ impl InputHash {
     }
 }
 
+/// Why the engine applied a default: a stable `snake_case` identifier, the field `reason` of an
+/// entry of `meta.defaults_applied`. Each value is a constant of the core, documented with the
+/// command that applies it; it is not a reason of C3. It serialises as its identifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(transparent)]
+pub struct DefaultReason(&'static str);
+
+impl DefaultReason {
+    /// A reason with the given `snake_case` identifier.
+    #[must_use]
+    pub const fn new(id: &'static str) -> Self {
+        Self(id)
+    }
+
+    /// The identifier written in `reason`.
+    #[must_use]
+    pub const fn id(self) -> &'static str {
+        self.0
+    }
+}
+
+impl fmt::Display for DefaultReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.0)
+    }
+}
+
 /// A default the engine applied on behalf of the caller (ADR 0009 C2): an entry of
-/// `meta.defaults_applied`.
+/// `meta.defaults_applied`, `{pointer, value, reason, message}`. `message` is optional and left
+/// out of the serialised form when not given.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DefaultApplied {
     pointer: Pointer,
     value: Value,
-    reason: String,
+    reason: DefaultReason,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
 }
 
 impl DefaultApplied {
-    /// The default `value` applied at `pointer` of the input, with the `reason` for a person.
+    /// The default `value` applied at `pointer` of the input, for `reason`.
     #[must_use]
-    pub fn new(pointer: Pointer, value: impl Into<Value>, reason: impl Into<String>) -> Self {
+    pub fn new(pointer: Pointer, value: impl Into<Value>, reason: DefaultReason) -> Self {
         Self {
             pointer,
             value: value.into(),
-            reason: reason.into(),
+            reason,
+            message: None,
         }
+    }
+
+    /// The entry with a `message` for a person.
+    #[must_use]
+    pub fn with_message(mut self, message: impl Into<String>) -> Self {
+        self.message = Some(message.into());
+        self
     }
 
     /// Where in the input the default applies.
@@ -124,10 +166,103 @@ impl DefaultApplied {
         &self.value
     }
 
-    /// Why the default applies, for a person.
+    /// Why the default applies.
     #[must_use]
-    pub fn reason(&self) -> &str {
-        &self.reason
+    pub const fn reason(&self) -> DefaultReason {
+        self.reason
+    }
+
+    /// Why the default applies, for a person; `None` when not given.
+    #[must_use]
+    pub fn message(&self) -> Option<&str> {
+        self.message.as_deref()
+    }
+}
+
+/// A check of the engine: a stable `snake_case` identifier, written in `diagnostics.checks`
+/// and in `diagnostics.not_done`. Each value is a constant of the core, documented with the
+/// command that runs it. It serialises as its identifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(transparent)]
+pub struct Check(&'static str);
+
+impl Check {
+    /// A check with the given `snake_case` identifier.
+    #[must_use]
+    pub const fn new(id: &'static str) -> Self {
+        Self(id)
+    }
+
+    /// The identifier written in the diagnostics.
+    #[must_use]
+    pub const fn id(self) -> &'static str {
+        self.0
+    }
+}
+
+impl fmt::Display for Check {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.0)
+    }
+}
+
+/// Why a check was not run: the field `reason` of an entry of `diagnostics.not_done`. It
+/// serialises as [`NotDoneReason::id`]; clients accept values they do not know (C5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NotDoneReason {
+    /// The part of the engine that runs the check is not built yet.
+    NotBuilt,
+    /// The input the check needs was not given, for example the base revision of a status
+    /// check.
+    InputAbsent,
+}
+
+impl NotDoneReason {
+    /// All reasons, in order.
+    pub const ALL: [NotDoneReason; 2] = [NotDoneReason::NotBuilt, NotDoneReason::InputAbsent];
+
+    /// Stable identifier, as it appears in `reason`.
+    #[must_use]
+    pub const fn id(self) -> &'static str {
+        match self {
+            NotDoneReason::NotBuilt => "not_built",
+            NotDoneReason::InputAbsent => "input_absent",
+        }
+    }
+}
+
+impl fmt::Display for NotDoneReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.id())
+    }
+}
+
+/// A check the engine did not run, and why: an entry of `diagnostics.not_done`,
+/// `{check, reason}`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+pub struct NotDone {
+    check: Check,
+    reason: NotDoneReason,
+}
+
+impl NotDone {
+    /// The `check` not run, for `reason`.
+    #[must_use]
+    pub const fn new(check: Check, reason: NotDoneReason) -> Self {
+        Self { check, reason }
+    }
+
+    /// The check not run.
+    #[must_use]
+    pub const fn check(self) -> Check {
+        self.check
+    }
+
+    /// Why it was not run.
+    #[must_use]
+    pub const fn reason(self) -> NotDoneReason {
+        self.reason
     }
 }
 
@@ -138,9 +273,8 @@ pub enum Outcome {
     Success(Value),
     /// The input was refused: `error` holds every error found in one pass. Exit code 1.
     Refused(ErrorReport),
-    /// The engine could not compute the result: `error` holds the report. Exit code 5.
-    ///
-    /// It is written as a refusal is, in `error`; the code of its errors tells the two apart.
+    /// The engine could not compute the result: `error` holds the report, whose errors have
+    /// the reason [`Reason::Internal`](crate::Reason::Internal). Exit code 5.
     Failed(ErrorReport),
 }
 
@@ -148,15 +282,15 @@ pub enum Outcome {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
 pub struct Diagnostics {
     warnings: Vec<Error>,
-    not_done: Vec<String>,
-    checks: Vec<String>,
+    not_done: Vec<NotDone>,
+    checks: Vec<Check>,
 }
 
 impl Diagnostics {
     /// Diagnostics with the `warnings` found (each in the shape of an error), the checks
-    /// `not_done` and the identifiers of the `checks` run, each list in the order given.
+    /// `not_done` with their reason, and the `checks` run, each list in the order given.
     #[must_use]
-    pub fn new(warnings: Vec<Error>, not_done: Vec<String>, checks: Vec<String>) -> Self {
+    pub fn new(warnings: Vec<Error>, not_done: Vec<NotDone>, checks: Vec<Check>) -> Self {
         Self {
             warnings,
             not_done,
@@ -170,15 +304,15 @@ impl Diagnostics {
         &self.warnings
     }
 
-    /// Checks the engine did not run, with the work left.
+    /// Checks the engine did not run, each with its reason.
     #[must_use]
-    pub fn not_done(&self) -> &[String] {
+    pub fn not_done(&self) -> &[NotDone] {
         &self.not_done
     }
 
-    /// Identifiers of the checks the engine ran.
+    /// Checks the engine ran.
     #[must_use]
-    pub fn checks(&self) -> &[String] {
+    pub fn checks(&self) -> &[Check] {
         &self.checks
     }
 }
@@ -334,13 +468,18 @@ impl Serialize for Envelope {
 #[cfg(test)]
 mod tests {
     use super::{
-        DefaultApplied, Diagnostics, ENVELOPE_VERSION, Envelope, ExitCode, InputHash, Meta, Outcome,
+        Check, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope, ExitCode,
+        InputHash, Meta, NotDone, NotDoneReason, Outcome,
     };
     use crate::{Code, Error, ErrorReport, Pointer, Reason};
     use core::num::NonZeroU32;
-    use serde_json::{Value, json};
+    use serde_json::json;
 
     const INVALID_INPUT: Code = Code::new("invalid_input");
+    const INTERNAL_ERROR: Code = Code::new("internal_error");
+    const SCHEMA: Check = Check::new("schema");
+    const LINKS: Check = Check::new("links");
+    const PROJECT_LANGUAGE: DefaultReason = DefaultReason::new("project_language");
 
     fn at(pointer: &str) -> Pointer {
         Pointer::parse(pointer).unwrap()
@@ -354,7 +493,7 @@ mod tests {
         Meta::new("0.0.0", NonZeroU32::new(2).unwrap(), hash(), false, vec![])
     }
 
-    fn report() -> ErrorReport {
+    fn refusal() -> ErrorReport {
         ErrorReport::from_errors([
             Error::new(
                 INVALID_INPUT,
@@ -373,17 +512,34 @@ mod tests {
         .unwrap()
     }
 
+    fn failure() -> ErrorReport {
+        ErrorReport::from_errors([Error::new(
+            INTERNAL_ERROR,
+            "The engine could not compute the result.",
+            Pointer::root(),
+            Reason::Internal,
+        )])
+        .unwrap()
+    }
+
     fn envelope(outcome: Outcome) -> Envelope {
         Envelope::new("validate", outcome, Diagnostics::default(), meta())
     }
 
-    fn keys(value: &Value) -> Vec<&str> {
-        value
-            .as_object()
-            .unwrap()
-            .keys()
-            .map(String::as_str)
-            .collect()
+    /// The text of `value` exactly as serialised: the order of the fields is checked too.
+    fn text(value: &impl serde::Serialize) -> String {
+        serde_json::to_string(value).unwrap()
+    }
+
+    fn empty_diagnostics_and_meta() -> String {
+        format!(
+            concat!(
+                r#""diagnostics":{{"warnings":[],"not_done":[],"checks":[]}},"#,
+                r#""meta":{{"engine_version":"0.0.0","envelope_version":1,"command_version":2,"#,
+                r#""input_hash":"{}","dry_run":false,"defaults_applied":[]}}"#
+            ),
+            hash().as_str()
+        )
     }
 
     #[test]
@@ -395,8 +551,8 @@ mod tests {
     #[test]
     fn success_refusal_and_internal_error_exit_with_0_1_and_5() {
         assert_eq!(envelope(Outcome::Success(json!({}))).exit_code().code(), 0);
-        assert_eq!(envelope(Outcome::Refused(report())).exit_code().code(), 1);
-        assert_eq!(envelope(Outcome::Failed(report())).exit_code().code(), 5);
+        assert_eq!(envelope(Outcome::Refused(refusal())).exit_code().code(), 1);
+        assert_eq!(envelope(Outcome::Failed(failure())).exit_code().code(), 5);
     }
 
     #[test]
@@ -405,36 +561,51 @@ mod tests {
         for (i, byte) in digest.iter_mut().enumerate() {
             *byte = u8::try_from(i * 8).unwrap();
         }
-        let text = InputHash::from_digest(&digest);
+        let hash = InputHash::from_digest(&digest);
         assert_eq!(
-            text.as_str(),
+            hash.as_str(),
             "0008101820283038404850586068707880889098a0a8b0b8c0c8d0d8e0e8f0f8"
         );
-        assert_eq!(serde_json::to_value(&text).unwrap(), json!(text.as_str()));
+        assert_eq!(text(&hash), format!("\"{}\"", hash.as_str()));
     }
 
     #[test]
     fn a_success_has_data_and_no_error() {
-        let value =
-            serde_json::to_value(envelope(Outcome::Success(json!({"documents": []})))).unwrap();
-        assert_eq!(keys(&value), ["command", "data", "diagnostics", "meta"]);
-        assert_eq!(value["data"], json!({"documents": []}));
-        assert_eq!(value["command"], json!("validate"));
+        assert_eq!(
+            text(&envelope(Outcome::Success(json!({"documents": []})))),
+            format!(
+                r#"{{"command":"validate","data":{{"documents":[]}},{}}}"#,
+                empty_diagnostics_and_meta()
+            )
+        );
     }
 
     #[test]
     fn a_refusal_has_the_error_report_and_no_data() {
         // SPEC-0004 R18, ADR 0009 C1 as amended on 2026-11-19.
-        let value = serde_json::to_value(envelope(Outcome::Refused(report()))).unwrap();
-        assert_eq!(keys(&value), ["command", "diagnostics", "error", "meta"]);
-        assert_eq!(value["error"], serde_json::to_value(report()).unwrap());
-        assert_eq!(value["error"]["errors"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            text(&envelope(Outcome::Refused(refusal()))),
+            format!(
+                r#"{{"command":"validate","error":{},{}}}"#,
+                text(&refusal()),
+                empty_diagnostics_and_meta()
+            )
+        );
     }
 
     #[test]
-    fn an_internal_error_is_written_in_error_too() {
-        let value = serde_json::to_value(envelope(Outcome::Failed(report()))).unwrap();
-        assert_eq!(keys(&value), ["command", "diagnostics", "error", "meta"]);
+    fn an_internal_error_has_the_error_report_with_reason_internal_and_no_data() {
+        // SPEC-0004 R18, ADR 0009 C3 as amended on 2026-11-20.
+        let written = text(&envelope(Outcome::Failed(failure())));
+        assert_eq!(
+            written,
+            format!(
+                r#"{{"command":"validate","error":{},{}}}"#,
+                text(&failure()),
+                empty_diagnostics_and_meta()
+            )
+        );
+        assert!(written.contains(r#""reason":"internal""#));
     }
 
     #[test]
@@ -444,68 +615,92 @@ mod tests {
             NonZeroU32::new(3).unwrap(),
             hash(),
             true,
-            vec![DefaultApplied::new(
-                at("/language"),
-                "en",
-                "The project language applies.",
-            )],
+            vec![
+                DefaultApplied::new(at("/language"), "en", PROJECT_LANGUAGE)
+                    .with_message("The language of the project applies."),
+                DefaultApplied::new(
+                    at("/policy"),
+                    json!({}),
+                    DefaultReason::new("default_policy"),
+                ),
+            ],
         );
         assert_eq!(meta.envelope_version(), ENVELOPE_VERSION);
         assert_eq!(ENVELOPE_VERSION.get(), 1);
-        let value = serde_json::to_value(&meta).unwrap();
         assert_eq!(
-            value,
-            json!({
-                "engine_version": "0.1.0",
-                "envelope_version": 1,
-                "command_version": 3,
-                "input_hash": hash().as_str(),
-                "dry_run": true,
-                "defaults_applied": [
-                    {"pointer": "/language", "value": "en", "reason": "The project language applies."}
-                ],
-            })
+            text(&meta),
+            format!(
+                concat!(
+                    r#"{{"engine_version":"0.1.0","envelope_version":1,"command_version":3,"#,
+                    r#""input_hash":"{}","dry_run":true,"defaults_applied":["#,
+                    r#"{{"pointer":"/language","value":"en","reason":"project_language","#,
+                    r#""message":"The language of the project applies."}},"#,
+                    r#"{{"pointer":"/policy","value":{{}},"reason":"default_policy"}}]}}"#
+                ),
+                hash().as_str()
+            )
         );
     }
 
     #[test]
+    fn a_default_reason_is_an_identifier_and_its_message_is_optional() {
+        let applied = DefaultApplied::new(at("/a"), 1, PROJECT_LANGUAGE);
+        assert_eq!(applied.pointer(), &at("/a"));
+        assert_eq!(applied.value(), &json!(1));
+        assert_eq!(applied.reason(), PROJECT_LANGUAGE);
+        assert_eq!(applied.reason().id(), "project_language");
+        assert_eq!(PROJECT_LANGUAGE.to_string(), "project_language");
+        assert_eq!(applied.message(), None);
+        let applied = applied.with_message("Why.");
+        assert_eq!(applied.message(), Some("Why."));
+    }
+
+    #[test]
+    fn not_done_reasons_are_documented_snake_case_identifiers() {
+        let ids: Vec<&str> = NotDoneReason::ALL.iter().map(|r| r.id()).collect();
+        assert_eq!(ids, ["not_built", "input_absent"]);
+        for reason in NotDoneReason::ALL {
+            assert_eq!(text(&reason), format!("\"{}\"", reason.id()));
+            assert_eq!(reason.to_string(), reason.id());
+        }
+    }
+
+    #[test]
     fn diagnostics_write_every_list_even_when_empty() {
-        let value = serde_json::to_value(Diagnostics::default()).unwrap();
-        assert_eq!(value, json!({"warnings": [], "not_done": [], "checks": []}));
-        let warning = Error::new(INVALID_INPUT, "Old ADR.", at("/related/0"), Reason::State);
-        let diagnostics = Diagnostics::new(
-            vec![warning.clone()],
-            vec!["links".into()],
-            vec!["schema".into()],
-        );
-        assert_eq!(diagnostics.warnings(), core::slice::from_ref(&warning));
-        assert_eq!(diagnostics.not_done(), ["links"]);
-        assert_eq!(diagnostics.checks(), ["schema"]);
         assert_eq!(
-            serde_json::to_value(&diagnostics).unwrap(),
-            json!({
-                "warnings": [serde_json::to_value(&warning).unwrap()],
-                "not_done": ["links"],
-                "checks": ["schema"],
-            })
+            text(&Diagnostics::default()),
+            r#"{"warnings":[],"not_done":[],"checks":[]}"#
+        );
+        let warning = Error::new(INVALID_INPUT, "Old ADR.", at("/related/0"), Reason::State);
+        let skipped = NotDone::new(LINKS, NotDoneReason::InputAbsent);
+        let diagnostics = Diagnostics::new(vec![warning.clone()], vec![skipped], vec![SCHEMA]);
+        assert_eq!(diagnostics.warnings(), core::slice::from_ref(&warning));
+        assert_eq!(diagnostics.not_done(), [skipped]);
+        assert_eq!(skipped.check(), LINKS);
+        assert_eq!(skipped.reason(), NotDoneReason::InputAbsent);
+        assert_eq!(diagnostics.checks(), [SCHEMA]);
+        assert_eq!(SCHEMA.id(), "schema");
+        assert_eq!(SCHEMA.to_string(), "schema");
+        assert_eq!(
+            text(&diagnostics),
+            format!(
+                r#"{{"warnings":[{}],"not_done":[{{"check":"links","reason":"input_absent"}}],"checks":["schema"]}}"#,
+                text(&warning)
+            )
         );
     }
 
     #[test]
     fn the_accessors_return_what_was_given() {
-        let applied = DefaultApplied::new(at("/a"), 1, "Default.");
-        assert_eq!(applied.pointer(), &at("/a"));
-        assert_eq!(applied.value(), &json!(1));
-        assert_eq!(applied.reason(), "Default.");
         let meta = meta();
         assert_eq!(meta.engine_version(), "0.0.0");
         assert_eq!(meta.command_version().get(), 2);
         assert_eq!(meta.input_hash(), &hash());
         assert!(!meta.dry_run());
         assert!(meta.defaults_applied().is_empty());
-        let envelope = envelope(Outcome::Refused(report()));
+        let envelope = envelope(Outcome::Refused(refusal()));
         assert_eq!(envelope.command(), "validate");
-        assert_eq!(envelope.outcome(), &Outcome::Refused(report()));
+        assert_eq!(envelope.outcome(), &Outcome::Refused(refusal()));
         assert_eq!(envelope.diagnostics(), &Diagnostics::default());
         assert_eq!(envelope.meta(), &meta);
     }

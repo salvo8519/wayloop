@@ -15,8 +15,9 @@ use core::num::NonZeroU64;
 use serde::{Serialize, Serializer};
 use serde_json::Value;
 
-/// Why the engine refused an input: the documented enum of ADR 0009 C3. It serialises as
-/// [`Reason::id`].
+/// Why the engine refused an input, or [`Reason::Internal`] when it failed to compute the
+/// result: the documented enum of ADR 0009 C3 and its amendment of 2026-11-20. It serialises as
+/// [`Reason::id`]; clients accept values they do not know (C5).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Reason {
@@ -44,11 +45,14 @@ pub enum Reason {
     State,
     /// The expected revision is older than the state (ADR 0009 C6).
     Stale,
+    /// The engine could not compute the result: the input may be valid (ADR 0009 C3, amended
+    /// on 2026-11-20). The command exits with code 5, not 1 (C7).
+    Internal,
 }
 
 impl Reason {
-    /// All reasons, in the order of ADR 0009 C3.
-    pub const ALL: [Reason; 12] = [
+    /// All reasons, in the order of ADR 0009 C3 and its amendments.
+    pub const ALL: [Reason; 13] = [
         Reason::Syntax,
         Reason::Missing,
         Reason::UnknownField,
@@ -61,6 +65,7 @@ impl Reason {
         Reason::Length,
         Reason::State,
         Reason::Stale,
+        Reason::Internal,
     ];
 
     /// Stable identifier, as it appears in the `reason` field of a refusal.
@@ -79,6 +84,7 @@ impl Reason {
             Reason::Length => "length",
             Reason::State => "state",
             Reason::Stale => "stale",
+            Reason::Internal => "internal",
         }
     }
 }
@@ -428,12 +434,13 @@ mod tests {
             Reason::Length => 9,
             Reason::State => 10,
             Reason::Stale => 11,
+            Reason::Internal => 12,
         }
     }
 
     #[test]
     fn all_lists_every_reason_once_in_order() {
-        const COUNT: usize = 12;
+        const COUNT: usize = 13;
         assert_eq!(Reason::ALL.len(), COUNT);
         for (i, reason) in Reason::ALL.into_iter().enumerate() {
             assert_eq!(position(reason), i);
@@ -458,6 +465,7 @@ mod tests {
                 "length",
                 "state",
                 "stale",
+                "internal",
             ]
         );
     }

@@ -25,6 +25,7 @@ mod envelope;
 mod error;
 
 pub use envelope::{
-    DefaultApplied, Diagnostics, ENVELOPE_VERSION, Envelope, ExitCode, InputHash, Meta, Outcome,
+    Check, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope, ExitCode,
+    InputHash, Meta, NotDone, NotDoneReason, Outcome,
 };
 pub use error::{Code, Error, ErrorReport, Pointer, Reason, Source};

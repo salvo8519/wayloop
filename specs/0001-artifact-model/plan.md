@@ -59,6 +59,10 @@ never silently skipped. The command line translates `wayloop validate [<path>...
 or the given files as one set) and `wayloop validate --input <file|->` (canonical input as
 JSON, used by the contract runner of #221) into this input.
 
+Whoever parses JSON text into this input refuses duplicate keys before building the value, with
+the reason `duplicate` of ADR 0009 C3 (T5, decided by the maintainer on 2026-11-20): `serde_json` keeps the last of two equal keys, and the canonical JSON
+of RFC 8785 refuses them, so a duplicate would otherwise be dropped silently.
+
 Tracker items (gates, milestones, epics, stories, tasks once their issue exists) reach the same
 input as `document` entries with an `{issue}` or `{milestone}` origin when the tracker adapter
 of SPEC-0005 exists. Until then `wayloop validate` reads repository files only, and a link to
@@ -119,6 +123,12 @@ declared key (Damerau-Levenshtein distance at most a third of the key length, ti
 order), `type` to `type`, `enum` and `const` to `enum` with `expected`, length keywords to
 `length`, numeric bounds to `range`, `format` to `syntax`. Errors on `/id` are left to the
 identifier stage, so that each fault gets one error with its own code (`identifier_format`).
+
+Numbers (decided by the maintainer on 2026-11-20, for T4 and T5): a schema integer is bounded to
+±(2^53 − 1), the range a double holds exactly, and a value beyond it is refused with the reason
+`range`. Numbers are compared by value, never by their text: an integer is a finite number with
+no fractional part, so `4364.0` is the integer `4364`, as JSON Schema and the canonical JSON of
+RFC 8785 both read it. The same input therefore has one verdict and one `input_hash`.
 
 The schema files are embedded in `wayloop-schemas` with `include_str!` at build time. A test
 checks that every file under `schemas/artifacts/` and `schemas/inputs/` is embedded and that
