@@ -14,10 +14,10 @@
 //! | Keyword | Meaning | Reason of the error |
 //! | --- | --- | --- |
 //! | `type` | One of `null`, `boolean`, `integer`, `string`, `array`, `object`; an integer is a number without a fraction, so `2.0` is one | `type`; the other keywords of the value are not checked |
-//! | `enum`, `const` | Accepted values: strings, integers, booleans or `null`; numbers compare by value | `enum`, with the accepted values in `expected` |
+//! | `enum`, `const` | Accepted values: strings, integers, booleans or `null`; numbers compare by value, so `4364.0` equals `4364` | `enum`, with the accepted values in `expected` |
 //! | `minLength`, `maxLength` | Bounds of a string, in Unicode code points | `length` |
 //! | `minItems`, `maxItems` | Bounds of an array | `length` |
-//! | `minimum`, `maximum` | Inclusive integer bounds; the schema must also say `type: integer` | `range` |
+//! | `minimum`, `maximum` | Inclusive integer bounds, compared by value; the schema must also say `type: integer` | `range` |
 //! | `format` | One of the named formats below, checked on strings | `syntax`, with a corrected value in `fix` when one can be derived |
 //! | `items` | Schema of every element of an array | |
 //! | `properties` | Schema of each declared member; it requires `additionalProperties: false` | |
@@ -29,6 +29,13 @@
 //! | `$defs` | Definitions, at the root only; a definition is not itself a `$ref` | |
 //! | `$schema` | At the root only, and only `https://json-schema.org/draft/2020-12/schema` | |
 //! | `$id`, `$comment`, `title`, `description` | Annotations, never checked; `$id` at the root only | |
+//!
+//! Every integer the interpreter checks, whatever its schema, lies within plus or minus
+//! (2^53 - 1), the largest integers every JSON parser holds exactly (decision of the
+//! maintainer, 2026-11-20): a value beyond is refused with `range`, by that one error, right
+//! after `type`. Integers written in a schema (`enum`, `const`, `minimum`, `maximum`) are held
+//! to the same bound when it is loaded. A number in a part of the document that no schema
+//! describes, such as a member of an object without `properties`, is not checked.
 //!
 //! The condition of `if` uses `properties`, `required`, `enum`, `const` and `contains` (an
 //! array with at least one element matching a condition), and annotations; `then` holds
@@ -73,15 +80,17 @@ use serde_json::Value;
 
 use crate::{Code, Error, Pointer};
 
+mod check;
 mod closest;
 mod format;
+mod load;
 
 #[cfg(test)]
 mod tests;
 
 /// Deepest nesting of subschemas a schema may have, counted through `$ref`: the root is at
-/// depth 0 and each `properties` member, `items`, `allOf` entry, `if`, `then`, `contains` and
-/// reference target adds one level.
+/// depth 0 and each `properties` member, `items`, `if`, `contains` and reference target adds
+/// one level (an entry of `allOf` and a `then` add none).
 pub const MAX_DEPTH: usize = 32;
 
 /// Why a schema was refused when loaded. A refused schema is a defect of the engine, not of
@@ -104,7 +113,8 @@ pub enum LoadError {
     },
     /// Subschemas nested deeper than [`MAX_DEPTH`].
     TooDeep {
-        /// Pointer into the schema to the first subschema beyond the bound.
+        /// Pointer into the schema to a subschema reached beyond the bound, or whose expansion
+        /// goes beyond it.
         pointer: Pointer,
     },
     /// A reference that reaches its own definition.
@@ -114,10 +124,37 @@ pub enum LoadError {
     },
 }
 
+/// The place of `pointer` in the schema, for a person.
+fn place(pointer: &Pointer) -> String {
+    if pointer.as_str().is_empty() {
+        "the root of the schema".to_owned()
+    } else {
+        pointer.to_string()
+    }
+}
+
 impl fmt::Display for LoadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let _ = f;
-        Ok(())
+        match self {
+            LoadError::Unsupported { pointer, keyword } => write!(
+                f,
+                "the keyword `{keyword}` at {} is outside the subset of the interpreter",
+                place(pointer)
+            ),
+            LoadError::Invalid { pointer, problem } => {
+                write!(f, "at {}: {problem}", place(pointer))
+            }
+            LoadError::TooDeep { pointer } => write!(
+                f,
+                "at {}: the schema is nested deeper than {MAX_DEPTH} levels",
+                place(pointer)
+            ),
+            LoadError::Recursive { pointer } => write!(
+                f,
+                "at {}: the definition reaches itself through a reference",
+                place(pointer)
+            ),
+        }
     }
 }
 
@@ -125,7 +162,9 @@ impl std::error::Error for LoadError {}
 
 /// A loaded schema of the subset, ready to validate documents.
 #[derive(Debug, Clone)]
-pub struct Schema {}
+pub struct Schema {
+    compiled: load::Compiled,
+}
 
 impl Schema {
     /// Loads `schema`, refusing any keyword outside the subset of this module.
@@ -134,15 +173,19 @@ impl Schema {
     ///
     /// A [`LoadError`] naming the first place of `schema` outside the subset.
     pub fn load(schema: &Value) -> Result<Self, LoadError> {
-        let _ = schema;
-        Ok(Self {})
+        load::load(schema).map(|compiled| Self { compiled })
     }
 
     /// Every error of `document` against this schema, in document order, each with the
     /// given `code`; empty when the document is valid.
     #[must_use]
     pub fn validate(&self, document: &Value, code: Code) -> Vec<Error> {
-        let _ = (document, code);
-        Vec::new()
+        let mut checker = check::Checker {
+            schema: &self.compiled,
+            code,
+            errors: Vec::new(),
+        };
+        checker.check(self.compiled.root, document, &Pointer::root());
+        checker.errors
     }
 }

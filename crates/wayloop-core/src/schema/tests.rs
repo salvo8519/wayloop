@@ -125,13 +125,32 @@ fn oracle(schema: &Value) -> jsonschema::Validator {
 fn check(schema: &Value, document: &Value) -> Vec<Error> {
     let loaded = Schema::load(schema).unwrap();
     let errors = loaded.validate(document, CODE);
+    // The oracle knows no bound on integers: the decision of the maintainer of 2026-11-20 is
+    // added to its verdict, checked on every number of the document.
     assert_eq!(
-        oracle(schema).is_valid(document),
+        oracle(schema).is_valid(document) && !beyond_safe(document),
         errors.is_empty(),
         "the oracle disagrees on {document} against {schema}: {errors:?}"
     );
     assert_eq!(loaded.validate(document, CODE), errors, "not deterministic");
     errors
+}
+
+/// Whether `value` holds an integer beyond plus or minus (2^53 - 1), checked with the
+/// arithmetic of floats, independently of the interpreter.
+fn beyond_safe(value: &Value) -> bool {
+    match value {
+        Value::Number(n) => {
+            let f = n.as_f64().unwrap();
+            f.fract() == 0.0 && f.abs() > 9_007_199_254_740_991.0
+                || n.as_i64()
+                    .is_some_and(|i| i.unsigned_abs() > 9_007_199_254_740_991)
+                || n.as_u64().is_some_and(|u| u > 9_007_199_254_740_991)
+        }
+        Value::Array(items) => items.iter().any(beyond_safe),
+        Value::Object(members) => members.values().any(beyond_safe),
+        _ => false,
+    }
 }
 
 fn at(pointer: &str) -> Pointer {
@@ -364,7 +383,78 @@ fn an_integer_is_any_number_without_a_fraction() {
         found(&check(&low, &json!(-1e300))),
         [(String::new(), Reason::Range)]
     );
-    assert_eq!(check(&low, &json!(i64::MAX)), []);
+    assert_eq!(
+        found(&check(&low, &json!(i64::MAX))),
+        [(String::new(), Reason::Range)]
+    );
+}
+
+/// 2^53 - 1, the largest integer every JSON parser holds exactly.
+const SAFE: i64 = 9_007_199_254_740_991;
+
+#[test]
+fn integers_are_bounded_to_the_safe_range_whatever_the_schema_says() {
+    // Decision of the maintainer, 2026-11-20: an integer beyond plus or minus (2^53 - 1) is
+    // refused with the reason range, by one error, before any other keyword of the value.
+    let integer = json!({"type": "integer"});
+    for valid in [json!(SAFE), json!(-SAFE), json!(4364.0), json!(0)] {
+        assert_eq!(check(&integer, &valid), [], "{valid}");
+    }
+    for beyond in [
+        json!(SAFE + 1),
+        json!(-SAFE - 1),
+        json!(9_007_199_254_740_992.0),
+        json!(u64::MAX),
+        json!(1e300),
+    ] {
+        let errors = check(&integer, &beyond);
+        assert_eq!(found(&errors), [(String::new(), Reason::Range)], "{beyond}");
+    }
+    let bounded = json!({"type": "integer", "minimum": 0, "maximum": 3});
+    assert_eq!(
+        found(&check(&bounded, &json!(SAFE + 1))),
+        [(String::new(), Reason::Range)]
+    );
+    let listed = json!({"enum": [1, 2]});
+    assert_eq!(
+        found(&check(&listed, &json!(-SAFE - 1))),
+        [(String::new(), Reason::Range)]
+    );
+    let untyped = json!({"type": "array", "items": {}});
+    assert_eq!(
+        found(&check(&untyped, &json!([1, SAFE + 1]))),
+        [("/1".to_owned(), Reason::Range)]
+    );
+}
+
+#[test]
+fn numbers_compare_by_value() {
+    let schema = json!({"type": "integer", "minimum": 4364, "maximum": 4364});
+    assert_eq!(check(&schema, &json!(4364.0)), []);
+    assert_eq!(
+        found(&check(&schema, &json!(4363.0))),
+        [(String::new(), Reason::Range)]
+    );
+    assert_eq!(
+        found(&check(&schema, &json!(4365))),
+        [(String::new(), Reason::Range)]
+    );
+    assert_eq!(check(&json!({"const": 4364}), &json!(4364.0)), []);
+}
+
+#[test]
+fn integers_of_a_schema_are_within_the_safe_range() {
+    let beyond = SAFE + 1;
+    let cases = [
+        (json!({"type": "integer", "maximum": beyond}), "/maximum"),
+        (json!({"type": "integer", "minimum": -beyond}), "/minimum"),
+        (json!({"enum": [1, beyond]}), "/enum/1"),
+        (json!({"const": -beyond}), "/const"),
+    ];
+    for (schema, pointer) in cases {
+        assert_eq!(invalid(&schema), at(pointer), "{schema}");
+    }
+    assert!(Schema::load(&json!({"type": "integer", "minimum": -SAFE, "maximum": SAFE})).is_ok());
 }
 
 #[test]
@@ -513,8 +603,16 @@ fn every_named_format_is_known_to_the_interpreter_and_to_the_oracle() {
 const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 18] = [
     (
         "date",
-        &["2026-11-20", "2024-02-29", "2000-02-29"],
         &[
+            "2026-11-20",
+            "2024-02-29",
+            "2000-02-29",
+            "2026-01-31",
+            "2026-12-31",
+            "2025-02-28",
+        ],
+        &[
+            "2026-04-31",
             "2026-11-20T00:00:00Z",
             "2025-02-29",
             "1900-02-29",
@@ -531,6 +629,7 @@ const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 18] = [
             "2026-11-20T08:30:00+01:00",
             "2026-11-20t08:30:00z",
             "2026-11-20T24:00:00Z",
+            "2026-11-20T08:60:00Z",
             "2026-11-20T08:30:60Z",
             "2026-11-20T08:30Z",
             "2026-11-20T08:30:00.Z",
@@ -562,6 +661,9 @@ const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 18] = [
             "en-GB-x",
             "en-abcdefghi",
             "i-klingon",
+            "en-1a",
+            "en-abc",
+            "en-ab.de",
         ],
     ),
     (
@@ -958,6 +1060,12 @@ fn malformed_values_of_keywords_are_refused_with_their_place() {
             json!({"$ref": "other.json#/$defs/a", "$defs": {"a": {}}}),
             "/$ref",
         ),
+        // Escaped and empty names are refused, never matched as written: `a~1b` means `a/b`.
+        (
+            json!({"$ref": "#/$defs/a~1b", "$defs": {"a~1b": {}}}),
+            "/$ref",
+        ),
+        (json!({"$ref": "#/$defs/", "$defs": {"": {}}}), "/$ref"),
         (
             json!({"$ref": "#/$defs/a", "type": "string", "$defs": {"a": {}}}),
             "",
@@ -1143,4 +1251,154 @@ proptest! {
             prop_assert!(errors.is_empty());
         }
     }
+}
+
+// Messages, boundaries and the places of load errors ------------------------------------------
+
+#[test]
+fn messages_name_the_types_and_the_values_for_a_person() {
+    let cases = [
+        (
+            "string",
+            json!(1.5),
+            "Expected string, found a number with a fraction.",
+        ),
+        ("integer", json!("x"), "Expected integer, found a string."),
+        ("null", json!(3), "Expected null, found an integer."),
+        ("boolean", json!([]), "Expected boolean, found an array."),
+        ("array", json!({}), "Expected array, found an object."),
+        ("object", json!(true), "Expected object, found a boolean."),
+        ("string", Value::Null, "Expected string, found null."),
+    ];
+    for (name, value, message) in cases {
+        let errors = check(&json!({"type": name}), &value);
+        assert_eq!(only(&errors).message(), message);
+    }
+    let errors = check(&json!({"enum": ["a", "b"]}), &json!("c"));
+    assert_eq!(
+        only(&errors).message(),
+        "The value must be one of \"a\", \"b\"."
+    );
+    let errors = check(&json!({"const": "a"}), &json!("c"));
+    assert_eq!(only(&errors).message(), "The value must be \"a\".");
+}
+
+#[test]
+fn bounds_are_inclusive() {
+    let text = json!({"type": "string", "minLength": 2, "maxLength": 2});
+    assert_eq!(check(&text, &json!("ab")), []);
+    let list = json!({"type": "array", "minItems": 2, "maxItems": 2});
+    assert_eq!(check(&list, &json!([1, 2])), []);
+    assert_eq!(
+        found(&check(&list, &json!([1]))),
+        [(String::new(), Reason::Length)]
+    );
+}
+
+#[test]
+fn load_errors_point_to_the_place_of_the_fault() {
+    let mut beyond = String::new();
+    for _ in 0..=MAX_DEPTH {
+        beyond.push_str("/items");
+    }
+    assert_eq!(
+        refused(&nested(MAX_DEPTH + 1)),
+        LoadError::TooDeep {
+            pointer: at(&beyond)
+        }
+    );
+    let recursive = json!({
+        "$defs": {"node": {"type": "array", "items": {"$ref": "#/$defs/node"}}},
+        "$ref": "#/$defs/node"
+    });
+    assert_eq!(
+        refused(&recursive),
+        LoadError::Recursive {
+            pointer: at("/$defs/node")
+        }
+    );
+}
+
+/// A condition `levels` levels of `properties` deep, testing the member `a` at each.
+fn nested_condition(levels: usize) -> Value {
+    let mut condition = json!({"const": 1});
+    for _ in 0..levels {
+        condition = json!({"properties": {"a": condition}});
+    }
+    condition
+}
+
+/// An object with the member `a`, required when the condition of `levels` levels holds.
+fn conditional(levels: usize) -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {"a": {}},
+        "if": {"properties": {"a": nested_condition(levels)}},
+        "then": {"required": ["a"]}
+    })
+}
+
+#[test]
+fn the_depth_of_a_condition_counts_toward_the_bound() {
+    // `if` is at depth 1, its member `a` at 2, the innermost condition at 2 + levels.
+    let deepest = MAX_DEPTH - 2;
+    assert!(Schema::load(&conditional(deepest)).is_ok());
+    assert!(matches!(
+        refused(&conditional(deepest + 1)),
+        LoadError::TooDeep { .. }
+    ));
+    // Through a reference, one more level: the definition at 1, `if` at 2, `a` at 3.
+    let by_ref = |levels: usize| json!({"$defs": {"c": conditional(levels)}, "$ref": "#/$defs/c"});
+    assert!(Schema::load(&by_ref(deepest - 1)).is_ok());
+    assert!(matches!(
+        refused(&by_ref(deepest)),
+        LoadError::TooDeep { .. }
+    ));
+}
+
+/// Definitions `d0` (a string) to `dn`, each an array of the one before.
+fn chain(n: usize) -> serde_json::Map<String, Value> {
+    let mut defs = serde_json::Map::new();
+    defs.insert("d0".to_owned(), json!({"type": "string"}));
+    for i in 1..=n {
+        defs.insert(
+            format!("d{i}"),
+            json!({"type": "array", "items": {"$ref": format!("#/$defs/d{}", i - 1)}}),
+        );
+    }
+    defs
+}
+
+#[test]
+fn the_bound_holds_exactly_through_references() {
+    // An array of `d15`: `d15` at 2, `d0` at 2 + 2 * 15 = 32.
+    let at_bound = json!({"$defs": chain(15), "type": "array", "items": {"$ref": "#/$defs/d15"}});
+    assert!(Schema::load(&at_bound).is_ok());
+    // `d16` at 1, `d0` at 1 + 2 * 16 = 33.
+    let beyond = json!({"$defs": chain(16), "$ref": "#/$defs/d16"});
+    assert!(matches!(refused(&beyond), LoadError::TooDeep { .. }));
+}
+
+#[test]
+fn a_definition_measured_once_is_bounded_where_it_is_used_again() {
+    // `a` uses `d5` near the root; `z` uses it again under `levels` arrays: the reference at
+    // 1 + levels, `d5` at 2 + levels, `d0` at 12 + levels.
+    let schema = |levels: usize| {
+        let mut deep = json!({"$ref": "#/$defs/d5"});
+        for _ in 0..levels {
+            deep = json!({"type": "array", "items": deep});
+        }
+        json!({
+            "$defs": chain(5),
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {"a": {"$ref": "#/$defs/d5"}, "z": deep}
+        })
+    };
+    assert!(Schema::load(&schema(MAX_DEPTH - 12)).is_ok());
+    assert!(matches!(
+        refused(&schema(MAX_DEPTH - 11)),
+        LoadError::TooDeep { .. }
+    ));
 }

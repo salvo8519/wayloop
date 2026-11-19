@@ -9,7 +9,7 @@ write the state by hand. The rule is recorded in
 | Component | Path | What it does today |
 | --- | --- | --- |
 | Schemas | `crates/wayloop-schemas` | Rust library with no I/O, home of the contract types that mirror the JSON schemas: the error report ([below](#errors-are-values)) and the envelope with its exit codes ([below](#the-envelope)). |
-| Core | `crates/wayloop-core` | Rust library with no I/O. It fixes the vocabulary of the issue cycle: the nine steps in order, their stable identifiers, and which step is an approval state. It re-exports the error of every refusal and the envelope, and computes the hash of an input from its canonical JSON ([below](#the-envelope)). |
+| Core | `crates/wayloop-core` | Rust library with no I/O. It fixes the vocabulary of the issue cycle: the nine steps in order, their stable identifiers, and which step is an approval state. It re-exports the error of every refusal and the envelope, and computes the hash of an input from its canonical JSON ([below](#the-envelope)). It reads the JSON schemas of the contracts with its own interpreter ([below](#the-schema-interpreter)). |
 | Runtime | `crates/wayloop-runtime` | Rust library that runs the work the core decides ([below](#synchronous-core-asynchronous-runtime)). It holds no code yet. |
 | Command line | `crates/wayloop-cli` | The `wayloop` binary, an adapter only: it parses arguments, calls the core and prints JSON. Commands: `version` and `steps` ([reference](../reference/index.md)). |
 | Agent content | `.agents/` | Roles and skills in the open Agent Skills format, with generated mirrors for Claude Code. They are used to build Wayloop itself. |
@@ -182,3 +182,57 @@ lower-case hexadecimal, so the same input gives the same hash on every channel a
   on random inputs, against a hashing crate used in tests only (`sha2`, a development
   dependency, which is never shipped and is not on the allowlist of the core). The hash
   identifies content and protects no secret, so it makes no attempt at constant time.
+
+### The schema interpreter
+
+The schemas of the contracts are hand-written JSON Schema files (draft 2020-12). The core reads
+them with a small interpreter of a documented subset, `wayloop_core::schema`, so that every
+error of a document is reported in one pass with its pointer and its reason, and the core
+needs no validator crate (plan of SPEC-0001, D5). A schema that uses a keyword outside the
+subset, or a keyword out of its place, is refused when it is loaded: no rule of a schema is
+silently ignored.
+
+| Keyword | Meaning | Reason of the error |
+| --- | --- | --- |
+| `type` | `null`, `boolean`, `integer`, `string`, `array` or `object`; an integer is a finite number without a fraction, so `2.0` is one | `type`, and nothing else is checked on that value |
+| `enum`, `const` | Accepted values: strings, integers, booleans or `null`, compared by value | `enum`, with the accepted values in `expected` |
+| `minLength`, `maxLength` | Bounds of a string, in Unicode code points | `length` |
+| `minItems`, `maxItems` | Bounds of an array | `length` |
+| `minimum`, `maximum` | Inclusive integer bounds, beside `type: integer` | `range` |
+| `format` | A named format of the core, on strings | `syntax`, with a corrected value in `fix` when one can be derived |
+| `items` | Schema of every element of an array | |
+| `properties` with `additionalProperties: false` | Schema of each declared member; any other member is refused | `unknown_field`, with the closest declared key in `fix` |
+| `required` | Declared members that must be present | `missing` |
+| `if` and `then`, `allOf` | Conditional requirements: when the value matches the condition of `if`, the members of the `required` of `then` must be present; `allOf` lists such pairs | `requires`, with the members the condition tested in `pointers` |
+| `$ref`, `$defs` | A reference to a definition of the same file | |
+| `$schema`, `$id`, `$comment`, `title`, `description` | Annotations, at the root for `$schema` and `$id` | |
+
+The condition of an `if` uses `properties`, `required`, `enum`, `const` and `contains`. There is
+no `pattern`: the core holds no regular expression engine, and a named format gives a precise
+`fix`. The named formats are `date`, `utc-date-time` (with the suffix `Z`), `language-tag`
+(language, script, region and variants of BCP 47), `tracker-handle`, the identifiers of each
+artifact type (`brief-id`, `council-id`, `gate-id`, `epic-id`, `story-id`, `spec-id`,
+`change-id`, `task-id`, `milestone-id`, `handover-id`) and the identifiers of parts
+(`requirement-id`, `criterion-id`, `decision-id`, `question-id`), with the canonical forms of
+SPEC-0001. The documentation of the module lists each form and each fix.
+
+- **Order of the errors.** Errors come in document order: the errors of a value before the
+  errors inside it, the members of an object in the byte order of their keys, the elements of
+  an array by index, and the absent members of an object after its present ones. A member
+  missing under both `required` and a `then` is reported once, as `missing`.
+- **Closest key.** The fix of an unknown key is a declared key not already present, at an
+  optimal string alignment distance (the restricted Damerau-Levenshtein distance) of at most a
+  third of the length of the unknown key; ties go to the first key in byte order. A key longer
+  than 64 characters gets no fix.
+- **Integers.** Every integer the interpreter checks lies within plus or minus (2^53 - 1), the
+  largest integers that every JSON parser holds exactly; a value beyond is refused with the
+  reason `range`, whatever its schema says. Integers in a schema are held to the same bound.
+  Numbers are compared by value, so `4364.0` equals `4364`. A number in a part of a document
+  that no schema describes is not checked.
+- **Bounds.** A schema is at most 32 levels of subschemas deep, counted through references, and
+  a reference that reaches its own definition is refused. The interpreter descends into a
+  document only where its schema does, so its recursion is bounded whatever the document.
+- **Oracle.** The tests check every schema and document they use with a JSON Schema validator
+  crate, a development dependency that is never shipped; it must agree with the interpreter on
+  the verdict. The named formats are checked in the oracle by regular expressions written from
+  SPEC-0001, independently of the parsers of the core.
