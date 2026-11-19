@@ -10,8 +10,13 @@ name: Roadmap sync
 on:
   issues:
     # Not opened or edited: anyone can open an issue on a public repository, and unplanned
-    # issues without a milestone are reported as a warning by the daily run.
-    types: [closed, reopened, milestoned, demilestoned]
+    # issues without a milestone are reported as a warning by the daily run. Not milestoned or
+    # demilestoned either: `roadmap.py new` fires one per created issue, and a batch of them
+    # cancelled one run after another; the daily run covers a milestone changed by hand.
+    types: [closed, reopened]
+  push:
+    branches: [main]
+    paths: [roadmap/roadmap.yaml]
   schedule:
     - cron: "41 4 * * *"   # daily 04:41 UTC
   workflow_dispatch:
