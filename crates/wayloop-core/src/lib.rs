@@ -30,6 +30,7 @@
 
 pub mod canonical;
 pub mod envelope;
+pub mod schema;
 pub mod sha256;
 
 pub use wayloop_schemas::{
