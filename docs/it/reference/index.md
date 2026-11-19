@@ -42,6 +42,6 @@ Gli identificativi dei passi sono valori `snake_case` del contratto, come ogni v
 enumerato dei contratti JSON
 (l'[ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/), C4),
 e si scrivono allo stesso modo in ogni canale. Le altre grafie, come le etichette del tracker
-delle issue, sono prodotte dagli adapter a partire da questi valori. Aggiungere un passo è una
+delle issue, sono prodotte dagli adattatori a partire da questi valori. Aggiungere un passo è una
 modifica additiva; rinominare o rimuovere un passo è una modifica incompatibile del contratto.
 I passi sono descritti in [Il loop](../concepts/the-loop.md#il-ciclo-di-unissue).

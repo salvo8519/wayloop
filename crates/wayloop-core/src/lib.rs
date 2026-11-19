@@ -72,8 +72,8 @@ impl IssueStep {
     /// Identifier of the step in the contract: in the ledger, in hand-overs and in the JSON
     /// output of every channel. It is a `snake_case` value, as every enum value of the
     /// contract (ADR 0009 C4, SPEC-0001), and has one spelling everywhere. Other spellings,
-    /// such as the kebab-case labels of a tracker or of the command line, are produced by
-    /// the adapters from this value; the core never spells them.
+    /// such as the kebab-case labels of a tracker, are produced by the adapters from this
+    /// value; the core never spells them.
     #[must_use]
     pub const fn id(self) -> &'static str {
         match self {
@@ -136,6 +136,7 @@ mod tests {
             "Claim",
             "counter-review",
             "pull request",
+            "\u{e9}tape",
         ] {
             assert!(!is_snake_case(id), "{id}");
         }

@@ -84,3 +84,24 @@ def test_commit_message_layout_and_sign_off() -> None:
     assert any("second line must be blank" in p for p in conventions.check_commit_message(packed))
     unsigned = "feat(state): add guards\n\nBody.\n"
     assert any("Signed-off-by" in p for p in conventions.check_commit_message(unsigned))
+
+
+def test_breaking_title_needs_the_label_and_the_paragraph() -> None:
+    title = "fix(core)!: rename a step"
+    body = "Closes #42\n\nBREAKING CHANGE: the step is renamed."
+    ok = conventions.check_pull_request(title, "fix/42-step", body, ["breaking-change"], "a")
+    assert ok == []
+    unlabelled = conventions.check_pull_request(title, "fix/42-step", body, [], "a")
+    assert any("breaking-change" in p for p in unlabelled)
+    silent = conventions.check_pull_request(
+        title, "fix/42-step", "Closes #42", ["breaking-change"], "a"
+    )
+    assert any("BREAKING CHANGE:" in p for p in silent)
+
+
+def test_breaking_label_needs_the_marker_in_the_title() -> None:
+    body = "Closes #42\n\nBREAKING CHANGE: the step is renamed."
+    problems = conventions.check_pull_request(
+        "fix(core): rename a step", "fix/42-step", body, ["breaking-change"], "a"
+    )
+    assert any("!" in p for p in problems)
