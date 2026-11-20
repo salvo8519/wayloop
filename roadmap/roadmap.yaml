@@ -85,6 +85,7 @@ milestones:
           - { issue: 280, title: "Roadmap sync runs only when a real difference can appear", status: done }
           - { issue: 283, title: "Pull requests fail only on their own changes, not on a new toolchain", status: done }
           - { issue: 286, title: "Every dependency of every kind is checked against one licence allow-list", status: done }
+          - { issue: 289, title: "A documentation waiver covers only a branch whose every commit carries it", status: done }
       - title: "Artifact model"
         issue: 18
         labels: ["area:core"]

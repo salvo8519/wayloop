@@ -18,8 +18,8 @@ Three checks, used by `just`, pre-commit, CI and the Claude Code Stop hook:
 
 Only the standard library is used, so that hooks run without the project environment.
 Escape hatch for a change that genuinely needs no documentation: the pull request label
-`no-docs-needed`, or a commit trailer `Docs-impact: none` on the latest commit; the
-commit-msg hook reads the trailer from the message being written.
+`no-docs-needed`, or a commit trailer `Docs-impact: none` on every commit of the branch (with
+`--base`); the commit-msg hook reads the trailer from the message being written.
 """
 
 from __future__ import annotations
@@ -116,17 +116,31 @@ def waived_by_message(path: Path) -> bool:
     return False
 
 
+def waived_by_branch(base: str) -> bool:
+    """True when every commit of the branch since `base` carries `Docs-impact: none`.
+
+    The range is `base..HEAD` without merge commits: in pull-request CI, HEAD is the merge
+    commit GitHub creates, and commits of the base branch stay out. One commit without the
+    trailer is enough to check the whole diff, so a waiver on a test-only commit does not
+    hide a change of the engine made earlier on the branch.
+    """
+    commits = git("rev-list", "--no-merges", f"{base}..HEAD")
+    if not commits:
+        return False
+    for commit in commits:
+        trailer = git("log", "-1", "--format=%(trailers:key=Docs-impact,valueonly)", commit)
+        if not any(t.strip().lower() == "none" for t in trailer):
+            return False
+    return True
+
+
 def impact(args: argparse.Namespace) -> int:
     if args.message_file and waived_by_message(Path(args.message_file)):
         print("Docs impact waived by 'Docs-impact: none' trailer.")
         return 0
-    if not args.worktree and not args.staged:
-        # In pull-request CI, HEAD is the merge commit GitHub creates, which carries no
-        # trailers; the waiver belongs to the latest commit of the branch itself.
-        trailer = git("log", "-1", "--no-merges", "--format=%(trailers:key=Docs-impact,valueonly)")
-        if any(t.strip().lower() == "none" for t in trailer):
-            print("Docs impact waived by 'Docs-impact: none' trailer.")
-            return 0
+    if args.base and waived_by_branch(args.base):
+        print("Docs impact waived: every commit of the branch has 'Docs-impact: none'.")
+        return 0
     missing = missing_docs(changed_files(args))
     if not missing:
         print("Docs impact check passed.")

@@ -203,3 +203,35 @@ def test_trailer_must_be_in_the_last_paragraph(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert not ds.waived_by_message(message)
+
+
+def branch(monkeypatch: pytest.MonkeyPatch, trailers: dict[str, list[str]]) -> None:
+    """Stubs git: the branch has the commits of `trailers`, each with its trailer values."""
+
+    def fake_git(*args: str) -> list[str]:
+        if args[0] == "rev-list":
+            return list(trailers)
+        if args[0] == "log":
+            return trailers[args[-1]]
+        raise AssertionError(args)
+
+    monkeypatch.setattr(ds, "git", fake_git)
+
+
+def test_a_waiver_on_every_commit_waives_the_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    branch(monkeypatch, {"b2": ["none"], "a1": ["None"]})
+    assert ds.waived_by_branch("origin/main")
+
+
+def test_a_waiver_on_the_last_commit_only_does_not_waive_the_branch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The latest commit touches only tests and carries the waiver; an earlier one changed the
+    # engine without documentation: the whole diff is still checked.
+    branch(monkeypatch, {"b2": ["none"], "a1": []})
+    assert not ds.waived_by_branch("origin/main")
+
+
+def test_an_empty_branch_is_not_waived(monkeypatch: pytest.MonkeyPatch) -> None:
+    branch(monkeypatch, {})
+    assert not ds.waived_by_branch("origin/main")
