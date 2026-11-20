@@ -32,6 +32,8 @@ pub mod canonical;
 pub mod envelope;
 pub mod schema;
 pub mod sha256;
+#[cfg(test)]
+mod test_support;
 
 pub use wayloop_schemas::{
     Check, Code, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope, Error,
