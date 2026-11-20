@@ -1,0 +1,28 @@
+{
+  "description": "Without a version in the context, the current version of the command runs and is listed in meta.defaults_applied.",
+  "covers": [
+    "SPEC-0004 R14"
+  ],
+  "input": {
+    "documents": []
+  },
+  "expect": {
+    "exit_code": 0,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/meta/envelope_version": 2,
+      "/meta/dry_run": false,
+      "/meta/defaults_applied/0/pointer": "",
+      "/meta/defaults_applied/0/value": 1,
+      "/meta/defaults_applied/0/reason": "current_command_version",
+      "/meta/input_hash": "f332a4181af7c4a82f09927e71369910957b21632a21eb990216dbd59c728dd3"
+    },
+    "absent": [
+      "/error"
+    ],
+    "lengths": {
+      "/meta/defaults_applied": 1
+    }
+  }
+}

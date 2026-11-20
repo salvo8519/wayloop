@@ -1,0 +1,64 @@
+{
+  "description": "Optional members set to null, in the input and in a document, are not given: the result is that of brief-valid, input_hash included.",
+  "covers": [
+    "SPEC-0001 R1"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ],
+          "language": null,
+          "open_questions": null
+        },
+        "origin": null,
+        "lines": null
+      }
+    ],
+    "base": null,
+    "policy": null,
+    "adrs": null
+  },
+  "expect": {
+    "exit_code": 0,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/meta/envelope_version": 2,
+      "/meta/dry_run": false,
+      "/data/documents/0/id": "BRIEF-0001",
+      "/meta/input_hash": "86191aa4df760ca6c63a38ce221a000d8171c49c76dfbee6dcdd94d839bfe5b4"
+    },
+    "absent": [
+      "/error",
+      "/data/documents/0/origin"
+    ],
+    "lengths": {
+      "/data/documents": 1
+    }
+  }
+}

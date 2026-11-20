@@ -1,0 +1,30 @@
+{
+  "description": "A misspelt member of the input is refused with unknown_field and the member it was meant to be.",
+  "covers": [
+    "SPEC-0001 R1"
+  ],
+  "input": {
+    "documents": [],
+    "adr": [
+      1
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "command_input",
+      "/error/pointer": "/adr",
+      "/error/reason": "unknown_field",
+      "/error/fix": "adrs",
+      "/meta/input_hash": "427f87c396936e3e8e78f070fc0d044c41fcb936e8fcdc150b0b222a5c506964"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

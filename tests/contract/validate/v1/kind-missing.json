@@ -1,0 +1,34 @@
+{
+  "description": "A document without kind and without input_kind is refused with missing at /kind.",
+  "covers": [
+    "SPEC-0001 R1"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "id": "BRIEF-0001"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "artifact_schema",
+      "/error/pointer": "/kind",
+      "/error/reason": "missing",
+      "/meta/input_hash": "37377cdf480081fddea148abd4fa5e7a9fa7b02a25dccb92285c7389c16dd816"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

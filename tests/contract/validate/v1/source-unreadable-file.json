@@ -1,0 +1,42 @@
+{
+  "description": "A file that did not parse is refused with syntax at the whole document, with the line the parser reported.",
+  "covers": [
+    "SPEC-0001 R12"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "unreadable",
+        "origin": {
+          "file": "plan/briefs/BRIEF-0002.yaml"
+        },
+        "error": {
+          "line": 4,
+          "message": "found a duplicate key"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "artifact_schema",
+      "/error/pointer": "",
+      "/error/reason": "syntax",
+      "/error/source": {
+        "file": "plan/briefs/BRIEF-0002.yaml",
+        "line": 4
+      },
+      "/error/document": 0,
+      "/meta/input_hash": "a7e57f6f4cf821c7a3ddcd92101cdcdbdee13fc785b4be4775bda2f25a43b986"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

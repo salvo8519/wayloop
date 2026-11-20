@@ -1,0 +1,63 @@
+{
+  "description": "A brief in status implementing, which its type does not allow, is refused with enum and the statuses of a brief.",
+  "covers": [
+    "SPEC-0001 R5",
+    "SPEC-0001 AC8"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "implementing",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "artifact_schema",
+      "/error/pointer": "/status",
+      "/error/reason": "enum",
+      "/error/expected": [
+        "draft",
+        "approved",
+        "superseded"
+      ],
+      "/error/document": 0,
+      "/meta/input_hash": "39a8093021df4d830cdf2bb94b6592230f0630c8a2a0d7b5ca3db5a2031412c0"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

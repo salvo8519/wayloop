@@ -1,0 +1,92 @@
+{
+  "description": "A brief with the Italian key problema in place of problem, beside a valid brief: the unknown key with its fix, then the missing key; the valid brief gives no error.",
+  "covers": [
+    "SPEC-0001 R1",
+    "SPEC-0001 R6",
+    "SPEC-0001 AC1",
+    "SPEC-0001 AC9"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0003",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "draft",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problema": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries"
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "artifact_schema",
+      "/error/pointer": "/problema",
+      "/error/reason": "unknown_field",
+      "/error/fix": "problem",
+      "/error/errors/0/pointer": "/problema",
+      "/error/errors/0/reason": "unknown_field",
+      "/error/errors/0/fix": "problem",
+      "/error/document": 1,
+      "/error/errors/1/document": 1,
+      "/error/errors/1/code": "artifact_schema",
+      "/error/errors/1/pointer": "/problem",
+      "/error/errors/1/reason": "missing",
+      "/meta/input_hash": "179afa2980a86db3230f7d0c160174cae8e15e9a792624d8eb8a4d6e204efbdc"
+    },
+    "absent": [
+      "/data",
+      "/error/source",
+      "/error/errors/1/source"
+    ],
+    "lengths": {
+      "/error/errors": 2
+    }
+  }
+}

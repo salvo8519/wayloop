@@ -1,0 +1,57 @@
+{
+  "description": "A brief whose prose is in Italian and whose keys, enum values and status are in English is accepted.",
+  "covers": [
+    "SPEC-0001 R6",
+    "SPEC-0001 AC9"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "I liberi professionisti registrano il tempo dal terminale",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "I liberi professionisti perdono ore fatturabili perché registrare il tempo interrompe il lavoro.",
+          "goals": [
+            "Registrare una voce di tempo con una sola istruzione"
+          ],
+          "users": [
+            "Sviluppatori freelance"
+          ],
+          "scope_in": [
+            "Voci di tempo ed esportazione mensile"
+          ],
+          "scope_out": [
+            "Fatturazione"
+          ],
+          "constraints": [
+            "Funziona offline"
+          ],
+          "language": "it"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 0,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/meta/envelope_version": 2,
+      "/meta/dry_run": false,
+      "/data/documents/0/id": "BRIEF-0001",
+      "/meta/input_hash": "a07167757a1f57377bfb35e0f4434164521bf378159cabb712f61d9d1a83cb5e"
+    },
+    "absent": [
+      "/error"
+    ],
+    "lengths": {
+      "/data/documents": 1
+    }
+  }
+}

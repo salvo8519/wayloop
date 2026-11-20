@@ -1,0 +1,24 @@
+{
+  "description": "An input without documents is refused with missing.",
+  "covers": [
+    "SPEC-0001 R1"
+  ],
+  "input": {},
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "command_input",
+      "/error/pointer": "/documents",
+      "/error/reason": "missing",
+      "/meta/input_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

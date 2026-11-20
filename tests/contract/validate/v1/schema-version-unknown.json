@@ -1,0 +1,61 @@
+{
+  "description": "A brief written against an unknown version of its schema is refused at /schema_version with the known versions.",
+  "covers": [
+    "SPEC-0001 R16",
+    "SPEC-0001 AC25"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 99,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "schema_version_unknown",
+      "/error/pointer": "/schema_version",
+      "/error/reason": "enum",
+      "/error/expected": [
+        1
+      ],
+      "/error/document": 0,
+      "/meta/input_hash": "ea8360d12b9fd094149f7b9d1b99d5c0262c3ca9f98738b9474f9e6c137ef6b5"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

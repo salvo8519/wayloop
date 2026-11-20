@@ -1,0 +1,23 @@
+{
+  "description": "JSON text that repeats a key in one object is refused with duplicate at that key, instead of keeping one of the two values.",
+  "covers": [
+    "SPEC-0001 R1"
+  ],
+  "input_text": "{\"documents\": [], \"documents\": []}",
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "command_input",
+      "/error/pointer": "/documents",
+      "/error/reason": "duplicate"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}
