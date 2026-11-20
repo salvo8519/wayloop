@@ -647,6 +647,17 @@ mod tests {
         assert_eq!(meta.input_hash(), &hash());
         assert!(!meta.dry_run());
         assert_eq!(meta.defaults_applied(), []);
+        // Values other than the defaults, so that an accessor returning a constant fails.
+        let applied = DefaultApplied::new(at("/a"), 1, PROJECT_LANGUAGE);
+        let other = Meta::new(
+            "0.0.0",
+            NonZeroU32::MIN,
+            hash(),
+            true,
+            vec![applied.clone()],
+        );
+        assert!(other.dry_run());
+        assert_eq!(other.defaults_applied(), [applied]);
         let envelope = envelope(Outcome::Refused(refusal()));
         assert_eq!(envelope.command(), "validate");
         assert_eq!(envelope.outcome(), &Outcome::Refused(refusal()));
