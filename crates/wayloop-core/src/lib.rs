@@ -15,9 +15,8 @@
 //! The crate fixes the vocabulary of the issue cycle, and holds the parts of the envelope of
 //! ADR 0009 that the entry point needs: the canonical JSON of RFC 8785 ([`canonical`]), a
 //! hand-written SHA-256 ([`sha256`]) and the hash of the input with the meta of a result
-//! ([`envelope`]), with the embedded snapshot of the envelope schema. The envelope types
-//! themselves are contract types of `wayloop-schemas`, re-exported here; [`Envelope`] is generic
-//! over the data of a command.
+//! ([`envelope`]). The envelope types themselves are contract types of `wayloop-schemas`,
+//! re-exported here; [`Envelope`] is generic over the data of a command.
 
 // I/O is refused by the compiler: these lints read the clippy.toml of this crate, and forbid,
 // unlike deny, cannot be lifted by an inner allow. `scripts/check_core_io.py` keeps them here.

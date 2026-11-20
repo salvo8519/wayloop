@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 85edebc568a5
+source_hash: 12142720f728
 ---
 # Architettura
 
@@ -171,20 +171,22 @@ Ogni identificativo nell'envelope (un controllo, una reason, un codice di errore
 non conoscono (ADR 0009, C5).
 
 `Envelope::exit_code()` dà il codice di uscita dell'ADR 0009 C7: 0 per un risultato con `data`,
-1 per un input rifiutato, 5 per un errore interno del motore; è l'unico punto in cui un esito
-diventa un codice di uscita. Un errore interno è scritto in `error` come un rifiuto; i suoi
+1 per un input rifiutato, 5 per un errore interno del motore; restituisce
+`Outcome::exit_code()`, l'unico punto in cui un esito diventa un codice di uscita. Un errore interno è scritto in `error` come un rifiuto; i suoi
 errori hanno la reason `internal`, che distingue i due casi nel JSON. L'envelope non contiene nulla che dipenda dalla macchina o
 dal momento: nessun orario, nome host o percorso assoluto.
 
-Un envelope si rilegge attraverso gli stessi membri: un documento con sia `data` sia `error`, o
-con nessuno dei due, è rifiutato, e lo è anche un report i cui errori mescolano la reason
-`internal` con altre, caso che il contratto non definisce. Il suo schema richiede `error` quando
-`data` è assente; il sottoinsieme dell'interprete non ha negazione, quindi solo il tipo rifiuta
-la presenza di entrambi. Lo schema dell'envelope con dati qualsiasi, `Envelope<Value>`, è
-registrato come `schemas/envelope/v1.json`, con il suo `$id` all'URL di pubblicazione, e
-incorporato nel core come `wayloop_core::envelope::ENVELOPE_SNAPSHOT`; un test del core verifica
-che il file sia uguale allo schema generato dal tipo e che l'interprete lo carichi. Lo schema di
-output di un comando è l'envelope con il tipo dei dati di quel comando.
+Un esito si costruisce solo con costruttori che rifiutano, restituendo `None`, ciò che il
+contratto non definisce: `Outcome::success` rifiuta dati scritti come null (null significa non
+fornito, ADR 0009 C2) o senza forma JSON, `Outcome::refused` un report con un errore di reason
+`internal`, e `Outcome::failed` un report con un errore di qualsiasi altra reason. Ogni envelope
+che il motore può costruire è quindi uno che il suo lettore accetta. Il lettore rifiuta gli
+stessi casi, e un documento con sia `data` sia `error`, o con nessuno dei due. Lo schema
+richiede `error` quando `data` è assente; il sottoinsieme dell'interprete non ha negazione,
+quindi solo il tipo rifiuta la presenza di entrambi. Lo schema dell'envelope con dati qualsiasi
+è quello di `Envelope<Value>`; lo schema di output di un comando è l'envelope con il tipo dei
+dati di quel comando. I test del core lo caricano, nel testo scritto da `contract::snapshot`,
+con l'interprete e con l'oracolo.
 
 `meta.input_hash` è lo SHA-256 dell'input serializzato come JSON canonico (RFC 8785), in
 esadecimale minuscolo, così lo stesso input dà lo stesso hash su ogni canale e piattaforma:

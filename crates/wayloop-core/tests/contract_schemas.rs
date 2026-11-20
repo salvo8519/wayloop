@@ -21,7 +21,9 @@ use wayloop_core::{
     Check, Code, DefaultApplied, DefaultReason, Diagnostics, Envelope, Error, ErrorReport,
     InputHash, Meta, NotDone, NotDoneReason, Outcome, Pointer, Reason, Source,
 };
-use wayloop_schemas::contract::{ContractError, Direction, Registered, TYPES, reread, schema_for};
+use wayloop_schemas::contract::{
+    ContractError, Direction, Registered, TYPES, reread, schema_for, snapshot,
+};
 
 const DIRECTIONS: [Direction; 2] = [Direction::Input, Direction::Output];
 
@@ -213,25 +215,68 @@ fn every_outcome_of_the_envelope_is_accepted_and_reads_back() {
         Reason::Internal,
     );
     for outcome in [
-        Outcome::Success(json!({"documents": [{"kind": "brief"}]})),
-        Outcome::Success(json!([])),
-        Outcome::Refused(ErrorReport::from_errors([minimal_error(), full_error()]).unwrap()),
-        Outcome::Failed(ErrorReport::from_errors([failure]).unwrap()),
+        Outcome::success(json!({"documents": [{"kind": "brief"}]})),
+        Outcome::success(json!([])),
+        Outcome::refused(ErrorReport::from_errors([minimal_error(), full_error()]).unwrap()),
+        Outcome::failed(ErrorReport::from_errors([failure]).unwrap()),
     ] {
         accept!(
             "Envelope",
-            Envelope::new("validate", outcome, diagnostics.clone(), meta.clone())
+            Envelope::new(
+                "validate",
+                outcome.unwrap(),
+                diagnostics.clone(),
+                meta.clone()
+            )
         );
     }
     accept!(
         "Envelope",
         Envelope::new(
             "validate",
-            Outcome::Success(json!(1)),
+            Outcome::success(json!(1)).unwrap(),
             Diagnostics::default(),
             meta
         )
     );
+}
+
+/// The serialised envelope of a success with empty data, diagnostics and defaults.
+fn empty_success() -> Value {
+    serde_json::to_value(Envelope::new(
+        "validate",
+        Outcome::success(json!({})).unwrap(),
+        Diagnostics::default(),
+        Meta::new(
+            "0.0.0",
+            NonZeroU32::MIN,
+            InputHash::from_digest(&[0; 32]),
+            false,
+            vec![],
+        ),
+    ))
+    .unwrap()
+}
+
+#[test]
+fn the_text_of_the_envelope_snapshot_loads_in_the_core_and_the_oracle() {
+    // ADR 0030 G3, G6: the snapshot written with `contract::snapshot`, generated in memory, is a
+    // schema the interpreter loads and a valid draft 2020-12 schema. Writing it under
+    // `schemas/` and embedding it belong to the registry of #294.
+    let schema = contract_schema(named("Envelope"), Direction::Output).unwrap();
+    let text = snapshot(schema.clone(), "envelope/v1.json").unwrap();
+    let read: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(
+        read["$id"],
+        "https://salvo8519.github.io/wayloop/schemas/envelope/v1.json"
+    );
+    let mut without_id = read.clone();
+    without_id.as_object_mut().unwrap().remove("$id");
+    assert_eq!(without_id, schema);
+    Schema::load(&read).unwrap();
+    assert!(jsonschema::meta::is_valid(&read));
+    let oracle = jsonschema::draft202012::new(&read).unwrap();
+    assert!(oracle.is_valid(&empty_success()));
 }
 
 /// The pointer and the reason of every error of `document` against the schema of the contract
@@ -255,19 +300,7 @@ fn errors_of(name: &str, direction: Direction, document: &Value) -> Vec<(String,
 
 #[test]
 fn the_envelope_schema_requires_the_error_when_the_data_is_absent() {
-    let success = serde_json::to_value(Envelope::new(
-        "validate",
-        Outcome::Success(json!({})),
-        Diagnostics::default(),
-        Meta::new(
-            "0.0.0",
-            NonZeroU32::MIN,
-            InputHash::from_digest(&[0; 32]),
-            false,
-            vec![],
-        ),
-    ))
-    .unwrap();
+    let success = empty_success();
     let mut neither = success.clone();
     neither.as_object_mut().unwrap().remove("data");
     // Null means not given (ADR 0009 C2), for the interpreter and for the oracle alike.

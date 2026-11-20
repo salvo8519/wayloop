@@ -1,13 +1,10 @@
 //! The part of the envelope the core computes (ADR 0009 C1, SPEC-0001 plan D6): the hash of the
-//! input and the meta of a result; and the snapshot of the envelope schema.
+//! input and the meta of a result.
 //!
 //! The envelope types are contract types of `wayloop-schemas`, re-exported at the root of the
 //! crate; `Envelope<D>` is generic over the data of one command (ADR 0030 G1). The entry point
 //! of ADR 0028 (#221) fills them with these functions; no channel computes the hash or the
-//! versions itself. The schema of the envelope of any data is generated from
-//! `Envelope<Value>`, committed as [`ENVELOPE_SNAPSHOT_PATH`] under `schemas/` and embedded
-//! here as [`ENVELOPE_SNAPSHOT`]; a test checks that the two are equal and that the loader of
-//! the core accepts it.
+//! versions itself.
 
 use core::num::NonZeroU32;
 
@@ -17,25 +14,6 @@ use wayloop_schemas::{DefaultApplied, InputHash, Meta};
 use crate::VERSION;
 use crate::canonical::canonical_json;
 use crate::sha256::sha256;
-
-/// The path of the snapshot of the envelope under `schemas/`, written once for the constant and
-/// for the file embedded.
-macro_rules! envelope_snapshot_path {
-    () => {
-        "envelope/v1.json"
-    };
-}
-
-/// Path under `schemas/` of the snapshot of the envelope at version
-/// [`ENVELOPE_VERSION`](crate::ENVELOPE_VERSION).
-pub const ENVELOPE_SNAPSHOT_PATH: &str = envelope_snapshot_path!();
-
-/// The snapshot of the envelope, the text of the file [`ENVELOPE_SNAPSHOT_PATH`] under
-/// `schemas/`, embedded in the engine (ADR 0030 G4): the schema of `Envelope<Value>`, the
-/// envelope of any data. The output schema of a command is the envelope with the data type of
-/// that command.
-pub const ENVELOPE_SNAPSHOT: &str =
-    include_str!(concat!("../../../schemas/", envelope_snapshot_path!()));
 
 /// `meta.input_hash` of `input`: the SHA-256 of its canonical JSON (RFC 8785), in lower-case
 /// hexadecimal (ADR 0009 C1, SPEC-0004 R11). The same input gives the same hash whatever the
@@ -66,15 +44,13 @@ pub fn meta(
 
 #[cfg(test)]
 mod tests {
-    use super::{ENVELOPE_SNAPSHOT, ENVELOPE_SNAPSHOT_PATH, input_hash, meta};
+    use super::{input_hash, meta};
+    use crate::VERSION;
     use crate::canonical::canonical_json;
-    use crate::schema::{Schema, contract_schema};
-    use crate::{ENVELOPE_VERSION, VERSION};
     use core::fmt::Write;
     use core::num::NonZeroU32;
     use serde_json::{Map, Value, json};
     use sha2::{Digest, Sha256};
-    use wayloop_schemas::contract::{Direction, TYPES, snapshot};
 
     #[test]
     fn the_hash_of_the_empty_object_is_the_sha256_of_its_two_bytes() {
@@ -217,29 +193,5 @@ mod tests {
         assert_eq!(meta.input_hash(), &input_hash(&input));
         assert!(meta.dry_run());
         assert_eq!(meta.defaults_applied(), []);
-    }
-
-    #[test]
-    fn the_embedded_envelope_snapshot_is_the_generated_one_and_loads() {
-        // ADR 0030 G3, G6: the committed file equals the schema generated from the types, and
-        // the loader of the core accepts it. Writing the file and its history belongs to the
-        // generator of #294.
-        assert_eq!(
-            ENVELOPE_SNAPSHOT_PATH,
-            format!("envelope/v{ENVELOPE_VERSION}.json")
-        );
-        let registered = TYPES.into_iter().find(|r| r.name == "Envelope").unwrap();
-        let generated = contract_schema(registered, Direction::Output).unwrap();
-        assert_eq!(
-            ENVELOPE_SNAPSHOT,
-            snapshot(generated, ENVELOPE_SNAPSHOT_PATH).unwrap(),
-            "schemas/{ENVELOPE_SNAPSHOT_PATH} differs from the schema of Envelope<Value>"
-        );
-        let embedded: Value = serde_json::from_str(ENVELOPE_SNAPSHOT).unwrap();
-        assert_eq!(
-            embedded["$id"],
-            "https://salvo8519.github.io/wayloop/schemas/envelope/v1.json"
-        );
-        Schema::load(&embedded).unwrap();
     }
 }

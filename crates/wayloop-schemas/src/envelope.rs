@@ -249,32 +249,91 @@ impl NotDone {
 }
 
 /// What the result of a command is: its data, of type `D`, a refusal of the input, or an
-/// internal error.
+/// internal error. It is built only through its constructors, which refuse what the contract
+/// does not define, so that every outcome is written in a form its reader accepts.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Outcome<D> {
-    /// The command ran: `data` holds its result. Exit code 0.
+pub struct Outcome<D>(Kind<D>);
+
+/// The three outcomes, private so that each is built through its check.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Kind<D> {
     Success(D),
-    /// The input was refused: `error` holds every error found in one pass, none of them with
-    /// the reason [`Reason::Internal`]. Exit code 1.
     Refused(ErrorReport),
-    /// The engine could not compute the result: `error` holds the report, whose errors all
-    /// have the reason [`Reason::Internal`]. Exit code 5.
     Failed(ErrorReport),
 }
 
+/// Whether `error` is a failure of the engine rather than a refusal of the input.
+fn is_internal(error: &Error) -> bool {
+    error.reason() == Reason::Internal
+}
+
+impl<D: Serialize> Outcome<D> {
+    /// The command ran and `data` is its result: exit code 0. `None` when `data` is written as
+    /// null, which means not given (ADR 0009 C2), or has no JSON form, such as a map whose keys
+    /// are not strings: `data` is then not a result a client can read.
+    #[must_use]
+    pub fn success(data: D) -> Option<Self> {
+        serde_json::to_value(&data)
+            .ok()
+            .filter(|written| !written.is_null())
+            .map(|_| Self(Kind::Success(data)))
+    }
+}
+
 impl<D> Outcome<D> {
-    /// The outcome that `report` tells, read from the reasons of its errors (ADR 0009 C3, as
-    /// amended on 2026-11-20): [`Outcome::Failed`] when every error has the reason `internal`,
-    /// [`Outcome::Refused`] when none has; `None` for a report that mixes them, which the
-    /// contract does not define.
+    /// The input was refused, with every error found in one pass: exit code 1. `None` when an
+    /// error of `report` has the reason [`Reason::Internal`], which is a failure.
+    #[must_use]
+    pub fn refused(report: ErrorReport) -> Option<Self> {
+        let any_internal = report.errors().any(is_internal);
+        (!any_internal).then(|| Self(Kind::Refused(report)))
+    }
+
+    /// The engine could not compute the result: exit code 5. `None` unless every error of
+    /// `report` has the reason [`Reason::Internal`] (ADR 0009 C3, as amended on 2026-11-20).
+    #[must_use]
+    pub fn failed(report: ErrorReport) -> Option<Self> {
+        let all_internal = report.errors().all(is_internal);
+        all_internal.then(|| Self(Kind::Failed(report)))
+    }
+
+    /// The outcome that `report` tells, read from the reasons of its errors: a failure when
+    /// every error has the reason `internal`, a refusal when none has; `None` for a report that
+    /// mixes them, which the contract does not define.
     fn of_report(report: ErrorReport) -> Option<Self> {
-        let internal = |error: &Error| error.reason() == Reason::Internal;
-        if report.errors().all(internal) {
-            Some(Self::Failed(report))
-        } else if report.errors().any(internal) {
-            None
+        if report.errors().all(is_internal) {
+            Self::failed(report)
         } else {
-            Some(Self::Refused(report))
+            Self::refused(report)
+        }
+    }
+
+    /// The data of a success; `None` for a refusal or a failure.
+    #[must_use]
+    pub const fn data(&self) -> Option<&D> {
+        match &self.0 {
+            Kind::Success(data) => Some(data),
+            Kind::Refused(_) | Kind::Failed(_) => None,
+        }
+    }
+
+    /// The error report of a refusal or a failure; `None` for a success.
+    #[must_use]
+    pub const fn report(&self) -> Option<&ErrorReport> {
+        match &self.0 {
+            Kind::Success(_) => None,
+            Kind::Refused(report) | Kind::Failed(report) => Some(report),
+        }
+    }
+
+    /// The exit code of the outcome (ADR 0009 C7): 0 for a success, 1 for a refused input, 5
+    /// for an internal error. The command line exits with it and never maps outcomes itself.
+    #[must_use]
+    pub const fn exit_code(&self) -> ExitCode {
+        match self.0 {
+            Kind::Success(_) => ExitCode::Success,
+            Kind::Refused(_) => ExitCode::InputError,
+            Kind::Failed(_) => ExitCode::InternalError,
         }
     }
 }
@@ -460,11 +519,7 @@ impl<D> Envelope<D> {
     /// for an internal error. The command line exits with it and never maps outcomes itself.
     #[must_use]
     pub const fn exit_code(&self) -> ExitCode {
-        match self.outcome {
-            Outcome::Success(_) => ExitCode::Success,
-            Outcome::Refused(_) => ExitCode::InputError,
-            Outcome::Failed(_) => ExitCode::InternalError,
-        }
+        self.outcome.exit_code()
     }
 }
 
@@ -472,9 +527,9 @@ impl<D: Serialize> Serialize for Envelope<D> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(Some(4))?;
         map.serialize_entry("command", &self.command)?;
-        match &self.outcome {
-            Outcome::Success(data) => map.serialize_entry("data", data)?,
-            Outcome::Refused(report) | Outcome::Failed(report) => {
+        match &self.outcome.0 {
+            Kind::Success(data) => map.serialize_entry("data", data)?,
+            Kind::Refused(report) | Kind::Failed(report) => {
                 map.serialize_entry("error", report)?;
             }
         }
@@ -529,13 +584,16 @@ impl<D: JsonSchema> JsonSchema for Envelope<D> {
     }
 }
 
-/// Reads an envelope and refuses one with both `data` and `error` or neither, or whose report
-/// mixes the reason `internal` with others.
-impl<'de, D: Deserialize<'de>> Deserialize<'de> for Envelope<D> {
+/// Reads an envelope and refuses one with both `data` and `error` or neither, data that the
+/// type writes as null, or a report that mixes the reason `internal` with others: what
+/// [`Outcome`] refuses at construction.
+impl<'de, D: Deserialize<'de> + Serialize> Deserialize<'de> for Envelope<D> {
     fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
         let form = EnvelopeForm::<D>::deserialize(deserializer)?;
         let outcome = match (form.data, form.error) {
-            (Some(data), None) => Outcome::Success(data),
+            (Some(data), None) => Outcome::success(data).ok_or_else(|| {
+                De::Error::custom("the data of a success is written as null or not at all")
+            })?,
             (None, Some(report)) => Outcome::of_report(report).ok_or_else(|| {
                 De::Error::custom(
                     "the errors of a report all have the reason `internal`, or none has",
@@ -597,6 +655,18 @@ mod tests {
         .unwrap()
     }
 
+    fn success(data: Value) -> Outcome<Value> {
+        Outcome::success(data).unwrap()
+    }
+
+    fn refused() -> Outcome<Value> {
+        Outcome::refused(refusal()).unwrap()
+    }
+
+    fn failed() -> Outcome<Value> {
+        Outcome::failed(failure()).unwrap()
+    }
+
     fn envelope(outcome: Outcome<Value>) -> Envelope<Value> {
         Envelope::new("validate", outcome, Diagnostics::default(), meta())
     }
@@ -625,9 +695,9 @@ mod tests {
 
     #[test]
     fn success_refusal_and_internal_error_exit_with_0_1_and_5() {
-        assert_eq!(envelope(Outcome::Success(json!({}))).exit_code().code(), 0);
-        assert_eq!(envelope(Outcome::Refused(refusal())).exit_code().code(), 1);
-        assert_eq!(envelope(Outcome::Failed(failure())).exit_code().code(), 5);
+        assert_eq!(envelope(success(json!({}))).exit_code().code(), 0);
+        assert_eq!(envelope(refused()).exit_code().code(), 1);
+        assert_eq!(envelope(failed()).exit_code().code(), 5);
     }
 
     #[test]
@@ -647,7 +717,7 @@ mod tests {
     #[test]
     fn a_success_has_data_and_no_error() {
         assert_eq!(
-            text(&envelope(Outcome::Success(json!({"documents": []})))),
+            text(&envelope(success(json!({"documents": []})))),
             format!(
                 r#"{{"command":"validate","data":{{"documents":[]}},{}}}"#,
                 empty_diagnostics_and_meta()
@@ -659,7 +729,7 @@ mod tests {
     fn a_refusal_has_the_error_report_and_no_data() {
         // SPEC-0004 R18, ADR 0009 C1 as amended on 2026-11-19.
         assert_eq!(
-            text(&envelope(Outcome::Refused(refusal()))),
+            text(&envelope(refused())),
             format!(
                 r#"{{"command":"validate","error":{},{}}}"#,
                 text(&refusal()),
@@ -671,7 +741,7 @@ mod tests {
     #[test]
     fn an_internal_error_has_the_error_report_with_reason_internal_and_no_data() {
         // SPEC-0004 R18, ADR 0009 C3 as amended on 2026-11-20.
-        let written = text(&envelope(Outcome::Failed(failure())));
+        let written = text(&envelope(failed()));
         assert_eq!(
             written,
             format!(
@@ -787,9 +857,10 @@ mod tests {
         );
         assert!(other.dry_run());
         assert_eq!(other.defaults_applied(), [applied]);
-        let envelope = envelope(Outcome::Refused(refusal()));
+        let envelope = envelope(refused());
         assert_eq!(envelope.command(), "validate");
-        assert_eq!(envelope.outcome(), &Outcome::Refused(refusal()));
+        assert_eq!(envelope.outcome(), &refused());
+        assert_eq!(envelope.outcome().report(), Some(&refusal()));
         assert_eq!(envelope.diagnostics(), &Diagnostics::default());
         assert_eq!(envelope.meta(), &meta);
     }
@@ -856,7 +927,9 @@ mod tests {
     }
 
     /// `written` read back as an envelope with data of type `D`.
-    fn read<D: serde::de::DeserializeOwned>(written: Value) -> Result<Envelope<D>, String> {
+    fn read<D: serde::de::DeserializeOwned + Serialize>(
+        written: Value,
+    ) -> Result<Envelope<D>, String> {
         serde_json::from_value(written).map_err(|e| e.to_string())
     }
 
@@ -864,7 +937,7 @@ mod tests {
     fn the_data_of_an_envelope_is_the_data_type_of_its_command() {
         let typed = Envelope::new(
             "validate",
-            Outcome::Success(Counted { documents: 3 }),
+            Outcome::success(Counted { documents: 3 }).unwrap(),
             Diagnostics::default(),
             meta(),
         );
@@ -879,8 +952,8 @@ mod tests {
         assert_eq!(read::<Counted>(written.clone()).unwrap(), typed);
         // The same document read as the envelope of any data.
         assert_eq!(
-            read::<Value>(written).unwrap().outcome(),
-            &Outcome::Success(json!({"documents": 3}))
+            read::<Value>(written).unwrap().outcome().data(),
+            Some(&json!({"documents": 3}))
         );
     }
 
@@ -895,11 +968,7 @@ mod tests {
             vec![SCHEMA],
         );
         let meta = Meta::new("0.1.0", NonZeroU32::MIN, hash(), true, vec![applied]);
-        for outcome in [
-            Outcome::Success(json!({"documents": []})),
-            Outcome::Refused(refusal()),
-            Outcome::Failed(failure()),
-        ] {
+        for outcome in [success(json!({"documents": []})), refused(), failed()] {
             let envelope = Envelope::new("validate", outcome, diagnostics.clone(), meta.clone());
             let written = serde_json::to_value(&envelope).unwrap();
             assert_eq!(read::<Value>(written).unwrap(), envelope);
@@ -908,7 +977,7 @@ mod tests {
 
     #[test]
     fn an_envelope_with_both_data_and_error_or_neither_is_refused() {
-        let success = serde_json::to_value(envelope(Outcome::Success(json!({})))).unwrap();
+        let success = serde_json::to_value(envelope(success(json!({})))).unwrap();
         let mut both = success.clone();
         both["error"] = serde_json::to_value(refusal()).unwrap();
         let mut neither = success.clone();
@@ -927,10 +996,10 @@ mod tests {
 
     #[test]
     fn a_report_reads_as_a_failure_when_every_error_is_internal_and_a_refusal_when_none_is() {
-        let failed = serde_json::to_value(envelope(Outcome::Failed(failure()))).unwrap();
+        let failed = serde_json::to_value(envelope(failed())).unwrap();
         let read_back = read::<Value>(failed.clone()).unwrap();
         assert_eq!(read_back.exit_code(), ExitCode::InternalError);
-        let refused = serde_json::to_value(envelope(Outcome::Refused(refusal()))).unwrap();
+        let refused = serde_json::to_value(envelope(refused())).unwrap();
         assert_eq!(
             read::<Value>(refused).unwrap().exit_code(),
             ExitCode::InputError
@@ -946,5 +1015,67 @@ mod tests {
             let refused = read::<Value>(written).unwrap_err();
             assert!(refused.contains("reason `internal`"), "{refused}");
         }
+    }
+
+    #[test]
+    fn a_refusal_holds_no_internal_error_and_a_failure_only_internal_errors() {
+        let mixed = || {
+            ErrorReport::from_errors([failure().first().clone(), unknown_then_missing().0]).unwrap()
+        };
+        assert_eq!(Outcome::<Value>::refused(failure()), None);
+        assert_eq!(Outcome::<Value>::refused(mixed()), None);
+        assert_eq!(Outcome::<Value>::failed(refusal()), None);
+        assert_eq!(Outcome::<Value>::failed(mixed()), None);
+        let refused = Outcome::<Value>::refused(refusal()).unwrap();
+        assert_eq!(refused.report(), Some(&refusal()));
+        assert_eq!(refused.data(), None);
+        assert_eq!(refused.exit_code(), ExitCode::InputError);
+        let failed = Outcome::<Value>::failed(failure()).unwrap();
+        assert_eq!(failed.report(), Some(&failure()));
+        assert_eq!(failed.data(), None);
+        assert_eq!(failed.exit_code(), ExitCode::InternalError);
+    }
+
+    #[test]
+    fn a_success_whose_data_is_null_or_cannot_be_written_is_refused() {
+        // ADR 0009 C2: null means not given, so a success needs data that is a value.
+        assert_eq!(Outcome::success(Value::Null), None);
+        assert_eq!(Outcome::success(()), None);
+        assert_eq!(Outcome::success(None::<u32>), None);
+        // A map whose keys are not strings has no JSON form.
+        let unwritable: std::collections::BTreeMap<(u8, u8), u8> = [((1, 2), 3)].into();
+        assert_eq!(Outcome::success(unwritable), None);
+        for data in [json!(0), json!(false), json!(""), json!([]), json!({})] {
+            let success = Outcome::success(data.clone()).unwrap();
+            assert_eq!(success.data(), Some(&data));
+            assert_eq!(success.report(), None);
+            assert_eq!(success.exit_code(), ExitCode::Success);
+        }
+        let some = Outcome::success(Some(3_u32)).unwrap();
+        assert_eq!(some.data(), Some(&Some(3)));
+    }
+
+    /// Data that reads any value and writes null: a type the reader must refuse.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct Forgetful;
+
+    impl Serialize for Forgetful {
+        fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            serializer.serialize_unit()
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Forgetful {
+        fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            serde::de::IgnoredAny::deserialize(deserializer).map(|_| Self)
+        }
+    }
+
+    #[test]
+    fn data_that_writes_null_is_refused_by_the_reader() {
+        let written = serde_json::to_value(envelope(success(json!([])))).unwrap();
+        assert!(read::<Value>(written.clone()).is_ok());
+        let refused = read::<Forgetful>(written).unwrap_err();
+        assert!(refused.contains("null"), "{refused}");
     }
 }

@@ -202,9 +202,8 @@ macro_rules! registered {
 ///
 /// The envelope is generic over the data of a command (ADR 0030 G1); a generic type has no
 /// schema until its parameter is given, so it is registered as `Envelope<Value>`, the envelope
-/// of any data, under the name of its schema, `Envelope`. That is the schema of
-/// `schemas/envelope/v1.json`; the output schema of a command is the envelope with the data
-/// type of that command.
+/// of any data, under the name of its schema, `Envelope`. The output schema of a command is
+/// the envelope with the data type of that command.
 pub const TYPES: [Registered; 15] = [
     registered!(Check),
     registered!(Code),

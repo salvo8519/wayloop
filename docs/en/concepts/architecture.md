@@ -158,20 +158,21 @@ value, documented with the command that writes it; clients accept values they do
 (ADR 0009, C5).
 
 `Envelope::exit_code()` gives the exit code of ADR 0009 C7: 0 for a result with `data`, 1 for a
-refused input, 5 for an internal error of the engine; it is the one place where an outcome is
-mapped to an exit code. An internal error is written in `error` as a refusal is; its errors have
+refused input, 5 for an internal error of the engine; it returns `Outcome::exit_code()`, the one
+place where an outcome is mapped to an exit code. An internal error is written in `error` as a refusal is; its errors have
 the reason `internal`, which tells the two apart in the JSON. The envelope holds nothing that depends on the machine or the
 moment: no clock time, host name or absolute path.
 
-An envelope is read back through the same members: a document with both `data` and `error`, or
-with neither, is refused, and so is a report whose errors mix the reason `internal` with
-others, which the contract does not define. Its schema requires `error` when `data` is absent;
-the subset of the interpreter has no negation, so only the type refuses both. The schema of the
-envelope of any data, `Envelope<Value>`, is committed as `schemas/envelope/v1.json`, with its
-`$id` at its published URL, and embedded in the core as
-`wayloop_core::envelope::ENVELOPE_SNAPSHOT`; a test of the core checks that the file equals the
-schema generated from the type and that the interpreter loads it. The output schema of a
-command is the envelope with the data type of that command.
+An outcome is built only through constructors that refuse, by returning `None`, what the
+contract does not define: `Outcome::success` refuses data written as null (null means not
+given, ADR 0009 C2) or with no JSON form, `Outcome::refused` a report with an error of reason
+`internal`, and `Outcome::failed` a report with an error of any other reason. Every envelope the
+engine can build is therefore one its reader accepts. The reader refuses the same cases, and a
+document with both `data` and `error`, or with neither. The schema requires `error` when
+`data` is absent; the subset of the interpreter has no negation, so only the type refuses both.
+The schema of the envelope of any data is that of `Envelope<Value>`; the output schema of a
+command is the envelope with the data type of that command. The tests of the core load it, in
+the text that `contract::snapshot` writes, with the interpreter and the oracle.
 
 `meta.input_hash` is the SHA-256 of the input serialised as canonical JSON (RFC 8785), in
 lower-case hexadecimal, so the same input gives the same hash on every channel and platform:

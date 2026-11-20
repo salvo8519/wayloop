@@ -39,16 +39,3 @@ spelling in every channel. Other spellings, such as the labels of the issue trac
 produced by the adapters from these values. Adding a step is an additive change; renaming or
 removing a step is a breaking change of the contract. The steps themselves are described in
 [The loop](../concepts/the-loop.md#the-issue-cycle).
-
-## JSON contracts
-
-Every command returns one envelope
-([architecture](../concepts/architecture.md#the-envelope)). Its schema, the envelope of any
-data, is the file `schemas/envelope/v1.json` of the repository, generated from the Rust types
-of the engine ([ADR 0030](../project/adr/0030-contracts-generated-from-rust-types.md)). It is a
-JSON Schema of draft 2020-12, open as every output schema
-([ADR 0009](../project/adr/0009-contract-guidelines.md), C5): a client ignores members and
-accepts enum values it does not know. A success has `data` and no `error`; a refused input or a
-failure of the engine has `error` and no `data`, and the schema requires `error` whenever
-`data` is absent. Its `$id` is
-`https://salvo8519.github.io/wayloop/schemas/envelope/v1.json`.

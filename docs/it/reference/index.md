@@ -1,6 +1,6 @@
 ---
 source: reference/index.md
-source_hash: 470f2c9023ae
+source_hash: f34c4e63eed4
 ---
 # Riferimento
 
@@ -45,16 +45,3 @@ e si scrivono allo stesso modo in ogni canale. Le altre grafie, come le etichett
 delle issue, sono prodotte dagli adattatori a partire da questi valori. Aggiungere un passo è una
 modifica additiva; rinominare o rimuovere un passo è una modifica incompatibile del contratto.
 I passi sono descritti in [Il loop](../concepts/the-loop.md#il-ciclo-di-unissue).
-
-## Contratti JSON
-
-Ogni comando restituisce un solo envelope
-([architettura](../concepts/architecture.md#lenvelope)). Il suo schema, l'envelope con dati
-qualsiasi, è il file `schemas/envelope/v1.json` del repository, generato dai tipi Rust del motore
-([ADR 0030](https://salvo8519.github.io/wayloop/project/adr/0030-contracts-generated-from-rust-types/)).
-È un JSON Schema della draft 2020-12, aperto come ogni schema di output
-([ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/), C5): un
-client ignora i membri e accetta i valori enum che non conosce. Un successo ha `data` e non
-`error`; un input rifiutato o un errore del motore ha `error` e non `data`, e lo schema richiede
-`error` ogni volta che `data` è assente. Il suo `$id` è
-`https://salvo8519.github.io/wayloop/schemas/envelope/v1.json`.
