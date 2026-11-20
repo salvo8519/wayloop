@@ -586,7 +586,7 @@ fn transformed(schema: Value) -> Value {
 }
 
 /// An object with the optional member `a` of schema `member`.
-fn with_optional(member: Value) -> Value {
+fn with_optional(member: &Value) -> Value {
     json!({"description": "d", "type": "object", "properties": {"a": member}})
 }
 
@@ -597,8 +597,10 @@ fn an_optional_member_loses_its_null_in_either_order_and_only_its_null() {
     let absent = json!({"type": "null"});
     for choices in [json!([reference, absent]), json!([absent, reference])] {
         assert_eq!(
-            transformed(with_optional(json!({"description": "m", "anyOf": choices}))),
-            with_optional(json!({"description": "m", "$ref": "#/$defs/A"}))
+            transformed(with_optional(
+                &json!({"description": "m", "anyOf": choices})
+            )),
+            with_optional(&json!({"description": "m", "$ref": "#/$defs/A"}))
         );
     }
     // Two choices that are both null, or neither, are not an `Option`: left as they are.
@@ -607,10 +609,7 @@ fn an_optional_member_loses_its_null_in_either_order_and_only_its_null() {
         json!([{"type": "string"}, {"type": "integer"}]),
     ] {
         let member = json!({"description": "m", "anyOf": choices});
-        assert_eq!(
-            transformed(with_optional(member.clone())),
-            with_optional(member)
-        );
+        assert_eq!(transformed(with_optional(&member)), with_optional(&member));
     }
 }
 
