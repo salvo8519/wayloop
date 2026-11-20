@@ -34,3 +34,4 @@ consequences. A decision is changed only by a new record that supersedes it.
 | [0027](0027-skills-agents-hooks-standard.md) | One standard and one source for skills, agents and hooks | Proposed |
 | [0028](0028-one-contract-on-every-channel.md) | One contract on every channel, translation adapters and a channel reconciler | Accepted |
 | [0029](0029-merge-waived-by-policy.md) | Merge of small changes waived by policy, recorded as a waiver | Accepted |
+| [0030](0030-contracts-generated-from-rust-types.md) | Contracts generated from Rust types, versioned snapshots with a history | Proposed |
