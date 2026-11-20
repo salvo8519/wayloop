@@ -117,6 +117,9 @@ milestones:
           - { issue: 270, title: "Allocate the next identifier of a kind", spec: "0001", status: open }
           - { issue: 276, title: "Plan and tasks of the artifact model with their issues", spec: "0001", status: done }
           - { issue: 291, title: "Contracts are generated from one source and versioned like Fairmark", status: open }
+          - { issue: 293, title: "Contract types derive their JSON Schema within the interpreter subset", status: open }
+          - { issue: 294, title: "Schema snapshots are generated and their history is kept per contract", status: open }
+          - { issue: 295, title: "The envelope and the error report are generated from their types", status: open }
       - title: "Agent process"
         issue: 19
         labels: ["area:agents"]

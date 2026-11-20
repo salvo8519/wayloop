@@ -1,6 +1,6 @@
 # ADR 0030: Contracts generated from Rust types, versioned snapshots with a history
 
-Status: Proposed · 2026-11-20 (milestone M0 · Foundations; decision tracked in #291)
+Status: Accepted · 2026-11-20 (milestone M0 · Foundations; decided by the maintainer in #291: options 3, (a), (ii) and (B))
 
 ## Context
 
