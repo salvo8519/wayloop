@@ -43,6 +43,14 @@ def test_specs_must_exist_and_be_referenced() -> None:
     assert any("spec 0008 is not referenced" in p for p in roadmap.problems_of(d))
 
 
+def test_task_tags_are_label_names_of_the_plan() -> None:
+    d = data()
+    d["milestones"][0]["epics"][0]["tasks"][0]["tags"] = ["parallel", "urgent"]
+    assert any("tags must be among" in p for p in roadmap.problems_of(d))
+    planned = {lbl["name"] for lbl in d["labels"]}
+    assert set(roadmap.TAGS) <= planned
+
+
 def test_unknown_status_and_keys_are_refused() -> None:
     d = data()
     task = d["milestones"][0]["epics"][0]["tasks"][0]
@@ -360,6 +368,9 @@ def test_a_native_dependency_satisfies_the_depends_on_section() -> None:
     blockers[task] = {3, 4}
     assert roadmap.link_problems(d, issues, children, blockers, labels) == []
     assert roadmap.depends_on("## Depends on\n- #3 (x)\n- #4\n\n## Next\n- #5") == [3, 4]
+    body = "See #4.\n\n## Depends on\n- #7\n- #9 (the ledger)\n\n## Definition of done\n- #5"
+    assert roadmap.depends_on(body) == [7, 9]
+    assert roadmap.depends_on("No heading, #3") == []
 
 
 def _unplanned(created_at: str) -> tuple[list[tuple[int, str]], dict[int, dict[str, Any]]]:

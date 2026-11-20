@@ -224,7 +224,9 @@ CI run the same commands.
   run with the system `python3` and put `scripts/` on their import path. Scripts import each
   other by module name, as `python scripts/<name>.py` allows; the tests import the scripts and
   the hooks the same way and share their fixtures in `tests/process/conftest.py` (a throwaway
-  git repository, the hooks with the scripts they need).
+  git repository, the hooks with the scripts they need). The model of the roadmap file
+  (`load`, `epics`, `tasks`, `depends_on` and the task tags `TAGS`) lives in
+  `scripts/roadmap.py`; `bootstrap_github.py` and `journal.py` import it.
 
 Problems are fixed where they appear, without the maintainer watching for them:
 

@@ -147,10 +147,7 @@ def test_milestone_description_carries_gate_and_release() -> None:
     ]
 
 
-def test_dependencies_are_read_only_under_their_heading() -> None:
-    body = "See #4.\n\n## Depends on\n- #7\n- #9 (the ledger)\n\n## Definition of done\n- #5"
-    assert bs.depends_on(body) == [7, 9]
-    assert bs.depends_on("No heading, #3") == []
+def test_renumber_rewrites_every_reference() -> None:
     assert bs.renumber("#7 and #70 and #9", {7: 17, 9: 19}) == "#17 and #70 and #19"
 
 

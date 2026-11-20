@@ -29,7 +29,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
+from roadmap import epics, load
 
 ROOT = Path(__file__).resolve().parents[1]
 JOURNAL = ROOT / ".agents" / "journal"
@@ -54,18 +54,16 @@ class Entry:
 
 def issue_areas(roadmap: Path) -> dict[int, list[str]]:
     """Issue number -> areas, from the `area:` labels of the epic that holds the task."""
-    plan = yaml.safe_load(roadmap.read_text(encoding="utf-8")) if roadmap.exists() else {}
     out: dict[int, list[str]] = {}
-    for milestone in (plan or {}).get("milestones", []):
-        for epic in milestone.get("epics", []):
-            areas = sorted(
-                label.removeprefix("area:")
-                for label in epic.get("labels", [])
-                if label.startswith("area:")
-            )
-            for number in [epic.get("issue"), *(t.get("issue") for t in epic.get("tasks", []))]:
-                if isinstance(number, int):
-                    out[number] = areas
+    for _milestone, epic in epics(load(roadmap)) if roadmap.exists() else []:
+        areas = sorted(
+            label.removeprefix("area:")
+            for label in epic.get("labels", [])
+            if label.startswith("area:")
+        )
+        for number in [epic.get("issue"), *(t.get("issue") for t in epic.get("tasks", []))]:
+            if isinstance(number, int):
+                out[number] = areas
     return out
 
 

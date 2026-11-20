@@ -27,16 +27,10 @@ from pathlib import Path
 from typing import Any
 
 import _github
-import yaml
+
+from roadmap import depends_on, epics, load
 
 ROOT = Path(__file__).resolve().parents[1]
-ROADMAP = ROOT / "roadmap" / "roadmap.yaml"
-TAG_LABELS = {
-    "parallel": "parallel",
-    "maintainer": "maintainer",
-    "needs-decision": "needs-decision",
-}
-DEPENDS = re.compile(r"^## Depends on\s*\n((?:- #\d+.*\n?)+)", re.MULTILINE)
 REFERENCE = re.compile(r"#(\d+)\b")
 
 
@@ -83,15 +77,13 @@ def milestone_description(m: dict[str, Any]) -> str:
 
 def items_of(data: dict[str, Any]) -> list[Item]:
     out: list[Item] = []
-    for m in data["milestones"]:
-        for e in m["epics"]:
-            epic = Item(
-                "epic", e.get("issue"), e["title"], m["title"], ["epic", *e.get("labels", [])]
-            )
-            out.append(epic)
-            for t in e["tasks"]:
-                labels = [*e.get("labels", []), *(TAG_LABELS[x] for x in t.get("tags", []))]
-                out.append(Item("task", t["issue"], t["title"], m["title"], labels, parent=epic))
+    for m, e in epics(data):
+        epic = Item("epic", e.get("issue"), e["title"], m["title"], ["epic", *e.get("labels", [])])
+        out.append(epic)
+        for t in e["tasks"]:
+            # Each tag is the name of its label (roadmap.TAGS).
+            labels = [*e.get("labels", []), *t.get("tags", [])]
+            out.append(Item("task", t["issue"], t["title"], m["title"], labels, parent=epic))
     return out
 
 
@@ -127,12 +119,6 @@ def plan(
 def renumber(body: str, mapping: dict[int, int]) -> str:
     """Rewrite every #N of a source body to the number of the same item in the target."""
     return REFERENCE.sub(lambda m: f"#{mapping.get(int(m.group(1)), int(m.group(1)))}", body)
-
-
-def depends_on(body: str) -> list[int]:
-    """Issue numbers listed under the "## Depends on" heading of a task body."""
-    m = DEPENDS.search(body or "")
-    return [int(n) for n in re.findall(r"^- #(\d+)", m.group(1), re.MULTILINE)] if m else []
 
 
 # ---- GitHub
@@ -249,7 +235,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source", help="repository whose issue bodies are copied, OWNER/REPO")
     parser.add_argument("--dry-run", action="store_true", help="print the changes, make none")
     args = parser.parse_args(argv)
-    data = yaml.safe_load(ROADMAP.read_text(encoding="utf-8"))
+    data = load()
     gh = GitHub(args.repo, args.dry_run)
     issues = gh.issues()
     p = plan(
