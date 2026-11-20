@@ -58,6 +58,63 @@ def test_pull_request_needs_matching_issue() -> None:
     assert any("branch" in p for p in waived) and not any("body" in p for p in waived)
 
 
+BRANCHES = [
+    # (branch, issue, sprint)
+    ("feat/42-ledger-hash-chain", 42, None),
+    ("fix/61-replay-order", 61, None),
+    ("docs/48-mcp-guide", 48, None),
+    ("sprint/S01/42-ledger-hash", 42, "S01"),
+    ("sprint/S12/7-x", 7, "S12"),
+    ("main", None, None),
+    ("dependabot/cargo/serde-1.0.200", None, None),
+    ("release/v0.1.0", None, None),
+    ("revert-57-feat/42-x", None, None),
+    ("feat/ledger", None, None),
+    ("sprint/01/42-x", None, None),
+    ("feat/42-Upper", None, None),
+]
+
+
+@pytest.mark.parametrize(("branch", "issue", "sprint"), BRANCHES)
+def test_branch_issue_and_sprint_follow_both_forms(
+    branch: str, issue: int | None, sprint: str | None
+) -> None:
+    assert conventions.branch_issue(branch) == issue
+    assert conventions.sprint_of(branch) == sprint
+
+
+def test_a_sprint_branch_is_a_valid_pull_request_branch() -> None:
+    problems = conventions.check_pull_request(
+        "feat(ledger): chain events by hash", "sprint/S01/42-ledger-hash", "Closes #42", [], "a"
+    )
+    assert problems == []
+    mismatch = conventions.check_pull_request(
+        "feat(ledger): chain events by hash", "sprint/S01/42-ledger-hash", "Closes #41", [], "a"
+    )
+    assert any("#42" in p for p in mismatch)
+
+
+def test_closing_keywords_match_github_anywhere_in_the_body() -> None:
+    body = (
+        "Closes #12\nfixes #7\n  Resolves #3\nSee #99\nRelated: closes #5 later\n"
+        "Close #20, closed #21, fix #22, fixed #23, resolve #24, resolved #25.\n"
+        "Fixes: #26\nprefixes #27\nRefs #28\nCloses#29"
+    )
+    assert conventions.closed_issues(body) == {12, 7, 3, 5, 20, 21, 22, 23, 24, 25, 26}
+    assert conventions.linked_issues(body) == {12, 7, 3, 5, 20, 21, 22, 23, 24, 25, 26, 28}
+    assert conventions.linked_issues("Refs: #42\nref #43") == {42, 43}
+    assert conventions.closed_issues("") == set()
+
+
+def test_a_fix_keyword_links_the_branch_issue() -> None:
+    assert (
+        conventions.check_pull_request(
+            "fix(ci): repair the gate", "fix/12-gate", "Some text. Fix #12", [], "a"
+        )
+        == []
+    )
+
+
 def test_bots_only_need_a_valid_type_and_scope() -> None:
     title = (
         "build(deps): Bump serde from 1.0.1 to 1.0.2 in the cargo-minor group across 1 directory"

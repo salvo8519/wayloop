@@ -12,27 +12,17 @@ issues labelled `bug` or `maintenance` (failures on main, weekly maintenance) co
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import re
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
 import yaml
+from conventions import branch_issue
+from sprint import state_files
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def _sprint_module() -> Any:
-    """scripts/sprint.py, which owns the location of the runtime sprint state."""
-    spec = importlib.util.spec_from_file_location("sprint", ROOT / "scripts" / "sprint.py")
-    if spec is None or spec.loader is None:
-        sys.exit("scripts/sprint.py cannot be loaded.")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 # Pull requests that change the engine, an adapter or a contract wait for the maintainer;
@@ -118,7 +108,7 @@ def ready_issues(pool: list[dict[str, Any]], busy_branches: set[str]) -> list[di
         for i in pool
         if not names(i) & {"epic", "in-progress", "blocked"}
         and not blocked_natively(i)
-        and not any(f"/{i['number']}-" in "/" + b for b in busy_branches)
+        and not any(branch_issue(b) == i["number"] for b in busy_branches)
     ][:12]
 
 
@@ -158,11 +148,10 @@ def collect() -> dict[str, Any]:
     r = repo()
     branch = sh("git", "rev-parse", "--abbrev-ref", "HEAD")
     sh("git", "fetch", "--quiet", "origin", "main")
-    issue = re.search(r"/(\d+)-", "/" + branch)
     state: dict[str, Any] = {
         "repository": r,
         "branch": branch,
-        "branch_issue": int(issue.group(1)) if issue else None,
+        "branch_issue": branch_issue(branch),
         "uncommitted_files": [ln for ln in sh("git", "status", "--porcelain").splitlines() if ln],
         "ahead_of_main": sh("git", "rev-list", "--count", "origin/main..HEAD") or "0",
         "behind_main": sh("git", "rev-list", "--count", "HEAD..origin/main") or "0",
@@ -214,9 +203,7 @@ def collect() -> dict[str, Any]:
                 "end": str(data["end"]),
                 "issues": [n for lane in data["lanes"] for n in lane.get("issues", [])],
             }
-            sprint["state"] = [
-                line for line in (_state_line(p) for p in _sprint_module().state_files(f)) if line
-            ]
+            sprint["state"] = [line for line in (_state_line(p) for p in state_files(f)) if line]
     state["active_sprint"] = sprint
     open_numbers = {i["number"] for i in issues}
     if sprint:

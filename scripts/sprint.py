@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from conventions import branch_issue, sprint_of
 
 REQUIRED = {"id", "goal", "start", "end", "milestone", "status", "lanes"}
 STATUSES = {"planned", "active", "done"}
@@ -41,7 +42,6 @@ GENERATED = (".claude/**",)
 # Files every pull request of a sprint may change, whatever its lane: the roadmap line of the
 # issue it closes, the session journal and the release note fragment.
 ALWAYS_ALLOWED = ("roadmap/roadmap.yaml", ".agents/journal/**", "changes/**")
-SPRINT_BRANCH = re.compile(r"^sprint/(?P<sprint>S\d+)/(?P<issue>\d+)-")
 
 
 def _now() -> dt.datetime:
@@ -251,18 +251,17 @@ def changed_files(base: str) -> list[str]:
 
 
 def check_diff_command(args: argparse.Namespace) -> int:
-    m = SPRINT_BRANCH.match(args.branch)
-    if m is None:
+    sprint_id, issue = sprint_of(args.branch), branch_issue(args.branch)
+    if sprint_id is None or issue is None:
         print(f"{args.branch} is not a sprint branch (sprint/SNN/<issue>-<slug>): nothing to check")
         return 0
-    sprint_file = Path(args.sprints) / f"{m['sprint']}.yaml"
+    sprint_file = Path(args.sprints) / f"{sprint_id}.yaml"
     if not sprint_file.exists():
         sys.exit(f"{args.branch}: {sprint_file} does not exist")
     sprint = load(sprint_file)
     errors = validate(sprint)
     if errors:
         sys.exit(f"Invalid sprint file {sprint_file}:\n  " + "\n  ".join(errors))
-    issue = int(m["issue"])
     lane = next((x for x in sprint["lanes"] if issue in x.get("issues", [])), None)
     if lane is None:
         sys.exit(f"#{issue} is not in the lanes of {sprint['id']}")

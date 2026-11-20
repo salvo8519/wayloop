@@ -7,7 +7,9 @@ command -v git >/dev/null 2>&1 || { echo "session-briefing hook: git not found" 
 branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
 slug=${branch//\//-}
 echo "Wayloop session. Branch: $branch."
-issue=$(echo "$branch" | sed -n 's|^[a-z]*/\([0-9][0-9]*\)-.*|\1|p; s|^sprint/S[0-9]*/\([0-9][0-9]*\)-.*|\1|p')
+# Copy of BRANCH in scripts/conventions.py (the hook runs without the project environment);
+# tests/process/test_claude_hooks.py keeps the two equal.
+issue=$(echo "$branch" | sed -nE 's#^(feat|fix|perf|refactor|docs|test|build|ci|chore|revert|sprint/S[0-9]+)/([0-9]+)-[a-z0-9]+(-[a-z0-9]+)*$#\2#p')
 [ -n "$issue" ] && echo "Issue: #$issue."
 entry=$(ls -1 .agents/journal/*-"$slug".md 2>/dev/null | sort | tail -1)
 [ -z "$entry" ] && entry=$(ls -1 .agents/journal/2*.md 2>/dev/null | sort | tail -1)

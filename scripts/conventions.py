@@ -1,6 +1,7 @@
 """Naming conventions of Wayloop, as code: commit headers, pull request titles, branches and
-issue links. One module, used by the commit-msg hook, by CI and by the agents' skills, so the
-rule written in `docs/en/project/conventions.md` and the rule enforced are the same.
+issue links (closing keywords as GitHub reads them). One module, used by the commit-msg hook,
+by CI, by the other scripts and by the agents' skills, so the rule written in
+`docs/en/project/conventions.md` and the rule enforced are the same.
 
     uv run python scripts/conventions.py commit-msg .git/COMMIT_EDITMSG
     uv run python scripts/conventions.py pr           # in GitHub Actions (reads the event)
@@ -35,13 +36,42 @@ HEADER = re.compile(
     r"^(?P<type>[a-z]+)(?:\((?P<scope>[a-z0-9-]+)\))?(?P<breaking>!)?: (?P<subject>.+)$"
 )
 SPEC_REF = re.compile(r"\[SPEC-\d{4}(?: R\d+(?:,\s*R\d+)*)?\]$")
+SLUG = r"[a-z0-9]+(?:-[a-z0-9]+)*"
+# A branch is `<type>/<issue>-<slug>`, or `sprint/SNN/<issue>-<slug>` in a sprint lane
+# (sprints/README.md). The hook .claude/hooks/session-briefing.sh keeps a copy of this rule in
+# sed, because it runs without the project environment; tests/process/test_claude_hooks.py keeps
+# the copy equal.
 BRANCH = re.compile(
-    rf"^(?P<type>{'|'.join(TYPES)})/(?P<issue>\d+)-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)$"
+    rf"^(?:(?P<type>{'|'.join(TYPES)})|sprint/(?P<sprint>S\d+))/(?P<issue>\d+)-(?P<slug>{SLUG})$"
 )
 BRANCH_EXEMPT = re.compile(r"^(dependabot/|release/v\d|revert-\d+-)")
-ISSUE_LINK = re.compile(
-    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s+#(\d+)\b", re.IGNORECASE
-)
+# GitHub closes an issue when a pull request body names it after one of these keywords, in any
+# case and anywhere in the body, with an optional colon after the keyword.
+CLOSING = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?[ \t]+#(\d+)\b", re.IGNORECASE)
+# A link that does not close: `Refs #42`, or the `Refs: #42` trailer of a commit.
+REFS = re.compile(r"\brefs?:?[ \t]+#(\d+)\b", re.IGNORECASE)
+
+
+def branch_issue(branch: str) -> int | None:
+    """The issue of a branch that follows the conventions, or None."""
+    m = BRANCH.match(branch)
+    return int(m["issue"]) if m else None
+
+
+def sprint_of(branch: str) -> str | None:
+    """The sprint id of a sprint branch (`sprint/S01/42-slug` gives `S01`), or None."""
+    m = BRANCH.match(branch)
+    return m["sprint"] if m else None
+
+
+def closed_issues(body: str) -> set[int]:
+    """Issues that GitHub closes when a pull request with this body is merged."""
+    return {int(n) for n in CLOSING.findall(body)}
+
+
+def linked_issues(body: str) -> set[int]:
+    """Issues that a body closes or refers to."""
+    return closed_issues(body) | {int(n) for n in REFS.findall(body)}
 
 
 def check_header(header: str, *, bot: bool = False) -> list[str]:
@@ -98,11 +128,11 @@ def check_pull_request(
         problems.append("body: a breaking title ('!') needs a 'BREAKING CHANGE: <what>' paragraph.")
     if "breaking-change" in labels and not breaking:
         problems.append("title: the label 'breaking-change' needs '!' after the scope.")
-    linked = {int(n) for n in ISSUE_LINK.findall(body or "")}
-    b = BRANCH.match(branch)
-    if not b and not BRANCH_EXEMPT.match(branch):
+    linked = linked_issues(body or "")
+    issue = branch_issue(branch)
+    if issue is None and not BRANCH_EXEMPT.match(branch):
         problems.append(
-            f"branch: '{branch}' is not '<type>/<issue>-<slug>'"
+            f"branch: '{branch}' is not '<type>/<issue>-<slug>' or 'sprint/SNN/<issue>-<slug>'"
             " (for example feat/42-ledger-hash-chain)."
         )
     if "no-issue" not in labels:
@@ -111,8 +141,8 @@ def check_pull_request(
                 "body: link the issue with 'Closes #<n>' (or 'Refs #<n>'), "
                 "or label the pull request 'no-issue' for trivial changes."
             )
-        elif b and int(b["issue"]) not in linked:
-            problems.append(f"branch refers to #{b['issue']} but the body links {sorted(linked)}.")
+        elif issue is not None and issue not in linked:
+            problems.append(f"branch refers to #{issue} but the body links {sorted(linked)}.")
     return problems
 
 
