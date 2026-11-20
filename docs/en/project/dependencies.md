@@ -21,6 +21,12 @@ are applied and who decides. Every tool listed is free for public open-source re
   that a few lines of our own code would not cover.
 - **Tooling**: the same rule; development tools live in the `dev` and `docs` groups of
   `pyproject.toml` and never reach users.
+- **Licences**: two lists, one rule. `cargo deny` (`deny.toml`) checks the normal Rust
+  dependencies; it leaves out crates used only by tests. Dependency review (the Security
+  workflow) checks every dependency a pull request adds, development dependencies and Python
+  packages included. Its list may hold more licences, for Python packages, never fewer:
+  `scripts/check_licences.py` refuses a licence allowed in `deny.toml` and missing from the
+  workflow. A new licence is added to both lists in the same change.
 
 ## How the project learns that an update is needed
 

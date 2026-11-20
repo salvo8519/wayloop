@@ -29,6 +29,7 @@ process:
     python scripts/check_agents.py
     python scripts/check_yaml.py
     python scripts/check_task_ids.py
+    python scripts/check_licences.py
     python scripts/roadmap.py check
     for f in sprints/S*.yaml; do [ ! -e "$f" ] || python scripts/sprint.py validate "$f" || exit 1; done
 
