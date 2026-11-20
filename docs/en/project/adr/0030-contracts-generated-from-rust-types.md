@@ -144,12 +144,6 @@ with its tests and the architecture page.
   deriving schemas, no I/O; to be confirmed by the security-reviewer role with `cargo deny`.
   Fallback if it is abandoned: the committed snapshots stay the contract, and the trait can be
   implemented by hand or by a fork without changing a file under `schemas/`.
-  Note of 2026-11-20, review of #301: the list was confirmed by `cargo tree` as expected.
-  `ref-cast` has a build script that runs `rustc --version` and writes into `OUT_DIR`; nothing
-  runs at run time. `dyn-clone` and `ref-cast` contain confined `unsafe` (the clone of a trait
-  object, a cast between `repr(transparent)` types), reviewed and accepted. The features of
-  `schemars` are declared explicitly (`default-features = false`, `derive` and `std`), so that
-  a change of its defaults upstream cannot widen them.
 - No `preserve_order`: with cargo feature unification it would turn on `preserve_order` of
   `serde_json` in the core, change the iteration order of every map the core reads, and add
   `indexmap` and `hashbrown` to the allowlists. The core visits members in the byte order of
@@ -215,6 +209,16 @@ with its tests and the architecture page.
 3. The branch of #256 is rebased: its hand-written `schemas/artifacts/brief/v1.json` and
    `schemas/commands/validate/v1.json`, `v1.output.json` are replaced by the generated ones
    before their first merge, so no hand-written snapshot is ever released.
+
+## Amendments
+
+- 2026-11-20, security review of #301 (G4): the crates reached by `schemars` are those
+  expected, confirmed by `cargo tree`. `ref-cast` has a build script that runs
+  `rustc --version` and writes into `OUT_DIR`; nothing runs at run time. `dyn-clone` and
+  `ref-cast` contain confined `unsafe` (the clone of a trait object, a cast between
+  `repr(transparent)` types), reviewed and accepted. The features of `schemars` are declared
+  explicitly (`default-features = false`, `derive` and `std`), so that a change of its
+  defaults upstream cannot widen them.
 
 ## Consequences
 

@@ -263,10 +263,11 @@ derived. Every contract type also reads back what it writes: a document its sche
 deserialises into the type, which writes the same JSON again (`contract::reread`). A closed
 enum is written with the macro `closed_enum!` of `wayloop_schemas::ident`, one spelling per
 value read by `id()`, `from_id()` and `Display`; two values with the same spelling do not
-compile. A closed enum of a contract (`Reason`, `NotDoneReason`, `Format`) is written with
+compile. A closed enum of a contract (`Reason`, `NotDoneReason`) is written with
 `contract_enum!`, so that its serialised form and the values of its schema read the same
-spelling; `IssueStep`, in no contract yet, uses `closed_enum!`, and `ExitCode`, a number by
-contract (ADR 0009 C7), has no spelling. A static identifier (`Code`, `Check`,
+spelling; `Format`, whose value `contract::rules::formatted` writes through `id()`, and
+`IssueStep`, in no contract yet, use `closed_enum!`; `ExitCode`, a number by contract (ADR 0009
+C7), has no spelling. A static identifier (`Code`, `Check`,
 `DefaultReason`) is written with `static_id!`: constants of the engine borrow their text, a
 value read from a document owns it. What the derive does not write is written once, in the
 module `contract`:

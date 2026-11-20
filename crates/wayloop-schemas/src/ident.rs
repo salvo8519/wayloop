@@ -190,7 +190,9 @@ macro_rules! closed_enum {
 ///
 /// On top of [`closed_enum!`] the enum gets `Serialize`, which writes `id()` as a string;
 /// `Deserialize`, which reads a spelling and refuses any other text; and `JsonSchema`, whose
-/// descriptions are the doc comments.
+/// descriptions are the doc comments. The type reads documents of its own version of the
+/// contract: a client that reads a newer version treats the member as a string and accepts
+/// values it does not know (ADR 0009 C5).
 #[macro_export]
 macro_rules! contract_enum {
     (

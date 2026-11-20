@@ -124,7 +124,11 @@ fn own_keywords(
         let at = pointer.join("enum");
         for (i, value) in values.iter().enumerate() {
             let line = meaning_line(value, "");
-            if !description.lines().any(|l| l.starts_with(&line)) {
+            let explained = description.lines().any(|l| {
+                l.strip_prefix(&line)
+                    .is_some_and(|meaning| !meaning.trim().is_empty())
+            });
+            if !explained {
                 return Err(refuse(
                     &at.join_index(i),
                     Problem::UndocumentedValue(value_text(value)),
@@ -135,7 +139,10 @@ fn own_keywords(
     if let Some(Value::Array(entries)) = schema.get("oneOf") {
         let at = pointer.join("oneOf");
         for (i, entry) in entries.iter().enumerate() {
-            let undocumented = entry.get("description").is_none();
+            let undocumented = entry
+                .get("description")
+                .and_then(Value::as_str)
+                .is_none_or(|d| d.trim().is_empty());
             if let (Some(value), true) = (entry.get("const"), undocumented) {
                 return Err(refuse(
                     &at.join_index(i),

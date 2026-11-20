@@ -622,3 +622,60 @@ fn the_walk_of_references_stops_after_its_bound_and_leaves_the_rest_to_the_loade
     // levels the loader of the core accepts, and is refused there.
     assert_eq!(problem(64), Ok(()));
 }
+
+crate::contract_enum! {
+    /// A light.
+    pub enum HalfDocumented {
+        /// Stop.
+        Red = "red",
+        Green = "green",
+    }
+}
+
+// A value whose doc comment is blanks only, which Clippy refuses as an empty doc comment.
+#[allow(clippy::empty_docs)]
+mod blank {
+    crate::contract_enum! {
+        /// A light.
+        pub enum BlankValue {
+            /// Stop.
+            Red = "red",
+            #[doc = "   "]
+            Green = "green",
+        }
+    }
+}
+use blank::BlankValue;
+
+#[test]
+fn a_contract_enum_value_without_its_meaning_is_refused() {
+    for error in [
+        refused::<HalfDocumented>(Direction::Output),
+        refused::<BlankValue>(Direction::Output),
+    ] {
+        assert_eq!(
+            error,
+            ContractError {
+                pointer: at("/oneOf/1"),
+                problem: Problem::UndocumentedValue("green".into())
+            }
+        );
+    }
+}
+
+#[test]
+fn an_enum_line_without_a_meaning_is_refused() {
+    let schema =
+        |description: &str| json!({"description": description, "type": "string", "enum": ["a"]});
+    assert_eq!(
+        super::check::check(&schema("d\n\n- `a`:   "), Direction::Output),
+        Err(ContractError {
+            pointer: at("/enum/0"),
+            problem: Problem::UndocumentedValue("a".into())
+        })
+    );
+    assert_eq!(
+        super::check::check(&schema("d\n\n- `a`: First."), Direction::Output),
+        Ok(())
+    );
+}

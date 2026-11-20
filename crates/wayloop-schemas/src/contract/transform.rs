@@ -104,7 +104,8 @@ fn without_null(member: &mut Map<String, Value>) {
     }
 }
 
-/// A `oneOf` whose every entry is a constant with a description, as the derive writes a
+/// A `oneOf` whose every entry is a constant with a description that is not blank, as the
+/// derive writes a
 /// documented enum, becomes an `enum`; the meaning of each value is appended to the
 /// description, one line per value: ``- `value`: meaning`` (ADR 0024). A `oneOf` with an
 /// entry of another form is left as it is, for the checks to refuse.
@@ -121,7 +122,10 @@ fn documented_constants_as_enum(object: &mut Map<String, Value>) {
         };
         let (Some(value), Some(meaning)) = (
             entry.get("const"),
-            entry.get("description").and_then(Value::as_str),
+            entry
+                .get("description")
+                .and_then(Value::as_str)
+                .filter(|meaning| !meaning.trim().is_empty()),
         ) else {
             return;
         };

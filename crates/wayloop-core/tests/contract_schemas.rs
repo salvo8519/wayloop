@@ -8,12 +8,7 @@
 //! - what the subset refuses (`null`, `pattern`, `default`, `uniqueItems`, an unknown format, a
 //!   boolean schema, a map) is refused by the loader, at its place.
 // A test stops at the line that failed: the restriction lints of the shipped code do not apply.
-#![allow(
-    clippy::unwrap_used,
-    clippy::panic,
-    clippy::indexing_slicing,
-    dead_code
-)]
+#![allow(clippy::unwrap_used, clippy::panic, clippy::indexing_slicing)]
 
 use core::num::{NonZeroU32, NonZeroU64};
 use std::collections::{BTreeMap, BTreeSet};
@@ -244,6 +239,10 @@ fn the_schemas_refuse_what_the_types_never_write() {
 
 /// Described.
 #[derive(JsonSchema)]
+#[expect(
+    dead_code,
+    reason = "a test type exists for its schema only and is never built"
+)]
 struct RequiredNull {
     /// A member that serialises as null when not given.
     a: Option<u32>,
@@ -251,6 +250,10 @@ struct RequiredNull {
 
 /// Described.
 #[derive(JsonSchema)]
+#[expect(
+    dead_code,
+    reason = "a test type exists for its schema only and is never built"
+)]
 struct WithPattern {
     /// A member.
     #[schemars(regex(pattern = "^a$"))]
@@ -259,6 +262,10 @@ struct WithPattern {
 
 /// Described.
 #[derive(JsonSchema)]
+#[expect(
+    dead_code,
+    reason = "a test type exists for its schema only and is never built"
+)]
 struct WithDefault {
     /// A member.
     #[schemars(extend("default" = 1))]
@@ -267,6 +274,10 @@ struct WithDefault {
 
 /// Described.
 #[derive(JsonSchema)]
+#[expect(
+    dead_code,
+    reason = "a test type exists for its schema only and is never built"
+)]
 struct WithSet {
     /// A member.
     a: BTreeSet<String>,
@@ -274,6 +285,10 @@ struct WithSet {
 
 /// Described.
 #[derive(JsonSchema)]
+#[expect(
+    dead_code,
+    reason = "a test type exists for its schema only and is never built"
+)]
 struct WithUnknownFormat {
     /// A member.
     #[schemars(extend("format" = "email"))]
@@ -282,6 +297,10 @@ struct WithUnknownFormat {
 
 /// Described.
 #[derive(JsonSchema)]
+#[expect(
+    dead_code,
+    reason = "a test type exists for its schema only and is never built"
+)]
 struct WithMap {
     /// A map of numbers.
     a: BTreeMap<String, u32>,
@@ -302,6 +321,10 @@ impl JsonSchema for Never {
 
 /// Described.
 #[derive(JsonSchema)]
+#[expect(
+    dead_code,
+    reason = "a test type exists for its schema only and is never built"
+)]
 struct HoldsNever {
     /// A list of nothing.
     a: Vec<Never>,

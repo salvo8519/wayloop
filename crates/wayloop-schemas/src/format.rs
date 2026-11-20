@@ -6,7 +6,7 @@
 //! be written in a schema. The accepted forms are documented with the interpreter
 //! (`wayloop_core::schema`).
 
-crate::contract_enum! {
+crate::closed_enum! {
     /// A named format of the subset of JSON Schema that the core interprets; its identifier is
     /// the value of the `format` keyword.
     pub enum Format {
