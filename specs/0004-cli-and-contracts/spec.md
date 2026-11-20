@@ -22,7 +22,7 @@ Agents and people drive the engine through commands. Every command must speak th
 
 ## Requirements (EARS)
 - **R1**: THE ENGINE SHALL return every result in the envelope of ADR 0009 C1, with meta.envelope_version and meta.command_version.
-- **R2**: THE ENGINE SHALL report every refusal as {code, message, pointer, pointers, reason, expected, fix, source} and list every input error found in one pass in errors; `source` locates the faulty value in the repository (`{file, line}`, `{issue}` or `{milestone}`) and is absent for a document sent directly (SPEC-0001 Errors).
+- **R2**: THE ENGINE SHALL report every refusal as {code, message, pointer, pointers, reason, expected, fix, source, document} and list every input error found in one pass in errors; `source` locates the faulty value in the repository (`{file, line}` with `line` only when it is known, `{issue}` or `{milestone}`; the optional line is a breaking change of the envelope, version 2 of `envelope/result`, version 1 staying frozen) and is absent for a document sent directly (SPEC-0001 Errors); `document`, an additive optional field (decided by the maintainer on 2026-11-20), is the index from 0 of the document in the input array `documents` for every error that belongs to a document, whose `pointer` is then relative to that document, and is absent for an error of the input itself.
 - **R3**: THE ENGINE SHALL treat absent and null as not given and list every default applied in meta.defaults_applied.
 - **R4**: THE ENGINE SHALL snapshot every command input and output schema and bump the command version on a breaking change (ADR 0009 C5).
 - **R5**: WHEN a command changes state, THE ENGINE SHALL require the expected revision and refuse a stale one with reason stale.
@@ -31,7 +31,7 @@ Agents and people drive the engine through commands. Every command must speak th
 - **R8**: WHEN a command changes files or the tracker, THE ENGINE SHALL support a dry run that reports the changes without applying them.
 - **R9**: THE ENGINE SHALL publish the JSON Schema of every command input and output.
 - **R10**: THE ENGINE SHALL report tokens in and out, cost, duration and turns from the ledger, grouped by issue, phase, role and executor, for a time range (wayloop cost).
-- **R11**: THE ENGINE SHALL compute `meta.input_hash` as the SHA-256 of the input serialised as canonical JSON (RFC 8785).
+- **R11**: THE ENGINE SHALL compute `meta.input_hash` as the SHA-256 of the input serialised as canonical JSON (RFC 8785), after removing the members of objects set to null at any depth (they are not given, ADR 0009 C2; elements of arrays are kept); for bytes that are not JSON, or when no input was read, as the SHA-256 of the bytes received (decided by the maintainer on 2026-11-20). For such bytes parity across channels is not guaranteed: two channels that send the same text with other line endings or with a byte order mark get different hashes.
 - **R12**: THE ENGINE SHALL report the revision, the hash of the latest ledger event, in `meta.revision` of every result that reads state (ADR 0009 C6).
 - **R13**: THE ENGINE SHALL return the effective configuration with the source of every value with `wayloop config show`.
 - **R14**: THE ENGINE SHALL expose one entry point that takes a command, its canonical input and a context (output budget, read-only mode, dry run) and returns the envelope; every channel SHALL call it and SHALL only translate its native input to the canonical input and the envelope to its native output (ADR 0028).
@@ -57,8 +57,25 @@ Agents and people drive the engine through commands. Every command must speak th
 - **AC14**: Given the same input in the function-calling format of each supported provider, when translated, then every translation gives the same `input_hash` (R14, R15). Verification: contract test.
 - **AC15**: Given an input with one unknown field and one missing field, when validated, then the envelope has `error` with both errors in `errors`, no `data`, and exit code 1 (R2, R18). Verification: contract test.
 
+## Errors
+
+Codes common to every command (decided by the maintainer on 2026-11-20). The codes of each
+command are in its specification and its reference page.
+
+| Code | Reasons | Exit code | Meaning |
+| --- | --- | --- | --- |
+| `command_input` | `syntax`, `duplicate`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `conflict` | 1 | The input of the command is refused: it is not JSON (`syntax`), a number is beyond the range of a double (`range`), it repeats a key (`duplicate`), it breaks the input schema or a rule of the input, or the context requests a version of the command the engine does not run (`enum`, the known versions in `expected`) |
+| `usage` | `syntax` | 2 | The channel was not used as documented, for example a command line its adapter does not understand; `command` is the command named, empty when none |
+| `input_unreadable` | `missing`, `state` | 3 | The channel could not read the input from the environment: it does not exist (`missing`) or cannot be read (`state`); the envelope holds no path |
+| `internal_error` | `internal` | 5 | The engine could not compute the result; the input may be valid |
+
+The command line prints an envelope for every outcome of a command, exit codes 2 and 3
+included, with `error` and no `data`; the message for a person goes to standard error. When no
+input was read (usage, unreadable input), `meta.input_hash` is the SHA-256 of no bytes.
+
 ## Interfaces
 - schemas/commands/<command>/v<N>.json and v<N>.output.json; schemas/index.json; error codes and reasons documented in the reference (ADR 0009).
+- The context of the entry point carries the requested version of the command (ADR 0028, amended on 2026-11-20): absent, the current version runs and is listed in `meta.defaults_applied` with the reason `current_command_version` and the pointer `""`; a version the engine does not run is refused with `command_input`, reason `enum`, the known versions in `expected` and the pointer `""`, and its envelope reports the current version in `meta.command_version`, the version whose shape it has. The pointer `""` of the default and of the refusal names no member, because the version is a setting of the context and has no place in the input. The envelope of a usage error reports in `meta.command_version` the current version of the command it names, and 1 when it names no known command.
 
 ## Open questions
 - [ ] Human-readable output in addition to JSON, or JSON only with a separate renderer?

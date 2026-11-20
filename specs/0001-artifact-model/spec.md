@@ -578,8 +578,10 @@ Titles (R7, R8):
 
 Every refusal is the error report of ADR 0009 C3, with every error found in one pass. Pointers
 follow RFC 6901 from the root of the document model sent to validation, which is the input of
-C3 (R12). Each error also carries `source`, the location in the stored form: `{file, line}`
-for a repository file, `{issue}` for a tracker issue, `{milestone}` for a tracker milestone.
+C3 (R12); the field `document` of the error gives the index of that document in the input
+(SPEC-0004 R2). Each error also carries `source`, the location in the stored form: `{file,
+line}` for a repository file, with `line` only when it is known, `{issue}` for a tracker
+issue, `{milestone}` for a tracker milestone.
 `source` is absent when the document was sent directly in the normalised form. `source` has no
 tag naming its form, on purpose: it is output only, and its field names tell the forms apart.
 

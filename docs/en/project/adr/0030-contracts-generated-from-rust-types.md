@@ -236,6 +236,16 @@ with its tests and the architecture page.
   `required`, `items`, `$defs`, `enum` and the annotations is breaking, `allOf` and `$schema`
   included; a new `enum` value is additive in both directions, as in Fairmark.
 
+- 2026-11-20, with the rebase of #256, subject to the approval of its pull request by the
+  maintainer (G2): in the input direction the generator closes every
+  object that declares its members (`properties`); an object that declares none is a free
+  object, a document whose schema is another one (the documents of `validate`, checked by the
+  schema of their kind, and the map of their lines, checked by the core), written by hand with
+  `value::free_object_schema` and left open. A map derived by `schemars` keeps its schema of
+  values and is still refused by the loader of the core. Version 2 of `envelope/result` follows
+  the first breaking change of the envelope under rule (B): the line of a `source` is written
+  only when it is known (SPEC-0004 R2).
+
 ## Consequences
 
 Positive:

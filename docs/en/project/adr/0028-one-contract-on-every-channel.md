@@ -47,6 +47,15 @@ Option 3.
   with the channel and the JSON pointer. It runs in CI as a required check and locally with
   one command.
 
+## Amendments
+
+- 2026-11-20, decided by the maintainer with the review of #256: the version of a command is
+  not in its input. The channel passes the requested version in the context of the entry
+  point; when it requests none, the engine runs the current version and lists it in
+  `meta.defaults_applied`; a version the engine does not run is refused with the code
+  `command_input`, reason `enum`, and the known versions in `expected` (SPEC-0004, Errors).
+  The command line passes it with `--command-version <n>`.
+
 ## Consequences
 
 - A new channel costs one translation function and its inverse; the cases and the reconciler
