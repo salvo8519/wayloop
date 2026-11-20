@@ -1,0 +1,9 @@
+{
+  "name": "wayloop-dev-tools",
+  "private": true,
+  "description": "Development tools of Wayloop that come from npm. Not published.",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "jscpd": "5.4.3"
+  }
+}

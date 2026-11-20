@@ -24,3 +24,6 @@ CLAUDE.local.md
 /internal/
 # Data file of pytest-cov (`just coverage`, CI)
 .coverage
+
+# Development tools from npm (package.json, installed with `npm ci`)
+/node_modules/

@@ -229,6 +229,20 @@ CI run the same commands.
   git repository, the hooks with the scripts they need). The model of the roadmap file
   (`load`, `epics`, `tasks`, `depends_on` and the task tags `TAGS`) lives in
   `scripts/roadmap.py`; `bootstrap_github.py` and `journal.py` import it.
+- **Duplicated code**: `just dup` runs jscpd (pinned in `package.json` and
+  `package-lock.json`, settings in `.jscpd.json`: blocks of at least 8 lines and 60 tokens,
+  files up to 20 MB, generated and frozen folders left out) in `just check` and CI. The pure
+  crates (`wayloop-core`, `wayloop-schemas`) admit no clone beyond `.jscpd-baseline.json`,
+  which holds the two clones that issue #299 removes and may only shrink (a test checks it);
+  the crates, the scripts, the tests and the hooks together admit at most 1 percent of
+  duplicated lines. A deliberate copy (an independent oracle in tests, a frozen snapshot, a
+  hook that runs without the project environment) states its reason in a comment and has a
+  test that keeps it equal to its source.
+- **Workflows**: the composite actions `.github/actions/rust-toolchain` (the channel of
+  `rust-toolchain.toml`) and `.github/actions/python-env` (uv and `uv sync --locked`) set up
+  the jobs; the `justfile` names the pure crates (`pure_crates`) and the Python paths
+  (`py_paths`) once, and CI calls its recipes (`just python`, `just sprints`, `just dup`,
+  `just mutants`) instead of repeating their commands.
 
 Problems are fixed where they appear, without the maintainer watching for them:
 

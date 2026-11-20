@@ -1,0 +1,18 @@
+{
+  "minLines": 8,
+  "minTokens": 60,
+  "maxSize": "20mb",
+  "reporters": ["console"],
+  "ignore": [
+    "**/target/**",
+    "**/.venv/**",
+    "**/node_modules/**",
+    "site/**",
+    "internal/**",
+    "schemas/**",
+    "tests/contract/**",
+    "docs/it/**",
+    ".claude/agents/**",
+    ".claude/skills/**"
+  ]
+}

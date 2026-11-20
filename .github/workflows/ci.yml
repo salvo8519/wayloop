@@ -17,30 +17,20 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0  # the docs impact and schema snapshot checks compare with the base
-      - name: Rust toolchain pinned in rust-toolchain.toml
-        id: toolchain
-        run: python3 -c 'import tomllib; print("channel=" + tomllib.load(open("rust-toolchain.toml", "rb"))["toolchain"]["channel"])' >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: ./.github/actions/rust-toolchain
         with:
-          toolchain: ${{ steps.toolchain.outputs.channel }}
           components: rustfmt, clippy, llvm-tools-preview
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: ./.github/actions/python-env
         with:
-          python-version: "3.13"
-          enable-cache: true
-      - run: uv sync --all-groups
+          enable-cache: "true"
       - run: uv run python scripts/check_style.py
       - run: uv run typos
       - name: Translations current (or labelled translation-pending)
         if: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.labels.*.name, 'translation-pending') }}
         run: uv run python scripts/i18n.py check
-      - name: Python lint, error handling and format (ruff)
-        run: |
-          uv run ruff check --output-format github scripts tests .claude/hooks
-          uv run ruff format --check scripts tests .claude/hooks
-      - name: Python types (mypy strict)
-        run: uv run mypy
+      - name: Python lint, error handling, format (ruff) and types (mypy strict)
+        run: uv run just python github
       - name: Process scripts tested, line coverage in the summary (pytest-cov)
         run: |
           echo '### Line coverage of the process scripts' >> "$GITHUB_STEP_SUMMARY"
@@ -84,7 +74,7 @@ jobs:
             uv run python scripts/roadmap.py check
           fi
       - name: Sprint files valid
-        run: for f in sprints/S*.yaml; do [ ! -e "$f" ] || uv run python scripts/sprint.py validate "$f" || exit 1; done
+        run: uv run just sprints
       - name: Sprint pull request stays in its lane
         if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'sprint/')
         env:
@@ -105,6 +95,8 @@ jobs:
             base="$BEFORE"
           fi
           uv run python scripts/check_schemas.py --base "$base"
+      - name: Duplicated code (jscpd from package-lock.json, npm of the runner)
+        run: uv run just dup
       - name: Pure crates perform no I/O (ADR 0001, ADR 0006)
         run: uv run python scripts/check_core_io.py
       - run: cargo fmt --all --check
@@ -146,7 +138,7 @@ jobs:
         with:
           version: "0.13.7"
       # Security audit of the workflows: injections, permissions, credentials, pins.
-      - run: uvx zizmor@1.32.0 --offline --min-severity low .github/workflows
+      - run: uvx zizmor@1.32.0 --offline --min-severity low .github/workflows .github/actions
       # Workflow syntax, runner labels and shell scripts (shellcheck is on the runner).
       - run: uvx --from actionlint-py@1.7.12.25 actionlint
       - run: python3 scripts/pin_actions.py --check
