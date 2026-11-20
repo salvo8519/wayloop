@@ -59,7 +59,7 @@ wayloop-schemas    tipi dei contratti, niente I/O
   e `schemars`, che deriva il JSON Schema dei tipi dei contratti e non fa I/O, senza la sua
   feature `preserve_order`, con i crate che raggiunge (`schemars_derive`,
   `serde_derive_internals`, `dyn-clone`, `ref-cast`, `ref-cast-impl`)
-  ([ADR 0030](../project/adr/0030-contracts-generated-from-rust-types.md));
+  ([ADR 0030](https://salvo8519.github.io/wayloop/project/adr/0030-contracts-generated-from-rust-types/));
   `wayloop-core` può usare anche `wayloop-schemas`, e `wayloop-schemas` nessun crate di
   Wayloop. `scripts/check_core_io.py` risolve ogni crate puro da solo con
   `cargo tree` (dipendenze normali, ogni target, tutte le sue feature, il lock file lasciato
@@ -277,7 +277,7 @@ compila finché il core non lo controlla.
 
 Ogni tipo dei contratti di `wayloop-schemas` deriva il proprio JSON Schema con `schemars`, e i
 suoi commenti di documentazione diventano le descrizioni
-([ADR 0030](../project/adr/0030-contracts-generated-from-rust-types.md)).
+([ADR 0030](https://salvo8519.github.io/wayloop/project/adr/0030-contracts-generated-from-rust-types/)).
 `wayloop_schemas::contract::schema_for` restituisce lo schema di un tipo per una direzione,
 input o output, e non scrive alcun file; `contract::TYPES` elenca ogni tipo dei contratti il cui
 schema è derivato. Ogni tipo dei contratti rilegge anche ciò che scrive: un documento che il
