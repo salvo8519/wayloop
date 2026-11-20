@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 0b05d2a5b362
+source_hash: 2c1ef09c68e9
 ---
 # Architettura
 
@@ -218,7 +218,7 @@ posto, è rifiutato quando viene caricato: nessuna regola di uno schema è ignor
 | `properties` con `additionalProperties: false` | Schema di ogni membro dichiarato; ogni altro membro è rifiutato | `unknown_field`, con la chiave dichiarata più vicina in `fix` |
 | `required` | Membri dichiarati che devono essere presenti | `missing` |
 | `if` e `then`, `allOf` | Requisiti condizionali: quando il valore soddisfa la condizione di `if`, i membri del `required` di `then` devono essere presenti; `allOf` elenca coppie di questo tipo | `requires`, con i membri verificati dalla condizione in `pointers` |
-| `$ref`, `$defs` | Un riferimento a una definizione dello stesso file | |
+| `$ref`, `$defs` | Un riferimento a una definizione dello stesso file, il cui nome non contiene `/`, `~` o `%` | |
 | `$schema`, `$id`, `$comment`, `title`, `description` | Annotazioni, alla radice per `$schema` e `$id` | |
 
 La condizione di un `if` usa `properties`, `required`, `enum`, `const` e `contains`. Non c'è
@@ -245,11 +245,14 @@ correzione.
   Damerau-Levenshtein ristretta) non superiore a un terzo della lunghezza della chiave
   sconosciuta; a parità vince la prima chiave nell'ordine dei byte. Una chiave più lunga di 64
   caratteri non riceve correzioni.
-- **Interi.** Ogni intero controllato dall'interprete sta entro più o meno (2^53 - 1), i più
-  grandi interi che ogni parser JSON conserva esattamente; un valore oltre è rifiutato con il
-  motivo `range`, qualunque cosa dica il suo schema. Gli interi di uno schema rispettano lo
-  stesso limite. I numeri si confrontano per valore, quindi `4364.0` è uguale a `4364`. Un
-  numero in una parte del documento che nessuno schema descrive non è controllato.
+- **Interi.** Ogni intero controllato dall'interprete sta entro più o meno (2^53 - 1),
+  l'intervallo in cui un double IEEE 754 rappresenta esattamente ogni intero (RFC 7493,
+  I-JSON); un valore oltre è rifiutato con il motivo `range`, qualunque cosa dica il suo
+  schema. Gli interi di uno schema rispettano lo stesso limite. I numeri si confrontano per
+  valore, quindi `4364.0` è uguale a `4364`. Un numero in una parte del documento che nessuno
+  schema descrive non è controllato. I numeri sono letti come double IEEE 754, come li legge
+  RFC 8785, quindi le cifre oltre quella precisione non sono viste: `1.0000000000000001` è
+  l'intero 1.
 - **Limiti.** Uno schema ha al massimo 32 livelli di sottoschemi, contati attraverso i
   riferimenti, e un riferimento che raggiunge la propria definizione è rifiutato. L'interprete
   scende in un documento solo dove scende il suo schema, quindi la sua ricorsione è limitata
@@ -257,4 +260,8 @@ correzione.
 - **Oracolo.** I test verificano ogni schema e documento che usano con un crate di validazione
   JSON Schema, una dipendenza di sviluppo che non viene mai distribuita; deve concordare con
   l'interprete sul verdetto. Nell'oracolo i formati con nome sono controllati da espressioni
-  regolari scritte a partire dalla SPEC-0001, indipendentemente dai parser del core.
+  regolari scritte a partire dalla SPEC-0001, indipendentemente dai parser del core. Due regole
+  di Wayloop non sono JSON Schema, quindi l'oracolo vede il documento senza i membri impostati
+  a null, e al suo verdetto si aggiunge il limite degli interi; il limite è controllato su ogni
+  numero, il che coincide con l'interprete solo per i documenti che il loro schema descrive
+  per intero, come i documenti dei test.

@@ -154,7 +154,10 @@ fn without_nulls(value: &Value) -> Value {
 }
 
 /// Whether `value` holds an integer beyond plus or minus (2^53 - 1), checked with the
-/// arithmetic of floats, independently of the interpreter.
+/// arithmetic of floats, independently of the interpreter. It looks at every number, while
+/// the interpreter checks only the numbers a schema describes: it matches the interpreter
+/// only for documents that their schema describes fully, as every document of these tests
+/// that holds such a number is (see `a_number_no_schema_describes_is_not_checked`).
 fn beyond_safe(value: &Value) -> bool {
     match value {
         Value::Number(n) => {
@@ -287,6 +290,54 @@ fn a_field_missing_under_required_and_then_is_reported_once_as_missing() {
     });
     let errors = check(&schema, &json!({"a": "x"}));
     assert_eq!(found(&errors), [("/b".to_owned(), Reason::Missing)]);
+}
+
+#[test]
+fn the_pointers_of_requires_name_the_members_the_condition_tested() {
+    let schema = json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {"a": {}, "b": {}, "c": {}},
+        "if": {"required": ["c", "a"], "properties": {"a": {"const": "x"}}},
+        "then": {"required": ["b"]}
+    });
+    // `a` is tested by `properties` and by `required`: listed once, in byte order.
+    let errors = check(&schema, &json!({"c": 1, "a": "x"}));
+    let error = only(&errors);
+    assert_eq!(error.pointer(), &at("/b"));
+    assert_eq!(error.pointers(), Some(&[at("/a"), at("/c")][..]));
+    let by_required = json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {"a": {}, "b": {}},
+        "if": {"required": ["a"]},
+        "then": {"required": ["b"]}
+    });
+    let errors = check(&by_required, &json!({"a": "x"}));
+    assert_eq!(only(&errors).pointers(), Some(&[at("/a")][..]));
+}
+
+#[test]
+fn a_condition_true_by_an_absent_member_gives_no_pointers() {
+    let schema = json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {"a": {}, "b": {}},
+        "if": {"properties": {"a": {"const": "x"}}},
+        "then": {"required": ["b"]}
+    });
+    let errors = check(&schema, &json!({}));
+    let error = only(&errors);
+    assert_eq!(error.pointer(), &at("/b"));
+    assert_eq!(error.reason(), Reason::Requires);
+    // C2: an empty list would say that no member is involved; the field is left out.
+    assert_eq!(error.pointers(), None);
+    assert!(
+        serde_json::to_value(error)
+            .unwrap()
+            .get("pointers")
+            .is_none()
+    );
 }
 
 #[test]
@@ -472,8 +523,26 @@ fn an_integer_is_any_number_without_a_fraction() {
     );
 }
 
-/// 2^53 - 1, the largest integer every JSON parser holds exactly.
+/// 2^53 - 1: the range in which an IEEE 754 double holds every integer exactly (RFC 7493,
+/// I-JSON).
 const SAFE: i64 = 9_007_199_254_740_991;
+
+#[test]
+fn a_number_no_schema_describes_is_not_checked() {
+    // Called directly: the oracle with the bound added would refuse it. The member of an open
+    // object is described by no schema, so its integer is not bounded (canonical JSON keeps a
+    // canonical form for it, RFC 8785).
+    let schema = Schema::load(&json!({"type": "object"})).unwrap();
+    let document = json!({"any": 9_007_199_254_740_993_u64});
+    assert_eq!(schema.validate(&document, CODE), []);
+}
+
+#[test]
+fn digits_beyond_the_precision_of_a_double_are_not_seen() {
+    // Numbers are read as IEEE 754 doubles, as RFC 8785 reads them: this one is 1.0.
+    let document: Value = serde_json::from_str("1.0000000000000001").unwrap();
+    assert_eq!(check(&json!({"type": "integer"}), &document), []);
+}
 
 #[test]
 fn integers_are_bounded_to_the_safe_range_whatever_the_schema_says() {
@@ -1149,6 +1218,11 @@ fn malformed_values_of_keywords_are_refused_with_their_place() {
             "/$ref",
         ),
         (json!({"$ref": "#/$defs/", "$defs": {"": {}}}), "/$ref"),
+        // A percent-encoded name is refused too, never decoded or matched as written.
+        (
+            json!({"$ref": "#/$defs/a%20b", "$defs": {"a%20b": {}}}),
+            "/$ref",
+        ),
         (
             json!({"$ref": "#/$defs/a", "type": "string", "$defs": {"a": {}}}),
             "",

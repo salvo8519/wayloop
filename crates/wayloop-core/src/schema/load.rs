@@ -407,7 +407,7 @@ impl Loader {
             let name = target
                 .as_str()
                 .and_then(|t| t.strip_prefix("#/$defs/"))
-                .filter(|n| !n.is_empty() && !n.contains(['/', '~']));
+                .filter(|n| !n.is_empty() && !n.contains(['/', '~', '%']));
             let Some(name) = name else {
                 return Err(invalid(&at, "a reference is `#/$defs/<name>`"));
             };

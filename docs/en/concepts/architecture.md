@@ -204,7 +204,7 @@ silently ignored.
 | `properties` with `additionalProperties: false` | Schema of each declared member; any other member is refused | `unknown_field`, with the closest declared key in `fix` |
 | `required` | Declared members that must be present | `missing` |
 | `if` and `then`, `allOf` | Conditional requirements: when the value matches the condition of `if`, the members of the `required` of `then` must be present; `allOf` lists such pairs | `requires`, with the members the condition tested in `pointers` |
-| `$ref`, `$defs` | A reference to a definition of the same file | |
+| `$ref`, `$defs` | A reference to a definition of the same file, whose name has no `/`, `~` or `%` | |
 | `$schema`, `$id`, `$comment`, `title`, `description` | Annotations, at the root for `$schema` and `$id` | |
 
 The condition of an `if` uses `properties`, `required`, `enum`, `const` and `contains`. There is
@@ -229,14 +229,20 @@ SPEC-0001. The documentation of the module lists each form and each fix.
   third of the length of the unknown key; ties go to the first key in byte order. A key longer
   than 64 characters gets no fix.
 - **Integers.** Every integer the interpreter checks lies within plus or minus (2^53 - 1), the
-  largest integers that every JSON parser holds exactly; a value beyond is refused with the
-  reason `range`, whatever its schema says. Integers in a schema are held to the same bound.
-  Numbers are compared by value, so `4364.0` equals `4364`. A number in a part of a document
-  that no schema describes is not checked.
+  range in which an IEEE 754 double holds every integer exactly (RFC 7493, I-JSON); a value
+  beyond is refused with the reason `range`, whatever its schema says. Integers in a schema
+  are held to the same bound. Numbers are compared by value, so `4364.0` equals `4364`. A
+  number in a part of a document that no schema describes is not checked. Numbers are read as
+  IEEE 754 doubles, as RFC 8785 reads them, so digits beyond that precision are not seen:
+  `1.0000000000000001` is the integer 1.
 - **Bounds.** A schema is at most 32 levels of subschemas deep, counted through references, and
   a reference that reaches its own definition is refused. The interpreter descends into a
   document only where its schema does, so its recursion is bounded whatever the document.
 - **Oracle.** The tests check every schema and document they use with a JSON Schema validator
   crate, a development dependency that is never shipped; it must agree with the interpreter on
   the verdict. The named formats are checked in the oracle by regular expressions written from
-  SPEC-0001, independently of the parsers of the core.
+  SPEC-0001, independently of the parsers of the core. Two rules of Wayloop are not JSON
+  Schema, so the oracle sees the document without its members set to null, and the integer
+  bound is added to its verdict; the bound is checked on every number, which matches the
+  interpreter only for documents that their schema describes fully, as the documents of the
+  tests are.

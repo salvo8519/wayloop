@@ -8,8 +8,8 @@ use super::closest::closest;
 use super::load::{Compiled, Node, Rules, Type, Values};
 use crate::{Code, Error, Pointer, Reason};
 
-/// The largest magnitude of an integer, 2^53 - 1: the largest integer that every JSON parser
-/// holds exactly (decision of the maintainer, 2026-11-20).
+/// The largest magnitude of an integer, 2^53 - 1: the range in which an IEEE 754 double holds
+/// every integer exactly (RFC 7493, I-JSON; decision of the maintainer, 2026-11-20).
 pub(super) const SAFE_INTEGER: i64 = 9_007_199_254_740_991;
 
 /// Whether `n` is within plus or minus [`SAFE_INTEGER`].
@@ -238,13 +238,16 @@ impl Checker<'_> {
             if !self.matches_object(conditional.when, members) {
                 continue;
             }
-            let tested: Vec<&str> = self
+            // The members the condition tested, by `properties` or by `required`, that the
+            // document gives: once each, in byte order.
+            let tested: BTreeSet<&str> = self
                 .schema
                 .conditions
                 .get(conditional.when)
                 .map(|c| {
                     c.properties
                         .keys()
+                        .chain(&c.required)
                         .map(String::as_str)
                         .filter(|k| given(k))
                         .collect()
@@ -263,10 +266,11 @@ impl Checker<'_> {
                         fields.join(", ")
                     )
                 };
-                let pointers = tested.iter().map(|t| pointer.join(t)).collect::<Vec<_>>();
-                let error = self
-                    .error(message, &pointer.join(name), Reason::Requires)
-                    .with_pointers(pointers);
+                let mut error = self.error(message, &pointer.join(name), Reason::Requires);
+                // An empty list would say that no member is involved (ADR 0009 C2).
+                if !tested.is_empty() {
+                    error = error.with_pointers(tested.iter().map(|t| pointer.join(t)));
+                }
                 self.errors.push(error);
             }
         }

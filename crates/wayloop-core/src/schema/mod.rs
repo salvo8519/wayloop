@@ -25,7 +25,7 @@
 //! | `required` | Declared members that must be present | `missing` |
 //! | `if` and `then` | A conditional requirement: when the value matches the condition of `if`, the members listed in the `required` of `then` must be present | `requires`, with the pointers of the members the condition tested in `pointers` |
 //! | `allOf` | A list of `if` and `then` pairs | |
-//! | `$ref` | `#/$defs/<name>`, a definition of the same file; only annotations beside it | |
+//! | `$ref` | `#/$defs/<name>`, a definition of the same file, the name without `/`, `~` or `%`; only annotations beside it | |
 //! | `$defs` | Definitions, at the root only; a definition is not itself a `$ref` | |
 //! | `$schema` | At the root only, and only `https://json-schema.org/draft/2020-12/schema` | |
 //! | `$id`, `$comment`, `title`, `description` | Annotations, never checked; `$id` at the root only | |
@@ -37,11 +37,13 @@
 //! subset is `null` it fails `type`.
 //!
 //! Every integer the interpreter checks, whatever its schema, lies within plus or minus
-//! (2^53 - 1), the largest integers every JSON parser holds exactly (decision of the
-//! maintainer, 2026-11-20): a value beyond is refused with `range`, by that one error, right
-//! after `type`. Integers written in a schema (`enum`, `const`, `minimum`, `maximum`) are held
-//! to the same bound when it is loaded. A number in a part of the document that no schema
-//! describes, such as a member of an object without `properties`, is not checked.
+//! (2^53 - 1), the range in which an IEEE 754 double holds every integer exactly (RFC 7493,
+//! I-JSON; decision of the maintainer, 2026-11-20): a value beyond is refused with `range`,
+//! by that one error, right after `type`. Integers written in a schema (`enum`, `const`,
+//! `minimum`, `maximum`) are held to the same bound when it is loaded. A number in a part of
+//! the document that no schema describes, such as a member of an object without
+//! `properties`, is not checked. Numbers are read as IEEE 754 doubles, as RFC 8785 reads them,
+//! so digits beyond that precision are not seen: `1.0000000000000001` is the integer 1.
 //!
 //! The condition of `if` uses `properties`, `required`, `enum`, `const` and `contains` (an
 //! array with at least one element matching a condition), and annotations; `then` holds
