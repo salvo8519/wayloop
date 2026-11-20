@@ -216,6 +216,12 @@ CI run the same commands.
   `just python` runs the three; `just fmt` formats and applies the safe fixes. A finding is
   fixed, not silenced: a `noqa` or `type: ignore` needs a comment that says why.
 
+- **One source**: every rule and value is defined once and imported where it is used. The
+  process scripts share their helpers through `scripts/_*.py`, written with the standard
+  library only, so that hooks and workflows can import them without the project environment:
+  `_github.py` (the repository, one call of the GitHub CLI with retries, the REST API, every
+  page of a list).
+
 Problems are fixed where they appear, without the maintainer watching for them:
 
 - **Agents**: the Claude Code Stop hook `.claude/hooks/quality-gate.sh` runs the fast checks on

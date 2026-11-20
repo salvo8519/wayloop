@@ -197,7 +197,7 @@ def test_main_reads_the_details_file(tmp_path: Path, monkeypatch: pytest.MonkeyP
     details = tmp_path / "missed.md"
     details.write_text("Surviving mutants: 2", encoding="utf-8")
     gh = FakeGh(failed_jobs=["Build"])
-    monkeypatch.setattr(failure_issue, "gh_cli", gh)
+    monkeypatch.setattr(failure_issue._github, "cli", gh)
     argv = [
         "report",
         "--repo=o/r",
@@ -253,7 +253,7 @@ def test_every_watched_workflow_exists_under_its_exact_name() -> None:
 
 def test_an_empty_job_list_is_explicit(monkeypatch: pytest.MonkeyPatch) -> None:
     gh = FakeGh(failed_jobs=["Build"])
-    monkeypatch.setattr(failure_issue, "gh_cli", gh)
+    monkeypatch.setattr(failure_issue._github, "cli", gh)
     argv = ["report", "--repo=o/r", "--workflow=CI", "--run-id=5", f"--run-url={RUN}5"]
     argv += ["--conclusion=success", "--event=push", "--branch=main", "--jobs="]
     assert failure_issue.main(argv) == 0

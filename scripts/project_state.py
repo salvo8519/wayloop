@@ -18,6 +18,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import _github
 import yaml
 from conventions import branch_issue
 from sprint import state_files
@@ -69,22 +70,8 @@ def sh(*args: str) -> str:
 
 
 def gh(path: str) -> Any:
-    text = sh("gh", "api", path)
-    return json.loads(text) if text else None
-
-
-def gh_pages(path: str, fetch: Any = None, per_page: int = 100) -> list[Any]:
-    """Every item of a paginated list endpoint, not only the first page."""
-    fetch = fetch or gh
-    sep = "&" if "?" in path else "?"
-    items: list[Any] = []
-    page = 1
-    while True:
-        batch = fetch(f"{path}{sep}per_page={per_page}&page={page}") or []
-        items.extend(batch)
-        if len(batch) < per_page:
-            return items
-        page += 1
+    """One GitHub call; the briefing goes on without GitHub, so a failure gives None."""
+    return _github.api(path, required=False)
 
 
 def blocked_natively(issue: dict[str, Any]) -> bool:
@@ -127,11 +114,6 @@ def attention_issues(issues: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
-def repo() -> str:
-    url = sh("git", "remote", "get-url", "origin")
-    return re.sub(r"(\.git)?$", "", re.split(r"github\.com[:/]", url)[-1])
-
-
 def checks_summary(r: str, sha: str) -> str:
     data = gh(f"repos/{r}/commits/{sha}/check-runs?per_page=100") or {}
     runs = data.get("check_runs", [])
@@ -145,7 +127,7 @@ def checks_summary(r: str, sha: str) -> str:
 
 
 def collect() -> dict[str, Any]:
-    r = repo()
+    r = _github.repository()
     branch = sh("git", "rev-parse", "--abbrev-ref", "HEAD")
     sh("git", "fetch", "--quiet", "origin", "main")
     state: dict[str, Any] = {
@@ -162,7 +144,7 @@ def collect() -> dict[str, Any]:
             if p.name not in ("README.md", "_template.md")
         ][:5],
     }
-    prs = gh(f"repos/{r}/pulls?state=open&per_page=50") or []
+    prs = _github.pages(f"repos/{r}/pulls?state=open", gh)
     state["pull_requests"] = [
         {
             "number": p["number"],
@@ -172,18 +154,17 @@ def collect() -> dict[str, Any]:
             "labels": [lbl["name"] for lbl in p["labels"]],
             "checks": checks_summary(r, p["head"]["sha"]),
             "merge": merge_tier(
-                [
-                    f["filename"]
-                    for f in (gh(f"repos/{r}/pulls/{p['number']}/files?per_page=100") or [])
-                ]
+                [f["filename"] for f in _github.pages(f"repos/{r}/pulls/{p['number']}/files", gh)]
             ),
             "reviews": sorted(
-                {rv["state"] for rv in (gh(f"repos/{r}/pulls/{p['number']}/reviews") or [])}
+                {rv["state"] for rv in _github.pages(f"repos/{r}/pulls/{p['number']}/reviews", gh)}
             ),
         }
         for p in prs
     ]
-    issues = [i for i in gh_pages(f"repos/{r}/issues?state=open") if "pull_request" not in i]
+    issues = [
+        i for i in _github.pages(f"repos/{r}/issues?state=open", gh) if "pull_request" not in i
+    ]
 
     def labels(i: dict[str, Any]) -> set[str]:
         return {lbl["name"] for lbl in i["labels"]}

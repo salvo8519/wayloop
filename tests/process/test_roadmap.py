@@ -229,15 +229,6 @@ def test_a_file_that_is_not_a_mapping_is_refused(
         roadmap.load()
 
 
-def test_a_failed_github_call_stops_with_its_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    class Done:
-        returncode, stdout, stderr = 1, "", "HTTP 404"
-
-    monkeypatch.setattr(roadmap.subprocess, "run", lambda *a, **k: Done())
-    with pytest.raises(SystemExit, match="failed: HTTP 404"):
-        roadmap.gh("repos/x/y")
-
-
 def test_new_issue_needs_a_known_milestone_on_both_sides(monkeypatch: pytest.MonkeyPatch) -> None:
     import argparse
 

@@ -12,7 +12,6 @@ import argparse
 import datetime as dt
 import fnmatch
 import functools
-import json
 import os
 import re
 import shutil
@@ -21,6 +20,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import _github
 import yaml
 from conventions import branch_issue, sprint_of
 
@@ -275,17 +275,6 @@ def check_diff_command(args: argparse.Namespace) -> int:
     return 0
 
 
-def origin_repo() -> str:
-    url = subprocess.run(
-        ["git", "remote", "get-url", "origin"],
-        capture_output=True,
-        text=True,
-        check=True,
-        encoding="utf-8",
-    ).stdout.strip()
-    return re.sub(r"(\.git)?$", "", re.split(r"github\.com[:/]", url)[-1])
-
-
 # ------------------------------------------------------------------------------------------
 # Per-issue state: sprints/SNN/state/<issue>.yaml
 
@@ -467,19 +456,14 @@ def state_command(args: argparse.Namespace) -> int:
 
 
 def status(sprint: dict[str, Any], repo: str | None, sprint_file: Path) -> None:
-    repo = repo or origin_repo()
+    repo = repo or _github.repository()
     print(f"{sprint['id']} — {sprint['goal']} ({sprint['start']} to {sprint['end']})")
     print(f"  State: {state_dir(sprint_file)}/ (runtime, shared by every worktree)")
     total = done = 0
     for lane in sprint["lanes"]:
         print(f"\n  Lane {lane['name']}")
         for issue in lane.get("issues", []):
-            cmd = ["gh", "api", f"repos/{repo}/issues/{issue}"]
-            info = json.loads(
-                subprocess.run(
-                    cmd, capture_output=True, text=True, check=True, encoding="utf-8"
-                ).stdout
-            )
+            info = _github.api(f"repos/{repo}/issues/{issue}")
             closed = info["state"] == "closed"
             state = "done" if closed else "open"
             total += 1

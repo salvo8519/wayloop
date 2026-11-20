@@ -118,19 +118,6 @@ def test_ready_issues_leave_out_epics_taken_and_labelled_issues() -> None:
     assert [i["number"] for i in ready] == [4]
 
 
-def test_gh_pages_reads_every_page() -> None:
-    pages = {1: list(range(100)), 2: list(range(100, 130))}
-    calls: list[str] = []
-
-    def fetch(path: str) -> list[int]:
-        calls.append(path)
-        return pages.get(int(path.rsplit("page=", 1)[1]), [])
-
-    items = ps.gh_pages("repos/o/r/issues?state=open", fetch)
-    assert len(items) == 130
-    assert calls[0] == "repos/o/r/issues?state=open&per_page=100&page=1"
-
-
 def test_attention_lists_open_bug_and_maintenance_issues_bugs_first() -> None:
     def issue(number: int, *labels: str) -> dict[str, Any]:
         return {"number": number, "title": f"t{number}", "labels": [{"name": n} for n in labels]}
