@@ -1,0 +1,25 @@
+# The Rust toolchain pinned in rust-toolchain.toml, read from that file so that the version is
+# written once (docs/en/project/conventions.md, Code quality). Jobs that test the newest stable
+# or the minimum supported version install their own toolchain instead.
+name: Rust toolchain from rust-toolchain.toml
+description: Installs the channel of rust-toolchain.toml with the requested components.
+inputs:
+  components:
+    description: Extra components, comma separated (for example `rustfmt, clippy`).
+    required: false
+    default: ""
+outputs:
+  channel:
+    description: The channel read from rust-toolchain.toml.
+    value: ${{ steps.channel.outputs.channel }}
+runs:
+  using: composite
+  steps:
+    - name: Channel of rust-toolchain.toml
+      id: channel
+      shell: bash
+      run: python3 -c 'import tomllib; print("channel=" + tomllib.load(open("rust-toolchain.toml", "rb"))["toolchain"]["channel"])' >> "$GITHUB_OUTPUT"
+    - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      with:
+        toolchain: ${{ steps.channel.outputs.channel }}
+        components: ${{ inputs.components }}

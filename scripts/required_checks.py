@@ -13,13 +13,12 @@ from __future__ import annotations
 
 import argparse
 import itertools
-import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+import _github
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -119,16 +118,9 @@ def check(names: list[str], produced: dict[str, str]) -> list[str]:
 
 def ruleset_checks(repo: str) -> set[str]:
     """Required checks of the active rulesets that apply to the default branch."""
-
-    def gh(path: str) -> Any:
-        res = subprocess.run(
-            ["gh", "api", path], capture_output=True, text=True, check=True, encoding="utf-8"
-        )
-        return json.loads(res.stdout)
-
     found: set[str] = set()
-    for summary in gh(f"repos/{repo}/rulesets?includes_parents=true"):
-        ruleset = gh(f"repos/{repo}/rulesets/{summary['id']}")
+    for summary in _github.pages(f"repos/{repo}/rulesets?includes_parents=true"):
+        ruleset = _github.api(f"repos/{repo}/rulesets/{summary['id']}")
         if ruleset.get("enforcement") != "active" or ruleset.get("target") != "branch":
             continue
         include = ((ruleset.get("conditions") or {}).get("ref_name") or {}).get("include", [])
@@ -162,7 +154,7 @@ def main() -> None:
     sub.add_parser("check")
     sub.add_parser("list")
     remote = sub.add_parser("remote")
-    remote.add_argument("--repo", default="salvo8519/wayloop")
+    remote.add_argument("--repo", default=_github.DEFAULT_REPO)
     args = parser.parse_args()
 
     if args.cmd == "list":

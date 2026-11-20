@@ -20,7 +20,11 @@ are applied and who decides. Every tool listed is free for public open-source re
   months, a licence on the allow-list of `deny.toml` and of the Security workflow, and a reason
   that a few lines of our own code would not cover.
 - **Tooling**: the same rule; development tools live in the `dev` and `docs` groups of
-  `pyproject.toml` and never reach users.
+  `pyproject.toml`, or in the `devDependencies` of `package.json` for a tool published only on
+  npm, pinned to an exact version with its lock file and installed with
+  `npm ci --ignore-scripts`. They never reach users. jscpd 5 ships a native binary built from Rust crates; Dependency
+  review sees the npm packages and their licences, not the licences of the crates bundled in
+  that binary. It is accepted as a development tool that never ships.
 - **Licences**: two lists, one rule. `cargo deny` (`deny.toml`) checks the normal Rust
   dependencies; it leaves out crates used only by tests. Dependency review (the Security
   workflow) checks every dependency a pull request adds, development dependencies and Python
@@ -32,8 +36,8 @@ are applied and who decides. Every tool listed is free for public open-source re
 
 | Signal | Tool | Cadence |
 | --- | --- | --- |
-| New versions of crates, Python packages and GitHub Actions | Dependabot version updates (`cargo`, `uv` with its lock file, `github-actions`), minor and patch grouped per ecosystem | Weekly |
-| Known vulnerabilities | Dependabot security alerts; `cargo deny check advisories`; `pip-audit` | Immediate; every pull request and weekly |
+| New versions of crates, Python packages, npm tools and GitHub Actions | Dependabot version updates (`cargo`, `uv` with its lock file, `npm` with its lock file, `github-actions` for the workflows and the composite actions of `.github/actions`), minor and patch grouped per ecosystem | Weekly |
+| Known vulnerabilities | Dependabot security alerts (crates, Python packages, npm tools and GitHub Actions); `cargo deny check advisories`; `pip-audit`. CI installs the npm tools with `npm ci --no-audit` and relies on the Dependabot alerts for them | Immediate; every pull request and weekly |
 | A dependency with a vulnerability or a disallowed licence added by a pull request | Dependency review | Every pull request |
 | Vulnerable patterns in our code and workflows | CodeQL (Python, Rust, GitHub Actions) | Every push, pull request, weekly |
 | Supply-chain practices of the project | OpenSSF Scorecard | Weekly and on `main` |
@@ -44,6 +48,7 @@ are applied and who decides. Every tool listed is free for public open-source re
 | Unsafe workflows: injection, permissions, persisted credentials, unpinned actions | zizmor | Every pull request |
 | Workflow syntax, runner labels, shell mistakes | actionlint with shellcheck | Every pull request |
 | Rust dependencies declared but not used | cargo-machete | Every pull request |
+| Duplicated code: none in the pure crates beyond a shrinking baseline, at most 1 percent elsewhere | jscpd (`just dup`) | Every pull request |
 | Broken links in the documentation | lychee | Weekly |
 | Required checks that no longer match the ruleset of `main` | `scripts/required_checks.py remote` | Weekly |
 

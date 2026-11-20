@@ -14,11 +14,21 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
 from pathlib import Path
 from typing import Any
 
+import _git
+import _github
 import yaml
+from _labels import (
+    AREA_PREFIX,
+    BLOCKED,
+    EPIC,
+    IN_PROGRESS,
+    PARALLEL,
+    REPORT_LABELS,
+    label_names,
+)
 from conventions import branch_issue
 from sprint import state_files
 
@@ -61,30 +71,9 @@ def _state_line(path: Path) -> str:
 JOURNAL = ROOT / ".agents" / "journal"
 
 
-def sh(*args: str) -> str:
-    out = subprocess.run(
-        args, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=False
-    )
-    return out.stdout.strip() if out.returncode == 0 else ""
-
-
 def gh(path: str) -> Any:
-    text = sh("gh", "api", path)
-    return json.loads(text) if text else None
-
-
-def gh_pages(path: str, fetch: Any = None, per_page: int = 100) -> list[Any]:
-    """Every item of a paginated list endpoint, not only the first page."""
-    fetch = fetch or gh
-    sep = "&" if "?" in path else "?"
-    items: list[Any] = []
-    page = 1
-    while True:
-        batch = fetch(f"{path}{sep}per_page={per_page}&page={page}") or []
-        items.extend(batch)
-        if len(batch) < per_page:
-            return items
-        page += 1
+    """One GitHub call; the briefing goes on without GitHub, so a failure gives None."""
+    return _github.api(path, required=False)
 
 
 def blocked_natively(issue: dict[str, Any]) -> bool:
@@ -94,42 +83,30 @@ def blocked_natively(issue: dict[str, Any]) -> bool:
 
 def ready_issues(pool: list[dict[str, Any]], busy_branches: set[str]) -> list[dict[str, Any]]:
     """Issues of the pool that can start now: not an epic, not taken, not blocked."""
-
-    def names(i: dict[str, Any]) -> set[str]:
-        return {lbl["name"] for lbl in i["labels"]}
-
     return [
         {
             "number": i["number"],
             "title": i["title"],
-            "parallel": "parallel" in names(i),
-            "areas": sorted(lbl for lbl in names(i) if lbl.startswith("area:")),
+            "parallel": PARALLEL in label_names(i),
+            "areas": sorted(lbl for lbl in label_names(i) if lbl.startswith(AREA_PREFIX)),
         }
         for i in pool
-        if not names(i) & {"epic", "in-progress", "blocked"}
+        if not label_names(i) & {EPIC, IN_PROGRESS, BLOCKED}
         and not blocked_natively(i)
         and not any(branch_issue(b) == i["number"] for b in busy_branches)
     ][:12]
-
-
-ATTENTION = ("bug", "maintenance")
 
 
 def attention_issues(issues: list[dict[str, Any]]) -> list[str]:
     """Open bug issues, then maintenance issues, each by number: they go before new work."""
     lines: list[str] = []
     seen: set[int] = set()
-    for label in ATTENTION:
+    for label in REPORT_LABELS:
         for i in sorted(issues, key=lambda i: int(i["number"])):
-            if i["number"] not in seen and label in {lbl["name"] for lbl in i["labels"]}:
+            if i["number"] not in seen and label in label_names(i):
                 seen.add(i["number"])
                 lines.append(f"#{i['number']} {i['title']} ({label})")
     return lines
-
-
-def repo() -> str:
-    url = sh("git", "remote", "get-url", "origin")
-    return re.sub(r"(\.git)?$", "", re.split(r"github\.com[:/]", url)[-1])
 
 
 def checks_summary(r: str, sha: str) -> str:
@@ -145,54 +122,50 @@ def checks_summary(r: str, sha: str) -> str:
 
 
 def collect() -> dict[str, Any]:
-    r = repo()
-    branch = sh("git", "rev-parse", "--abbrev-ref", "HEAD")
-    sh("git", "fetch", "--quiet", "origin", "main")
+    r = _github.repository()
+    branch = _git.output("rev-parse", "--abbrev-ref", "HEAD")
+    _git.output("fetch", "--quiet", "origin", "main")
     state: dict[str, Any] = {
         "repository": r,
         "branch": branch,
         "branch_issue": branch_issue(branch),
-        "uncommitted_files": [ln for ln in sh("git", "status", "--porcelain").splitlines() if ln],
-        "ahead_of_main": sh("git", "rev-list", "--count", "origin/main..HEAD") or "0",
-        "behind_main": sh("git", "rev-list", "--count", "HEAD..origin/main") or "0",
-        "recent_commits": sh("git", "log", "-8", "--format=%h %s").splitlines(),
+        "uncommitted_files": [ln for ln in _git.output("status", "--porcelain").splitlines() if ln],
+        "ahead_of_main": _git.output("rev-list", "--count", "origin/main..HEAD") or "0",
+        "behind_main": _git.output("rev-list", "--count", "HEAD..origin/main") or "0",
+        "recent_commits": _git.output("log", "-8", "--format=%h %s").splitlines(),
         "journal": [
             p.name
             for p in sorted(JOURNAL.glob("*.md"), reverse=True)
             if p.name not in ("README.md", "_template.md")
         ][:5],
     }
-    prs = gh(f"repos/{r}/pulls?state=open&per_page=50") or []
+    prs = _github.pages(f"repos/{r}/pulls?state=open", gh)
     state["pull_requests"] = [
         {
             "number": p["number"],
             "title": p["title"],
             "branch": p["head"]["ref"],
             "draft": p["draft"],
-            "labels": [lbl["name"] for lbl in p["labels"]],
+            "labels": sorted(label_names(p)),
             "checks": checks_summary(r, p["head"]["sha"]),
             "merge": merge_tier(
-                [
-                    f["filename"]
-                    for f in (gh(f"repos/{r}/pulls/{p['number']}/files?per_page=100") or [])
-                ]
+                [f["filename"] for f in _github.pages(f"repos/{r}/pulls/{p['number']}/files", gh)]
             ),
             "reviews": sorted(
-                {rv["state"] for rv in (gh(f"repos/{r}/pulls/{p['number']}/reviews") or [])}
+                {rv["state"] for rv in _github.pages(f"repos/{r}/pulls/{p['number']}/reviews", gh)}
             ),
         }
         for p in prs
     ]
-    issues = [i for i in gh_pages(f"repos/{r}/issues?state=open") if "pull_request" not in i]
-
-    def labels(i: dict[str, Any]) -> set[str]:
-        return {lbl["name"] for lbl in i["labels"]}
+    issues = [
+        i for i in _github.pages(f"repos/{r}/issues?state=open", gh) if "pull_request" not in i
+    ]
 
     state["attention"] = attention_issues(issues)
     state["in_progress"] = [
-        f"#{i['number']} {i['title']}" for i in issues if "in-progress" in labels(i)
+        f"#{i['number']} {i['title']}" for i in issues if IN_PROGRESS in label_names(i)
     ]
-    state["blocked"] = [f"#{i['number']} {i['title']}" for i in issues if "blocked" in labels(i)]
+    state["blocked"] = [f"#{i['number']} {i['title']}" for i in issues if BLOCKED in label_names(i)]
     sprint = None
     for f in sorted((ROOT / "sprints").glob("S*.yaml")):
         data = yaml.safe_load(f.read_text(encoding="utf-8"))

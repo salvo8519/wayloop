@@ -4,7 +4,7 @@ A tag such as `v7` can be moved to other code by whoever controls the action; a 
 cannot. Dependabot keeps pinned actions current and updates the comment with the version.
 zizmor fails CI on any unpinned action, so run this after adding or changing one:
 
-    python scripts/pin_actions.py            # rewrite .github/workflows/*.yml
+    python scripts/pin_actions.py            # rewrite the workflows and the composite actions
     python scripts/pin_actions.py --check    # exit 1 if any action is not pinned
 
 `dtolnay/rust-toolchain` and `taiki-e/install-action` select what they install from the ref
@@ -17,12 +17,29 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 
+import _git
+
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+
+
+# Workflows and the local composite actions they use (`action.yml` or `action.yaml`): both pin
+# the actions they call.
+def workflow_files(root: Path) -> list[Path]:
+    github = root / ".github"
+    return sorted(
+        [
+            *(github / "workflows").glob("*.yml"),
+            *(github / "workflows").glob("*.yaml"),
+            *(github / "actions").glob("*/action.yml"),
+            *(github / "actions").glob("*/action.yaml"),
+        ]
+    )
+
+
+WORKFLOWS = workflow_files(ROOT)
 USES = re.compile(
     r"^(?P<indent>\s*)(?P<dash>-\s+)?uses:\s+(?P<action>[^@\s]+)@(?P<ref>[^\s#]+)\s*(?:#.*)?$"
 )
@@ -35,22 +52,12 @@ def resolve(action: str, ref: str, cache: dict[tuple[str, str], str]) -> str:
     """Commit of a tag (peeled when annotated) or of a branch, read with `git ls-remote`."""
     repo = "/".join(action.split("/")[:2])
     if (repo, ref) not in cache:
-        out = subprocess.run(
-            [
-                "git",
-                "ls-remote",
-                f"https://github.com/{repo}",
-                f"refs/tags/{ref}*",
-                f"refs/heads/{ref}",
-            ],
-            capture_output=True,
-            check=False,
-            text=True,
-            encoding="utf-8",
+        out = _git.run(
+            "ls-remote", f"https://github.com/{repo}", f"refs/tags/{ref}*", f"refs/heads/{ref}"
         )
         refs = {
             name: sha
-            for sha, name in (line.split("\t", 1) for line in out.stdout.split("\n") if line)
+            for sha, name in (line.split("\t", 1) for line in out.stdout.splitlines() if line)
         }
         sha = (
             refs.get(f"refs/tags/{ref}^{{}}")

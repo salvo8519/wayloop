@@ -12,9 +12,10 @@ today are questions, objections and real use cases, opened as issues.
 
 ## Set up
 
-Install [uv](https://docs.astral.sh/uv/) and [rustup](https://rustup.rs/). rustup installs the
-Rust version pinned in `rust-toolchain.toml` on the first `cargo` command, the same one CI uses
-(docs/en/project/conventions.md, Code quality). Then:
+Install [uv](https://docs.astral.sh/uv/), [rustup](https://rustup.rs/) and Node.js with npm.
+rustup installs the Rust version pinned in `rust-toolchain.toml` on the first `cargo` command,
+the same one CI uses (docs/en/project/conventions.md, Code quality); `just dup` installs the
+duplicated-code detector from `package-lock.json` with `npm ci` the first time it runs. Then:
 
 ```bash
 uv sync --all-groups

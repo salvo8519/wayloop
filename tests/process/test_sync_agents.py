@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
-import importlib.util
 import shutil
 from pathlib import Path
 
 import pytest
-
-ROOT = Path(__file__).resolve().parents[2]
-_spec = importlib.util.spec_from_file_location("sync_agents", ROOT / "scripts/sync_agents.py")
-assert _spec and _spec.loader
-sa = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(sa)
+import sync_agents as sa
+from conftest import ROOT
 
 
 @pytest.fixture

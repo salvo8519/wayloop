@@ -24,11 +24,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
+
+import _github
+from _labels import BUG
 
 FAILED = {"failure", "timed_out", "startup_failure"}
 EVENTS = {"push", "schedule"}
@@ -39,16 +41,6 @@ MAX_BODY = 60_000  # GitHub refuses an issue body longer than 65536 characters
 AUTHOR = "app/github-actions"
 
 Gh = Callable[[list[str], str | None], str]
-
-
-def gh_cli(args: list[str], stdin: str | None = None) -> str:
-    """Run the GitHub CLI and return its output; a failure stops the script with its message."""
-    done = subprocess.run(
-        ["gh", *args], input=stdin, capture_output=True, text=True, encoding="utf-8", check=False
-    )
-    if done.returncode != 0:
-        sys.exit(f"gh {' '.join(args[:2])} failed: {done.stderr.strip()}")
-    return done.stdout
 
 
 def marker(workflow: str) -> str:
@@ -177,7 +169,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     r.add_argument("--conclusion", required=True)
     r.add_argument("--event", required=True)
     r.add_argument("--branch", required=True)
-    r.add_argument("--label", default="bug")
+    r.add_argument("--label", default=BUG)
     r.add_argument("--title")
     r.add_argument("--jobs", help="comma-separated job results; default: read from the run")
     r.add_argument("--details", type=Path, help="Markdown file appended to the issue body")
@@ -186,7 +178,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     details = args.details.read_text(encoding="utf-8") if args.details else ""
     print(
         report(
-            gh_cli,
+            _github.cli,
             repo=args.repo,
             workflow=args.workflow,
             run_id=args.run_id,

@@ -2,23 +2,28 @@
 
 # Floor of line coverage for the pure crates (wayloop-core, wayloop-schemas), in percent (docs/en/project/conventions.md, Code quality).
 pure_coverage_floor := "95"
+# The pure crates: no I/O, all decision logic and contract types (AGENTS.md, Repository map).
+pure_crates := "wayloop-core wayloop-schemas"
+# The Python of the process: scripts, their tests and the Claude Code hooks.
+py_paths := "scripts tests .claude/hooks"
 
 default:
     @just --list
 
 # Full local gate: run before every pull request (CI runs the same checks).
-check: style i18n python process rust
+check: style i18n python process dup rust
     @echo "All checks passed."
 
-# Python of the process: lint (error handling included), format, strict types.
-python:
-    ruff check scripts tests .claude/hooks
-    ruff format --check scripts tests .claude/hooks
+# Python of the process: lint (error handling included), format, strict types. CI passes
+# `github` to annotate the findings on the pull request.
+python output="full":
+    ruff check --output-format {{output}} {{py_paths}}
+    ruff format --check {{py_paths}}
     mypy
 
 # Process: tests of the process scripts, YAML, task ids, roadmap, sprint files, no I/O in the core,
 # released schema snapshots unchanged against origin/main.
-process:
+process: sprints
     python -m pytest tests/process
     python scripts/check_core_io.py
     python scripts/check_schemas.py
@@ -31,7 +36,19 @@ process:
     python scripts/check_task_ids.py
     python scripts/check_licences.py
     python scripts/roadmap.py check
+
+# Every sprint file valid (sprints/README.md).
+sprints:
     for f in sprints/S*.yaml; do [ ! -e "$f" ] || python scripts/sprint.py validate "$f" || exit 1; done
+
+# Duplicated code (jscpd, pinned in package.json and package-lock.json, settings in .jscpd.json).
+# Pure crates: no clone beyond .jscpd-baseline.json, which holds only the clones that #299 deals
+# with (tests/process/test_duplication.py lists them and keeps the baseline from growing).
+# Everything else: at most 1 percent of duplicated lines.
+dup:
+    npm ls --depth=0 >/dev/null 2>&1 || npm ci --ignore-scripts --no-audit --no-fund
+    node_modules/.bin/jscpd --baseline .jscpd-baseline.json --fail-on-new-clones=0 $(printf 'crates/%s ' {{pure_crates}})
+    node_modules/.bin/jscpd --threshold 1 crates {{py_paths}}
 
 # Regenerate the canonical roadmap file.
 roadmap:
@@ -69,20 +86,20 @@ coverage floor=pure_coverage_floor:
 coverage-floor floor=pure_coverage_floor:
     #!/usr/bin/env bash
     set -euo pipefail
-    for crate in wayloop-core wayloop-schemas; do
+    for crate in {{pure_crates}}; do
         cargo llvm-cov report --package "$crate" --summary-only >/dev/null
         cargo llvm-cov report --package "$crate" --summary-only --fail-under-lines {{floor}} >/dev/null || { echo "Line coverage of $crate is below the floor of {{floor}} percent: add the missing tests." >&2; exit 1; }
     done
 
 # Mutation testing of the pure crates (cargo-mutants); surviving mutants in target/mutants/mutants.out/missed.txt.
 mutants:
-    cargo mutants --package wayloop-core --package wayloop-schemas --no-shuffle --output target/mutants
+    cargo mutants $(printf -- '--package %s ' {{pure_crates}}) --no-shuffle --output target/mutants
 
 # Format everything.
 fmt:
     cargo fmt --all
-    ruff check --fix scripts tests .claude/hooks
-    ruff format scripts tests .claude/hooks
+    ruff check --fix {{py_paths}}
+    ruff format {{py_paths}}
 
 # Build both documentation sites (English and Italian), strict.
 docs:

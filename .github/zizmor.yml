@@ -1,0 +1,14 @@
+# Configuration of zizmor, the security audit of the workflows (ci.yml, job Quality).
+rules:
+  # The audit asks for the `$/` self-repository syntax instead of `./` for local actions: a
+  # `./` action is loaded from the workspace checkout, which a job may have replaced with other
+  # code (another ref, a pull request branch), not from the commit of the workflow. The four
+  # workflows below keep `./` because actionlint 1.7.12 rejects `$/` ("invalid format because
+  # ref is missing"); each checks out the code it then runs anyway. Every other workflow stays
+  # audited.
+  self-repository:
+    ignore:
+      - ci.yml
+      - claude-docs.yml
+      - docs.yml
+      - maintenance.yml

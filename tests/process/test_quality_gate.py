@@ -9,20 +9,10 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from conftest import ROOT, copy_hooks, git
 
-ROOT = Path(__file__).resolve().parents[2]
-GIT_ENV = {
-    "GIT_AUTHOR_NAME": "t",
-    "GIT_AUTHOR_EMAIL": "t@t",
-    "GIT_COMMITTER_NAME": "t",
-    "GIT_COMMITTER_EMAIL": "t@t",
-}
 CLEAN_RUST = "/// Answer.\n#[must_use]\npub fn answer() -> u32 {\n    42\n}\n"
 CLEAN_PYTHON = '"""Module."""\n\n\ndef double(x: int) -> int:\n    return 2 * x\n'
-
-
-def git(cwd: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=cwd, env={**os.environ, **GIT_ENV}, check=True)
 
 
 def run(
@@ -40,28 +30,26 @@ def run(
 
 
 @pytest.fixture
-def project(tmp_path: Path) -> Path:
+def project(git_repo: Path) -> Path:
     """A committed project with one crate, one script and the Python tools of the repository."""
-    shutil.copytree(ROOT / ".claude" / "hooks", tmp_path / ".claude" / "hooks")
-    shutil.copy(ROOT / "pyproject.toml", tmp_path / "pyproject.toml")
+    copy_hooks(git_repo)
+    shutil.copy(ROOT / "pyproject.toml", git_repo / "pyproject.toml")
     if (ROOT / ".venv").is_dir():
-        (tmp_path / ".venv").symlink_to(ROOT / ".venv")
-    (tmp_path / ".gitignore").write_text("/target\n.venv\n", encoding="utf-8")
-    (tmp_path / "Cargo.toml").write_text(
+        (git_repo / ".venv").symlink_to(ROOT / ".venv")
+    (git_repo / ".gitignore").write_text("/target\n.venv\n", encoding="utf-8")
+    (git_repo / "Cargo.toml").write_text(
         '[workspace]\nmembers = ["crates/demo"]\nresolver = "3"\n', encoding="utf-8"
     )
-    crate = tmp_path / "crates" / "demo"
+    crate = git_repo / "crates" / "demo"
     (crate / "src").mkdir(parents=True)
     (crate / "Cargo.toml").write_text(
         '[package]\nname = "demo"\nversion = "0.0.0"\nedition = "2024"\n', encoding="utf-8"
     )
     (crate / "src" / "lib.rs").write_text(CLEAN_RUST, encoding="utf-8")
-    (tmp_path / "scripts").mkdir()
-    (tmp_path / "scripts" / "tool.py").write_text(CLEAN_PYTHON, encoding="utf-8")
-    git(tmp_path, "init", "-q", "-b", "main")
-    git(tmp_path, "add", ".")
-    git(tmp_path, "commit", "-q", "-m", "base")
-    return tmp_path
+    (git_repo / "scripts" / "tool.py").write_text(CLEAN_PYTHON, encoding="utf-8")
+    git(git_repo, "add", ".")
+    git(git_repo, "commit", "-q", "-m", "base")
+    return git_repo
 
 
 def test_silent_when_nothing_changed(project: Path) -> None:
@@ -209,5 +197,5 @@ def test_deleted_files_and_other_files_are_ignored(project: Path) -> None:
 
 
 def test_never_blocks_outside_a_git_repository(tmp_path: Path) -> None:
-    shutil.copytree(ROOT / ".claude" / "hooks", tmp_path / ".claude" / "hooks")
+    copy_hooks(tmp_path)
     assert run(tmp_path).returncode == 0

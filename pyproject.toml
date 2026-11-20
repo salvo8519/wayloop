@@ -52,8 +52,9 @@ files = ["scripts", "tests/process", ".claude/hooks"]
 # Every file is a standalone script, not a package: the same base name may not appear twice.
 explicit_package_bases = true
 # The scripts import each other by module name (`from conventions import BRANCH`), as Python
-# does when it runs `python scripts/<name>.py`.
-mypy_path = "scripts"
+# does when it runs `python scripts/<name>.py`; the hooks import the shared helpers of the
+# scripts, and the tests import the scripts, the hooks and conftest.py by name.
+mypy_path = ["scripts", ".claude/hooks", "tests/process"]
 
 [[tool.mypy.overrides]]
 # fontTools ships no type information; scripts/brand.py is run by hand, with the fonts.
@@ -92,6 +93,7 @@ showcontent = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Scripts import each other by module name, as `python scripts/<name>.py` allows.
-pythonpath = ["scripts"]
+# Scripts import each other by module name, as `python scripts/<name>.py` allows; the tests
+# import the scripts and the hooks by name.
+pythonpath = ["scripts", ".claude/hooks"]
 addopts = "-q"

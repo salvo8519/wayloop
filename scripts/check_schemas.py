@@ -16,21 +16,16 @@ from __future__ import annotations
 import argparse
 import re
 import stat
-import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
 
+import _git
+
 ROOT = Path(__file__).resolve().parents[1]
 
-# The same pattern as the hook; a test keeps the two equal.
+# The hook .claude/hooks/protect_contracts.py imports this pattern.
 SNAPSHOT = re.compile(r"(^|/)schemas/(.+/)?v(?P<version>\d+)(\.output|\.input)?\.json$")
-
-
-def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args], cwd=root, capture_output=True, text=True, encoding="utf-8", check=False
-    )
 
 
 def released(root: Path, base: str) -> dict[str, tuple[str, str]]:
@@ -40,11 +35,16 @@ def released(root: Path, base: str) -> dict[str, tuple[str, str]]:
     after it forked. Without a merge base (unrelated history, a shallow clone) the tip of
     `base` is used.
     """
-    if _git(root, "rev-parse", "--verify", "--quiet", f"{base}^{{commit}}").returncode != 0:
-        sys.exit(f"check_schemas: base '{base}' is not a commit; fetch it or pass --base.")
-    fork = _git(root, "merge-base", base, "HEAD")
+    not_a_commit = f"check_schemas: base '{base}' is not a commit; fetch it or pass --base."
+    try:
+        _git.revision(base)
+    except ValueError:
+        sys.exit(not_a_commit)
+    if _git.run("rev-parse", "--verify", "--quiet", f"{base}^{{commit}}", cwd=root).returncode != 0:
+        sys.exit(not_a_commit)
+    fork = _git.run("merge-base", "--end-of-options", base, "HEAD", cwd=root)
     tree = fork.stdout.strip() if fork.returncode == 0 else base
-    listing = _git(root, "ls-tree", "-r", "-z", tree, "--", "schemas")
+    listing = _git.run("ls-tree", "-r", "-z", "--end-of-options", tree, "--", "schemas", cwd=root)
     if listing.returncode != 0:
         sys.exit(f"check_schemas: git ls-tree failed: {listing.stderr.strip()}")
     entries: dict[str, tuple[str, str]] = {}
@@ -84,7 +84,7 @@ def changed_or_deleted(root: Path, base: str) -> list[str]:
         else:
             regular.append(path)
     if regular:
-        hashed = _git(root, "hash-object", "--", *regular)
+        hashed = _git.run("hash-object", "--", *regular, cwd=root)
         if hashed.returncode != 0:
             sys.exit(f"check_schemas: git hash-object failed: {hashed.stderr.strip()}")
         blobs = hashed.stdout.split()

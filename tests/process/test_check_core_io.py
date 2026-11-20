@@ -2,18 +2,13 @@
 
 from __future__ import annotations
 
-import importlib.util
 import shutil
 import subprocess
 from pathlib import Path
 
+import check_core_io as core_io
 import pytest
-
-ROOT = Path(__file__).resolve().parents[2]
-_spec = importlib.util.spec_from_file_location("check_core_io", ROOT / "scripts/check_core_io.py")
-assert _spec and _spec.loader
-core_io = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(core_io)
+from conftest import ROOT
 
 needs_cargo = pytest.mark.skipif(shutil.which("cargo") is None, reason="cargo is not installed")
 

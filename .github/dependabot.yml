@@ -19,9 +19,17 @@ updates:
     cooldown: { default-days: 7 }
     commit-message: { prefix: "build", include: scope }
     groups: { python: { patterns: ["*"], update-types: [minor, patch] } }
+  # The workflows and the local composite actions of .github/actions.
   - package-ecosystem: github-actions
-    directory: "/"
+    directories: ["/", "/.github/actions/*"]
     schedule: { interval: weekly }
     cooldown: { default-days: 7 }
     commit-message: { prefix: "ci", include: scope }
     groups: { actions: { patterns: ["*"], update-types: [minor, patch] } }
+  # Development tools from npm (package.json and package-lock.json): jscpd.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
+    commit-message: { prefix: "build", include: scope }
+    groups: { npm: { patterns: ["*"], update-types: [minor, patch] } }

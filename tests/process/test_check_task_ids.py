@@ -2,16 +2,10 @@
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 
+import check_task_ids as ids
 import pytest
-
-ROOT = Path(__file__).resolve().parents[2]
-_spec = importlib.util.spec_from_file_location("check_task_ids", ROOT / "scripts/check_task_ids.py")
-assert _spec and _spec.loader
-ids = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(ids)
 
 
 def tasks_file(tmp_path: Path, text: str, monkeypatch: pytest.MonkeyPatch) -> Path:

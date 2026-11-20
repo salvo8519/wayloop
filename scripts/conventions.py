@@ -18,6 +18,8 @@ import re
 import sys
 from pathlib import Path
 
+from _labels import BREAKING_CHANGE, NO_ISSUE
+
 TYPES = ("feat", "fix", "perf", "refactor", "docs", "test", "build", "ci", "chore", "revert")
 SCOPES = (
     # engine
@@ -122,12 +124,12 @@ def check_pull_request(
         return problems
     header = HEADER.match(title)
     breaking = bool(header and header["breaking"])
-    if breaking and "breaking-change" not in labels:
-        problems.append("labels: a breaking title ('!') needs the label 'breaking-change'.")
+    if breaking and BREAKING_CHANGE not in labels:
+        problems.append(f"labels: a breaking title ('!') needs the label '{BREAKING_CHANGE}'.")
     if breaking and not re.search(r"^BREAKING CHANGE: \S", body or "", re.MULTILINE):
         problems.append("body: a breaking title ('!') needs a 'BREAKING CHANGE: <what>' paragraph.")
-    if "breaking-change" in labels and not breaking:
-        problems.append("title: the label 'breaking-change' needs '!' after the scope.")
+    if BREAKING_CHANGE in labels and not breaking:
+        problems.append(f"title: the label '{BREAKING_CHANGE}' needs '!' after the scope.")
     linked = linked_issues(body or "")
     issue = branch_issue(branch)
     if issue is None and not BRANCH_EXEMPT.match(branch):
@@ -135,11 +137,11 @@ def check_pull_request(
             f"branch: '{branch}' is not '<type>/<issue>-<slug>' or 'sprint/SNN/<issue>-<slug>'"
             " (for example feat/42-ledger-hash-chain)."
         )
-    if "no-issue" not in labels:
+    if NO_ISSUE not in labels:
         if not linked:
             problems.append(
                 "body: link the issue with 'Closes #<n>' (or 'Refs #<n>'), "
-                "or label the pull request 'no-issue' for trivial changes."
+                f"or label the pull request '{NO_ISSUE}' for trivial changes."
             )
         elif issue is not None and issue not in linked:
             problems.append(f"branch refers to #{issue} but the body links {sorted(linked)}.")

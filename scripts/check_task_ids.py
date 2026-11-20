@@ -9,10 +9,11 @@ the text are references and are not counted.
 from __future__ import annotations
 
 import re
-import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
+
+import _git
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -20,15 +21,7 @@ TASK_DEFINITION = re.compile(r"^\s*[-*] \[[ xX]\] (T\d+)\b")
 
 
 def tracked_tasks_files() -> list[Path]:
-    out = subprocess.run(
-        ["git", "ls-files", "specs/*/tasks.md"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-        encoding="utf-8",
-    ).stdout
-    return [ROOT / line for line in out.splitlines() if line]
+    return [ROOT / f for f in _git.ls_files("specs/*/tasks.md", cwd=ROOT)]
 
 
 def main() -> None:

@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
+import _labels
 import yaml
+from conftest import ROOT
 
-ROOT = Path(__file__).resolve().parents[2]
+import roadmap
 
 
 def planned() -> set[str]:
-    data = yaml.safe_load((ROOT / "roadmap" / "roadmap.yaml").read_text(encoding="utf-8"))
-    return {label["name"] for label in data["labels"]}
+    return {label["name"] for label in roadmap.load()["labels"]}
 
 
 def used_by_workflows() -> set[str]:
@@ -48,3 +48,24 @@ def test_labels_documented_in_the_conventions_are_planned() -> None:
 def test_planned_labels_are_documented() -> None:
     documented = used_by_conventions() | {n for n in planned() if n.startswith("area:")}
     assert planned() <= documented, planned() - documented
+
+
+def test_every_label_constant_of_the_scripts_is_planned() -> None:
+    names = {
+        value
+        for name, value in vars(_labels).items()
+        if name.isupper() and isinstance(value, str) and name != "AREA_PREFIX"
+    }
+    assert names <= planned(), names - planned()
+    assert set(_labels.REPORT_LABELS) <= planned()
+    assert set(roadmap.TAGS) <= planned()
+    assert any(n.startswith(_labels.AREA_PREFIX) for n in planned())
+
+
+def test_label_names_reads_issues_and_pull_requests() -> None:
+    assert _labels.label_names({"labels": [{"name": "bug"}, {"name": "area:core"}]}) == {
+        "bug",
+        "area:core",
+    }
+    assert _labels.label_names({"labels": None}) == set()
+    assert _labels.label_names({}) == set()

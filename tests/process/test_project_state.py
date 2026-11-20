@@ -2,19 +2,14 @@
 
 from __future__ import annotations
 
-import importlib.util
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Any
 
+import project_state as ps
 import pytest
+from conftest import ROOT
 
-ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "project_state.py"
-_spec = importlib.util.spec_from_file_location("project_state", SCRIPT)
-assert _spec and _spec.loader
-ps = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(ps)
 
 
 def briefing(sprint: dict[str, Any] | None) -> dict[str, Any]:
@@ -116,19 +111,6 @@ def test_ready_issues_leave_out_epics_taken_and_labelled_issues() -> None:
     ]
     ready = ps.ready_issues(pool, {"feat/5-something"})
     assert [i["number"] for i in ready] == [4]
-
-
-def test_gh_pages_reads_every_page() -> None:
-    pages = {1: list(range(100)), 2: list(range(100, 130))}
-    calls: list[str] = []
-
-    def fetch(path: str) -> list[int]:
-        calls.append(path)
-        return pages.get(int(path.rsplit("page=", 1)[1]), [])
-
-    items = ps.gh_pages("repos/o/r/issues?state=open", fetch)
-    assert len(items) == 130
-    assert calls[0] == "repos/o/r/issues?state=open&per_page=100&page=1"
 
 
 def test_attention_lists_open_bug_and_maintenance_issues_bugs_first() -> None:

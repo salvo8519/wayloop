@@ -12,15 +12,15 @@ import argparse
 import datetime as dt
 import fnmatch
 import functools
-import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+import _git
+import _github
 import yaml
 from conventions import branch_issue, sprint_of
 
@@ -231,25 +231,6 @@ def files_outside_lane(lane: dict[str, Any], changed: list[str]) -> list[str]:
     return [f for f in changed if not any(matches(f, p) for p in patterns)]
 
 
-def changed_files(base: str) -> list[str]:
-    out = subprocess.run(
-        ["git", "diff", "--name-only", "--no-renames", f"{base}...HEAD"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=False,
-    )
-    if out.returncode != 0:
-        out = subprocess.run(
-            ["git", "diff", "--name-only", "--no-renames", base, "HEAD"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=True,
-        )
-    return [line for line in out.stdout.splitlines() if line]
-
-
 def check_diff_command(args: argparse.Namespace) -> int:
     sprint_id, issue = sprint_of(args.branch), branch_issue(args.branch)
     if sprint_id is None or issue is None:
@@ -265,7 +246,7 @@ def check_diff_command(args: argparse.Namespace) -> int:
     lane = next((x for x in sprint["lanes"] if issue in x.get("issues", [])), None)
     if lane is None:
         sys.exit(f"#{issue} is not in the lanes of {sprint['id']}")
-    outside = files_outside_lane(lane, changed_files(args.base))
+    outside = files_outside_lane(lane, _git.changed(args.base, cwd="."))
     if outside:
         sys.exit(
             f"#{issue} belongs to lane {lane['name']} of {sprint['id']}, which may change "
@@ -273,17 +254,6 @@ def check_diff_command(args: argparse.Namespace) -> int:
         )
     print(f"#{issue}: every changed file is inside lane {lane['name']} of {sprint['id']}.")
     return 0
-
-
-def origin_repo() -> str:
-    url = subprocess.run(
-        ["git", "remote", "get-url", "origin"],
-        capture_output=True,
-        text=True,
-        check=True,
-        encoding="utf-8",
-    ).stdout.strip()
-    return re.sub(r"(\.git)?$", "", re.split(r"github\.com[:/]", url)[-1])
 
 
 # ------------------------------------------------------------------------------------------
@@ -302,15 +272,8 @@ def lane_of(sprint: dict[str, Any], issue: int) -> str:
 
 def git_common_dir(directory: Path) -> Path | None:
     """The git directory shared by every worktree of the repository, or None outside git."""
-    out = subprocess.run(
-        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-        cwd=directory,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=False,
-    )
-    return Path(out.stdout.strip()) if out.returncode == 0 and out.stdout.strip() else None
+    common = _git.output("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=directory)
+    return Path(common) if common else None
 
 
 def legacy_state_dir(sprint_file: Path) -> Path:
@@ -467,19 +430,14 @@ def state_command(args: argparse.Namespace) -> int:
 
 
 def status(sprint: dict[str, Any], repo: str | None, sprint_file: Path) -> None:
-    repo = repo or origin_repo()
+    repo = repo or _github.repository()
     print(f"{sprint['id']} — {sprint['goal']} ({sprint['start']} to {sprint['end']})")
     print(f"  State: {state_dir(sprint_file)}/ (runtime, shared by every worktree)")
     total = done = 0
     for lane in sprint["lanes"]:
         print(f"\n  Lane {lane['name']}")
         for issue in lane.get("issues", []):
-            cmd = ["gh", "api", f"repos/{repo}/issues/{issue}"]
-            info = json.loads(
-                subprocess.run(
-                    cmd, capture_output=True, text=True, check=True, encoding="utf-8"
-                ).stdout
-            )
+            info = _github.api(f"repos/{repo}/issues/{issue}")
             closed = info["state"] == "closed"
             state = "done" if closed else "open"
             total += 1

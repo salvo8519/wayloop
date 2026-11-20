@@ -2,16 +2,10 @@
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 
+import pin_actions as pins
 import pytest
-
-ROOT = Path(__file__).resolve().parents[2]
-_spec = importlib.util.spec_from_file_location("pin_actions", ROOT / "scripts/pin_actions.py")
-assert _spec and _spec.loader
-pins = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(pins)
 
 SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
 
@@ -47,3 +41,19 @@ def test_check_exits_with_an_error(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr("sys.argv", ["pin_actions.py", "--check"])
     with pytest.raises(SystemExit):
         pins.main()
+
+
+def test_the_composite_actions_are_checked_too(tmp_path: Path) -> None:
+    assert any(p.name == "action.yml" for p in pins.WORKFLOWS)
+    for name in (
+        "workflows/a.yml",
+        "workflows/b.yaml",
+        "actions/c/action.yml",
+        "actions/d/action.yaml",
+    ):
+        (tmp_path / ".github" / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / ".github" / name).write_text("", encoding="utf-8")
+    found = [p.relative_to(tmp_path / ".github").as_posix() for p in pins.workflow_files(tmp_path)]
+    assert found == sorted(
+        ["actions/c/action.yml", "actions/d/action.yaml", "workflows/a.yml", "workflows/b.yaml"]
+    )

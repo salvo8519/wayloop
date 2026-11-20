@@ -20,24 +20,18 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
+import _github
+from _labels import EPIC
+
+from roadmap import depends_on, epics, load
 
 ROOT = Path(__file__).resolve().parents[1]
-ROADMAP = ROOT / "roadmap" / "roadmap.yaml"
-DEFAULT_REPO = "salvo8519/wayloop"
-TAG_LABELS = {
-    "parallel": "parallel",
-    "maintainer": "maintainer",
-    "needs-decision": "needs-decision",
-}
-DEPENDS = re.compile(r"^## Depends on\s*\n((?:- #\d+.*\n?)+)", re.MULTILINE)
 REFERENCE = re.compile(r"#(\d+)\b")
 
 
@@ -84,15 +78,13 @@ def milestone_description(m: dict[str, Any]) -> str:
 
 def items_of(data: dict[str, Any]) -> list[Item]:
     out: list[Item] = []
-    for m in data["milestones"]:
-        for e in m["epics"]:
-            epic = Item(
-                "epic", e.get("issue"), e["title"], m["title"], ["epic", *e.get("labels", [])]
-            )
-            out.append(epic)
-            for t in e["tasks"]:
-                labels = [*e.get("labels", []), *(TAG_LABELS[x] for x in t.get("tags", []))]
-                out.append(Item("task", t["issue"], t["title"], m["title"], labels, parent=epic))
+    for m, e in epics(data):
+        epic = Item("epic", e.get("issue"), e["title"], m["title"], [EPIC, *e.get("labels", [])])
+        out.append(epic)
+        for t in e["tasks"]:
+            # Each tag is the name of its label (roadmap.TAGS).
+            labels = [*e.get("labels", []), *t.get("tags", [])]
+            out.append(Item("task", t["issue"], t["title"], m["title"], labels, parent=epic))
     return out
 
 
@@ -130,12 +122,6 @@ def renumber(body: str, mapping: dict[int, int]) -> str:
     return REFERENCE.sub(lambda m: f"#{mapping.get(int(m.group(1)), int(m.group(1)))}", body)
 
 
-def depends_on(body: str) -> list[int]:
-    """Issue numbers listed under the "## Depends on" heading of a task body."""
-    m = DEPENDS.search(body or "")
-    return [int(n) for n in re.findall(r"^- #(\d+)", m.group(1), re.MULTILINE)] if m else []
-
-
 # ---- GitHub
 
 
@@ -149,36 +135,13 @@ class GitHub:
                 f"[dry-run] {method} {path} {json.dumps(payload or {}, ensure_ascii=False)[:100]}"
             )
             return {"number": 0, "id": 0}
-        cmd = ["gh", "api", "-X", method, f"repos/{self.repo}/{path}"]
-        if payload is not None:
-            cmd += ["--input", "-"]
-        for attempt in range(3):
-            out = subprocess.run(
-                cmd,
-                input=json.dumps(payload) if payload is not None else None,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                check=False,
-            )
-            if out.returncode == 0:
-                break
-            time.sleep(2 * (attempt + 1))
-        else:
-            sys.exit(f"{method} {path} failed: {out.stderr.strip()}")
+        out = _github.api(f"repos/{self.repo}/{path}", method=method, payload=payload, retries=2)
         if method != "GET":
             time.sleep(0.5)  # stay below the secondary rate limit on content creation
-        return json.loads(out.stdout) if out.stdout.strip() else None
+        return out
 
     def pages(self, path: str) -> list[dict[str, Any]]:
-        out: list[dict[str, Any]] = []
-        page = 1
-        while True:
-            batch = self.api("GET", f"{path}{'&' if '?' in path else '?'}per_page=100&page={page}")
-            out += batch
-            if len(batch) < 100:
-                return out
-            page += 1
+        return _github.pages(path, lambda page: self.api("GET", page))
 
     def issues(self) -> dict[int, dict[str, Any]]:
         return {i["number"]: i for i in self.pages("issues?state=all") if "pull_request" not in i}
@@ -267,16 +230,18 @@ def apply(p: Plan, gh: GitHub, issues: dict[int, dict[str, Any]], source: GitHub
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--repo", default=DEFAULT_REPO, help="target repository, OWNER/REPO")
+    parser.add_argument(
+        "--repo", default=_github.DEFAULT_REPO, help="target repository, OWNER/REPO"
+    )
     parser.add_argument("--source", help="repository whose issue bodies are copied, OWNER/REPO")
     parser.add_argument("--dry-run", action="store_true", help="print the changes, make none")
     args = parser.parse_args(argv)
-    data = yaml.safe_load(ROADMAP.read_text(encoding="utf-8"))
+    data = load()
     gh = GitHub(args.repo, args.dry_run)
     issues = gh.issues()
     p = plan(
         data,
-        {lbl["name"] for lbl in gh.pages("labels?")},
+        {lbl["name"] for lbl in gh.pages("labels")},
         {m["title"] for m in gh.pages("milestones?state=all")},
         issues,
     )
