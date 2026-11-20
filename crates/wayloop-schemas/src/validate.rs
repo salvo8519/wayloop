@@ -16,7 +16,7 @@ use serde_json::{Map, Value};
 use crate::artifact::ArtifactKind;
 use crate::contract::rules;
 use crate::value::{
-    AdrNumber, IssueNumber, LanguageTag, Line, MilestoneNumber, ProjectPath, Text,
+    AdrNumber, IssueNumber, LanguageTag, Line, MilestoneNumber, PolicyName, ProjectPath,
     free_object_schema,
 };
 
@@ -106,7 +106,7 @@ pub struct Origin {
 /// What the parser of a file reported when it could not read it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ParseError {
-    /// Line of the fault.
+    /// Line of the fault, counted from 1.
     pub line: Line,
     /// Message of the parser, for a person.
     pub message: String,
@@ -118,9 +118,14 @@ pub struct ParseError {
 #[serde(transparent)]
 pub struct FreeDocument(pub Map<String, Value>);
 
+impl FreeDocument {
+    /// The name of its schema, a free object of the input (ADR 0030 G2, as amended for #256).
+    pub const NAME: &'static str = "FreeDocument";
+}
+
 impl JsonSchema for FreeDocument {
     fn schema_name() -> std::borrow::Cow<'static, str> {
-        "FreeDocument".into()
+        Self::NAME.into()
     }
 
     fn json_schema(_: &mut SchemaGenerator) -> Schema {
@@ -136,9 +141,14 @@ impl JsonSchema for FreeDocument {
 #[serde(transparent)]
 pub struct Lines(pub BTreeMap<String, Line>);
 
+impl Lines {
+    /// The name of its schema, a free object of the input (ADR 0030 G2, as amended for #256).
+    pub const NAME: &'static str = "Lines";
+}
+
 impl JsonSchema for Lines {
     fn schema_name() -> std::borrow::Cow<'static, str> {
-        "Lines".into()
+        Self::NAME.into()
     }
 
     fn json_schema(_: &mut SchemaGenerator) -> Schema {
@@ -200,11 +210,11 @@ pub struct BaseStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Policy {
     /// Types of commits, branches and pull request titles.
-    pub types: Vec<Text>,
+    pub types: Vec<PolicyName>,
     /// Scopes of commits and pull request titles.
-    pub scopes: Vec<Text>,
+    pub scopes: Vec<PolicyName>,
     /// Areas of epics and tasks, without the `area:` prefix.
-    pub areas: Vec<Text>,
+    pub areas: Vec<PolicyName>,
 }
 
 /// The canonical input of `wayloop validate`: a set of stored artifacts and inputs, validated
@@ -244,10 +254,12 @@ pub struct DocumentSummary {
     /// Input type, from `input_kind` of the entry.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_kind: Option<InputKind>,
-    /// Identifier of the artifact.
+    /// Identifier of the artifact: as read after its schema for a type whose schema is built,
+    /// as received for a type without one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
-    /// Status of the artifact, after migration to the current version of its schema.
+    /// Status of the artifact: after migration to the current version of its schema for a type
+    /// whose schema is built, as received for a type without one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
     /// Where the document was read, as given in the input.

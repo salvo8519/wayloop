@@ -164,7 +164,7 @@
       "description": "What the parser of a file reported when it could not read it.",
       "properties": {
         "line": {
-          "description": "Line of the fault.",
+          "description": "Line of the fault, counted from 1.",
           "minimum": 1,
           "type": "integer"
         },
@@ -186,7 +186,7 @@
         "areas": {
           "description": "Areas of epics and tasks, without the `area:` prefix.",
           "items": {
-            "description": "A prose text of at least one character, in the language of the project.",
+            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, spelt as the policy spells it, of at least one character.",
             "minLength": 1,
             "type": "string"
           },
@@ -195,7 +195,7 @@
         "scopes": {
           "description": "Scopes of commits and pull request titles.",
           "items": {
-            "description": "A prose text of at least one character, in the language of the project.",
+            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, spelt as the policy spells it, of at least one character.",
             "minLength": 1,
             "type": "string"
           },
@@ -204,7 +204,7 @@
         "types": {
           "description": "Types of commits, branches and pull request titles.",
           "items": {
-            "description": "A prose text of at least one character, in the language of the project.",
+            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, spelt as the policy spells it, of at least one character.",
             "minLength": 1,
             "type": "string"
           },

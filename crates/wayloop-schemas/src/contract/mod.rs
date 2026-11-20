@@ -81,6 +81,9 @@ pub enum Problem {
     ClosedOutput,
     /// Objects nested deeper than [`MAX_OBJECT_LEVELS`].
     TooDeep,
+    /// An object of an input without `additionalProperties: false` that is not a free object
+    /// of the input: an input is closed (ADR 0009 C5, ADR 0030 G2).
+    OpenInput,
 }
 
 /// A generated schema that leaves the rules of the contracts, and where.
@@ -108,6 +111,10 @@ impl fmt::Display for ContractError {
             Problem::ClosedOutput => write!(
                 f,
                 "at {place}: `additionalProperties` in an output, which is open"
+            ),
+            Problem::OpenInput => write!(
+                f,
+                "at {place}: an object of an input that is open and not a declared free object"
             ),
             Problem::TooDeep => write!(
                 f,

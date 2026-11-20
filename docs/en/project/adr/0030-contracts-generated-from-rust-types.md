@@ -241,8 +241,10 @@ with its tests and the architecture page.
   object that declares its members (`properties`); an object that declares none is a free
   object, a document whose schema is another one (the documents of `validate`, checked by the
   schema of their kind, and the map of their lines, checked by the core), written by hand with
-  `value::free_object_schema` and left open. A map derived by `schemars` keeps its schema of
-  values and is still refused by the loader of the core. The line of a `source` is written only
+  `value::free_object_schema` and left open. The free objects are declared in one list,
+  `FREE_OBJECTS` of the checks of the generator, which refuses any other open object of an
+  input, a map derived by `schemars` included. The generator also drops a definition that no
+  reference reaches, such as the type of `kind` once a rule makes it a constant. The line of a `source` is written only
   when it is known (SPEC-0004 R2): a breaking change of `envelope/result` v1, which no release
   holds, made under the amendment below.
 - 2026-11-20, decision of the maintainer (G5, G6): a version that no release holds may change

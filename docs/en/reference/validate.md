@@ -66,7 +66,7 @@ absent member. The input schema is closed: a member it does not list is refused.
 | --- | --- | --- | --- |
 | `documents` | list of objects | yes | One entry per stored artifact or input; `[]` means none |
 | `base` | list of `{id, status}` | no | Statuses on the default branch of the artifacts of the set |
-| `policy` | object `{types, scopes, areas}`, each a list of strings | no | The subset of the project policy the model reads |
+| `policy` | object `{types, scopes, areas}`, each a list of names of the policy, identifiers of at least one character | no | The subset of the project policy the model reads |
 | `adrs` | list of integers from 1 | no | Numbers of the ADRs of the project |
 | `language` | BCP 47 tag, for example `it` or `en-GB` | no | The language of the project. No check of this version reads it, so no default is applied or reported when it is absent; a check that needs it lists the default in `meta.defaults_applied` |
 

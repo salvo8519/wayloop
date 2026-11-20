@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 2e54149d6f44
+source_hash: 1eaeebf9e658
 ---
 # wayloop validate
 
@@ -70,7 +70,7 @@ un membro assente. Lo schema di input è chiuso: un membro che non elenca è rif
 | --- | --- | --- | --- |
 | `documents` | lista di oggetti | sì | Una voce per ogni artefatto o input memorizzato; `[]` significa nessuno |
 | `base` | lista di `{id, status}` | no | Stati sul branch predefinito degli artefatti dell'insieme |
-| `policy` | oggetto `{types, scopes, areas}`, ciascuno una lista di stringhe | no | La parte della policy del progetto che il modello legge |
+| `policy` | oggetto `{types, scopes, areas}`, ciascuno una lista di nomi della policy, identificativi di almeno un carattere | no | La parte della policy del progetto che il modello legge |
 | `adrs` | lista di interi da 1 | no | Numeri degli ADR del progetto |
 | `language` | tag BCP 47, per esempio `it` o `en-GB` | no | La lingua del progetto. Nessun controllo di questa versione la legge, quindi quando è assente nessun default viene applicato né riportato; un controllo che ne ha bisogno elenca il default in `meta.defaults_applied` |
 

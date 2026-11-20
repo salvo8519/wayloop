@@ -45,7 +45,8 @@ crate::contract_enum! {
         Range = "range",
         /// A string or a list is too short or too long.
         Length = "length",
-        /// The current state does not allow the command.
+        /// The current state or the environment does not allow the command, for example an
+        /// input that cannot be read.
         State = "state",
         /// The expected revision is older than the state (ADR 0009 C6).
         Stale = "stale",
@@ -62,9 +63,9 @@ crate::static_id! {
     pub struct Code;
 }
 
-/// An RFC 6901 JSON pointer from the root of the input sent: empty for the whole input, or a
-/// sequence of `/`-prefixed reference tokens in which `~` is written `~0` and `/` is written
-/// `~1`. It serialises as its string.
+/// An RFC 6901 JSON pointer; its root is stated where it is used. Empty for the whole value,
+/// or a sequence of `/`-prefixed reference tokens in which `~` is written `~0` and `/` is
+/// written `~1`. It serialises as its string.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, JsonSchema)]
 #[serde(transparent)]
 pub struct Pointer(String);
@@ -238,7 +239,8 @@ pub struct Error {
     message: String,
     /// RFC 6901 pointer to the faulty value: into the document given by `document` for an error
     /// of a document, into the input sent otherwise; empty for the whole document or the whole
-    /// input.
+    /// input. With the code `command_input` and the reason `enum`, the pointer `""` designates
+    /// the context of the command, its requested version, which has no place in the input.
     pointer: Pointer,
     /// Pointers to the other values involved, such as both sides of a conflict; absent when
     /// none is given.

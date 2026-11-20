@@ -33,7 +33,7 @@
         },
         "pointer": {
           "$ref": "#/$defs/Pointer",
-          "description": "RFC 6901 pointer, from the root of the input, to where the default applies."
+          "description": "RFC 6901 pointer, from the root of the input, to where the default applies. With the reason `current_command_version`, the pointer `\"\"` designates the context of the command, its version, which has no place in the input."
         },
         "reason": {
           "$ref": "#/$defs/DefaultReason",
@@ -90,7 +90,7 @@
       "description": "What the engine read of one document. A member is absent when the document does not give it, or gives it with another type.",
       "properties": {
         "id": {
-          "description": "Identifier of the artifact.",
+          "description": "Identifier of the artifact: as read after its schema for a type whose schema is built, as received for a type without one.",
           "type": "string"
         },
         "input_kind": {
@@ -106,7 +106,7 @@
           "description": "Where the document was read, as given in the input."
         },
         "status": {
-          "description": "Status of the artifact, after migration to the current version of its schema.",
+          "description": "Status of the artifact: after migration to the current version of its schema for a type whose schema is built, as received for a type without one.",
           "type": "string"
         }
       },
@@ -140,7 +140,7 @@
         },
         "pointer": {
           "$ref": "#/$defs/Pointer",
-          "description": "RFC 6901 pointer to the faulty value: into the document given by `document` for an error of a document, into the input sent otherwise; empty for the whole document or the whole input."
+          "description": "RFC 6901 pointer to the faulty value: into the document given by `document` for an error of a document, into the input sent otherwise; empty for the whole document or the whole input. With the code `command_input` and the reason `enum`, the pointer `\"\"` designates the context of the command, its requested version, which has no place in the input."
         },
         "pointers": {
           "description": "Pointers to the other values involved, such as both sides of a conflict; absent when none is given.",
@@ -202,7 +202,7 @@
         },
         "pointer": {
           "$ref": "#/$defs/Pointer",
-          "description": "RFC 6901 pointer to the faulty value: into the document given by `document` for an error of a document, into the input sent otherwise; empty for the whole document or the whole input."
+          "description": "RFC 6901 pointer to the faulty value: into the document given by `document` for an error of a document, into the input sent otherwise; empty for the whole document or the whole input. With the code `command_input` and the reason `enum`, the pointer `\"\"` designates the context of the command, its requested version, which has no place in the input."
         },
         "pointers": {
           "description": "Pointers to the other values involved, such as both sides of a conflict; absent when none is given.",
@@ -335,11 +335,11 @@
       "type": "object"
     },
     "Pointer": {
-      "description": "An RFC 6901 JSON pointer from the root of the input sent: empty for the whole input, or a sequence of `/`-prefixed reference tokens in which `~` is written `~0` and `/` is written `~1`. It serialises as its string.",
+      "description": "An RFC 6901 JSON pointer; its root is stated where it is used. Empty for the whole value, or a sequence of `/`-prefixed reference tokens in which `~` is written `~0` and `/` is written `~1`. It serialises as its string.",
       "type": "string"
     },
     "Reason": {
-      "description": "Why the engine refused an input, or `internal` when it failed to compute the result: the documented enum of ADR 0009 C3 and its amendment of 2026-11-20. It serialises as its identifier; clients accept values they do not know (C5).\n\n- `syntax`: The input is not well-formed.\n- `missing`: A required field is absent.\n- `unknown_field`: A field is not part of the schema.\n- `duplicate`: A value that must be unique appears more than once.\n- `type`: A value has the wrong type.\n- `enum`: A value is not one of the accepted values.\n- `conflict`: Two values contradict each other.\n- `requires`: A field is given without another field it requires.\n- `range`: A number is outside its accepted range.\n- `length`: A string or a list is too short or too long.\n- `state`: The current state does not allow the command.\n- `stale`: The expected revision is older than the state (ADR 0009 C6).\n- `internal`: The engine could not compute the result: the input may be valid (ADR 0009 C3, amended on 2026-11-20). The command exits with code 5, not 1 (C7).",
+      "description": "Why the engine refused an input, or `internal` when it failed to compute the result: the documented enum of ADR 0009 C3 and its amendment of 2026-11-20. It serialises as its identifier; clients accept values they do not know (C5).\n\n- `syntax`: The input is not well-formed.\n- `missing`: A required field is absent.\n- `unknown_field`: A field is not part of the schema.\n- `duplicate`: A value that must be unique appears more than once.\n- `type`: A value has the wrong type.\n- `enum`: A value is not one of the accepted values.\n- `conflict`: Two values contradict each other.\n- `requires`: A field is given without another field it requires.\n- `range`: A number is outside its accepted range.\n- `length`: A string or a list is too short or too long.\n- `state`: The current state or the environment does not allow the command, for example an input that cannot be read.\n- `stale`: The expected revision is older than the state (ADR 0009 C6).\n- `internal`: The engine could not compute the result: the input may be valid (ADR 0009 C3, amended on 2026-11-20). The command exits with code 5, not 1 (C7).",
       "enum": [
         "syntax",
         "missing",

@@ -157,7 +157,9 @@ crate::static_id! {
 /// given (C2).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DefaultApplied {
-    /// RFC 6901 pointer, from the root of the input, to where the default applies.
+    /// RFC 6901 pointer, from the root of the input, to where the default applies. With the
+    /// reason `current_command_version`, the pointer `""` designates the context of the
+    /// command, its version, which has no place in the input.
     pointer: Pointer,
     /// The value applied.
     #[serde(deserialize_with = "not_null")]

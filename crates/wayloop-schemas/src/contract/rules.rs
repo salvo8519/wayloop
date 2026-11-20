@@ -55,9 +55,15 @@ pub fn artifact(schema: &mut Schema, kind: &str, version: NonZeroU32, superseded
 /// The member `member` of `schema` becomes the constant `value`, of the JSON type `kind` when
 /// given, keeping its description: the subset allows only annotations beside a `$ref`, so the
 /// derived schema of the member is replaced, not extended. A type keeps a value of another type
-/// refused with `type`, before `enum`, as the interpreter reports it.
+/// refused with `type`, before `enum`, as the interpreter reports it. A schema without
+/// `properties` gets them, so that the rule is never lost; `properties` that are not an object
+/// are kept, for the loader of the core to refuse by their place.
 fn constant(schema: &mut Schema, member: &str, value: Value, kind: Option<&str>) {
-    let Some(Value::Object(properties)) = schema.ensure_object().get_mut("properties") else {
+    let properties = schema
+        .ensure_object()
+        .entry("properties")
+        .or_insert_with(|| Value::Object(Map::new()));
+    let Value::Object(properties) = properties else {
         return;
     };
     let description = properties

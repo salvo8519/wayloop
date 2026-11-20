@@ -3,7 +3,7 @@
 //!
 //! An artifact is read by the engine, so its schema is an input: closed, an unknown member is
 //! refused with `unknown_field` (SPEC-0001 R6). Keys, enum values and status words are
-//! English; prose is in the language of the project. A member set to null is not given
+//! English; prose is in the language of the document. A member set to null is not given
 //! (ADR 0009 C2). The constants `kind` and `schema_version` of a type come from its
 //! registration in [`CONTRACTS`](crate::contract::CONTRACTS), written into its schema by
 //! [`rules::artifact`].

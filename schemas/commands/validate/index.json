@@ -6,8 +6,8 @@
       "file": "commands/validate/v1.json",
       "introduced_in": "unreleased",
       "output_file": "commands/validate/v1.output.json",
-      "output_sha256": "52a6abb909e0c5866ac637ecc0c4394cb3c12d0b94a80a8bde8fab400e192e65",
-      "sha256": "d861ac200d1432a1a9524b5fc23009e7f3a01bdc67299cfe40ab035005f3401f"
+      "output_sha256": "2dda7952e74e5e39d766017df55d1d7441014556215172a5bbcf65faec473727",
+      "sha256": "9d058fbcf7c4a262f0e6e6220b9a894407e5481eabb42d67b6c41a763ad4242e"
     }
   }
 }

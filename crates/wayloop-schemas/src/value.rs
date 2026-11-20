@@ -16,7 +16,7 @@
 
 use core::num::NonZeroU64;
 
-use schemars::{JsonSchema, Schema, SchemaGenerator};
+use schemars::Schema;
 use serde_json::{Map, Value};
 
 use crate::Format;
@@ -274,43 +274,57 @@ crate::positive_integer! {
     pub struct SchemaVersion;
 }
 
-/// A prose text of at least one character, in the language of the project (SPEC-0001 R6): an
-/// optional text is left out until it has a value, never written empty.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Text(String);
-
-impl Text {
-    /// The text `text`, as written; its length is checked by the schema.
-    #[must_use]
-    pub fn new(text: impl Into<String>) -> Self {
-        Self(text.into())
-    }
-
-    /// The text as written.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
+/// The schema of a string of at least one character, with its `description`.
+#[doc(hidden)]
+#[must_use]
+pub fn non_empty_schema(description: &str) -> Schema {
+    let mut schema = crate::ident::string_schema(description);
+    schema.insert("minLength".to_owned(), 1.into());
+    schema
 }
 
-crate::__value_traits!(Text, text, "expected a string");
+/// A string of at least one character, with no format, from its doc comment: the type gets
+/// `new()`, `as_str()`, `Display`, `Serialize` and `Deserialize` as its string, and an inlined
+/// `JsonSchema` whose description is the doc comment.
+macro_rules! non_empty_text {
+    (
+        $(#[doc = $doc:literal])*
+        pub struct $name:ident;
+    ) => {
+        $(#[doc = $doc])*
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name(String);
 
-impl JsonSchema for Text {
-    fn inline_schema() -> bool {
-        true
-    }
+        impl $name {
+            /// The value `text`, as written; its length is checked by the schema.
+            #[must_use]
+            pub fn new(text: impl Into<String>) -> Self {
+                Self(text.into())
+            }
 
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("Text")
-    }
+            /// The text as written.
+            #[must_use]
+            pub fn as_str(&self) -> &str {
+                &self.0
+            }
+        }
 
-    fn json_schema(_: &mut SchemaGenerator) -> Schema {
-        let mut schema = crate::ident::string_schema(
-            "A prose text of at least one character, in the language of the project.",
-        );
-        schema.insert("minLength".to_owned(), 1.into());
-        schema
-    }
+        crate::__value_traits!($name, text, "expected a string");
+
+        crate::__inline_schema!($name, non_empty_schema(concat!($($doc, "\n"),*)));
+    };
+}
+
+// SPEC-0001 R6: an optional text is left out until it has a value, never written empty.
+non_empty_text! {
+    /// A prose text of at least one character, in the language of the document.
+    pub struct Text;
+}
+
+non_empty_text! {
+    /// A name of the project policy, an identifier rather than prose: a type of commits, a
+    /// scope or an area, spelt as the policy spells it, of at least one character.
+    pub struct PolicyName;
 }
 
 /// The schema of an object whose members the contract does not describe, with its
@@ -327,7 +341,7 @@ pub fn free_object_schema(description: &str) -> Schema {
 
 #[cfg(test)]
 mod tests {
-    use super::{BriefId, IssueNumber, Line, ProjectPath, Text};
+    use super::{BriefId, IssueNumber, Line, PolicyName, ProjectPath, Text};
     use core::num::NonZeroU64;
     use schemars::JsonSchema;
     use serde_json::json;
@@ -383,6 +397,13 @@ mod tests {
         );
         let text = Text::json_schema(&mut generator).to_value();
         assert_eq!(text["minLength"], 1);
+        let name = PolicyName::json_schema(&mut generator).to_value();
+        assert_eq!(
+            (name["minLength"].clone(), name["type"].clone()),
+            (json!(1), json!("string"))
+        );
+        assert!(name["description"].as_str().unwrap().contains("identifier"));
+        assert_eq!(PolicyName::new("feat").as_str(), "feat");
         let read: Text = serde_json::from_value(json!("x")).unwrap();
         assert_eq!(read, Text::new("x"));
         assert_eq!(read.as_str(), "x");

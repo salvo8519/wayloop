@@ -33,6 +33,7 @@ impl Transform for Subset {
             }
             optional_members_without_null(object);
             documented_constants_as_enum(object);
+            only_reachable_definitions(object);
             if object.get("type").and_then(Value::as_str) == Some("integer")
                 && object
                     .get("format")
@@ -55,6 +56,57 @@ impl Transform for Subset {
             }
         }
         transform_subschemas(self, schema);
+    }
+}
+
+/// Removes from the `$defs` of `object` every definition that no `$ref` reaches from the rest
+/// of `object`, directly or through other definitions: a rule of a type that replaces a member,
+/// such as the constant `kind` of an artifact, leaves the definition of the member unused.
+pub(super) fn only_reachable_definitions(object: &mut Map<String, Value>) {
+    let Some(Value::Object(definitions)) = object.get("$defs") else {
+        return;
+    };
+    let mut pending = Vec::new();
+    for (keyword, value) in object.iter().filter(|(k, _)| *k != "$defs") {
+        if keyword == "$ref" {
+            pending.push(value.clone());
+        }
+        references(value, &mut pending);
+    }
+    let mut reached = BTreeSet::new();
+    while let Some(reference) = pending.pop() {
+        let name = reference
+            .as_str()
+            .and_then(|r| r.strip_prefix("#/$defs/"))
+            .map(str::to_owned);
+        if let Some(name) = name.filter(|n| !reached.contains(n)) {
+            if let Some(definition) = definitions.get(&name) {
+                references(definition, &mut pending);
+            }
+            reached.insert(name);
+        }
+    }
+    if let Some(Value::Object(definitions)) = object.get_mut("$defs") {
+        definitions.retain(|name, _| reached.contains(name));
+        if definitions.is_empty() {
+            object.remove("$defs");
+        }
+    }
+}
+
+/// Appends to `found` the value of every `$ref` inside `value`, at any depth.
+fn references(value: &Value, found: &mut Vec<Value>) {
+    match value {
+        Value::Object(members) => {
+            for (keyword, member) in members {
+                if keyword == "$ref" {
+                    found.push(member.clone());
+                }
+                references(member, found);
+            }
+        }
+        Value::Array(items) => items.iter().for_each(|item| references(item, found)),
+        _ => {}
     }
 }
 

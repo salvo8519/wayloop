@@ -534,14 +534,14 @@ fn a_boolean_schema_is_refused_by_the_loader() {
 }
 
 #[test]
-fn a_map_in_an_input_is_refused_by_the_loader_and_in_an_output_by_the_rules() {
-    let (pointer, problem) = invalid(refused::<WithMap>(Direction::Input));
-    assert_eq!(pointer, "/properties/a/additionalProperties");
-    assert_eq!(problem, "`additionalProperties` is only `false`");
-    let output = contract_schema(registered::<WithMap>(), Direction::Output).unwrap_err();
-    assert!(matches!(output, ContractFault::Rule(_)), "{output}");
-    assert!(output.to_string().starts_with("a rule of the contracts: "));
-    let subset = ContractFault::Subset(refused::<WithMap>(Direction::Input));
+fn a_map_is_refused_by_the_rules_in_both_directions() {
+    // An input map is an open object, refused before the loader sees it (contract audit S5).
+    for direction in [Direction::Input, Direction::Output] {
+        let fault = contract_schema(registered::<WithMap>(), direction).unwrap_err();
+        assert!(matches!(fault, ContractFault::Rule(_)), "{fault}");
+        assert!(fault.to_string().starts_with("a rule of the contracts: "));
+    }
+    let subset = ContractFault::Subset(refused::<RequiredNull>(Direction::Output));
     assert!(
         subset
             .to_string()

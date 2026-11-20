@@ -69,7 +69,7 @@ pub use wayloop_schemas::{
 pub fn run(command: Command, input: &Value, context: &Context) -> Envelope<Value> {
     let (outcome, diagnostics, version, defaults_applied) = match requested(command, *context) {
         Err(report) => (
-            refusal(*report),
+            reported(*report),
             Diagnostics::default(),
             command.version(),
             Vec::new(),
@@ -102,27 +102,41 @@ fn as_value<D: Serialize>(outcome: Outcome<D>) -> Outcome<Value> {
     }
 }
 
-/// The refusal of `report`, whose errors are refusals of the input.
-fn refusal(report: ErrorReport) -> Outcome<Value> {
-    Outcome::refused(report)
-        .unwrap_or_else(|| Outcome::internal("The engine wrote a refusal that holds a failure."))
+/// Whether `report` is a failure of the engine: its first error has the reason `internal`.
+fn is_failure(report: &ErrorReport) -> bool {
+    report.first().reason() == Reason::Internal
+}
+
+/// The outcome `report` tells: a failure of the engine when it is one, a refusal of the input
+/// otherwise; a report that mixes them is itself a failure.
+fn reported(report: ErrorReport) -> Outcome<Value> {
+    let outcome = if is_failure(&report) {
+        Outcome::failed(report)
+    } else {
+        Outcome::refused(report)
+    };
+    outcome.unwrap_or_else(|| {
+        Outcome::internal("The engine wrote a report that mixes refusals and failures.")
+    })
 }
 
 /// The version of `command` the context requests, with the default applied when it requests
-/// none, or the refusal of a version the engine does not run.
+/// none, or the refusal of a version the engine does not run; a failure of the engine when the
+/// default cannot be written, never a default dropped.
 fn requested(
     command: Command,
     context: Context,
 ) -> Result<(NonZeroU32, Vec<DefaultApplied>), Box<ErrorReport>> {
     let current = command.version();
     let Some(version) = context.command_version() else {
-        let default = DefaultApplied::new(Pointer::root(), current.get(), CURRENT_COMMAND_VERSION)
-            .map(|d| {
-                d.with_message(format!(
-                    "No version of the command was requested: version {current} runs."
-                ))
-            });
-        return Ok((current, default.into_iter().collect()));
+        let Some(default) =
+            DefaultApplied::new(Pointer::root(), current.get(), CURRENT_COMMAND_VERSION)
+        else {
+            let message = "The default version of the command is written as null.";
+            return Err(Box::new(ErrorReport::single(Error::internal(message))));
+        };
+        let message = format!("No version of the command was requested: version {current} runs.");
+        return Ok((current, vec![default.with_message(message)]));
     };
     if command.runs(version) {
         return Ok((version, Vec::new()));
@@ -149,12 +163,14 @@ pub fn run_json(command: Command, text: &[u8], context: &Context) -> Envelope<Va
         Ok(input) => run(command, &input, context),
         Err(report) => {
             let (outcome, version, defaults) = match requested(command, *context) {
+                // A failure of the engine stands alone; a refused version comes first.
+                Err(stop) if is_failure(&stop) => (reported(*stop), command.version(), Vec::new()),
                 Err(refused) => {
                     let errors = refused.errors().chain(report.errors()).cloned();
                     let both = ErrorReport::from_errors(errors).unwrap_or(*refused);
-                    (refusal(both), command.version(), Vec::new())
+                    (reported(both), command.version(), Vec::new())
                 }
-                Ok((version, defaults)) => (refusal(*report), version, defaults),
+                Ok((version, defaults)) => (reported(*report), version, defaults),
             };
             let meta = envelope::meta_of_bytes(version, text, context.dry_run(), defaults);
             Envelope::new(command.id(), outcome, Diagnostics::default(), meta)
@@ -249,7 +265,29 @@ impl IssueStep {
 
 #[cfg(test)]
 mod tests {
-    use super::IssueStep;
+    use super::{
+        COMMAND_INPUT, Error, ErrorReport, INTERNAL_ERROR, IssueStep, Pointer, Reason, reported,
+    };
+
+    #[test]
+    fn a_report_tells_its_outcome_and_a_mixed_one_is_a_failure() {
+        let refusal = Error::new(COMMAND_INPUT, "Refused.", Pointer::root(), Reason::Type);
+        let failure = Error::internal("Broken.");
+        let refused = reported(ErrorReport::single(refusal.clone()));
+        assert_eq!(refused.exit_code().code(), 1);
+        let failed = reported(ErrorReport::single(failure.clone()));
+        assert_eq!(failed.exit_code().code(), 5);
+        assert_eq!(failed.report().unwrap().first().message(), "Broken.");
+        for mixed in [[refusal.clone(), failure.clone()], [failure, refusal]] {
+            let outcome = reported(ErrorReport::from_errors(mixed).unwrap());
+            let first = outcome.report().unwrap().first().clone();
+            assert_eq!(
+                (first.code(), first.reason()),
+                (&INTERNAL_ERROR, Reason::Internal)
+            );
+            assert!(first.message().contains("mixes"), "{first:?}");
+        }
+    }
 
     #[test]
     fn identifiers_are_unique_and_ordered() {

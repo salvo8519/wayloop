@@ -6,14 +6,16 @@
 //! type, a format that is not named, a reference out of the file or a reference chain) is
 //! refused there, and `wayloop_core::schema::contract_schema` runs both. These checks hold
 //! what a schema of the subset can still break: a description on the root, every definition and
-//! every member; the meaning of every enum value; at most four levels of objects; and no
-//! `additionalProperties` in an output.
+//! every member; the meaning of every enum value; at most four levels of objects; no
+//! `additionalProperties` in an output; and, in an input, `additionalProperties: false` on
+//! every object but the free objects of [`FREE_OBJECTS`].
 
 use serde_json::{Map, Value};
 
 use super::transform::{meaning_line, value_text};
 use super::{ContractError, Direction, MAX_OBJECT_LEVELS, Problem};
 use crate::Pointer;
+use crate::validate::{FreeDocument, Lines};
 
 /// Keywords whose value is one subschema that needs no description of its own.
 const SUBSCHEMA: [&str; 2] = ["items", "additionalProperties"];
@@ -24,6 +26,11 @@ const CONDITION: [&str; 3] = ["if", "then", "contains"];
 
 /// Keywords whose value is a list of subschemas.
 const SUBSCHEMAS: [&str; 3] = ["allOf", "anyOf", "oneOf"];
+
+/// The definitions that may stay open in an input: documents of another schema, written by
+/// hand with `value::free_object_schema` and checked by the core (ADR 0030 G2, as amended for
+/// #256). Every other object of an input is closed.
+pub(super) const FREE_OBJECTS: [&str; 2] = [FreeDocument::NAME, Lines::NAME];
 
 /// Most references followed on one path. A reference that reaches itself is refused by the
 /// loader of the core; this bound only stops the walk.
@@ -70,6 +77,16 @@ fn walk(
         .filter(|d| !d.trim().is_empty());
     if need == Need::Description && description.is_none() {
         return Err(refuse(pointer, Problem::MissingDescription));
+    }
+    if direction == Direction::Input
+        && need != Need::InCondition
+        && schema.get("type").and_then(Value::as_str) == Some("object")
+        && schema.get("additionalProperties") != Some(&Value::Bool(false))
+        && !FREE_OBJECTS
+            .iter()
+            .any(|name| *pointer == Pointer::root().join("$defs").join(name))
+    {
+        return Err(refuse(pointer, Problem::OpenInput));
     }
     own_keywords(schema, pointer, description.unwrap_or_default(), direction)?;
     for keyword in ["properties", "$defs"] {

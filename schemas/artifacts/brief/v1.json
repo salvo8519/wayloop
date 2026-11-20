@@ -1,21 +1,5 @@
 {
   "$defs": {
-    "ArtifactKind": {
-      "description": "Type of an artifact (SPEC-0001, Common rules): the value of `kind`, which selects the schema of the document.\n\n- `brief`: A short statement of an idea or a scope of work, input of the council.\n- `council_report`: The report of the council on a brief.\n- `gate`: The tracker issue on which a person approves a brief or a council report.\n- `milestone`: A milestone of the roadmap.\n- `epic`: An epic of a milestone.\n- `story`: A user story of an epic.\n- `specification`: A living specification of one capability.\n- `change`: A change delta of a living specification.\n- `task`: A task of an epic, closed by one pull request.\n- `handover`: The hand-over record of a session.",
-      "enum": [
-        "brief",
-        "council_report",
-        "gate",
-        "milestone",
-        "epic",
-        "story",
-        "specification",
-        "change",
-        "task",
-        "handover"
-      ],
-      "type": "string"
-    },
     "BriefOrigin": {
       "description": "What a brief was written from.\n\n- `light_requirements`: A short list of needs.\n- `scope_of_work`: A scope of work agreed with a client.",
       "enum": [
@@ -61,7 +45,7 @@
     "constraints": {
       "description": "Budget, deadlines, technology, regulation; `[]` means none.",
       "items": {
-        "description": "A prose text of at least one character, in the language of the project.",
+        "description": "A prose text of at least one character, in the language of the document.",
         "minLength": 1,
         "type": "string"
       },
@@ -70,7 +54,7 @@
     "goals": {
       "description": "Outcomes the project must reach; at least one.",
       "items": {
-        "description": "A prose text of at least one character, in the language of the project.",
+        "description": "A prose text of at least one character, in the language of the document.",
         "minLength": 1,
         "type": "string"
       },
@@ -94,7 +78,7 @@
     "open_questions": {
       "description": "Questions the council must answer; `[]` means none.",
       "items": {
-        "description": "A prose text of at least one character, in the language of the project.",
+        "description": "A prose text of at least one character, in the language of the document.",
         "minLength": 1,
         "type": "string"
       },
@@ -122,7 +106,7 @@
     "scope_in": {
       "description": "What is included; at least one entry.",
       "items": {
-        "description": "A prose text of at least one character, in the language of the project.",
+        "description": "A prose text of at least one character, in the language of the document.",
         "minLength": 1,
         "type": "string"
       },
@@ -132,7 +116,7 @@
     "scope_out": {
       "description": "What is excluded; `[]` means nothing.",
       "items": {
-        "description": "A prose text of at least one character, in the language of the project.",
+        "description": "A prose text of at least one character, in the language of the document.",
         "minLength": 1,
         "type": "string"
       },
@@ -161,7 +145,7 @@
     "users": {
       "description": "Who uses the result; at least one.",
       "items": {
-        "description": "A prose text of at least one character, in the language of the project.",
+        "description": "A prose text of at least one character, in the language of the document.",
         "minLength": 1,
         "type": "string"
       },
