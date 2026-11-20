@@ -20,7 +20,7 @@ For each claim: the command that proves it, its exit status and the relevant lin
    | Lints and format | `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --all --check` |
    | The branch is ready | `uv run just check` |
    | A bug is fixed | the reproduction from the `debug` skill passes, and its regression test fails without the fix |
-   | A requirement is met | a test named for it passes; read the requirement again, line by line |
+   | A requirement is met | a test that fails without the code and passes with it, cited by file and line; a test named for the requirement is not proof (SPEC-0009 R9) |
    | Documentation in sync | `uv run python scripts/docs_sync.py impact --base origin/main` |
    | Skills and roles follow the standard | `uv run python scripts/check_agents.py` |
    | A sprint lane is within its paths | `uv run python scripts/sprint.py check-diff --branch <branch> --base origin/main` |

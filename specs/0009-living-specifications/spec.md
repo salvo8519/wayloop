@@ -5,7 +5,7 @@
 | Status | Draft |
 | Milestone | M3 · Living specifications and survey |
 | Owner | @salvo8519 |
-| Related | ADR 0014, #79, #82, #83, #84, #85, #174 |
+| Related | ADR 0014, #79, #82, #83, #84, #85, #174, #309 |
 | Commit scope | specs |
 
 ## Problem
@@ -29,12 +29,20 @@ Specifications written once stop governing the code. The current behaviour must 
 - **R6**: THE ENGINE SHALL compare the code with the specification and append the missing work as tasks.
 - **R7**: THE ENGINE SHALL require a verification technique for every task.
 - **R8**: WHERE an acceptance criterion uses the technique judge, THE ENGINE SHALL have an agent other than the implementer score the result against the written rubric, record score and reasons, and open a question after two scores below the threshold.
+- **R9**: THE ENGINE SHALL declare an acceptance criterion met only through a `covered` coverage unit (SPEC-0003, Coverage and verification); a passing test whose name refers to the criterion is not sufficient.
+- **R10**: WHEN a verdict is `needs_validation`, THE ENGINE SHALL open a question on the issue (SPEC-0007 R1) that states the missing fact, the evidence gathered and who can answer it.
+- **R11**: WHEN a convergence run starts, THE ENGINE SHALL verify only the units in `planned`, `uncovered`, `needs_validation` or `stale`, and carry the others forward with their evidence.
+- **R12**: THE ENGINE SHALL report the coverage of a specification as the list of its units with their state, their evidence and the commit it was produced on, never as a single figure alone.
 
 ## Acceptance criteria
 - **AC1**: Given a delta that modifies a missing requirement, when validated, then it fails with the requirement id. Verification: TDD.
 - **AC2**: Given a closed change, when archived, then the living specification contains the merged requirements. Verification: TDD.
 - **AC3**: Given a plan task without a requirement, when analysed, then it is reported. Verification: TDD.
 - **AC4**: Given a criterion with technique judge, when verified, then score and reasons are recorded. Verification: TDD.
+- **AC5** (R9): Given a criterion with a passing test and no `covered` unit, when the change is analysed, then the criterion is reported as not met. Verification: TDD.
+- **AC6** (R10): Given a `needs_validation` verdict, when processed, then one question is opened with the missing fact and the issue waits at the gate. Verification: TDD.
+- **AC7** (R11): Given a second convergence run with no code change, when run, then no verifier is dispatched. Verification: TDD.
+- **AC8** (R12): Given a specification with mixed coverage, when reported, then every unit appears with state, evidence and commit. Verification: contract test.
 
 ## Interfaces
 - wayloop spec new | analyze | clarify | converge | archive.
