@@ -120,7 +120,19 @@ pub fn string_schema(description: &str) -> Schema {
 /// comments are accepted on the enum and on its values.
 #[macro_export]
 macro_rules! closed_enum {
+    ($($input:tt)*) => {
+        $crate::__ident_enum! { plain; $($input)* }
+    };
+}
+
+/// The one parser of [`closed_enum!`](crate::closed_enum!) and
+/// [`contract_enum!`](crate::contract_enum!): the enum, its spelling and, for a `contract`
+/// enum, its serialised form and schema.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __ident_enum {
     (
+        $kind:ident;
         $(#[doc = $doc:literal])*
         $vis:vis enum $name:ident {
             $(
@@ -168,6 +180,74 @@ macro_rules! closed_enum {
                 f.write_str(self.id())
             }
         }
+
+        $crate::__ident_contract! {
+            $kind; $name; concat!($($doc, "\n"),*);
+            $(($id, concat!($($value_doc, "\n"),*))),+
+        }
+    };
+}
+
+/// Nothing for a `plain` closed enum; for a `contract` enum, `Serialize` as its spelling,
+/// `Deserialize` that refuses any other text, and the schema of its documented values.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __ident_contract {
+    (plain; $($rest:tt)*) => {};
+    (contract; $name:ident; $doc:expr; $(($id:literal, $value_doc:expr)),+) => {
+        $crate::__serialize_id!($name);
+
+        impl<'de> $crate::ident::__private::serde::Deserialize<'de> for $name {
+            fn deserialize<D: $crate::ident::__private::serde::Deserializer<'de>>(
+                deserializer: D,
+            ) -> ::core::result::Result<Self, D::Error> {
+                const IDS: &[&str] = &[$($id),+];
+                let id = <::std::string::String as $crate::ident::__private::serde::Deserialize>
+                    ::deserialize(deserializer)?;
+                Self::from_id(&id).ok_or_else(|| {
+                    <D::Error as $crate::ident::__private::serde::de::Error>::unknown_variant(
+                        &id, IDS,
+                    )
+                })
+            }
+        }
+
+        $crate::__json_schema!($name, $crate::ident::enum_schema($doc, &[$(($id, $value_doc)),+]));
+    };
+}
+
+/// `Serialize` of an identifier type: the string of its `id()`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __serialize_id {
+    ($name:ident) => {
+        impl $crate::ident::__private::serde::Serialize for $name {
+            fn serialize<S: $crate::ident::__private::serde::Serializer>(
+                &self,
+                serializer: S,
+            ) -> ::core::result::Result<S::Ok, S::Error> {
+                serializer.serialize_str(self.id())
+            }
+        }
+    };
+}
+
+/// `JsonSchema` of an identifier type: named as the type, with the `schema` given.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __json_schema {
+    ($name:ident, $schema:expr) => {
+        impl $crate::ident::__private::schemars::JsonSchema for $name {
+            fn schema_name() -> ::std::borrow::Cow<'static, str> {
+                ::std::borrow::Cow::Borrowed(stringify!($name))
+            }
+
+            fn json_schema(
+                _: &mut $crate::ident::__private::schemars::SchemaGenerator,
+            ) -> $crate::ident::__private::schemars::Schema {
+                $schema
+            }
+        }
     };
 }
 
@@ -196,63 +276,8 @@ macro_rules! closed_enum {
 /// and accepts values it does not know (ADR 0009 C5).
 #[macro_export]
 macro_rules! contract_enum {
-    (
-        $(#[doc = $doc:literal])*
-        $vis:vis enum $name:ident {
-            $(
-                $(#[doc = $value_doc:literal])*
-                $variant:ident = $id:literal
-            ),+ $(,)?
-        }
-    ) => {
-        $crate::closed_enum! {
-            $(#[doc = $doc])*
-            $vis enum $name {
-                $(
-                    $(#[doc = $value_doc])*
-                    $variant = $id,
-                )+
-            }
-        }
-
-        impl $crate::ident::__private::serde::Serialize for $name {
-            fn serialize<S: $crate::ident::__private::serde::Serializer>(
-                &self,
-                serializer: S,
-            ) -> ::core::result::Result<S::Ok, S::Error> {
-                serializer.serialize_str(self.id())
-            }
-        }
-
-        impl<'de> $crate::ident::__private::serde::Deserialize<'de> for $name {
-            fn deserialize<D: $crate::ident::__private::serde::Deserializer<'de>>(
-                deserializer: D,
-            ) -> ::core::result::Result<Self, D::Error> {
-                const IDS: &[&str] = &[$($id),+];
-                let id = <::std::string::String as $crate::ident::__private::serde::Deserialize>
-                    ::deserialize(deserializer)?;
-                Self::from_id(&id).ok_or_else(|| {
-                    <D::Error as $crate::ident::__private::serde::de::Error>::unknown_variant(
-                        &id, IDS,
-                    )
-                })
-            }
-        }
-
-        impl $crate::ident::__private::schemars::JsonSchema for $name {
-            fn schema_name() -> ::std::borrow::Cow<'static, str> {
-                ::std::borrow::Cow::Borrowed(stringify!($name))
-            }
-
-            fn json_schema(
-                _: &mut $crate::ident::__private::schemars::SchemaGenerator,
-            ) -> $crate::ident::__private::schemars::Schema {
-                $crate::ident::enum_schema(
-                    concat!($($doc, "\n"),*),
-                    &[$(($id, concat!($($value_doc, "\n"),*))),+],
-                )
-            }
-        }
+    ($($input:tt)*) => {
+        $crate::__ident_enum! { contract; $($input)* }
     };
 }
 
@@ -305,14 +330,7 @@ macro_rules! static_id {
             }
         }
 
-        impl $crate::ident::__private::serde::Serialize for $name {
-            fn serialize<S: $crate::ident::__private::serde::Serializer>(
-                &self,
-                serializer: S,
-            ) -> ::core::result::Result<S::Ok, S::Error> {
-                serializer.serialize_str(&self.0)
-            }
-        }
+        $crate::__serialize_id!($name);
 
         impl<'de> $crate::ident::__private::serde::Deserialize<'de> for $name {
             fn deserialize<D: $crate::ident::__private::serde::Deserializer<'de>>(
@@ -324,16 +342,6 @@ macro_rules! static_id {
             }
         }
 
-        impl $crate::ident::__private::schemars::JsonSchema for $name {
-            fn schema_name() -> ::std::borrow::Cow<'static, str> {
-                ::std::borrow::Cow::Borrowed(stringify!($name))
-            }
-
-            fn json_schema(
-                _: &mut $crate::ident::__private::schemars::SchemaGenerator,
-            ) -> $crate::ident::__private::schemars::Schema {
-                $crate::ident::string_schema(concat!($($doc, "\n"),*))
-            }
-        }
+        $crate::__json_schema!($name, $crate::ident::string_schema(concat!($($doc, "\n"),*)));
     };
 }

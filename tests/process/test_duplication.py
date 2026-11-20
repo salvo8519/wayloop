@@ -7,11 +7,9 @@ import json
 from conftest import ROOT
 
 # The clones of the pure crates accepted until #299 deals with them: the clippy.toml of each
-# pure crate, the test generator of envelope.rs and sha256.rs, and three in
-# wayloop-schemas/src/ident.rs (the matcher of closed_enum and contract_enum, and the serde and
-# JsonSchema impls of two macros), which #299 removes or keeps as deliberate. The baseline may
-# only shrink.
-KNOWN_CLONES = 5
+# pure crate, and the test generator of envelope.rs and sha256.rs. The baseline may only
+# shrink.
+KNOWN_CLONES = 2
 
 
 def test_the_baseline_of_the_pure_crates_never_grows() -> None:
