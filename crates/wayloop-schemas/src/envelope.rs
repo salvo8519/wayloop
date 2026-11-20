@@ -82,7 +82,8 @@ pub struct InputHash(
     #[schemars(length(min = InputHash::TEXT_LEN, max = InputHash::TEXT_LEN))] String,
 );
 
-/// Reads the text of a hash and refuses one that is not 64 lower-case hexadecimal digits.
+/// Reads the text of a hash and refuses one that is not two lower-case hexadecimal digits for
+/// each of the [`InputHash::DIGEST_LEN`] bytes of a digest.
 impl<'de> Deserialize<'de> for InputHash {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let text = String::deserialize(deserializer)?;
@@ -90,9 +91,10 @@ impl<'de> Deserialize<'de> for InputHash {
         if text.len() == Self::TEXT_LEN && text.bytes().all(hexadecimal) {
             Ok(Self(text))
         } else {
-            Err(D::Error::custom(
-                "an input hash is 64 lower-case hexadecimal digits",
-            ))
+            Err(D::Error::custom(format_args!(
+                "an input hash is {} lower-case hexadecimal digits",
+                Self::TEXT_LEN
+            )))
         }
     }
 }
@@ -118,7 +120,7 @@ impl InputHash {
         Self(text)
     }
 
-    /// The 64 lower-case hexadecimal digits.
+    /// The lower-case hexadecimal digits, two for each byte of the digest.
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
@@ -897,8 +899,10 @@ mod tests {
             format!("{}0", hash.as_str()),
             "g".repeat(64),
         ] {
-            assert!(
-                serde_json::from_value::<InputHash>(json!(wrong)).is_err(),
+            let refused = serde_json::from_value::<InputHash>(json!(wrong)).unwrap_err();
+            assert_eq!(
+                refused.to_string(),
+                "an input hash is 64 lower-case hexadecimal digits",
                 "{wrong}"
             );
         }
