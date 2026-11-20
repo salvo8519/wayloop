@@ -39,3 +39,19 @@ spelling in every channel. Other spellings, such as the labels of the issue trac
 produced by the adapters from these values. Adding a step is an additive change; renaming or
 removing a step is a breaking change of the contract. The steps themselves are described in
 [The loop](../concepts/the-loop.md#the-issue-cycle).
+
+## JSON contracts
+
+The schemas of the contracts are published with this site, each at the URL of its `$id`, under
+`https://salvo8519.github.io/wayloop/schemas/`. The history of every contract, with the files
+of each version and their SHA-256, is in `schemas/index.json` at the same address, and in
+`index.json` in the folder of each contract.
+
+| Contract | Current version | Schema |
+| --- | --- | --- |
+| Envelope of every command result ([ADR 0009](../project/adr/0009-contract-guidelines.md), C1) | 1 | `schemas/envelope/result/v1.json` |
+
+A version, once released, changes only additively: a new optional input member, a new output
+member, a new `enum` value. Any other change is a new version, published beside the earlier
+one, which never changes. Clients accept members and `enum` values they do not know
+([ADR 0009](../project/adr/0009-contract-guidelines.md), C5).

@@ -81,7 +81,13 @@ PURE_CRATES: dict[str, frozenset[str]] = {
 }
 
 # Dependencies point one way: a crate may depend only on the crates before it (ADR 0006).
-WORKSPACE = ("wayloop-schemas", "wayloop-core", "wayloop-runtime", "wayloop-cli")
+WORKSPACE = (
+    "wayloop-schemas",
+    "wayloop-core",
+    "wayloop-runtime",
+    "wayloop-cli",
+    "wayloop-schemagen",
+)
 
 # Crates whose purpose is I/O: async runtimes and event loops, networking and HTTP clients,
 # databases and storage engines, files and processes, git and the tracker.

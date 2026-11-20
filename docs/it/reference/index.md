@@ -1,6 +1,6 @@
 ---
 source: reference/index.md
-source_hash: f34c4e63eed4
+source_hash: 0c3dfcfdec0d
 ---
 # Riferimento
 
@@ -45,3 +45,19 @@ e si scrivono allo stesso modo in ogni canale. Le altre grafie, come le etichett
 delle issue, sono prodotte dagli adattatori a partire da questi valori. Aggiungere un passo è una
 modifica additiva; rinominare o rimuovere un passo è una modifica incompatibile del contratto.
 I passi sono descritti in [Il loop](../concepts/the-loop.md#il-ciclo-di-unissue).
+
+## Contratti JSON
+
+Gli schemi dei contratti sono pubblicati con questo sito, ciascuno all'URL del suo `$id`, sotto
+`https://salvo8519.github.io/wayloop/schemas/`. La storia di ogni contratto, con i file di ogni
+versione e il loro SHA-256, è in `schemas/index.json` allo stesso indirizzo, e in `index.json`
+nella cartella di ciascun contratto.
+
+| Contratto | Versione corrente | Schema |
+| --- | --- | --- |
+| Envelope del risultato di ogni comando ([ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/), C1) | 1 | `schemas/envelope/result/v1.json` |
+
+Una versione, una volta rilasciata, cambia solo in modo additivo: un nuovo membro facoltativo
+di input, un nuovo membro di output, un nuovo valore di `enum`. Ogni altra modifica è una nuova
+versione, pubblicata accanto alla precedente, che non cambia mai. I client accettano membri e
+valori di `enum` che non conoscono ([ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/), C5).

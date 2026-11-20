@@ -1,0 +1,11 @@
+{
+  "current": "1",
+  "format": 1,
+  "versions": {
+    "1": {
+      "file": "envelope/result/v1.json",
+      "introduced_in": "unreleased",
+      "sha256": "a6cf5b3fe984805d567c5877ca4085d4752b5d9802fc069e2124397f8d9476ad"
+    }
+  }
+}

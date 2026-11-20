@@ -85,7 +85,7 @@ jobs:
           uv run python scripts/sprint.py check-diff --branch "$HEAD_REF" --base "$BASE_SHA"
       # Released means on main: a pull request, stacked or not, compares with origin/main; a push
       # compares with the commit before it, or origin/main when there is none.
-      - name: Released schema snapshots unchanged, versions without gaps (ADR 0009, C5)
+      - name: Schema snapshots generated from the types, history kept (ADR 0030 G5, G6)
         env:
           BEFORE: ${{ github.event_name == 'push' && github.event.before || '' }}
         run: |
@@ -94,7 +94,7 @@ jobs:
             && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             base="$BEFORE"
           fi
-          uv run python scripts/check_schemas.py --base "$base"
+          uv run just schemas "$base"
       - name: Duplicated code (jscpd from package-lock.json, npm of the runner)
         run: uv run just dup
       - name: Pure crates perform no I/O (ADR 0001, ADR 0006)

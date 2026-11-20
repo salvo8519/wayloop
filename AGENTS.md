@@ -18,6 +18,8 @@ built with the process it describes. Read `docs/en/project/vision.md` and the AD
 | `crates/wayloop-core/` | All decision logic: artifact model, state machine, ledger. No I/O. |
 | `crates/wayloop-runtime/` | Asynchronous runtime (ADR 0006): queue, workers, single writer to the ledger. Decides nothing. |
 | `crates/wayloop-cli/` | The `wayloop` binary. Adapter only. |
+| `crates/wayloop-schemagen/` | Generator of the contract snapshots, a tool of the repository; not published. |
+| `schemas/` | Contract snapshots generated from the types, with the history of each contract (ADR 0030). Never edited by hand. |
 | `docs/en/` | Documentation source (English). |
 | `docs/it/` | Italian edition, tracked against the English source. |
 | `i18n/` | Language configuration and the Italian glossary. |
@@ -117,6 +119,7 @@ change and the order of dependent branches stays with whoever built them.
 | --- | --- |
 | Set up | `uv sync --all-groups` |
 | Full gate | `uv run just check` |
+| Contract snapshots: generate from the types, check against `origin/main` | `uv run just generate` / `uv run just schemas` |
 | Duplicated code (jscpd, part of the full gate) | `uv run just dup` |
 | Format | `uv run just fmt` |
 | Python: lint, format check, strict types | `uv run just python` |

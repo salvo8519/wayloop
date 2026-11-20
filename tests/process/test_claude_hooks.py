@@ -128,7 +128,7 @@ def test_an_existing_contract_snapshot_cannot_be_edited(contracts: Path, path: s
     assert "write the next version" in result.stderr
 
 
-@pytest.mark.parametrize("broken", ["_git.py", "check_schemas.py"])
+@pytest.mark.parametrize("broken", ["_git.py", "schema_snapshots.py"])
 def test_the_contract_hook_fails_closed_when_its_scripts_cannot_load(
     contracts: Path, broken: str
 ) -> None:

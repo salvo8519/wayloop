@@ -160,11 +160,35 @@ in agreement.
 
 ## Contract snapshots
 
-A schema under `schemas/` named `v<N>.json`, `v<N>.output.json` or `v<N>.input.json` is a
-snapshot (ADR 0009, C5). Once on `main` it never changes and is never deleted: a schema change
-ships as a new `v<N+1>` beside the unchanged `v<N>`, and the versions of one folder run from 1
-without a gap; `v0` and zero-padded versions such as `v01` are refused. The hook `.claude/hooks/protect_contracts.py` blocks the edit;
-`scripts/check_schemas.py` refuses it in `just process` and in CI.
+A schema under `schemas/<area>/<name>/` named `v<N>.json`, `v<N>.output.json` or
+`v<N>.input.json` is a snapshot ([ADR 0009](adr/0009-contract-guidelines.md), C5;
+[ADR 0030](adr/0030-contracts-generated-from-rust-types.md), G5). Snapshots are generated from
+the contract types, never edited by hand: change the type, or the registry
+`wayloop_schemas::contract::CONTRACTS` for a new contract or version, and run
+`uv run just generate`. The command writes the text that `contract::snapshot` gives, byte for
+byte, the history of each contract in `schemas/<area>/<name>/index.json` (`format`, `current`
+and, per version, its files, their SHA-256 and `introduced_in`, `unreleased` until a release),
+and the copies that `wayloop-schemas` embeds in `crates/wayloop-schemas/snapshots/` with their
+list `src/contract/embedded.rs`. A second run changes no byte.
+
+Rules, checked by `scripts/schema_snapshots.py` in `just check` (recipe `schemas`) and in CI:
+
+- `--check` fails when a committed snapshot, history, copy or list differs from the generated
+  one, on a file under `schemas/` that is neither generated nor recorded, and on a folder of a
+  contract the registry does not list.
+- A version earlier than the current one never changes. The current version, once on `main`,
+  changes only additively: a new optional input member, a new output member, a new `enum`
+  value, documentation. Any other change is a new version `v<N+1>`, written beside the
+  unchanged `v<N>`. `--diff-against <base>` classifies the changes against the merge base with
+  `main`, and refuses a rewritten history: an earlier version changed, a released file deleted,
+  replaced by a symlink or with another mode, a version or a contract removed, a current
+  version gone back. A version not yet on `main` may change freely.
+- Generation refuses to write a version lower than the current one, or one that leaves a gap;
+  versions run from 1.
+
+The hook `.claude/hooks/protect_contracts.py` blocks a hand edit of a snapshot that exists on
+`main`. The documentation build publishes `schemas/` at the URLs of the `$id` of the
+snapshots, with the history of every contract assembled in `schemas/index.json`.
 
 ## Release notes
 

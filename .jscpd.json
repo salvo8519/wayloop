@@ -10,6 +10,7 @@
     "site/**",
     "internal/**",
     "schemas/**",
+    "crates/wayloop-schemas/snapshots/**",
     "tests/contract/**",
     "docs/it/**",
     ".claude/agents/**",

@@ -1,0 +1,20 @@
+[package]
+name = "wayloop-schemagen"
+description = "Generator of the contract snapshots of Wayloop: prints them, writes no file. Not published."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+# A tool of the repository (ADR 0030 G4): `scripts/schema_snapshots.py` runs it.
+publish = false
+
+[dependencies]
+wayloop-core = { path = "../wayloop-core", version = "0.0.0" }
+wayloop-schemas = { path = "../wayloop-schemas", version = "0.0.0" }
+serde_json.workspace = true
+
+[lints]
+workspace = true
