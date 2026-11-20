@@ -233,7 +233,7 @@ CI run the same commands.
   `package-lock.json`, settings in `.jscpd.json`: blocks of at least 8 lines and 60 tokens,
   files up to 20 MB, generated and frozen folders left out) in `just check` and CI. The pure
   crates (`wayloop-core`, `wayloop-schemas`) admit no clone beyond `.jscpd-baseline.json`,
-  which holds the two clones that issue #299 removes and may only shrink (a test checks it);
+  which holds the five clones that issue #299 deals with and may only shrink (a test checks it);
   the crates, the scripts, the tests and the hooks together admit at most 1 percent of
   duplicated lines. A deliberate copy (an independent oracle in tests, a frozen snapshot, a
   hook that runs without the project environment) states its reason in a comment and has a

@@ -42,8 +42,8 @@ sprints:
     for f in sprints/S*.yaml; do [ ! -e "$f" ] || python scripts/sprint.py validate "$f" || exit 1; done
 
 # Duplicated code (jscpd, pinned in package.json and package-lock.json, settings in .jscpd.json).
-# Pure crates: no clone beyond .jscpd-baseline.json, which holds only the two clones that #299
-# removes (the clippy.toml of each pure crate, the test generator of envelope.rs and sha256.rs).
+# Pure crates: no clone beyond .jscpd-baseline.json, which holds only the clones that #299 deals
+# with (tests/process/test_duplication.py lists them and keeps the baseline from growing).
 # Everything else: at most 1 percent of duplicated lines.
 dup:
     npm ls --depth=0 >/dev/null 2>&1 || npm ci --ignore-scripts --no-audit --no-fund
