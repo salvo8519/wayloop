@@ -8,9 +8,9 @@
 //! this crate decides (ADR 0006).
 //!
 //! The crate may depend only on the crates of its reviewed allowlist (`wayloop-schemas`, and
-//! `serde` and `serde_json` with the crates they reach), checked by `scripts/check_core_io.py`;
-//! I/O of the standard library in its source is refused by the Clippy lints forbidden below,
-//! with the paths listed in its `clippy.toml`.
+//! `serde`, `serde_json` and `schemars` with the crates they reach), checked by
+//! `scripts/check_core_io.py`; I/O of the standard library in its source is refused by the
+//! Clippy lints forbidden below, with the paths listed in its `clippy.toml`.
 //!
 //! The crate fixes the vocabulary of the issue cycle, and holds the parts of the envelope of
 //! ADR 0009 that the entry point needs: the canonical JSON of RFC 8785 ([`canonical`]), a

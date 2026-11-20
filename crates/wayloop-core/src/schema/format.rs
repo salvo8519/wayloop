@@ -4,9 +4,13 @@
 //! Every check works on ASCII and reads the text once; no regular expression is involved. A
 //! fix is offered only when it is a value the format accepts and differs from the text.
 
-/// A named format of the subset.
+use wayloop_schemas::Format;
+
+/// How a named format is checked. The match in [`shape`] is exhaustive over [`Format`], the
+/// one list of named formats shared with the generator of `wayloop-schemas` (ADR 0030 G2): a
+/// format added there does not compile until it is checked here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Format {
+enum Shape {
     /// RFC 3339 `full-date`.
     Date,
     /// RFC 3339 date-time in UTC, written with `Z`.
@@ -25,84 +29,80 @@ pub(crate) enum Format {
     Part(&'static str),
 }
 
-/// Every format of the subset, by name.
-const NAMED: [(&str, Format); 18] = [
-    ("date", Format::Date),
-    ("utc-date-time", Format::UtcDateTime),
-    ("language-tag", Format::LanguageTag),
-    ("tracker-handle", Format::TrackerHandle),
-    ("brief-id", Format::Sequence("BRIEF")),
-    ("council-id", Format::Sequence("COUNCIL")),
-    ("gate-id", Format::Sequence("GATE")),
-    ("epic-id", Format::Sequence("EPIC")),
-    ("story-id", Format::Sequence("STORY")),
-    ("spec-id", Format::Sequence("SPEC")),
-    ("change-id", Format::Sequence("CHANGE")),
-    ("task-id", Format::Sequence("TASK")),
-    ("milestone-id", Format::Milestone),
-    ("handover-id", Format::Handover),
-    ("requirement-id", Format::Part("R")),
-    ("criterion-id", Format::Part("AC")),
-    ("decision-id", Format::Part("D")),
-    ("question-id", Format::Part("Q")),
-];
-
-impl Format {
-    /// The format called `name`, if it is in the subset.
-    pub(crate) fn named(name: &str) -> Option<Self> {
-        NAMED
-            .iter()
-            .find(|(known, _)| *known == name)
-            .map(|(_, format)| *format)
+/// The shape that checks `format`.
+const fn shape(format: Format) -> Shape {
+    match format {
+        Format::Date => Shape::Date,
+        Format::UtcDateTime => Shape::UtcDateTime,
+        Format::LanguageTag => Shape::LanguageTag,
+        Format::TrackerHandle => Shape::TrackerHandle,
+        Format::BriefId => Shape::Sequence("BRIEF"),
+        Format::CouncilId => Shape::Sequence("COUNCIL"),
+        Format::GateId => Shape::Sequence("GATE"),
+        Format::EpicId => Shape::Sequence("EPIC"),
+        Format::StoryId => Shape::Sequence("STORY"),
+        Format::SpecId => Shape::Sequence("SPEC"),
+        Format::ChangeId => Shape::Sequence("CHANGE"),
+        Format::TaskId => Shape::Sequence("TASK"),
+        Format::MilestoneId => Shape::Milestone,
+        Format::HandoverId => Shape::Handover,
+        Format::RequirementId => Shape::Part("R"),
+        Format::CriterionId => Shape::Part("AC"),
+        Format::DecisionId => Shape::Part("D"),
+        Format::QuestionId => Shape::Part("Q"),
     }
+}
 
-    /// The name of the format in a schema.
-    pub(crate) fn name(self) -> &'static str {
-        NAMED
-            .iter()
-            .find(|(_, format)| *format == self)
-            .map_or("", |(name, _)| name)
-    }
+/// Whether `text` is in the form of `format`.
+pub(crate) fn accepts(format: Format, text: &str) -> bool {
+    shape(format).accepts(text)
+}
 
-    /// Whether `text` is in the form of the format.
-    pub(crate) fn accepts(self, text: &str) -> bool {
+/// A corrected value for `text`, when one can be derived and `format` accepts it.
+pub(crate) fn fix(format: Format, text: &str) -> Option<String> {
+    shape(format).fix(text)
+}
+
+impl Shape {
+    /// Whether `text` is in the form of the shape.
+    fn accepts(self, text: &str) -> bool {
         match self {
-            Format::Date => is_date(text.as_bytes()),
-            Format::UtcDateTime => is_utc_date_time(text.as_bytes()),
-            Format::LanguageTag => is_language_tag(text),
-            Format::TrackerHandle => is_tracker_handle(text),
-            Format::Sequence(prefix) => text
+            Shape::Date => is_date(text.as_bytes()),
+            Shape::UtcDateTime => is_utc_date_time(text.as_bytes()),
+            Shape::LanguageTag => is_language_tag(text),
+            Shape::TrackerHandle => is_tracker_handle(text),
+            Shape::Sequence(prefix) => text
                 .strip_prefix(prefix)
                 .and_then(|rest| rest.strip_prefix('-'))
                 .is_some_and(is_sequence),
-            Format::Milestone => text
+            Shape::Milestone => text
                 .strip_prefix('M')
                 .is_some_and(|n| n == "0" || is_counter(n)),
-            Format::Handover => text
+            Shape::Handover => text
                 .strip_prefix("HANDOVER-")
                 .and_then(|rest| rest.split_once('-'))
                 .is_some_and(|(issue, k)| is_counter(issue) && is_counter(k)),
-            Format::Part(prefix) => text.strip_prefix(prefix).is_some_and(is_counter),
+            Shape::Part(prefix) => text.strip_prefix(prefix).is_some_and(is_counter),
         }
     }
 
-    /// A corrected value for `text`, when one can be derived and the format accepts it.
-    pub(crate) fn fix(self, text: &str) -> Option<String> {
+    /// A corrected value for `text`, when one can be derived and the shape accepts it.
+    fn fix(self, text: &str) -> Option<String> {
         let candidate = match self {
-            Format::Date | Format::UtcDateTime => None,
-            Format::LanguageTag => Some(text.replace('_', "-")),
-            Format::TrackerHandle => (!text.starts_with('@')).then(|| format!("@{text}")),
-            Format::Sequence(prefix) => after_prefix(text, &[prefix])
+            Shape::Date | Shape::UtcDateTime => None,
+            Shape::LanguageTag => Some(text.replace('_', "-")),
+            Shape::TrackerHandle => (!text.starts_with('@')).then(|| format!("@{text}")),
+            Shape::Sequence(prefix) => after_prefix(text, &[prefix])
                 .and_then(number)
                 .map(|n| format!("{prefix}-{n:0>4}")),
-            Format::Milestone => after_prefix(text, &["MILESTONE", "M"])
+            Shape::Milestone => after_prefix(text, &["MILESTONE", "M"])
                 .and_then(number)
                 .map(|n| format!("M{n}")),
-            Format::Handover => after_prefix(text, &["HANDOVER"]).and_then(|rest| {
+            Shape::Handover => after_prefix(text, &["HANDOVER"]).and_then(|rest| {
                 let (issue, k) = rest.split_once('-')?;
                 Some(format!("HANDOVER-{}-{}", number(issue)?, number(k)?))
             }),
-            Format::Part(prefix) => after_prefix(text, &[prefix])
+            Shape::Part(prefix) => after_prefix(text, &[prefix])
                 .and_then(number)
                 .map(|n| format!("{prefix}{n}")),
         }?;
@@ -253,15 +253,21 @@ fn is_tracker_handle(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{Format, NAMED};
+    use super::{Shape, accepts, shape};
+    use wayloop_schemas::Format;
 
     #[test]
-    fn names_and_formats_correspond_one_to_one() {
-        for (name, format) in NAMED {
-            assert_eq!(Format::named(name), Some(format));
-            assert_eq!(format.name(), name);
+    fn every_identifier_format_checks_its_own_prefix() {
+        for format in Format::ALL {
+            let name = format.name();
+            if let Shape::Sequence(prefix) = shape(format) {
+                assert_eq!(name, format!("{}-id", prefix.to_ascii_lowercase()));
+                assert!(accepts(format, &format!("{prefix}-0001")), "{name}");
+            }
+            if let Shape::Part(prefix) = shape(format) {
+                assert!(name.ends_with("-id"), "{name}");
+                assert!(accepts(format, &format!("{prefix}1")), "{name}");
+            }
         }
-        assert_eq!(Format::named("email"), None);
-        assert_eq!(Format::Sequence("NONE").name(), "");
     }
 }

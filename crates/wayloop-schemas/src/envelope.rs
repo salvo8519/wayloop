@@ -17,6 +17,7 @@
 use core::fmt;
 use core::num::NonZeroU32;
 
+use schemars::JsonSchema;
 use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
 use serde_json::Value;
@@ -71,9 +72,9 @@ impl ExitCode {
 
 /// The SHA-256 of the canonical JSON (RFC 8785) of the input, in lower-case hexadecimal:
 /// `meta.input_hash` (ADR 0009 C1). It serialises as its string.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, JsonSchema)]
 #[serde(transparent)]
-pub struct InputHash(String);
+pub struct InputHash(#[schemars(length(min = 64, max = 64))] String);
 
 impl InputHash {
     /// The hash written from its 32 bytes.
@@ -99,7 +100,7 @@ impl InputHash {
 /// Why the engine applied a default: a stable `snake_case` identifier, the field `reason` of an
 /// entry of `meta.defaults_applied`. Each value is a constant of the core, documented with the
 /// command that applies it; it is not a reason of C3. It serialises as its identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, JsonSchema)]
 #[serde(transparent)]
 pub struct DefaultReason(&'static str);
 
@@ -126,11 +127,16 @@ impl fmt::Display for DefaultReason {
 /// A default the engine applied on behalf of the caller (ADR 0009 C2): an entry of
 /// `meta.defaults_applied`, `{pointer, value, reason, message}`. `message` is optional and left
 /// out of the serialised form when not given.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub struct DefaultApplied {
+    /// RFC 6901 pointer, from the root of the input, to where the default applies.
     pointer: Pointer,
+    /// The value applied.
     value: Value,
+    /// Stable `snake_case` identifier of why the default applies, documented with the command
+    /// that applies it.
     reason: DefaultReason,
+    /// Why the default applies, for a person; absent when not given.
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
 }
@@ -182,7 +188,7 @@ impl DefaultApplied {
 /// A check of the engine: a stable `snake_case` identifier, written in `diagnostics.checks`
 /// and in `diagnostics.not_done`. Each value is a constant of the core, documented with the
 /// command that runs it. It serialises as its identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, JsonSchema)]
 #[serde(transparent)]
 pub struct Check(&'static str);
 
@@ -207,8 +213,8 @@ impl fmt::Display for Check {
 }
 
 /// Why a check was not run: the field `reason` of an entry of `diagnostics.not_done`. It
-/// serialises as [`NotDoneReason::id`]; clients accept values they do not know (C5).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+/// serialises as its identifier; clients accept values they do not know (C5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum NotDoneReason {
     /// The part of the engine that runs the check is not built yet.
@@ -240,9 +246,11 @@ impl fmt::Display for NotDoneReason {
 
 /// A check the engine did not run, and why: an entry of `diagnostics.not_done`,
 /// `{check, reason}`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, JsonSchema)]
 pub struct NotDone {
+    /// Identifier of the check, documented with the command that runs it.
     check: Check,
+    /// Why the check was not run.
     reason: NotDoneReason,
 }
 
@@ -278,11 +286,15 @@ pub enum Outcome {
     Failed(ErrorReport),
 }
 
-/// The field `diagnostics`: what the engine reports beside the result.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
+/// The field `diagnostics`: what the engine reports beside the result. All three lists are
+/// always written, `[]` when empty.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, JsonSchema)]
 pub struct Diagnostics {
+    /// Warnings, in the shape of an error; the input is not refused for them.
     warnings: Vec<Error>,
+    /// Checks the engine did not run, each with its reason.
     not_done: Vec<NotDone>,
+    /// Identifiers of the checks the engine ran, documented with the command that runs them.
     checks: Vec<Check>,
 }
 
@@ -317,14 +329,21 @@ impl Diagnostics {
     }
 }
 
-/// The field `meta`: how the result was produced.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// The field `meta`: how the result was produced; nothing in it depends on the machine or the
+/// moment.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub struct Meta {
+    /// Version of the engine that produced the result.
     engine_version: String,
+    /// Version of the shape of the envelope, from 1.
     envelope_version: NonZeroU32,
+    /// Version of the input and output schemas of the command, from 1.
     command_version: NonZeroU32,
+    /// SHA-256, in lower-case hexadecimal, of the canonical JSON (RFC 8785) of the input.
     input_hash: InputHash,
+    /// Whether the command only reported the changes it would make.
     dry_run: bool,
+    /// Every default the engine applied, in order (ADR 0009 C2); `[]` when none.
     defaults_applied: Vec<DefaultApplied>,
 }
 

@@ -10,6 +10,10 @@ homepage.workspace = true
 authors.workspace = true
 
 [dependencies]
+# The JSON Schema derive of the contract types (ADR 0030 G4). Never `preserve_order`: with
+# feature unification it would change the order in which the core visits members of serde_json
+# maps, and add indexmap and hashbrown to the allowlists.
+schemars = { version = "1.2.3", default-features = false, features = ["derive", "std"] }
 # Allowlisted in scripts/check_core_io.py with every crate they reach (SPEC-0001 plan, D2).
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json.workspace = true

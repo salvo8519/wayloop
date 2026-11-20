@@ -8,7 +8,7 @@ write the state by hand. The rule is recorded in
 
 | Component | Path | What it does today |
 | --- | --- | --- |
-| Schemas | `crates/wayloop-schemas` | Rust library with no I/O, home of the contract types that mirror the JSON schemas: the error report ([below](#errors-are-values)) and the envelope with its exit codes ([below](#the-envelope)). |
+| Schemas | `crates/wayloop-schemas` | Rust library with no I/O, home of the contract types that mirror the JSON schemas: the error report ([below](#errors-are-values)) and the envelope with its exit codes ([below](#the-envelope)). Each derives its JSON Schema inside the subset of the core ([below](#schemas-derived-from-the-contract-types)). |
 | Core | `crates/wayloop-core` | Rust library with no I/O. It fixes the vocabulary of the issue cycle: the nine steps in order, their stable identifiers, and which step is an approval state. It re-exports the error of every refusal and the envelope, and computes the hash of an input from its canonical JSON ([below](#the-envelope)). It reads the JSON schemas of the contracts with its own interpreter ([below](#the-schema-interpreter)). |
 | Runtime | `crates/wayloop-runtime` | Rust library that runs the work the core decides ([below](#synchronous-core-asynchronous-runtime)). It holds no code yet. |
 | Command line | `crates/wayloop-cli` | The `wayloop` binary, an adapter only: it parses arguments, calls the core and prints JSON. Commands: `version` and `steps` ([reference](../reference/index.md)). |
@@ -50,8 +50,11 @@ wayloop-schemas    contract types, no I/O
 - **Allowlisted dependencies.** Each pure crate may depend only on the crates of its reviewed
   allowlist. Both may use `serde` with its derive macros and `serde_json`, which perform no
   I/O, with the crates they reach (`serde_core`, `serde_derive`, `proc-macro2`, `quote`,
-  `syn`, `unicode-ident`, `itoa`, `zmij`, `memchr`); `wayloop-core` may also use
-  `wayloop-schemas`, and `wayloop-schemas` no Wayloop crate.
+  `syn`, `unicode-ident`, `itoa`, `zmij`, `memchr`), and `schemars`, which derives the JSON
+  Schema of the contract types and performs no I/O, without its `preserve_order` feature, with
+  the crates it reaches (`schemars_derive`, `serde_derive_internals`, `dyn-clone`, `ref-cast`,
+  `ref-cast-impl`) ([ADR 0030](../project/adr/0030-contracts-generated-from-rust-types.md));
+  `wayloop-core` may also use `wayloop-schemas`, and `wayloop-schemas` no Wayloop crate.
   `scripts/check_core_io.py` resolves each pure crate on its own with `cargo tree` (normal
   dependencies, every target, all its features, the lock file left unchanged) and fails on
   every crate reached outside the allowlist, printing the path that reaches it and naming
@@ -185,8 +188,8 @@ lower-case hexadecimal, so the same input gives the same hash on every channel a
 
 ### The schema interpreter
 
-The schemas of the contracts are hand-written JSON Schema files (draft 2020-12). The core reads
-them with a small interpreter of a documented subset, `wayloop_core::schema`, so that every
+The schemas of the contracts are JSON Schema (draft 2020-12), derived from the contract types
+(see the next section). The core reads them with a small interpreter of a documented subset, `wayloop_core::schema`, so that every
 error of a document is reported in one pass with its pointer and its reason, and the core
 needs no validator crate (plan of SPEC-0001, D5). A schema that uses a keyword outside the
 subset, or a keyword out of its place, is refused when it is loaded: no rule of a schema is
@@ -201,7 +204,7 @@ silently ignored.
 | `minimum`, `maximum` | Inclusive integer bounds, beside `type: integer` | `range` |
 | `format` | A named format of the core, on strings | `syntax`, with a corrected value in `fix` when one can be derived |
 | `items` | Schema of every element of an array | |
-| `properties` with `additionalProperties: false` | Schema of each declared member; any other member is refused | `unknown_field`, with the closest declared key in `fix` |
+| `properties` | Schema of each declared member; with `additionalProperties: false` any other member is refused, without it the object is open and other members are accepted unchecked, as in output schemas (ADR 0009 C5, amended on 2026-11-20) | `unknown_field`, with the closest declared key in `fix` |
 | `required` | Declared members that must be present | `missing` |
 | `if` and `then`, `allOf` | Conditional requirements: when the value matches the condition of `if`, the members of the `required` of `then` must be present; `allOf` lists such pairs | `requires`, with the members the condition tested in `pointers` |
 | `$ref`, `$defs` | A reference to a definition of the same file, whose name has no `/`, `~` or `%` | |
@@ -214,7 +217,9 @@ no `pattern`: the core holds no regular expression engine, and a named format gi
 artifact type (`brief-id`, `council-id`, `gate-id`, `epic-id`, `story-id`, `spec-id`,
 `change-id`, `task-id`, `milestone-id`, `handover-id`) and the identifiers of parts
 (`requirement-id`, `criterion-id`, `decision-id`, `question-id`), with the canonical forms of
-SPEC-0001. The documentation of the module lists each form and each fix.
+SPEC-0001. The documentation of the module lists each form and each fix. The list of named
+formats is one enum, `wayloop_schemas::Format`, and the format checker of the core matches on
+it exhaustively: a format added to the enum does not compile until the core checks it.
 
 - **Null.** A member of an object set to `null` is not given, exactly as an absent member
   (ADR 0009 C2): accepted when optional, `missing` when required, never an unknown field, and
@@ -246,3 +251,34 @@ SPEC-0001. The documentation of the module lists each form and each fix.
   bound is added to its verdict; the bound is checked on every number, which matches the
   interpreter only for documents that their schema describes fully, as the documents of the
   tests are.
+
+### Schemas derived from the contract types
+
+Every contract type of `wayloop-schemas` derives its JSON Schema with `schemars`, and its doc
+comments become the descriptions
+([ADR 0030](../project/adr/0030-contracts-generated-from-rust-types.md)).
+`wayloop_schemas::contract::schema_for` returns the schema of a type for one direction, input
+or output, and writes no file; `contract::TYPES` lists every contract type whose schema is
+derived. What the derive does not write is written once, in the module `contract`:
+
+| Need | How it is written |
+| --- | --- |
+| A conditional requirement | A function of the type, named in `#[schemars(transform = ...)]`, calls `contract::rules::require_if_present` or `require_if_equals`, which append an `if` and `then` pair to `allOf` |
+| A named format | A value form implements `JsonSchema` by hand with `contract::rules::formatted`, from a value of `Format` |
+| Absent, not null | An optional member, out of `required`, loses the `null` type the derive adds to an `Option` |
+| An enum value with its meaning | A `oneOf` of documented constants becomes an `enum`, and each value is appended to the description as a line ``- `value`: meaning`` |
+| Any JSON value | The boolean schema `true` becomes an object schema with a description |
+| Integer formats | A `format` such as `uint32` is removed; the type and the bounds remain |
+| Closed inputs, open outputs | In an input every object gets `additionalProperties: false`; an output has none |
+
+The lines of a doc comment are joined into paragraphs, since they wrap at the width of the
+code. The generator then refuses a schema without a description on its root, a definition or
+a member; an enum value whose meaning the description does not give; a `null` type; the
+keywords `pattern`, `default` and `uniqueItems`; a `format` that is not named; an
+`additionalProperties` in an output; and objects nested deeper than four levels (ADR 0009 C4).
+A type whose serialised form the derive cannot describe in the subset has a private form type
+for its schema: `Source`, whose forms are one object with optional members and `line`
+required beside `file`, and `ErrorReport`, the members of its first error merged with
+`errors`. The tests of the core load the schema of every type of `contract::TYPES` in both
+directions, check it against the meta-schema of draft 2020-12 with the oracle, and check that
+the serialised values of the types are accepted.

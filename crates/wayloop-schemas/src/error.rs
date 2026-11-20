@@ -9,16 +9,20 @@
 //! serialised form, and an empty list is written `[]`: absent means not given, `[]` means none
 //! (C2). The codes themselves are constants of the core (C8).
 
+use alloc::borrow::Cow;
 use core::fmt;
 use core::num::NonZeroU64;
 
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Serialize, Serializer};
 use serde_json::Value;
 
-/// Why the engine refused an input, or [`Reason::Internal`] when it failed to compute the
-/// result: the documented enum of ADR 0009 C3 and its amendment of 2026-11-20. It serialises as
-/// [`Reason::id`]; clients accept values they do not know (C5).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+use crate::contract::rules;
+
+/// Why the engine refused an input, or `internal` when it failed to compute the result: the
+/// documented enum of ADR 0009 C3 and its amendment of 2026-11-20. It serialises as its
+/// identifier; clients accept values they do not know (C5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Reason {
     /// The input is not well-formed.
@@ -95,10 +99,10 @@ impl fmt::Display for Reason {
     }
 }
 
-/// A stable error code. Codes are never renamed or reused (ADR 0009 C8); every code of the
-/// engine is a constant of this type, so that one place lists them all. It serialises as its
-/// identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+/// A stable error code, a `snake_case` identifier. Codes are never renamed or reused (ADR 0009
+/// C8); every code of the engine is a constant of this type, so that one place lists them all.
+/// It serialises as its identifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, JsonSchema)]
 #[serde(transparent)]
 pub struct Code(&'static str);
 
@@ -123,9 +127,9 @@ impl fmt::Display for Code {
 }
 
 /// An RFC 6901 JSON pointer from the root of the input sent: empty for the whole input, or a
-/// sequence of `/`-prefixed reference tokens in which `~` is escaped as `~0` or `~1`. It
-/// serialises as its string.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize)]
+/// sequence of `/`-prefixed reference tokens in which `~` is written `~0` and `/` is written
+/// `~1`. It serialises as its string.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, JsonSchema)]
 #[serde(transparent)]
 pub struct Pointer(String);
 
@@ -194,6 +198,9 @@ impl fmt::Display for Pointer {
 /// forms apart and the field is output only. A `Deserialize`, if one is ever added, must put
 /// `#[serde(deny_unknown_fields)]` on each form, or an untagged enum would accept an object
 /// with extra fields as the first form that matches.
+///
+/// Its schema is one object whose members are each optional, with `line` required beside
+/// `file`: the subset of the core has no `oneOf` (ADR 0030 G2).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum Source {
@@ -217,22 +224,74 @@ pub enum Source {
     },
 }
 
+/// Where the faulty value is stored: `file`, with `line`, for a repository file; `issue` for a
+/// tracker issue; `milestone` for a tracker milestone. Absent for a document sent directly.
+// The schema of `Source`, never built: the subset of the core has no `oneOf`, so the forms are
+// one object whose members are each optional, with `line` required beside `file`.
+#[derive(JsonSchema)]
+#[schemars(rename = "Source", transform = file_requires_line)]
+#[expect(
+    dead_code,
+    reason = "a schema only: Source is the type that is serialised"
+)]
+struct SourceForm {
+    /// Path of the file relative to the root of the repository, with `/` separators.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    file: Option<String>,
+    /// Line of the faulty value in `file`; lines are counted from 1.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    line: Option<NonZeroU64>,
+    /// Number of the tracker issue, from 1.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    issue: Option<NonZeroU64>,
+    /// Number of the tracker milestone, from 1.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    milestone: Option<NonZeroU64>,
+}
+
+/// `line` is given with every `file`.
+fn file_requires_line(schema: &mut Schema) {
+    rules::require_if_present(schema, "file", &["line"]);
+}
+
+impl JsonSchema for Source {
+    fn schema_name() -> Cow<'static, str> {
+        SourceForm::schema_name()
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        SourceForm::json_schema(generator)
+    }
+}
+
 /// A refusal of the engine, with the fields of ADR 0009 C3 and its `source`.
 ///
 /// `pointers`, `expected`, `fix` and `source` are optional and left out of the serialised form
 /// when not given; a list given empty is written `[]` (C2).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub struct Error {
+    /// Stable `snake_case` code of the error; codes are never renamed or reused (ADR 0009 C8).
     code: Code,
+    /// What went wrong, for a person; its wording is not part of the contract.
     message: String,
+    /// RFC 6901 pointer to the faulty value, from the root of the input sent; empty for the
+    /// whole input.
     pointer: Pointer,
+    /// Pointers to the other values involved, such as both sides of a conflict; absent when
+    /// none is given.
     #[serde(skip_serializing_if = "Option::is_none")]
     pointers: Option<Vec<Pointer>>,
+    /// Why the input was refused (ADR 0009 C3).
     reason: Reason,
+    /// The values accepted at `pointer`, never a pattern; `[]` when no value is accepted;
+    /// absent when not given.
     #[serde(skip_serializing_if = "Option::is_none")]
     expected: Option<Vec<Value>>,
+    /// The closest member for a misspelt key, or a corrected value; absent when none can be
+    /// derived.
     #[serde(skip_serializing_if = "Option::is_none")]
     fix: Option<Value>,
+    /// Where the faulty value is stored; absent for a document sent directly.
     #[serde(skip_serializing_if = "Option::is_none")]
     source: Option<Source>,
 }
@@ -382,6 +441,33 @@ impl ErrorReport {
     /// Every error, the first included, in the order found.
     pub fn errors(&self) -> impl Iterator<Item = &Error> {
         core::iter::once(&self.first).chain(&self.rest)
+    }
+}
+
+/// Every error found in one pass (ADR 0009 C3): the members of the first error, and every
+/// error, the first included, in `errors`.
+// The schema of `ErrorReport`, in the shape its serialiser writes; never built.
+#[derive(JsonSchema)]
+#[schemars(rename = "ErrorReport")]
+#[expect(
+    dead_code,
+    reason = "a schema only: ErrorReport is the type that is serialised"
+)]
+struct ErrorReportForm {
+    #[serde(flatten)]
+    first: Error,
+    /// Every error, in the order found; the first equals the members of the report.
+    #[schemars(length(min = 1))]
+    errors: Vec<Error>,
+}
+
+impl JsonSchema for ErrorReport {
+    fn schema_name() -> Cow<'static, str> {
+        ErrorReportForm::schema_name()
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        ErrorReportForm::json_schema(generator)
     }
 }
 

@@ -1,8 +1,10 @@
 //! Interpreter of the subset of JSON Schema (draft 2020-12) that the contracts of Wayloop use
 //! (SPEC-0001 R1, R12; plan of SPEC-0001, D5; ADR 0009 C3).
 //!
-//! The schemas under `schemas/` are hand-written. The core reads them with this interpreter,
-//! which reports every error of a document in one pass, each with its RFC 6901 pointer and the
+//! The schemas of the contracts are derived from the types of `wayloop-schemas`, inside this
+//! subset (ADR 0030); a named format is written only through `wayloop_schemas::Format`, which
+//! the format checker matches exhaustively. The core reads them with this interpreter, which
+//! reports every error of a document in one pass, each with its RFC 6901 pointer and the
 //! reason of ADR 0009 C3, instead of the generic messages of a validator crate.
 //!
 //! # The subset
@@ -20,7 +22,7 @@
 //! | `minimum`, `maximum` | Inclusive integer bounds, compared by value; the schema must also say `type: integer` | `range` |
 //! | `format` | One of the named formats below, checked on strings | `syntax`, with a corrected value in `fix` when one can be derived |
 //! | `items` | Schema of every element of an array | |
-//! | `properties` | Schema of each declared member; it requires `additionalProperties: false` | |
+//! | `properties` | Schema of each declared member; without `additionalProperties: false` the object is open and other members are accepted unchecked (output snapshots, ADR 0009 C5) | |
 //! | `additionalProperties` | Only `false`: a member not in `properties` is refused | `unknown_field`, with the closest declared key in `fix` |
 //! | `required` | Declared members that must be present | `missing` |
 //! | `if` and `then` | A conditional requirement: when the value matches the condition of `if`, the members listed in the `required` of `then` must be present | `requires`, with the pointers of the members the condition tested in `pointers` |
