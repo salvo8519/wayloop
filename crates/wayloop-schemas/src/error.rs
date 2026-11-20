@@ -766,6 +766,21 @@ mod tests {
     }
 
     #[test]
+    fn an_error_of_a_document_names_its_index() {
+        // SPEC-0004 R2: the pointer of an error of a document is relative to that document.
+        let error = Error::new(INVALID_INPUT, "No title.", at("/title"), Reason::Missing);
+        assert_eq!(error.document(), None);
+        for index in [0, 3] {
+            let error = error.clone().with_document(index);
+            assert_eq!(error.document(), Some(index));
+            assert_eq!(
+                serde_json::to_value(&error).unwrap()["document"],
+                json!(index)
+            );
+        }
+    }
+
+    #[test]
     fn each_form_of_source_serialises_with_its_own_fields() {
         let cases = [
             (

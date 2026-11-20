@@ -778,6 +778,64 @@ mod tests {
         assert_eq!(codes, [0, 1, 2, 3, 4, 5]);
     }
 
+    /// A report of one error of `code`.
+    fn coded(code: &'static str, reason: Reason) -> ErrorReport {
+        ErrorReport::single(Error::new(
+            Code::new(code),
+            "Stopped.",
+            Pointer::root(),
+            reason,
+        ))
+    }
+
+    #[test]
+    fn a_usage_error_and_an_unreadable_input_have_their_outcomes_and_exit_codes() {
+        // SPEC-0004, Errors: the codes `usage` and `input_unreadable` tell them apart.
+        let usage = coded("usage", Reason::Syntax);
+        let unreadable = coded("input_unreadable", Reason::Missing);
+        let unusable: Outcome<Value> = Outcome::unusable(usage.clone()).unwrap();
+        assert_eq!(unusable.exit_code(), ExitCode::UsageError);
+        assert_eq!(unusable.report(), Some(&usage));
+        assert_eq!(unusable.data(), None);
+        let environment: Outcome<Value> = Outcome::environment(unreadable.clone()).unwrap();
+        assert_eq!(environment.exit_code(), ExitCode::EnvironmentError);
+        // Each constructor takes only its own code; a refusal and a failure take neither.
+        assert!(Outcome::<Value>::unusable(unreadable.clone()).is_none());
+        assert!(Outcome::<Value>::environment(usage.clone()).is_none());
+        assert!(Outcome::<Value>::unusable(refusal()).is_none());
+        for stop in [&usage, &unreadable] {
+            assert!(Outcome::<Value>::refused(stop.clone()).is_none(), "{stop}");
+            let internal = ErrorReport::single(Error::new(
+                stop.first().code().clone(),
+                "Broken.",
+                Pointer::root(),
+                Reason::Internal,
+            ));
+            assert!(Outcome::<Value>::failed(internal).is_none(), "{stop}");
+        }
+        // Read back from its JSON, each keeps its outcome and its exit code.
+        for (outcome, code) in [(unusable, 2), (environment, 3)] {
+            let written = serde_json::to_value(envelope(outcome)).unwrap();
+            let read: Envelope<Value> = serde_json::from_value(written).unwrap();
+            assert_eq!(read.exit_code().code(), code);
+        }
+        // An internal outcome is always a failure; map keeps the outcome.
+        let internal: Outcome<Value> = Outcome::internal(INTERNAL_ERROR, "Broken.");
+        assert_eq!(internal.exit_code(), ExitCode::InternalError);
+        assert_eq!(
+            internal.report().unwrap().first().reason(),
+            Reason::Internal
+        );
+        assert_eq!(
+            success(json!(1)).map(|v| v.to_string()).data(),
+            Some(&"1".to_owned())
+        );
+        assert_eq!(
+            refused().map(|v| v.to_string()).exit_code(),
+            ExitCode::InputError
+        );
+    }
+
     #[test]
     fn success_refusal_and_internal_error_exit_with_0_1_and_5() {
         assert_eq!(envelope(success(json!({}))).exit_code().code(), 0);

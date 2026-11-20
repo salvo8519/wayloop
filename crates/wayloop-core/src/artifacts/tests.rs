@@ -535,6 +535,8 @@ fn checks_not_built_are_listed_once_with_their_reason() {
         entry(brief()),
     ]));
     assert_eq!(validation.errors, []);
+    // The valid brief is read into its contract type (ADR 0030 G1), not left as a value.
+    assert_eq!(validation.failures, []);
     let not_done: Vec<&str> = validation.not_done.iter().map(|n| n.check().id()).collect();
     assert_eq!(
         not_done,
