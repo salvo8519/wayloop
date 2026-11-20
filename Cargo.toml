@@ -5,6 +5,7 @@ members = [
   "crates/wayloop-core",
   "crates/wayloop-runtime",
   "crates/wayloop-cli",
+  "crates/wayloop-schemagen",
 ]
 
 # The single source of the project version. Everything else derives from it.

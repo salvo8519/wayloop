@@ -22,7 +22,7 @@ use wayloop_core::{
     InputHash, Meta, NotDone, NotDoneReason, Outcome, Pointer, Reason, Source,
 };
 use wayloop_schemas::contract::{
-    ContractError, Direction, Registered, TYPES, reread, schema_for, snapshot,
+    ContractError, Direction, EMBEDDED, PUBLISHED_AT, Registered, TYPES, reread, schema_for,
 };
 
 const DIRECTIONS: [Direction; 2] = [Direction::Input, Direction::Output];
@@ -259,24 +259,43 @@ fn empty_success() -> Value {
 }
 
 #[test]
-fn the_text_of_the_envelope_snapshot_loads_in_the_core_and_the_oracle() {
-    // ADR 0030 G3, G6: the snapshot written with `contract::snapshot`, generated in memory, is a
-    // schema the interpreter loads and a valid draft 2020-12 schema. Writing it under
-    // `schemas/` and embedding it belong to the registry of #294.
-    let schema = contract_schema(named("Envelope"), Direction::Output).unwrap();
-    let text = snapshot(schema.clone(), "envelope/v1.json").unwrap();
-    let read: Value = serde_json::from_str(&text).unwrap();
+fn every_embedded_snapshot_of_every_version_loads_in_the_core_and_the_oracle() {
+    // ADR 0030 G3: the committed snapshots, embedded in wayloop-schemas, are schemas the
+    // interpreter loads and valid draft 2020-12 schemas, each with its published `$id`.
+    assert!(!EMBEDDED.is_empty());
+    for embedded in EMBEDDED {
+        let read: Value = serde_json::from_str(embedded.text).unwrap();
+        assert_eq!(
+            read["$id"],
+            format!("{PUBLISHED_AT}{}", embedded.path),
+            "{}",
+            embedded.path
+        );
+        Schema::load(&read).unwrap_or_else(|e| panic!("{}: {e}", embedded.path));
+        assert!(jsonschema::meta::is_valid(&read), "{}", embedded.path);
+    }
+}
+
+#[test]
+fn the_envelope_snapshot_is_the_schema_of_the_envelope_and_accepts_an_envelope() {
+    let embedded = EMBEDDED
+        .iter()
+        .find(|e| e.path == "envelope/result/v1.json")
+        .unwrap();
+    let mut read: Value = serde_json::from_str(embedded.text).unwrap();
+    read.as_object_mut().unwrap().remove("$id");
     assert_eq!(
-        read["$id"],
-        "https://salvo8519.github.io/wayloop/schemas/envelope/v1.json"
+        read,
+        contract_schema(named("Envelope"), Direction::Output).unwrap()
     );
-    let mut without_id = read.clone();
-    without_id.as_object_mut().unwrap().remove("$id");
-    assert_eq!(without_id, schema);
-    Schema::load(&read).unwrap();
-    assert!(jsonschema::meta::is_valid(&read));
     let oracle = jsonschema::draft202012::new(&read).unwrap();
     assert!(oracle.is_valid(&empty_success()));
+    assert!(
+        Schema::load(&read)
+            .unwrap()
+            .validate(&empty_success(), Code::new("contract"))
+            .is_empty()
+    );
 }
 
 /// The pointer and the reason of every error of `document` against the schema of the contract

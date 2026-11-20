@@ -219,6 +219,22 @@ with its tests and the architecture page.
   `repr(transparent)` types), reviewed and accepted. The features of `schemars` are declared
   explicitly (`default-features = false`, `derive` and `std`), so that a change of its
   defaults upstream cannot widen them.
+- 2026-11-20, implementation of #294 (G4, G5, G6): a crate embeds with `include_str!` only
+  files inside its own folder, since `cargo package` packs only that folder. `just generate`
+  therefore also copies every snapshot of every version, byte for byte, into
+  `crates/wayloop-schemas/snapshots/`, and writes
+  `crates/wayloop-schemas/src/contract/embedded.rs`, the list `contract::EMBEDDED` that embeds
+  the copies; `--check` fails when a copy or the list differs from what generation writes. The
+  snapshots under `schemas/` stay the contract of record. The envelope is the contract
+  `envelope/result`: the envelope of the result of every command, at the version of
+  `meta.envelope_version`. The generator also prints every part of a contract with the name of
+  its first file, so that the file pattern of the script and of the hook is checked against the
+  registry. A released file is one that a history of the base records, or that the pattern
+  matches; a released version record never changes, except `introduced_in` from `unreleased`
+  to a release and, for the current version, the hashes of its files. Rule (B) is classified
+  conservatively: besides the cases of C5, any change of a keyword other than `properties`,
+  `required`, `items`, `$defs`, `enum` and the annotations is breaking, `allOf` and `$schema`
+  included; a new `enum` value is additive in both directions, as in Fairmark.
 
 ## Consequences
 

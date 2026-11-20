@@ -6,8 +6,9 @@ is protected when its path, relative to the root of the git worktree that contai
 on the base branch (`origin/main`, or `WAYLOOP_CONTRACT_BASE`). Snapshots added on the current
 branch stay editable until they merge.
 Outside a git repository, or when the base branch is unknown, every existing snapshot is
-protected. CI is the second line of defence (`scripts/check_schemas.py`, whose pattern this hook
-imports).
+protected. Snapshots are generated from the contract types by `uv run just generate`, never
+edited by hand. CI is the second line of defence (`scripts/schema_snapshots.py`, whose pattern
+this hook imports).
 
 Exit status 2 blocks the edit; the message on stderr is shown to the agent. The hook fails
 closed: when its shared scripts cannot be loaded or fail, an edit of a path that looks like a
@@ -27,9 +28,9 @@ from pathlib import Path
 # the path so that the standard library keeps precedence over a file of the same name.
 sys.path.append(str(Path(__file__).resolve().parents[2] / "scripts"))
 
-# Copy of check_schemas.SNAPSHOT, used only when the shared scripts cannot be imported, so that
-# the hook still blocks a snapshot edit (fail closed). tests/process/test_check_schemas.py keeps
-# the copy equal to its source.
+# Copy of schema_snapshots.SNAPSHOT, used only when the shared scripts cannot be imported, so
+# that the hook still blocks a snapshot edit (fail closed). tests/process/test_schema_snapshots.py
+# keeps the copy equal to its source.
 FALLBACK_SNAPSHOT = re.compile(r"(^|/)schemas/(.+/)?v(?P<version>\d+)(\.output|\.input)?\.json$")
 
 
@@ -47,7 +48,7 @@ def reason_to_block(file_path: str, base: str) -> str | None:
     """Why an edit to `file_path` must be blocked, or None to allow it. Raises when the shared
     scripts cannot be imported; main() then fails closed."""
     import _git
-    from check_schemas import SNAPSHOT
+    from schema_snapshots import SNAPSHOT
 
     if not SNAPSHOT.search(file_path.replace("\\", "/")):
         return None
@@ -85,15 +86,17 @@ def main() -> int:
         sys.stderr.write(
             f"Blocked: {file_path} looks like a contract snapshot and the protection could not "
             f"load ({type(error).__name__}: {error}). Fix scripts/_git.py or "
-            "scripts/check_schemas.py first.\n"
+            "scripts/schema_snapshots.py first.\n"
         )
         return 2
     if reason is None:
         return 0
     sys.stderr.write(
-        f"Blocked: {file_path} {reason}. A released contract snapshot never changes: write the "
-        "next version (v<N+1>) with a new snapshot and record it in schemas/index.json "
-        "(ADR 0009, C5). A breaking change also needs the label breaking-change.\n"
+        f"Blocked: {file_path} {reason}. Contract snapshots are generated, never edited: change "
+        "the contract type and run `uv run just generate`. A released version changes only "
+        "additively; otherwise write the next version (v<N+1>) in the registry of "
+        "wayloop-schemas (ADR 0030 G5). A breaking change also needs the label "
+        "breaking-change.\n"
     )
     return 2
 

@@ -12,6 +12,7 @@ write the state by hand. The rule is recorded in
 | Core | `crates/wayloop-core` | Rust library with no I/O. It fixes the vocabulary of the issue cycle: the nine steps in order, their stable identifiers, and which step is an approval state. It re-exports the error of every refusal and the envelope, and computes the hash of an input from its canonical JSON ([below](#the-envelope)). It reads the JSON schemas of the contracts with its own interpreter ([below](#the-schema-interpreter)). |
 | Runtime | `crates/wayloop-runtime` | Rust library that runs the work the core decides ([below](#synchronous-core-asynchronous-runtime)). It holds no code yet. |
 | Command line | `crates/wayloop-cli` | The `wayloop` binary, an adapter only: it parses arguments, calls the core and prints JSON. Commands: `version` and `steps` ([reference](../reference/index.md)). |
+| Schema generator | `crates/wayloop-schemagen` | A tool of the repository, not published: it prints the snapshots of the contracts, which `uv run just generate` writes under `schemas/` ([below](#snapshots-of-the-contracts)). |
 | Agent content | `.agents/` | Roles and skills in the open Agent Skills format, with generated mirrors for Claude Code. They are used to build Wayloop itself. |
 | Process | `roadmap/`, `specs/`, `sprints/`, `scripts/` | The plan as code, synchronised with the GitHub issues; specifications with numbered requirements; sprint lanes of disjoint paths; the checks run by CI. |
 
@@ -21,7 +22,8 @@ built, are in the [roadmap](../project/roadmap.md).
 ## Crate layout
 
 The engine is a Cargo workspace of four crates. Each one has a single role, and dependencies
-point in one direction only: towards the pure crates.
+point in one direction only: towards the pure crates. A fifth crate of the workspace,
+`wayloop-schemagen`, is a tool at the level of the adapters, never published.
 
 ```text
 wayloop-cli        adapter: translates a channel, decides nothing
@@ -42,6 +44,7 @@ wayloop-schemas    contract types, no I/O
 | `wayloop-core` | All decision logic: artifact model, state machine, ledger rules | `wayloop-schemas` | No |
 | `wayloop-runtime` | Queue, parallel workers, tracker calls, single writer to the ledger | `wayloop-core`, `wayloop-schemas` | Yes |
 | `wayloop-cli` and the other adapters | Translation between a channel and the engine | any of the above | Yes |
+| `wayloop-schemagen` | Prints the snapshots of the contracts; not published | `wayloop-core`, `wayloop-schemas` | Yes, standard output only |
 
 - **One entry point.** The core exposes one function to every channel: command, canonical
   input and context in, envelope out
@@ -170,9 +173,10 @@ given, ADR 0009 C2) or with no JSON form, `Outcome::refused` a report with an er
 engine can build is therefore one its reader accepts. The reader refuses the same cases, and a
 document with both `data` and `error`, or with neither. The schema requires `error` when
 `data` is absent; the subset of the interpreter has no negation, so only the type refuses both.
-The schema of the envelope of any data is that of `Envelope<Value>`; the output schema of a
-command is the envelope with the data type of that command. The tests of the core load it, in
-the text that `contract::snapshot` writes, with the interpreter and the oracle.
+The schema of the envelope of any data is that of `Envelope<Value>`, committed as the snapshots
+of the contract `envelope/result`; the output schema of a command is the envelope with the data
+type of that command. The tests of the core load every snapshot with the interpreter and the
+oracle.
 
 `meta.input_hash` is the SHA-256 of the input serialised as canonical JSON (RFC 8785), in
 lower-case hexadecimal, so the same input gives the same hash on every channel and platform:
@@ -319,3 +323,30 @@ tests of the core run `contract_schema` on every type of
 `contract::TYPES` in both directions, check each schema against the meta-schema of draft
 2020-12 with the oracle, and check that the serialised values of the types are accepted and
 read back into the same JSON.
+
+### Snapshots of the contracts
+
+The schemas of the contracts are committed under `schemas/` as snapshots, generated from the
+types ([ADR 0030](../project/adr/0030-contracts-generated-from-rust-types.md), G5 and G6).
+One registry, `wayloop_schemas::contract::CONTRACTS`, lists every contract with its area
+(`artifacts`, `inputs`, `commands`, `envelope`), its name, its current version and the type and
+direction of each of its files; today it lists the envelope, `envelope/result`, at the version
+of `meta.envelope_version`. The binary `wayloop-schemagen` runs `contract_schema` on every file
+of every current version, writes its text with `contract::snapshot` and prints them all as one
+JSON document; it writes no file. `scripts/schema_snapshots.py` writes those bytes unchanged at
+`schemas/<area>/<name>/v<N>.json` (`v<N>.output.json` for the output of a command,
+`v<N>.input.json` for the input of a hand-over), with the history of each contract in
+`schemas/<area>/<name>/index.json`.
+
+A version earlier than the current one never changes, and the current version, once released,
+changes only additively (ADR 0009 C5): the rules are in the
+[conventions](../project/conventions.md#contract-snapshots). An earlier version is reproduced
+from its committed file, not from the types, which describe only the current one.
+
+`wayloop-schemas` embeds the text of every snapshot of every version, `contract::EMBEDDED`.
+Since `cargo package` packs only the folder of a crate, the snapshots are embedded from
+byte-for-byte copies inside it, in `crates/wayloop-schemas/snapshots/`, listed in the
+generated file `src/contract/embedded.rs`; the check fails when a copy differs from its
+source. The tests of `wayloop-schemas` check that the embedded current versions are the
+snapshots of the types, and the tests of the core load every embedded snapshot with the
+interpreter and the oracle.

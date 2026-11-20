@@ -3,7 +3,8 @@
 Zensical builds one language per site, so each language is a separate site sharing the same
 assets: English at the site root, Italian under /it/, linked by the language selector.
 
-    python scripts/docs.py build           # both sites into site/ and site/it/ (strict)
+    python scripts/docs.py build           # both sites into site/ and site/it/ (strict),
+                                           # with the contract snapshots in site/schemas/
     python scripts/docs.py serve --lang it # live preview of one language
     python scripts/docs.py prepare         # copy shared assets, generate zensical.it.toml
 """
@@ -13,6 +14,7 @@ from __future__ import annotations
 import argparse
 import copy
 import fnmatch
+import json
 import re
 import shutil
 import subprocess
@@ -23,6 +25,7 @@ from typing import Any
 
 import tomli_w
 import yaml
+from schema_snapshots import SCHEMAS, schema_history
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
@@ -173,6 +176,17 @@ def llms_txt() -> None:
     (ROOT / "site" / "llms-full.txt").write_text("\n".join(full), encoding="utf-8")
 
 
+def publish_schemas(root: Path = ROOT) -> None:
+    """The contract snapshots and their histories at the URLs of their `$id`, under
+    site/schemas/, with the history of every contract assembled in site/schemas/index.json
+    (ADR 0030 G5)."""
+    target = root / "site" / SCHEMAS
+    shutil.rmtree(target, ignore_errors=True)
+    shutil.copytree(root / SCHEMAS, target)
+    history = json.dumps(schema_history(root), indent=2, ensure_ascii=False) + "\n"
+    (target / "index.json").write_text(history, encoding="utf-8")
+
+
 GENERATED = ROOT / ".generated"
 
 
@@ -257,6 +271,7 @@ def main() -> None:
                 ["zensical", "build", "--strict", "-f", configs[lang]], cwd=ROOT, check=True
             )
         llms_txt()
+        publish_schemas()
     elif args.command == "serve":
         subprocess.run(["zensical", "serve", "-f", configs[args.lang]], cwd=ROOT, check=True)
 

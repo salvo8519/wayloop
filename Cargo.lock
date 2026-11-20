@@ -876,6 +876,15 @@ name = "wayloop-runtime"
 version = "0.0.0"
 
 [[package]]
+name = "wayloop-schemagen"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+ "wayloop-core",
+ "wayloop-schemas",
+]
+
+[[package]]
 name = "wayloop-schemas"
 version = "0.0.0"
 dependencies = [

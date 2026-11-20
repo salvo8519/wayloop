@@ -11,7 +11,7 @@ default:
     @just --list
 
 # Full local gate: run before every pull request (CI runs the same checks).
-check: style i18n python process dup rust
+check: style i18n python process dup rust schemas
     @echo "All checks passed."
 
 # Python of the process: lint (error handling included), format, strict types. CI passes
@@ -21,12 +21,10 @@ python output="full":
     ruff format --check {{py_paths}}
     mypy
 
-# Process: tests of the process scripts, YAML, task ids, roadmap, sprint files, no I/O in the core,
-# released schema snapshots unchanged against origin/main.
+# Process: tests of the process scripts, YAML, task ids, roadmap, sprint files, no I/O in the core.
 process: sprints
     python -m pytest tests/process
     python scripts/check_core_io.py
-    python scripts/check_schemas.py
     python scripts/required_checks.py check
     python scripts/docs_sync.py coverage
     python scripts/docs_sync.py claims
@@ -49,6 +47,17 @@ dup:
     npm ls --depth=0 >/dev/null 2>&1 || npm ci --ignore-scripts --no-audit --no-fund
     node_modules/.bin/jscpd --baseline .jscpd-baseline.json --fail-on-new-clones=0 $(printf 'crates/%s ' {{pure_crates}})
     node_modules/.bin/jscpd --threshold 1 crates {{py_paths}}
+
+# Contract snapshots, their histories and their embedded copies, written from the contract types
+# (ADR 0030 G6). Deterministic: a second run changes no byte.
+generate:
+    python scripts/schema_snapshots.py
+
+# Contract snapshots: the committed files equal the generated ones, and against the base only an
+# additive change of a current version or a new version (ADR 0030 G5, rule B).
+schemas base="origin/main":
+    python scripts/schema_snapshots.py --check
+    python scripts/schema_snapshots.py --diff-against {{base}}
 
 # Regenerate the canonical roadmap file.
 roadmap:
