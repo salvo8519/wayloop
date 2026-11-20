@@ -168,9 +168,15 @@ def test_issue_closed_by_an_open_pull_request_is_pending() -> None:
     assert roadmap.pending_in(drift, {9: (branch, set())}, issues) == {}
 
 
-def test_closed_by_reads_the_closing_keywords() -> None:
-    body = "Closes #12\nfixes #7\n  Resolves #3\nSee #99\nRelated: closes #5 later"
-    assert roadmap.closed_by(body) == {12, 7, 3}
+def test_check_asks_to_mark_done_every_issue_github_closes() -> None:
+    # GitHub closes an issue with any of its nine keywords, anywhere in the body.
+    d = data()
+    issue = d["milestones"][0]["epics"][0]["tasks"][0]["issue"]
+    d["milestones"][0]["epics"][0]["tasks"][0]["status"] = "open"
+    for body in (f"Fix #{issue}", f"Summary first. It resolved #{issue}."):
+        assert any(
+            f"closes #{issue}: mark its task done" in p for p in roadmap.problems_of(d, body)
+        ), body
 
 
 def test_releases_must_be_semver_and_not_decrease() -> None:

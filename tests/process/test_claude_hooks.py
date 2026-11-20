@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 from collections.abc import Mapping
@@ -13,6 +15,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 HOOKS = ROOT / ".claude" / "hooks"
+
+_spec = importlib.util.spec_from_file_location("conventions", ROOT / "scripts" / "conventions.py")
+assert _spec and _spec.loader
+conventions = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(conventions)
 
 
 def registered() -> list[str]:
@@ -225,3 +232,40 @@ def test_no_reminder_on_main_or_without_commits(contracts: Path) -> None:
     assert (
         run_env("handover-reminder.sh", {}, contracts, WAYLOOP_CONTRACT_BASE="main").returncode == 0
     )
+
+
+def briefing_branch_issue(branch: str) -> str:
+    """The issue that the sed program of session-briefing.sh reads from a branch name."""
+    text = (HOOKS / "session-briefing.sh").read_text(encoding="utf-8")
+    programs = re.findall(r"sed -nE '([^']+)'", text)
+    assert len(programs) == 1, "session-briefing.sh reads the issue with one sed -nE program"
+    return subprocess.run(
+        ["sed", "-nE", programs[0]],
+        input=branch + "\n",
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+@pytest.mark.parametrize(
+    "branch",
+    [
+        *(f"{t}/42-ledger-hash" for t in conventions.TYPES),
+        "sprint/S01/42-ledger-hash",
+        "sprint/S12/7-x",
+        "wip/42-x",
+        "feat/42-Upper",
+        "feat/ledger",
+        "sprint/01/42-x",
+        "main",
+        "dependabot/cargo/serde-1.0.200",
+        "release/v0.1.0",
+        "revert-57-feat/42-x",
+    ],
+)
+def test_briefing_reads_the_branch_issue_as_conventions_does(branch: str) -> None:
+    # The hook runs without the project environment, so it keeps its own copy of the rule;
+    # this test keeps the copy equal to scripts/conventions.py.
+    issue = conventions.branch_issue(branch)
+    assert briefing_branch_issue(branch) == ("" if issue is None else str(issue))
