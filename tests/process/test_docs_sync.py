@@ -88,9 +88,10 @@ def test_a_page_outside_the_navigation_is_reported(site: Path) -> None:
         (["crates/wayloop-core/Cargo.toml"], []),
         # The guards of the pure crates are described on the architecture page.
         (["scripts/check_core_io.py"], ["purity guard changed"]),
+        (["clippy.toml"], ["purity guard changed"]),
         (["crates/wayloop-core/clippy.toml"], ["purity guard changed"]),
-        (["crates/wayloop-schemas/clippy.toml"], ["purity guard changed"]),
-        (["crates/wayloop-core/clippy.toml", "docs/en/concepts/architecture.md"], []),
+        (["crates/wayloop-schemas/.clippy.toml"], ["purity guard changed"]),
+        (["clippy.toml", "docs/en/concepts/architecture.md"], []),
         (["scripts/check_core_io.py", "docs/en/concepts/index.md"], ["purity guard changed"]),
         (["crates/wayloop-cli/src/main.rs", "docs/en/reference/commands.md"], []),
         (["schemas/commands/next/v1.json"], ["schemas changed"]),

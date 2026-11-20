@@ -58,7 +58,7 @@ RULES: list[tuple[str, str, str]] = [
         "command line changed: update docs/en/reference/, guides/ or getting-started/",
     ),
     (
-        r"^(scripts/check_core_io\.py|crates/[^/]+/clippy\.toml)$",
+        r"^(scripts/check_core_io\.py|(crates/[^/]+/)?\.?clippy\.toml)$",
         r"^docs/en/concepts/architecture\.md$",
         "purity guard changed: update the crate layout in docs/en/concepts/architecture.md",
     ),

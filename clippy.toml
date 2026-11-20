@@ -1,9 +1,92 @@
-# Clippy configuration of the crates without their own clippy.toml (wayloop-runtime,
-# wayloop-cli). A crate-level clippy.toml replaces this file, it does not extend it: the pure
-# crates repeat these entries in theirs.
+# Clippy configuration of the workspace, the one source of it: Clippy reads the nearest
+# clippy.toml above each crate, and no crate has its own.
+
 # Tests may unwrap, expect, panic and index: a failing test should stop at the line that failed.
 # The workspace lints of Cargo.toml refuse all four in the code that ships.
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-panic-in-tests = true
 allow-indexing-slicing-in-tests = true
+
+# What a pure crate may not use: it performs no I/O and reads no ambient state (ADR 0001,
+# ADR 0006). The lists bind every crate and every target, tests included, by default: a crate
+# that performs I/O, the runtime or an adapter, opts out with an allow of disallowed_methods and
+# disallowed_types at the root of each of its targets. Each pure crate also forbids both lints
+# at its root, which an inner allow cannot lift. scripts/check_core_io.py refuses the removal of
+# an entry or of the attribute, a clippy.toml of a crate and a manifest that allows the lints.
+disallowed-methods = [
+  # Files and directories.
+  { path = "std::fs::canonicalize", reason = "no file system in a pure crate" },
+  { path = "std::fs::copy", reason = "no file system in a pure crate" },
+  { path = "std::fs::create_dir", reason = "no file system in a pure crate" },
+  { path = "std::fs::create_dir_all", reason = "no file system in a pure crate" },
+  { path = "std::fs::exists", reason = "no file system in a pure crate" },
+  { path = "std::fs::hard_link", reason = "no file system in a pure crate" },
+  { path = "std::fs::metadata", reason = "no file system in a pure crate" },
+  { path = "std::fs::read", reason = "no file system in a pure crate" },
+  { path = "std::fs::read_dir", reason = "no file system in a pure crate" },
+  { path = "std::fs::read_link", reason = "no file system in a pure crate" },
+  { path = "std::fs::read_to_string", reason = "no file system in a pure crate" },
+  { path = "std::fs::remove_dir", reason = "no file system in a pure crate" },
+  { path = "std::fs::remove_dir_all", reason = "no file system in a pure crate" },
+  { path = "std::fs::remove_file", reason = "no file system in a pure crate" },
+  { path = "std::fs::rename", reason = "no file system in a pure crate" },
+  { path = "std::fs::set_permissions", reason = "no file system in a pure crate" },
+  { path = "std::fs::symlink_metadata", reason = "no file system in a pure crate" },
+  { path = "std::fs::write", reason = "no file system in a pure crate" },
+  # Network: name resolution.
+  { path = "std::net::ToSocketAddrs::to_socket_addrs", reason = "no network in a pure crate" },
+  # Processes.
+  { path = "std::process::abort", reason = "no process control in a pure crate: return an error" },
+  { path = "std::process::exit", reason = "no process control in a pure crate: return an error" },
+  { path = "std::process::id", reason = "no process state in a pure crate" },
+  # Environment: the caller passes what the crate needs.
+  { path = "std::env::args", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::args_os", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::current_dir", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::current_exe", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::home_dir", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::remove_var", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::set_current_dir", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::set_var", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::temp_dir", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::var", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::var_os", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::vars", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::vars_os", reason = "no ambient state in a pure crate: take it as input" },
+  # Standard streams.
+  { path = "std::io::stderr", reason = "no standard streams in a pure crate: write to a buffer the caller owns" },
+  { path = "std::io::stdin", reason = "no standard streams in a pure crate: take the input as an argument" },
+  { path = "std::io::stdout", reason = "no standard streams in a pure crate: write to a buffer the caller owns" },
+  # Threads: the runtime runs work in parallel, the core does not.
+  { path = "std::thread::scope", reason = "no threads in a pure crate: the runtime runs work in parallel" },
+  { path = "std::thread::sleep", reason = "no waiting in a pure crate" },
+  { path = "std::thread::spawn", reason = "no threads in a pure crate: the runtime runs work in parallel" },
+  # Clocks: the time is an input, so that the same input gives the same output.
+  { path = "std::time::Instant::now", reason = "no clock reads in a pure crate: take the time as input" },
+  { path = "std::time::SystemTime::now", reason = "no clock reads in a pure crate: take the time as input" },
+]
+disallowed-types = [
+  { path = "std::fs::DirBuilder", reason = "no file system in a pure crate" },
+  { path = "std::fs::DirEntry", reason = "no file system in a pure crate" },
+  { path = "std::fs::File", reason = "no file system in a pure crate" },
+  { path = "std::fs::OpenOptions", reason = "no file system in a pure crate" },
+  { path = "std::fs::ReadDir", reason = "no file system in a pure crate" },
+  { path = "std::net::TcpListener", reason = "no network in a pure crate" },
+  { path = "std::net::TcpStream", reason = "no network in a pure crate" },
+  { path = "std::net::UdpSocket", reason = "no network in a pure crate" },
+  { path = "std::process::Child", reason = "no processes in a pure crate" },
+  { path = "std::process::Command", reason = "no processes in a pure crate" },
+  { path = "std::env::Args", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::ArgsOs", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::Vars", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::env::VarsOs", reason = "no ambient state in a pure crate: take it as input" },
+  { path = "std::io::Stderr", reason = "no standard streams in a pure crate" },
+  { path = "std::io::Stdin", reason = "no standard streams in a pure crate" },
+  { path = "std::io::Stdout", reason = "no standard streams in a pure crate" },
+  { path = "std::thread::Builder", reason = "no threads in a pure crate: the runtime runs work in parallel" },
+  # Iteration order of the default hasher changes from run to run: use BTreeMap and BTreeSet.
+  { path = "std::collections::HashMap", reason = "random iteration order: use BTreeMap" },
+  { path = "std::collections::HashSet", reason = "random iteration order: use BTreeSet" },
+  { path = "std::hash::RandomState", reason = "random iteration order: use BTreeMap or BTreeSet" },
+]

@@ -47,6 +47,7 @@ mod tests {
     use super::{input_hash, meta};
     use crate::VERSION;
     use crate::canonical::canonical_json;
+    use crate::test_support::SplitMix64;
     use core::fmt::Write;
     use core::num::NonZeroU32;
     use serde_json::{Map, Value, json};
@@ -87,23 +88,6 @@ mod tests {
         assert_ne!(input_hash(&one), input_hash(&other), "array order counts");
     }
 
-    /// `SplitMix64`: a fixed seed gives the same cases on every run and platform.
-    struct Random(u64);
-
-    impl Random {
-        fn next(&mut self) -> u64 {
-            self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
-            let mut z = self.0;
-            z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
-            z ^ (z >> 31)
-        }
-
-        fn below(&mut self, bound: u64) -> usize {
-            usize::try_from(self.next() % bound).unwrap()
-        }
-    }
-
     const KEYS: [&str; 8] = [
         "a",
         "B",
@@ -115,7 +99,7 @@ mod tests {
         "id",
     ];
 
-    fn value(random: &mut Random, depth: u32) -> Value {
+    fn value(random: &mut SplitMix64, depth: u32) -> Value {
         match random.below(if depth == 0 { 4 } else { 6 }) {
             0 => Value::Null,
             1 => json!(random.next() % 2 == 0),
@@ -136,7 +120,7 @@ mod tests {
 
     /// The JSON text of `value` with the members of every object in a random order and random
     /// spaces, as another channel might send it.
-    fn shuffled_text(value: &Value, random: &mut Random) -> String {
+    fn shuffled_text(value: &Value, random: &mut SplitMix64) -> String {
         match value {
             Value::Object(map) => {
                 let mut members: Vec<(&String, &Value)> = map.iter().collect();
@@ -169,7 +153,7 @@ mod tests {
     #[test]
     fn the_same_input_with_keys_in_any_order_gives_one_hash() {
         // SPEC-0004 AC7, on this platform: the hash depends on the value, not on its text.
-        let mut random = Random(0x0253_0253_0253_0253);
+        let mut random = SplitMix64(0x0253_0253_0253_0253);
         for _ in 0..500 {
             let original = value(&mut random, 4);
             let text = shuffled_text(&original, &mut random);

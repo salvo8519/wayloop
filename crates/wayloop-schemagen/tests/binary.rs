@@ -1,5 +1,10 @@
 //! The binary prints the document of `generate` on standard output, and nothing else.
 #![allow(clippy::unwrap_used)]
+#![allow(
+    clippy::disallowed_methods,
+    clippy::disallowed_types,
+    reason = "the test runs the binary: the lists of clippy.toml bind the pure crates only"
+)]
 
 use std::process::Command;
 

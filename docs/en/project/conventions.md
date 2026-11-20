@@ -211,9 +211,10 @@ type `breaking`, `feature`, `improvement` or `fix`, unless the pull request is l
   pages" above).
 - `scripts/docs_sync.py impact`: a change to the engine (every crate but the command line),
   the command line, the schemas, the guards of the pure crates (`scripts/check_core_io.py`,
-  a `clippy.toml`) or a process script comes with the matching documentation. A change that
-  genuinely needs none is labelled `no-docs-needed`, or every commit of its branch carries the
-  trailer `Docs-impact: none`: a waiver on one commit does not cover the others. The local check runs as a commit-msg hook, so the trailer of the
+  the `clippy.toml` of the workspace) or a process script comes with the matching
+  documentation. A change that genuinely needs none is labelled `no-docs-needed`, or every
+  commit of its branch carries the trailer `Docs-impact: none`: a waiver on one commit does
+  not cover the others. The local check runs as a commit-msg hook, so the trailer of the
   commit being written applies there too.
 
 ## Code quality

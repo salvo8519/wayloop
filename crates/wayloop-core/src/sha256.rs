@@ -5,8 +5,10 @@
 //! at constant time. It is checked against the published test vectors and, on random inputs,
 //! against a hashing crate used in tests only.
 
-/// Length of a digest, in bytes.
-pub const DIGEST_LEN: usize = 32;
+use wayloop_schemas::InputHash;
+
+/// Length of a digest, in bytes: the digest an input hash is written from.
+const DIGEST_LEN: usize = InputHash::DIGEST_LEN;
 
 /// Length of a block, in bytes.
 const BLOCK_LEN: usize = 64;
@@ -198,6 +200,7 @@ fn compress(state: &mut [u32; 8], block: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::sha256;
+    use crate::test_support::SplitMix64;
     use sha2::{Digest, Sha256};
 
     fn hex(digest: &[u8]) -> String {
@@ -252,19 +255,6 @@ mod tests {
             hex(&sha256(&vec![b'a'; 1_000_000])),
             "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"
         );
-    }
-
-    /// `SplitMix64`: a fixed seed gives the same inputs on every run and platform.
-    struct SplitMix64(u64);
-
-    impl SplitMix64 {
-        fn next(&mut self) -> u64 {
-            self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
-            let mut z = self.0;
-            z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
-            z ^ (z >> 31)
-        }
     }
 
     #[test]

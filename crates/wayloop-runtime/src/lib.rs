@@ -13,3 +13,9 @@
 //! neither of them may depend on the runtime. `scripts/check_core_io.py` holds the pure crates
 //! to their reviewed allowlists of dependencies, which enforces that direction. The crate holds
 //! no code until the first component of the runtime is specified.
+
+#![allow(
+    clippy::disallowed_methods,
+    clippy::disallowed_types,
+    reason = "the runtime performs I/O: the lists of clippy.toml bind the pure crates only"
+)]

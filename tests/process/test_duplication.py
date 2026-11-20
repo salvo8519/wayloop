@@ -6,10 +6,9 @@ import json
 
 from conftest import ROOT
 
-# The clones of the pure crates accepted until #299 deals with them: the clippy.toml of each
-# pure crate, and the test generator of envelope.rs and sha256.rs. The baseline may only
-# shrink.
-KNOWN_CLONES = 2
+# The clones of the pure crates accepted by the baseline: none since #299. The baseline may
+# only shrink.
+KNOWN_CLONES = 0
 
 
 def test_the_baseline_of_the_pure_crates_never_grows() -> None:

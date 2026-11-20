@@ -5,6 +5,12 @@
 //! No path panics: the document is written with `writeln!`, and a failure is printed on
 //! standard error with exit code 1.
 
+#![allow(
+    clippy::disallowed_methods,
+    clippy::disallowed_types,
+    reason = "the binary writes standard output: the lists of clippy.toml bind the pure crates only"
+)]
+
 use std::io::{self, Write};
 use std::process::ExitCode;
 

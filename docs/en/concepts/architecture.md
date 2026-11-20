@@ -67,26 +67,29 @@ wayloop-schemas    contract types, no I/O
   a pure crate. Development dependencies (tests only) and build dependencies (run at build
   time) are not part of the shipped crate and are skipped. Extending an allowlist is a
   reviewed change to the script.
-- **No I/O in the source.** The compiler refuses it. Each pure crate forbids at its root the
-  Clippy lints `print_stdout`, `print_stderr`, `dbg_macro`, `disallowed_methods` and
-  `disallowed_types`, and its `clippy.toml` lists the parts of the standard library that
-  perform I/O or read ambient state: files (`std::fs`), the network (`std::net`), processes
-  (`std::process`), the environment (`std::env`), the standard streams, threads, clock reads
-  (`SystemTime::now`, `Instant::now`) and hash maps seeded at random (`HashMap`, `HashSet`;
-  `BTreeMap` and `BTreeSet` are used instead). The lints follow name resolution, so an alias
-  or a nested import does not escape them, and `forbid`, unlike `deny`, cannot be lifted by an
-  `allow` further in. `cargo clippy` applies them in `just check` and in CI;
-  `scripts/check_core_io.py` fails when the attribute or an entry of a `clippy.toml` is
-  removed.
+- **No I/O in the source.** The compiler refuses it. The `clippy.toml` of the workspace, the
+  only one, lists the parts of the standard library that perform I/O or read ambient state:
+  files (`std::fs`), the network (`std::net`), processes (`std::process`), the environment
+  (`std::env`), the standard streams, threads, clock reads (`SystemTime::now`, `Instant::now`)
+  and hash maps seeded at random (`HashMap`, `HashSet`; `BTreeMap` and `BTreeSet` are used
+  instead). The Clippy lints `disallowed_methods` and `disallowed_types` apply the lists to
+  every crate and every target by default, tests included. A crate that performs I/O, the
+  runtime, an adapter or the schema generator, opts out explicitly with an `allow` of the two
+  lints at the root of each of its targets that needs it. Each pure crate also forbids at its root `print_stdout`,
+  `print_stderr`, `dbg_macro`, `disallowed_methods` and `disallowed_types`: `forbid`, unlike
+  `deny`, cannot be lifted by an `allow` further in. The lints follow name resolution, so an
+  alias or a nested import does not escape them. `cargo clippy` applies them in `just check`
+  and in CI. `scripts/check_core_io.py` fails when the attribute or an entry of the
+  `clippy.toml` is removed, when a crate has a `clippy.toml` of its own, which Clippy would
+  read instead of the workspace one, and when a manifest allows the two lints.
 - **No panic.** Every crate of the workspace refuses the Clippy lints that let code panic or
   stop the process: `unwrap_used`, `expect_used`, `panic`, `todo`, `unimplemented`,
   `unreachable`, `indexing_slicing`, `string_slice`, `get_unwrap`, `panic_in_result_fn`, `exit`
   and `mem_forget`, on top of the `all` and `pedantic` groups. They are set in the workspace
   manifest and fail `cargo clippy -D warnings` in `just check` and in CI. Tests may unwrap,
-  expect, panic and index: each `clippy.toml` allows it in test code only, the root one for the
-  runtime and the command line, the one of each pure crate for that crate, because a crate's
-  file replaces the root one. A failure is an error value; the command line turns it into an
-  exit code, even when it cannot write its output.
+  expect, panic and index: the `clippy.toml` of the workspace allows it in test code only. A
+  failure is an error value; the command line turns it into an exit code, even when it cannot
+  write its output.
 
 ## Synchronous core, asynchronous runtime
 

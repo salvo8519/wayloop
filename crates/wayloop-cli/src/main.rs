@@ -4,6 +4,12 @@
 //! No path panics: `println!` would panic when standard output is closed, so the output is
 //! written with `writeln!` and every failure becomes an exit code of ADR 0009 C7.
 
+#![allow(
+    clippy::disallowed_methods,
+    clippy::disallowed_types,
+    reason = "an adapter performs I/O: the lists of clippy.toml bind the pure crates only"
+)]
+
 use std::io::{self, Write};
 use std::process::ExitCode;
 
