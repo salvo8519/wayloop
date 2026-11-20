@@ -8,19 +8,22 @@
 //! writes no file: `scripts/schema_snapshots.py` writes the snapshots, byte for byte, and the
 //! history of each contract.
 //!
-//! The document printed:
+//! The document printed also lists every part a contract may have, with the name of its file
+//! at version 1, so that the script recognises every file name the registry can give:
 //!
 //! ```json
-//! {"contracts": [{"area": "envelope", "name": "result", "version": 1, "files": [
+//! {"parts": [{"part": "schema", "first_file": "v1.json"}, ...],
+//!  "contracts": [{"area": "envelope", "name": "result", "version": 1, "files": [
 //!   {"part": "schema", "direction": "output", "path": "envelope/result/v1.json", "text": "..."}
 //! ]}]}
 //! ```
 
 use core::fmt;
+use core::num::NonZeroU32;
 
 use serde_json::{Value, json};
 use wayloop_core::schema::{ContractFault, contract_schema};
-use wayloop_schemas::contract::{CONTRACTS, Contract, snapshot};
+use wayloop_schemas::contract::{CONTRACTS, Contract, Part, snapshot};
 
 /// Why a snapshot could not be generated, and of which file.
 #[derive(Debug)]
@@ -84,7 +87,17 @@ pub fn contract(contract: &Contract) -> Result<Value, Fault> {
     }))
 }
 
-/// The snapshots of the current version of every contract of the registry, in its order.
+/// Every part a contract may have, with the name of its file at version 1.
+#[must_use]
+pub fn parts() -> Value {
+    Part::ALL
+        .iter()
+        .map(|part| json!({"part": part.id(), "first_file": part.file_name(NonZeroU32::MIN)}))
+        .collect()
+}
+
+/// The parts, then the snapshots of the current version of every contract of the registry, in
+/// its order.
 ///
 /// # Errors
 ///
@@ -94,7 +107,7 @@ pub fn generate() -> Result<Value, Fault> {
         .iter()
         .map(contract)
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(json!({ "contracts": contracts }))
+    Ok(json!({ "parts": parts(), "contracts": contracts }))
 }
 
 #[cfg(test)]
@@ -110,7 +123,7 @@ mod tests {
         snapshot,
     };
 
-    use super::{Fault, contract, generate};
+    use super::{Fault, contract, generate, parts};
 
     fn named(name: &str) -> Registered {
         *TYPES.iter().find(|t| t.name == name).unwrap()
@@ -137,6 +150,19 @@ mod tests {
             snapshot(schema, "envelope/result/v1.json").unwrap()
         );
         assert_eq!(generate().unwrap(), document, "the same every run");
+    }
+
+    #[test]
+    fn every_part_is_printed_with_the_name_of_its_first_file() {
+        assert_eq!(
+            parts(),
+            json!([
+                {"part": "schema", "first_file": "v1.json"},
+                {"part": "output", "first_file": "v1.output.json"},
+                {"part": "input", "first_file": "v1.input.json"},
+            ])
+        );
+        assert_eq!(generate().unwrap()["parts"], parts());
     }
 
     #[test]

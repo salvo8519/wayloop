@@ -173,9 +173,9 @@ given, ADR 0009 C2) or with no JSON form, `Outcome::refused` a report with an er
 engine can build is therefore one its reader accepts. The reader refuses the same cases, and a
 document with both `data` and `error`, or with neither. The schema requires `error` when
 `data` is absent; the subset of the interpreter has no negation, so only the type refuses both.
-The schema of the envelope of any data is that of `Envelope<Value>`, committed as the snapshot
-`schemas/envelope/result/v1.json`; the output schema of a command is the envelope with the data
-type of that command. The tests of the core load the snapshot with the interpreter and the
+The schema of the envelope of any data is that of `Envelope<Value>`, committed as the snapshots
+of the contract `envelope/result`; the output schema of a command is the envelope with the data
+type of that command. The tests of the core load every snapshot with the interpreter and the
 oracle.
 
 `meta.input_hash` is the SHA-256 of the input serialised as canonical JSON (RFC 8785), in

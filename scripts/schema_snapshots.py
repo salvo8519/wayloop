@@ -70,7 +70,7 @@ FORMAT = 1
 UNRELEASED = "unreleased"
 GENERATOR = ("cargo", "run", "--quiet", "--locked", "--package", "wayloop-schemagen")
 # Keys a classification ignores (documentation), and those it compares member by member.
-ANNOTATIONS = frozenset({"$comment", "$id", "$schema", "description", "title"})
+ANNOTATIONS = frozenset({"$comment", "$id", "description", "title"})
 STRUCTURE = frozenset({"$defs", "enum", "items", "properties", "required"})
 
 
@@ -99,7 +99,19 @@ class Contract:
 
 
 def parse(document: dict[str, Any]) -> list[Contract]:
-    """The contracts of the document printed by wayloop-schemagen."""
+    """The contracts of the document printed by wayloop-schemagen.
+
+    The generator also prints every part of a contract with the name of its file at version 1:
+    the registry is the source of the spellings, and a part whose files SNAPSHOT does not
+    recognise would escape the hook, so it stops the script here.
+    """
+    for part in document["parts"]:
+        if not SNAPSHOT.search(f"{SCHEMAS}/area/name/{part['first_file']}"):
+            sys.exit(
+                f"schema_snapshots: part {part['part']}: {part['first_file']} is not recognised "
+                "by SNAPSHOT; extend SNAPSHOT in scripts/schema_snapshots.py and the hook "
+                "fallback in .claude/hooks/protect_contracts.py"
+            )
     return [
         Contract(
             area=c["area"],
@@ -237,6 +249,14 @@ def expected(root: Path, contracts: list[Contract]) -> tuple[dict[str, bytes], l
         record: dict[str, Any] = {
             "introduced_in": versions.get(key, {}).get("introduced_in", UNRELEASED)
         }
+        unknown = [f for f in contract.files if not SNAPSHOT.search(f"{SCHEMAS}/{f.path}")]
+        if unknown:
+            refused += [
+                f"{SCHEMAS}/{f.path}: a file name SNAPSHOT does not recognise; extend SNAPSHOT in "
+                "scripts/schema_snapshots.py and the hook fallback"
+                for f in unknown
+            ]
+            continue
         for file in contract.files:
             data = file.text.encode("utf-8")
             out[f"{SCHEMAS}/{file.path}"] = data
@@ -273,7 +293,8 @@ def strays(root: Path, contracts: list[Contract], out: dict[str, bytes]) -> list
     and folders of contracts the registry does not list."""
     folders = {c.folder for c in contracts}
     found: list[str] = []
-    for path in _files_under(root, SCHEMAS):
+    committed = _files_under(root, SCHEMAS)
+    for path in committed:
         folder = path.removeprefix(f"{SCHEMAS}/").rpartition("/")[0]
         if folder not in folders:
             found.append(f"{path}: not in a folder of a contract of the registry")
@@ -283,7 +304,7 @@ def strays(root: Path, contracts: list[Contract], out: dict[str, bytes]) -> list
             known |= {f"{SCHEMAS}/{path}" for path, _ in files_of(record)}
     found += [
         f"{path}: neither generated nor recorded in a history"
-        for path in _files_under(root, SCHEMAS)
+        for path in committed
         if path not in known and path.removeprefix(f"{SCHEMAS}/").rpartition("/")[0] in folders
     ]
     found += [
@@ -307,7 +328,15 @@ def recorded_problems(root: Path, contracts: list[Contract]) -> list[str]:
                 f"{manifest_path(contract.folder)}: versions {', '.join(versions)} do not run "
                 f"from 1 to {manifest.get('current')}"
             )
-        for record in versions.values():
+        for version, record in versions.items():
+            found += [
+                f"{manifest_path(contract.folder)}: v{version} has the unknown key {key}"
+                for key in sorted(record)
+                if key != "introduced_in"
+                and key != "file"
+                and not key.endswith("_file")
+                and not (_is_hash(key) and key.removesuffix("sha256") + "file" in record)
+            ]
             for path, digest in files_of(record):
                 file = root / SCHEMAS / path
                 if file.is_symlink() or not file.is_file():
@@ -449,6 +478,17 @@ def breaking(where: str, old: Any, new: Any, output: bool) -> list[str]:
     return found
 
 
+def _is_hash(key: str) -> bool:
+    return key == "sha256" or key.endswith("_sha256")
+
+
+def _record_kept(record: dict[str, Any], current: bool) -> dict[str, Any]:
+    """The part of a version record that never changes once on the base branch."""
+    return {
+        k: v for k, v in record.items() if k != "introduced_in" and not (current and _is_hash(k))
+    }
+
+
 def diff_against(root: Path, base: str, contracts: list[Contract]) -> tuple[list[str], list[str]]:
     """(history rewritten, breaking changes of a current version) against `base`."""
     from roadmap import SEMVER  # the project environment only: the hook never calls this
@@ -457,6 +497,9 @@ def diff_against(root: Path, base: str, contracts: list[Contract]) -> tuple[list
     rewritten: list[str] = []
     found: list[str] = []
     currents: dict[str, tuple[int, int]] = {}
+    # Every file a history of the base records, with its contract and version: released
+    # whatever its name, so that a part the pattern misses is protected too.
+    recorded: dict[str, tuple[str, int]] = {}
     for path in sorted(p for p in entries if p.endswith(f"/{MANIFEST}")):
         folder = path.removeprefix(f"{SCHEMAS}/").removesuffix(f"/{MANIFEST}")
         old: dict[str, Any] = json.loads(_blob(root, entries[path][1]))
@@ -475,15 +518,26 @@ def diff_against(root: Path, base: str, contracts: list[Contract]) -> tuple[list
             if now is None:
                 rewritten.append(f"{folder}: v{version} removed from its history")
                 continue
+            recorded |= {f"{SCHEMAS}/{p}": (folder, int(version)) for p, _ in files_of(record)}
             before, after = record.get("introduced_in"), now.get("introduced_in")
             if after != before and not (before == UNRELEASED and SEMVER.match(str(after))):
                 rewritten.append(f"{folder}: introduced_in of v{version} changed to {after}")
-            if [p for p, _ in files_of(now)] != [p for p, _ in files_of(record)]:
-                rewritten.append(f"{folder}: the files of v{version} changed in its history")
+            # The whole record stays, but for introduced_in above and, of a version current on
+            # both sides, the hashes of its files, which an additive change moves.
+            current = version == str(old["current"]) == str(new["current"])
+            if _record_kept(record, current) != _record_kept(now, current):
+                rewritten.append(f"{folder}: the record of v{version} changed in its history")
     directions = {f"{SCHEMAS}/{f.path}": f.direction for c in contracts for f in c.files}
     for path, (mode, blob) in sorted(entries.items()):
         match = SNAPSHOT.search(path)
-        if match is None:
+        if path in recorded:
+            folder, version = recorded[path]
+        elif match is not None:
+            folder, version = (
+                path.removeprefix(f"{SCHEMAS}/").rpartition("/")[0],
+                int(match["version"]),
+            )
+        else:
             continue
         local = _mode(root / path)
         if local is None:
@@ -498,8 +552,6 @@ def diff_against(root: Path, base: str, contracts: list[Contract]) -> tuple[list
         before_bytes, after_bytes = _blob(root, blob), (root / path).read_bytes()
         if before_bytes == after_bytes:
             continue
-        folder = path.removeprefix(f"{SCHEMAS}/").rpartition("/")[0]
-        version = int(match["version"])
         if currents.get(folder) != (version, version) or path not in directions:
             rewritten.append(f"{path}: released on {base} as an earlier version, and changed")
             continue

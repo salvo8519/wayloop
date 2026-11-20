@@ -183,8 +183,14 @@ Rules, checked by `scripts/schema_snapshots.py` in `just check` (recipe `schemas
   `main`, and refuses a rewritten history: an earlier version changed, a released file deleted,
   replaced by a symlink or with another mode, a version or a contract removed, a current
   version gone back. A version not yet on `main` may change freely.
+- A released file is one that a history on `main` records, whatever its name, or one that the
+  snapshot pattern matches. A released version record never changes, except `introduced_in`,
+  from `unreleased` to a release, and the hashes of the files of the current version; a key a
+  record does not define fails `--check`.
 - Generation refuses to write a version lower than the current one, or one that leaves a gap;
-  versions run from 1.
+  versions run from 1. It also refuses a file whose name the snapshot pattern of the script
+  and of the hook does not recognise: the generator prints every part of a contract with the
+  name of its first file, and the script stops on a part the pattern misses.
 
 The hook `.claude/hooks/protect_contracts.py` blocks a hand edit of a snapshot that exists on
 `main`. The documentation build publishes `schemas/` at the URLs of the `$id` of the

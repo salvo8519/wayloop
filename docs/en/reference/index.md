@@ -47,9 +47,9 @@ The schemas of the contracts are published with this site, each at the URL of it
 of each version and their SHA-256, is in `schemas/index.json` at the same address, and in
 `index.json` in the folder of each contract.
 
-| Contract | Current version | Schema |
-| --- | --- | --- |
-| Envelope of every command result ([ADR 0009](../project/adr/0009-contract-guidelines.md), C1) | 1 | `schemas/envelope/result/v1.json` |
+| Contract | History, with the current version and the file of each version |
+| --- | --- |
+| Envelope of every command result ([ADR 0009](../project/adr/0009-contract-guidelines.md), C1) | `schemas/envelope/result/index.json` |
 
 A version, once released, changes only additively: a new optional input member, a new output
 member, a new `enum` value. Any other change is a new version, published beside the earlier

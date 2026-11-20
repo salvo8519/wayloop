@@ -334,6 +334,12 @@ def test_a_new_enum_value_is_additive_a_removed_one_breaking(output: bool) -> No
     assert classify(old, {"type": "string"}, output) == ["/: `enum` changed"]
 
 
+def test_a_change_of_draft_is_breaking() -> None:
+    old = {**OBJECT, "$schema": "https://json-schema.org/draft/2020-12/schema"}
+    new = {**OBJECT, "$schema": "https://json-schema.org/draft/2019-09/schema"}
+    assert classify(old, new, output=True) == ["/: `$schema` changed"]
+
+
 def test_closing_an_open_output_is_breaking() -> None:
     assert classify(OBJECT, {**OBJECT, "additionalProperties": False}, output=True) == [
         "/: `additionalProperties` changed"
@@ -469,7 +475,11 @@ def edit_history(root: Path, edit: Any) -> None:
         ),
         (
             lambda h: h["versions"]["1"].update(file="envelope/result/v1.other.json"),
-            "envelope/result: the files of v1 changed in its history",
+            "envelope/result: the record of v1 changed in its history",
+        ),
+        (
+            lambda h: h["versions"]["1"].update(deprecated=True),
+            "envelope/result: the record of v1 changed in its history",
         ),
         (lambda h: h["versions"].clear(), "envelope/result: v1 removed from its history"),
         (
@@ -481,6 +491,68 @@ def edit_history(root: Path, edit: Any) -> None:
 def test_a_history_edited_is_a_rewritten_history(repo: Path, edit: Any, problem: str) -> None:
     edit_history(repo, edit)
     assert problem in diff(repo)[0]
+
+
+def test_an_earlier_record_edited_is_a_rewritten_history(repo: Path) -> None:
+    following = contract(version=2, text="{}\n")
+    write(repo, following)
+    edit_history(repo, lambda h: h["versions"]["1"].update(deprecated=True))
+    assert diff(repo, following)[0] == ["envelope/result: the record of v1 changed in its history"]
+    edit_history(repo, lambda h: h["versions"]["1"].pop("deprecated"))
+    edit_history(repo, lambda h: h["versions"]["1"].update(sha256="0" * 64))
+    assert diff(repo, following)[0] == ["envelope/result: the record of v1 changed in its history"]
+
+
+def test_check_refuses_a_key_of_a_record_it_does_not_know(tmp_path: Path) -> None:
+    write(tmp_path, contract())
+    write(tmp_path, contract(version=2))
+    edit_history(tmp_path, lambda h: h["versions"]["1"].update(deprecated=True))
+    assert "schemas/envelope/result/index.json: v1 has the unknown key deprecated" in (
+        snapshots.check(tmp_path, [contract(version=2)])
+    )
+
+
+def test_a_released_file_the_pattern_misses_is_protected_through_its_history(
+    git_repo: Path,
+) -> None:
+    # A part whose file name SNAPSHOT does not recognise is still released through the history
+    # of its contract on the base, and an earlier version of it never changes.
+    write(git_repo, contract())
+    extra = git_repo / "schemas/envelope/result/v1.extra.json"
+    extra.write_text("{}\n")
+    edit_history(
+        git_repo,
+        lambda h: h["versions"]["1"].update(
+            extra_file="envelope/result/v1.extra.json", extra_sha256=snapshots.sha256(b"{}\n")
+        ),
+    )
+    git(git_repo, "add", ".")
+    git(git_repo, "commit", "-q", "-m", "base")
+    git(git_repo, "checkout", "-q", "-b", "feat/1-x")
+    extra.write_text("[]\n")
+    assert diff(git_repo, contract())[0] == [
+        "schemas/envelope/result/v1.extra.json: released on main as an earlier version, and changed"
+    ]
+
+
+def test_generation_refuses_a_file_name_the_pattern_does_not_recognise(tmp_path: Path) -> None:
+    refused = snapshots.write(
+        tmp_path, [contract(parts=(("schema", "output"), ("extra", "output")))]
+    )
+    assert refused == [
+        "schemas/envelope/result/v1.extra.json: a file name SNAPSHOT does not recognise; "
+        "extend SNAPSHOT in scripts/schema_snapshots.py and the hook fallback"
+    ]
+
+
+def test_every_part_of_the_generator_is_recognised_by_the_pattern() -> None:
+    document = {"parts": [{"part": "schema", "first_file": "v1.json"}], "contracts": []}
+    assert snapshots.parse(document) == []
+    document["parts"].append({"part": "extra", "first_file": "v1.extra.json"})
+    with pytest.raises(
+        SystemExit, match=r"part extra: v1\.extra\.json is not recognised by SNAPSHOT"
+    ):
+        snapshots.parse(document)
 
 
 def test_a_release_stamps_an_unreleased_version(repo: Path) -> None:
@@ -518,6 +590,7 @@ def test_generated_reads_the_document_of_the_generator(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     document = {
+        "parts": [{"part": "schema", "first_file": "v1.json"}],
         "contracts": [
             {
                 "area": "envelope",
@@ -532,7 +605,7 @@ def test_generated_reads_the_document_of_the_generator(
                     }
                 ],
             }
-        ]
+        ],
     }
     calls: list[Any] = []
 

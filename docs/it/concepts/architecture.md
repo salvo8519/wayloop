@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: bfaf80392c2a
+source_hash: 41c6ef4f488e
 ---
 # Architettura
 
@@ -187,9 +187,9 @@ che il motore può costruire è quindi uno che il suo lettore accetta. Il lettor
 stessi casi, e un documento con sia `data` sia `error`, o con nessuno dei due. Lo schema
 richiede `error` quando `data` è assente; il sottoinsieme dell'interprete non ha negazione,
 quindi solo il tipo rifiuta la presenza di entrambi. Lo schema dell'envelope con dati qualsiasi
-è quello di `Envelope<Value>`, versionato come snapshot `schemas/envelope/result/v1.json`; lo
+è quello di `Envelope<Value>`, versionato come snapshot del contratto `envelope/result`; lo
 schema di output di un comando è l'envelope con il tipo dei dati di quel comando. I test del
-core caricano lo snapshot con l'interprete e con l'oracolo.
+core caricano ogni snapshot con l'interprete e con l'oracolo.
 
 `meta.input_hash` è lo SHA-256 dell'input serializzato come JSON canonico (RFC 8785), in
 esadecimale minuscolo, così lo stesso input dà lo stesso hash su ogni canale e piattaforma:

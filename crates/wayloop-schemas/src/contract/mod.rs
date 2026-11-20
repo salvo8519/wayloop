@@ -146,10 +146,10 @@ pub const PUBLISHED_AT: &str = concat!(env!("CARGO_PKG_HOMEPAGE"), "schemas/");
 
 /// The text of the snapshot of `schema` at `path` under `schemas/`, for example
 /// `envelope/result/v1.json`: the schema with its `$id`, keys in byte order, two-space
-/// indentation, UTF-8 without escapes and a final newline (ADR 0030 G6). The same schema and path always
-/// give the same bytes. A schema that is not an object gets no `$id`; the loader of the core
-/// refuses it. This function is the only source of the snapshot text, written unchanged by
-/// `just generate` (`scripts/schema_snapshots.py`).
+/// indentation, UTF-8 without escapes and a final newline (ADR 0030 G6). The same schema and
+/// path always give the same bytes. A schema that is not an object gets no `$id`; the loader of
+/// the core refuses it. This function is the only source of the snapshot text, written
+/// unchanged by `just generate` (`scripts/schema_snapshots.py`).
 ///
 /// # Errors
 ///

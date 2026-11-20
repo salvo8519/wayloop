@@ -1,6 +1,6 @@
 ---
 source: reference/index.md
-source_hash: 0c3dfcfdec0d
+source_hash: cf1acb95f7d0
 ---
 # Riferimento
 
@@ -53,9 +53,9 @@ Gli schemi dei contratti sono pubblicati con questo sito, ciascuno all'URL del s
 versione e il loro SHA-256, è in `schemas/index.json` allo stesso indirizzo, e in `index.json`
 nella cartella di ciascun contratto.
 
-| Contratto | Versione corrente | Schema |
-| --- | --- | --- |
-| Envelope del risultato di ogni comando ([ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/), C1) | 1 | `schemas/envelope/result/v1.json` |
+| Contratto | Storia, con la versione corrente e il file di ogni versione |
+| --- | --- |
+| Envelope del risultato di ogni comando ([ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/), C1) | `schemas/envelope/result/index.json` |
 
 Una versione, una volta rilasciata, cambia solo in modo additivo: un nuovo membro facoltativo
 di input, un nuovo membro di output, un nuovo valore di `enum`. Ogni altra modifica è una nuova
