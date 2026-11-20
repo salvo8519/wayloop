@@ -78,14 +78,16 @@ impl ExitCode {
 /// `meta.input_hash` (ADR 0009 C1). It serialises as its string.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, JsonSchema)]
 #[serde(transparent)]
-pub struct InputHash(#[schemars(length(min = 64, max = 64))] String);
+pub struct InputHash(
+    #[schemars(length(min = InputHash::TEXT_LEN, max = InputHash::TEXT_LEN))] String,
+);
 
 /// Reads the text of a hash and refuses one that is not 64 lower-case hexadecimal digits.
 impl<'de> Deserialize<'de> for InputHash {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let text = String::deserialize(deserializer)?;
         let hexadecimal = |b: u8| b.is_ascii_digit() || (b'a'..=b'f').contains(&b);
-        if text.len() == 64 && text.bytes().all(hexadecimal) {
+        if text.len() == Self::TEXT_LEN && text.bytes().all(hexadecimal) {
             Ok(Self(text))
         } else {
             Err(D::Error::custom(
@@ -96,10 +98,17 @@ impl<'de> Deserialize<'de> for InputHash {
 }
 
 impl InputHash {
-    /// The hash written from its 32 bytes.
+    /// Length of the SHA-256 digest a hash is written from, in bytes. The SHA-256 of the core
+    /// returns a digest of this length.
+    pub const DIGEST_LEN: usize = 32;
+
+    /// Length of the text of a hash: two hexadecimal digits for each byte of the digest.
+    const TEXT_LEN: usize = 2 * Self::DIGEST_LEN;
+
+    /// The hash written from the bytes of its digest.
     #[must_use]
-    pub fn from_digest(digest: &[u8; 32]) -> Self {
-        let mut text = String::with_capacity(64);
+    pub fn from_digest(digest: &[u8; Self::DIGEST_LEN]) -> Self {
+        let mut text = String::with_capacity(Self::TEXT_LEN);
         for byte in digest {
             for nibble in [byte >> 4, byte & 0x0f] {
                 // A nibble is below 16, so it always has a digit, in lower case.

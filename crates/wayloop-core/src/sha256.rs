@@ -5,8 +5,10 @@
 //! at constant time. It is checked against the published test vectors and, on random inputs,
 //! against a hashing crate used in tests only.
 
-/// Length of a digest, in bytes.
-pub const DIGEST_LEN: usize = 32;
+use wayloop_schemas::InputHash;
+
+/// Length of a digest, in bytes: the digest an input hash is written from.
+const DIGEST_LEN: usize = InputHash::DIGEST_LEN;
 
 /// Length of a block, in bytes.
 const BLOCK_LEN: usize = 64;
