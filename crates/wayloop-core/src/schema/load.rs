@@ -217,6 +217,39 @@ fn invalid(pointer: &Pointer, problem: &'static str) -> LoadError {
     }
 }
 
+/// The pointer of a node whose own pointer is not recorded: the root.
+static ROOT: Pointer = Pointer::root();
+
+/// Refuses a subschema reached at `depth` levels below the root of its tree, at `pointer`,
+/// when the depth is beyond [`MAX_DEPTH`].
+fn within_depth(depth: usize, pointer: &Pointer) -> Result<(), LoadError> {
+    if depth > MAX_DEPTH {
+        return Err(LoadError::TooDeep {
+            pointer: pointer.clone(),
+        });
+    }
+    Ok(())
+}
+
+/// The members of a `properties` keyword, with the pointer of the keyword.
+type Properties<'a> = (&'a Map<String, Value>, Pointer);
+
+/// The `properties` of `map`, `None` when `map` has none; refuses a `properties` that is not
+/// an object.
+fn properties<'a>(
+    map: &'a Map<String, Value>,
+    pointer: &Pointer,
+) -> Result<Option<Properties<'a>>, LoadError> {
+    let Some(properties) = map.get("properties") else {
+        return Ok(None);
+    };
+    let at = pointer.join("properties");
+    match properties.as_object() {
+        Some(entries) => Ok(Some((entries, at))),
+        None => Err(invalid(&at, "`properties` is an object of schemas")),
+    }
+}
+
 /// The object of a subschema, or the refusal of a value that is not one.
 fn object<'a>(value: &'a Value, pointer: &Pointer) -> Result<&'a Map<String, Value>, LoadError> {
     value
@@ -367,11 +400,7 @@ impl Loader {
         depth: usize,
         root: bool,
     ) -> Result<usize, LoadError> {
-        if depth > MAX_DEPTH {
-            return Err(LoadError::TooDeep {
-                pointer: pointer.clone(),
-            });
-        }
+        within_depth(depth, pointer)?;
         let map = object(value, pointer)?;
         only(map, &RULE_KEYWORDS, pointer)?;
         for keyword in ["$schema", "$id", "$defs"] {
@@ -483,11 +512,7 @@ impl Loader {
                 ));
             }
         }
-        if let Some(properties) = map.get("properties") {
-            let at = pointer.join("properties");
-            let Some(entries) = properties.as_object() else {
-                return Err(invalid(&at, "`properties` is an object of schemas"));
-            };
+        if let Some((entries, at)) = properties(map, pointer)? {
             for (name, schema) in entries {
                 let child = self.rules(schema, &at.join(name), next, false)?;
                 rules.properties.insert(name.clone(), child);
@@ -565,11 +590,7 @@ impl Loader {
         pointer: &Pointer,
         depth: usize,
     ) -> Result<usize, LoadError> {
-        if depth > MAX_DEPTH {
-            return Err(LoadError::TooDeep {
-                pointer: pointer.clone(),
-            });
-        }
+        within_depth(depth, pointer)?;
         let map = object(value, pointer)?;
         only(map, &CONDITION_KEYWORDS, pointer)?;
         let next = depth.saturating_add(1);
@@ -578,11 +599,7 @@ impl Loader {
             ..Condition::default()
         };
         let mut height = 0;
-        if let Some(properties) = map.get("properties") {
-            let at = pointer.join("properties");
-            let Some(entries) = properties.as_object() else {
-                return Err(invalid(&at, "`properties` is an object of schemas"));
-            };
+        if let Some((entries, at)) = properties(map, pointer)? {
             for (name, schema) in entries {
                 let child = self.condition(schema, &at.join(name), next)?;
                 height = height.max(self.condition_height(child).saturating_add(1));
@@ -608,8 +625,8 @@ impl Loader {
         self.condition_heights.get(index).copied().unwrap_or(0)
     }
 
-    fn pointer(&self, node: usize) -> Pointer {
-        self.pointers.get(node).cloned().unwrap_or_default()
+    fn pointer(&self, node: usize) -> &Pointer {
+        self.pointers.get(node).unwrap_or(&ROOT)
     }
 
     /// The height of `node` (the deepest level of subschemas below it, through references),
@@ -621,21 +638,15 @@ impl Loader {
         depth: usize,
         states: &mut [Measure],
     ) -> Result<usize, LoadError> {
-        let too_deep = |pointer: Pointer| LoadError::TooDeep { pointer };
-        if depth > MAX_DEPTH {
-            return Err(too_deep(self.pointer(node)));
-        }
+        within_depth(depth, self.pointer(node))?;
         match states.get(node).copied() {
             Some(Measure::Done(height)) => {
-                return if depth.saturating_add(height) > MAX_DEPTH {
-                    Err(too_deep(self.pointer(node)))
-                } else {
-                    Ok(height)
-                };
+                within_depth(depth.saturating_add(height), self.pointer(node))?;
+                return Ok(height);
             }
             Some(Measure::Visiting) => {
                 return Err(LoadError::Recursive {
-                    pointer: self.pointer(node),
+                    pointer: self.pointer(node).clone(),
                 });
             }
             Some(Measure::New) | None => {}
@@ -655,14 +666,8 @@ impl Loader {
                 }
                 for conditional in &rules.conditionals {
                     let below = self.condition_height(conditional.when).saturating_add(1);
-                    if depth.saturating_add(below) > MAX_DEPTH {
-                        let at = self
-                            .condition_pointers
-                            .get(conditional.when)
-                            .cloned()
-                            .unwrap_or_default();
-                        return Err(too_deep(at));
-                    }
+                    let at = self.condition_pointers.get(conditional.when);
+                    within_depth(depth.saturating_add(below), at.unwrap_or(&ROOT))?;
                     height = height.max(below);
                 }
             }
