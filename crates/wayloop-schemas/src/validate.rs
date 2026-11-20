@@ -323,6 +323,26 @@ mod tests {
     }
 
     #[test]
+    fn the_members_of_the_formats_are_the_members_of_an_entry() {
+        // Both ways: every member of an entry belongs to a format, and every member of a format
+        // is a member of the entry, in both directions of the schema.
+        let union: std::collections::BTreeSet<&str> = EntryFormat::ALL
+            .iter()
+            .flat_map(|f| f.members().iter().copied())
+            .collect();
+        for direction in [Direction::Input, Direction::Output] {
+            let schema = schema_for::<DocumentEntry>(direction).unwrap();
+            let members: std::collections::BTreeSet<&str> = schema["properties"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .map(String::as_str)
+                .collect();
+            assert_eq!(union, members, "{direction:?}");
+        }
+    }
+
+    #[test]
     fn the_data_is_open() {
         let schema = schema_for::<ValidateData>(Direction::Output).unwrap();
         assert!(schema.get("additionalProperties").is_none());

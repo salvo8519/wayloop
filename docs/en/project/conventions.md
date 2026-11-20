@@ -185,10 +185,14 @@ Rules, checked by `scripts/schema_snapshots.py` in `just check` (recipe `schemas
   version gone back.
 - Until the first release that holds it, the current version may also change incompatibly
   (ADR 0030, amendment of 2026-11-20). No release holds a version when its record on `main`
-  says `introduced_in: unreleased` and no release tag `v<semver>` holds its file.
-  `--diff-against` then allows the breaking change and still prints it as breaking, so that
-  the pull request shows it. The site publishes `main`, so the `$id` of an unreleased version
-  is public and the schema at that URL may change before the first release.
+  says `introduced_in: unreleased` and no release tag holds its file. Only a tag
+  `v<major>.<minor>.<patch>` counts as a release, the pattern `SEMVER` of `scripts/roadmap.py`;
+  if pre-release tags are introduced, that pattern must be extended first. `--diff-against`
+  then allows the breaking change and still prints it as breaking, so that the pull request
+  shows it. It runs against the updated base: a release tagged between the check and the merge
+  is caught, because the release writes `introduced_in` on `main` and the check runs again.
+  The site publishes `main`, so the `$id` of an unreleased version is public and the schema at
+  that URL may change before the first release.
 - A released file is one that a history on `main` records, whatever its name, or one that the
   snapshot pattern matches. A released version record never changes, except `introduced_in`,
   from `unreleased` to a release, and the hashes of the files of the current version; a key a

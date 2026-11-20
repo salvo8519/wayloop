@@ -589,6 +589,7 @@ def test_a_breaking_change_of_an_unreleased_version_is_allowed_and_reported(
     write(draft, current)
     assert diff(draft, current) == ([], [], [BROKEN])
     git(draft, "tag", "not-a-release", "main")
+    git(draft, "tag", "v0.1.0-rc.1", "main")
     assert diff(draft, current) == ([], [], [BROKEN]), "only a tag v<semver> is a release"
 
 

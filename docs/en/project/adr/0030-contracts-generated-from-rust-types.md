@@ -244,9 +244,9 @@ with its tests and the architecture page.
   `value::free_object_schema` and left open. The free objects are declared in one list,
   `FREE_OBJECTS` of the checks of the generator, which refuses any other open object of an
   input, a map derived by `schemars` included. The generator also drops a definition that no
-  reference reaches, such as the type of `kind` once a rule makes it a constant. The line of a `source` is written only
-  when it is known (SPEC-0004 R2): a breaking change of `envelope/result` v1, which no release
-  holds, made under the amendment below.
+  reference reaches, such as the type of `kind` once a rule makes it a constant. The line of a
+  `source` is written only when it is known (SPEC-0004 R2): a breaking change of
+  `envelope/result` v1, which no release holds, made under the amendment below.
 - 2026-11-20, decision of the maintainer (G5, G6): a version that no release holds may change
   incompatibly until the first release that holds it; from that release it is immutable, and
   rule (B) applies in full. This replaces the last sentence of G5, "Before a version reaches

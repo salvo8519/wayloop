@@ -85,6 +85,9 @@ def test_tags_and_the_paths_a_revision_holds(repo: Path) -> None:
     assert _git.tags("v*", cwd=repo) == ["v0.1.0", "v0.2.0"]
     assert _git.holds("v0.1.0", "b.md", cwd=repo)
     assert not _git.holds("v0.1.0", "c.md", cwd=repo)
-    assert not _git.holds("nowhere", "b.md", cwd=repo)
+    assert not _git.holds("v0.1.0", "specs/0001-x/missing.md", cwd=repo)
+    assert _git.holds("v0.1.0", "specs/0001-x/tasks.md", cwd=repo)
+    with pytest.raises(subprocess.CalledProcessError):
+        _git.holds("nowhere", "b.md", cwd=repo)
     with pytest.raises(ValueError, match="not a revision"):
         _git.holds("--output=written-by-git", "b.md", cwd=repo)

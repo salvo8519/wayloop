@@ -107,7 +107,9 @@ def tags(pattern: str, cwd: Path | str = ROOT) -> list[str]:
 
 
 def holds(name: str, path: str, cwd: Path | str = ROOT) -> bool:
-    """Whether the tree of the revision `name` holds `path`; a `name` that git would read as an
-    option raises ValueError."""
+    """Whether the tree of the revision `name` holds `path`. An absent path is False; any other
+    failure of git, such as a revision that does not exist, raises CalledProcessError, never a
+    silent False. A `name` that git would read as an option raises ValueError."""
     revision(name)
-    return run("cat-file", "-e", f"{name}:{path}", cwd=cwd).returncode == 0
+    entries = _names("ls-tree", "--name-only", "--end-of-options", name, "--", path, cwd=cwd)
+    return path in entries

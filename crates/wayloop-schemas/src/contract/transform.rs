@@ -20,6 +20,16 @@ pub(super) struct Subset {
     pub(super) direction: Direction,
 }
 
+/// The keywords whose value is a condition, or what a condition requires: their `properties`
+/// name members of the object that holds them, so they are never closed.
+const CONDITIONS: [&str; 3] = ["if", "then", "else"];
+
+/// Whether `object` describes an object: its `type` says so, or it declares `properties`.
+pub(super) fn is_object(object: &Map<String, Value>) -> bool {
+    object.get("type").and_then(Value::as_str) == Some("object")
+        || object.contains_key("properties")
+}
+
 impl Transform for Subset {
     fn transform(&mut self, schema: &mut Schema) {
         if schema.as_bool() == Some(true) {
@@ -42,10 +52,7 @@ impl Transform for Subset {
             {
                 object.remove("format");
             }
-            if self.direction == Direction::Input
-                && object.get("type").and_then(Value::as_str) == Some("object")
-                && object.contains_key("properties")
-            {
+            if self.direction == Direction::Input && object.contains_key("properties") {
                 // An object that declares its members is closed. One that declares none is a
                 // free object, written by hand for a document of another schema, and stays open
                 // (ADR 0030 G2, amended with #256). A map keeps its schema of values, which the
@@ -55,7 +62,34 @@ impl Transform for Subset {
                     .or_insert(Value::Bool(false));
             }
         }
+        // A condition names members of the object that holds it: it is transformed apart,
+        // as an output is, which closes no object.
+        let conditions: Vec<(&str, Value)> = schema
+            .as_object_mut()
+            .map(|object| {
+                CONDITIONS
+                    .iter()
+                    .filter_map(|k| object.remove(*k).map(|v| (*k, v)))
+                    .collect()
+            })
+            .unwrap_or_default();
         transform_subschemas(self, schema);
+        let mut open = Subset {
+            direction: Direction::Output,
+        };
+        for (keyword, value) in conditions {
+            // A value that is not a schema is kept as it is, for the loader of the core.
+            let written = match Schema::try_from(value.clone()) {
+                Ok(mut condition) => {
+                    open.transform(&mut condition);
+                    condition.to_value()
+                }
+                Err(_) => value,
+            };
+            if let Some(object) = schema.as_object_mut() {
+                object.insert(keyword.to_owned(), written);
+            }
+        }
     }
 }
 

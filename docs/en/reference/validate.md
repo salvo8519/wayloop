@@ -118,8 +118,8 @@ does not know and accepts enum values it does not know.
   context, not a member of the input. When `--command-version` names a version the engine
   does not run, the refusal has the pointer `""` too, and `meta.command_version` is the current
   version, whose shape the envelope has; when the input is also text the engine cannot read as
-  JSON, the same report lists the version first, then the error of the text. A usage error reports the current version of the
-  command it names, and 1 when it names no known command.
+  JSON, the same report lists the version first, then the error of the text. A usage error
+  reports the current version of the command it names, and 1 when it names no known command.
 - `meta.input_hash` is the SHA-256 of the canonical JSON (RFC 8785) of the input without its
   members set to null, so an input with `"base": null` has the hash of the input without
   `base`. For text the engine refuses to read as JSON (not JSON, a key repeated in one object,

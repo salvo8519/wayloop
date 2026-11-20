@@ -854,3 +854,70 @@ fn a_definition_no_reference_reaches_is_removed() {
     only_reachable_definitions(none.as_object_mut().unwrap());
     assert_eq!(none, json!({"type": "object"}));
 }
+
+/// An object written by hand with members and no `type`.
+struct Untyped;
+
+impl JsonSchema for Untyped {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "Untyped".into()
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> Schema {
+        Schema::try_from(json!({
+            "description": "Members without a type.",
+            "properties": {"a": {"description": "A member.", "type": "string"}}
+        }))
+        .unwrap()
+    }
+}
+
+/// An input holding an untyped object.
+#[derive(JsonSchema)]
+#[allow(dead_code, reason = "a schema only, never built")]
+struct WithUntyped {
+    /// The untyped object.
+    inner: Untyped,
+}
+
+#[test]
+fn a_schema_with_members_is_an_object_without_its_type() {
+    // Second review: `properties` alone makes an object, closed by the transform in an input
+    // and refused by the checks when open; a condition is never closed.
+    let schema = schema_for::<WithUntyped>(Direction::Input).unwrap();
+    assert_eq!(
+        schema["$defs"]["Untyped"]["additionalProperties"],
+        json!(false)
+    );
+    let output = schema_for::<WithUntyped>(Direction::Output).unwrap();
+    assert!(
+        output["$defs"]["Untyped"]
+            .get("additionalProperties")
+            .is_none()
+    );
+    let open = json!({
+        "additionalProperties": false,
+        "description": "d",
+        "properties": {"a": {"description": "a", "properties": {}}},
+        "type": "object"
+    });
+    assert_eq!(
+        super::check::check(&open, Direction::Input),
+        Err(ContractError {
+            pointer: at("/properties/a"),
+            problem: Problem::OpenInput
+        })
+    );
+    let entry = &schema_for::<crate::validate::ValidateInput>(Direction::Input).unwrap()["$defs"]["DocumentEntry"]
+        ["allOf"];
+    for condition in entry.as_array().unwrap() {
+        assert!(
+            condition["if"].get("additionalProperties").is_none(),
+            "{condition}"
+        );
+        assert!(
+            condition["then"].get("additionalProperties").is_none(),
+            "{condition}"
+        );
+    }
+}

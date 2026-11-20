@@ -501,12 +501,21 @@ class Diff(NamedTuple):
     release, and reported (ADR 0030, amendment of 2026-11-20)."""
 
 
+def is_release(version: str) -> bool:
+    """Whether `version` is a release, `<major>.<minor>.<patch>`, as the roadmap writes it.
+
+    `roadmap` is imported here, once, and not at the top: the hook imports this module without
+    the project environment and never calls this function.
+    """
+    from roadmap import SEMVER
+
+    return SEMVER.match(version) is not None
+
+
 def in_a_release(root: Path, path: str) -> bool:
     """Whether a release tag `v<semver>` holds `path`."""
-    from roadmap import SEMVER  # the project environment only: the hook never calls this
-
     return any(
-        SEMVER.match(tag.removeprefix("v")) and _git.holds(tag, path, cwd=root)
+        is_release(tag.removeprefix("v")) and _git.holds(tag, path, cwd=root)
         for tag in _git.tags("v*", cwd=root)
     )
 
@@ -518,8 +527,6 @@ def diff_against(root: Path, base: str, contracts: list[Contract]) -> Diff:
     the base names a release, or a release tag holds its file. Before, it is allowed and
     reported in `unreleased`.
     """
-    from roadmap import SEMVER  # the project environment only: the hook never calls this
-
     entries = released(root, base)
     rewritten: list[str] = []
     found: list[str] = []
@@ -551,7 +558,7 @@ def diff_against(root: Path, base: str, contracts: list[Contract]) -> Diff:
             recorded |= {f"{SCHEMAS}/{p}": (folder, int(version)) for p, _ in files_of(record)}
             introduced[folder, int(version)] = record.get("introduced_in")
             before, after = record.get("introduced_in"), now.get("introduced_in")
-            if after != before and not (before == UNRELEASED and SEMVER.match(str(after))):
+            if after != before and not (before == UNRELEASED and is_release(str(after))):
                 rewritten.append(f"{folder}: introduced_in of v{version} changed to {after}")
             # The whole record stays, but for introduced_in above and, of a version current on
             # both sides, the hashes of its files, which an additive change moves.

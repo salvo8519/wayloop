@@ -12,7 +12,7 @@
 
 use serde_json::{Map, Value};
 
-use super::transform::{meaning_line, value_text};
+use super::transform::{is_object, meaning_line, value_text};
 use super::{ContractError, Direction, MAX_OBJECT_LEVELS, Problem};
 use crate::Pointer;
 use crate::validate::{FreeDocument, Lines};
@@ -80,7 +80,7 @@ fn walk(
     }
     if direction == Direction::Input
         && need != Need::InCondition
-        && schema.get("type").and_then(Value::as_str) == Some("object")
+        && is_object(schema)
         && schema.get("additionalProperties") != Some(&Value::Bool(false))
         && !FREE_OBJECTS
             .iter()
