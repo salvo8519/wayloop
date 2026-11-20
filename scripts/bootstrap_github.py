@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 import _github
+from _labels import EPIC
 
 from roadmap import depends_on, epics, load
 
@@ -78,7 +79,7 @@ def milestone_description(m: dict[str, Any]) -> str:
 def items_of(data: dict[str, Any]) -> list[Item]:
     out: list[Item] = []
     for m, e in epics(data):
-        epic = Item("epic", e.get("issue"), e["title"], m["title"], ["epic", *e.get("labels", [])])
+        epic = Item("epic", e.get("issue"), e["title"], m["title"], [EPIC, *e.get("labels", [])])
         out.append(epic)
         for t in e["tasks"]:
             # Each tag is the name of its label (roadmap.TAGS).
@@ -240,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
     issues = gh.issues()
     p = plan(
         data,
-        {lbl["name"] for lbl in gh.pages("labels?")},
+        {lbl["name"] for lbl in gh.pages("labels")},
         {m["title"] for m in gh.pages("milestones?state=all")},
         issues,
     )

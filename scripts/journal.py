@@ -29,6 +29,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from _labels import AREA_PREFIX
+
 from roadmap import epics, load
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,9 +59,9 @@ def issue_areas(roadmap: Path) -> dict[int, list[str]]:
     out: dict[int, list[str]] = {}
     for _milestone, epic in epics(load(roadmap)) if roadmap.exists() else []:
         areas = sorted(
-            label.removeprefix("area:")
+            label.removeprefix(AREA_PREFIX)
             for label in epic.get("labels", [])
-            if label.startswith("area:")
+            if label.startswith(AREA_PREFIX)
         )
         for number in [epic.get("issue"), *(t.get("issue") for t in epic.get("tasks", []))]:
             if isinstance(number, int):
@@ -128,8 +130,8 @@ def search(
         mentioned = [(e, "mentions") for e in entries if n in e.mentions]
         return own + mentioned
     known = {a for e in entries for a in e.areas}
-    area = q.removeprefix("area:")
-    if q.startswith("area:") or area in known:
+    area = q.removeprefix(AREA_PREFIX)
+    if q.startswith(AREA_PREFIX) or area in known:
         return [(e, f"area {area}") for e in entries if area in e.areas]
     if DATE_QUERY.match(q):
         return [(e, "date") for e in entries if e.date.startswith(q)]
@@ -175,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
             print("The journal is empty.")
             return 0
         print(f"No journal entry matches {args.query!r}.")
-        if args.query.startswith("area:"):
+        if args.query.startswith(AREA_PREFIX):
             known = sorted({a for e in entries for a in e.areas})
             print(f"Areas in the journal: {', '.join(known) or 'none'}.")
         return 1

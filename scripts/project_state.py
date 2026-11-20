@@ -20,6 +20,15 @@ from typing import Any
 import _git
 import _github
 import yaml
+from _labels import (
+    AREA_PREFIX,
+    BLOCKED,
+    EPIC,
+    IN_PROGRESS,
+    PARALLEL,
+    REPORT_LABELS,
+    label_names,
+)
 from conventions import branch_issue
 from sprint import state_files
 
@@ -74,34 +83,27 @@ def blocked_natively(issue: dict[str, Any]) -> bool:
 
 def ready_issues(pool: list[dict[str, Any]], busy_branches: set[str]) -> list[dict[str, Any]]:
     """Issues of the pool that can start now: not an epic, not taken, not blocked."""
-
-    def names(i: dict[str, Any]) -> set[str]:
-        return {lbl["name"] for lbl in i["labels"]}
-
     return [
         {
             "number": i["number"],
             "title": i["title"],
-            "parallel": "parallel" in names(i),
-            "areas": sorted(lbl for lbl in names(i) if lbl.startswith("area:")),
+            "parallel": PARALLEL in label_names(i),
+            "areas": sorted(lbl for lbl in label_names(i) if lbl.startswith(AREA_PREFIX)),
         }
         for i in pool
-        if not names(i) & {"epic", "in-progress", "blocked"}
+        if not label_names(i) & {EPIC, IN_PROGRESS, BLOCKED}
         and not blocked_natively(i)
         and not any(branch_issue(b) == i["number"] for b in busy_branches)
     ][:12]
-
-
-ATTENTION = ("bug", "maintenance")
 
 
 def attention_issues(issues: list[dict[str, Any]]) -> list[str]:
     """Open bug issues, then maintenance issues, each by number: they go before new work."""
     lines: list[str] = []
     seen: set[int] = set()
-    for label in ATTENTION:
+    for label in REPORT_LABELS:
         for i in sorted(issues, key=lambda i: int(i["number"])):
-            if i["number"] not in seen and label in {lbl["name"] for lbl in i["labels"]}:
+            if i["number"] not in seen and label in label_names(i):
                 seen.add(i["number"])
                 lines.append(f"#{i['number']} {i['title']} ({label})")
     return lines
@@ -144,7 +146,7 @@ def collect() -> dict[str, Any]:
             "title": p["title"],
             "branch": p["head"]["ref"],
             "draft": p["draft"],
-            "labels": [lbl["name"] for lbl in p["labels"]],
+            "labels": sorted(label_names(p)),
             "checks": checks_summary(r, p["head"]["sha"]),
             "merge": merge_tier(
                 [f["filename"] for f in _github.pages(f"repos/{r}/pulls/{p['number']}/files", gh)]
@@ -159,14 +161,11 @@ def collect() -> dict[str, Any]:
         i for i in _github.pages(f"repos/{r}/issues?state=open", gh) if "pull_request" not in i
     ]
 
-    def labels(i: dict[str, Any]) -> set[str]:
-        return {lbl["name"] for lbl in i["labels"]}
-
     state["attention"] = attention_issues(issues)
     state["in_progress"] = [
-        f"#{i['number']} {i['title']}" for i in issues if "in-progress" in labels(i)
+        f"#{i['number']} {i['title']}" for i in issues if IN_PROGRESS in label_names(i)
     ]
-    state["blocked"] = [f"#{i['number']} {i['title']}" for i in issues if "blocked" in labels(i)]
+    state["blocked"] = [f"#{i['number']} {i['title']}" for i in issues if BLOCKED in label_names(i)]
     sprint = None
     for f in sorted((ROOT / "sprints").glob("S*.yaml")):
         data = yaml.safe_load(f.read_text(encoding="utf-8"))

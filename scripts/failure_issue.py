@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any
 
 import _github
+from _labels import BUG
 
 FAILED = {"failure", "timed_out", "startup_failure"}
 EVENTS = {"push", "schedule"}
@@ -168,7 +169,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     r.add_argument("--conclusion", required=True)
     r.add_argument("--event", required=True)
     r.add_argument("--branch", required=True)
-    r.add_argument("--label", default="bug")
+    r.add_argument("--label", default=BUG)
     r.add_argument("--title")
     r.add_argument("--jobs", help="comma-separated job results; default: read from the run")
     r.add_argument("--details", type=Path, help="Markdown file appended to the issue body")

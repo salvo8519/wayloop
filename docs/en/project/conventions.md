@@ -138,7 +138,8 @@ Signed-off-by: Name Surname <email>
 
 Labels that need judgement are added by the author; `area:*` labels are applied automatically
 from the changed paths. Each label below either opens or waives a check, and a test keeps this
-list, the workflows and the roadmap file in agreement.
+list, the workflows, the label names of the scripts (`scripts/_labels.py`) and the roadmap file
+in agreement.
 
 | Label | Effect |
 | --- | --- |
@@ -220,7 +221,8 @@ CI run the same commands.
   process scripts share their helpers through `scripts/_*.py`, written with the standard
   library only, so that hooks and workflows can import them without the project environment:
   `_github.py` (the repository, one call of the GitHub CLI with retries, the REST API, every
-  page of a list) and `_git.py` (tracked files, changed files, one call of git). The hooks
+  page of a list), `_git.py` (tracked files, changed files, one call of git) and `_labels.py`
+  (the names of the labels the scripts read or write, each planned in the roadmap file). The hooks
   run with the system `python3` and put `scripts/` on their import path. Scripts import each
   other by module name, as `python scripts/<name>.py` allows; the tests import the scripts and
   the hooks the same way and share their fixtures in `tests/process/conftest.py` (a throwaway
