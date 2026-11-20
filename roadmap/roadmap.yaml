@@ -116,6 +116,7 @@ milestones:
           - { issue: 269, title: "Document the artifact model", spec: "0001", status: open }
           - { issue: 270, title: "Allocate the next identifier of a kind", spec: "0001", status: open }
           - { issue: 276, title: "Plan and tasks of the artifact model with their issues", spec: "0001", status: done }
+          - { issue: 291, title: "Contracts are generated from one source and versioned like Fairmark", status: open }
       - title: "Agent process"
         issue: 19
         labels: ["area:agents"]
