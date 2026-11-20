@@ -88,6 +88,8 @@ use core::fmt;
 
 use serde_json::Value;
 
+use wayloop_schemas::contract::{ContractError, Direction, Registered};
+
 use crate::{Code, Error, Pointer};
 
 mod check;
@@ -169,6 +171,44 @@ impl fmt::Display for LoadError {
 }
 
 impl std::error::Error for LoadError {}
+
+/// Why the schema of a registered contract type was refused.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContractFault {
+    /// A rule of the contracts that is not a rule of the subset: descriptions, meanings of enum
+    /// values, levels of objects, open outputs (`wayloop_schemas::contract`).
+    Rule(ContractError),
+    /// A keyword outside the subset, refused by [`Schema::load`].
+    Subset(LoadError),
+}
+
+impl fmt::Display for ContractFault {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ContractFault::Rule(error) => write!(f, "a rule of the contracts: {error}"),
+            ContractFault::Subset(error) => write!(f, "the subset of the interpreter: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for ContractFault {}
+
+/// The schema of the contract type `registered` for `direction`, checked against the rules of
+/// the contracts and then loaded by [`Schema::load`]: the subset has one definition, this
+/// loader (ADR 0030 G3).
+///
+/// # Errors
+///
+/// [`ContractFault::Rule`] for the first rule of the contracts the schema breaks, then
+/// [`ContractFault::Subset`] for the first place outside the subset.
+pub fn contract_schema(
+    registered: Registered,
+    direction: Direction,
+) -> Result<Value, ContractFault> {
+    let schema = (registered.schema)(direction).map_err(ContractFault::Rule)?;
+    Schema::load(&schema).map_err(ContractFault::Subset)?;
+    Ok(schema)
+}
 
 /// A loaded schema of the subset, ready to validate documents.
 #[derive(Debug, Clone)]

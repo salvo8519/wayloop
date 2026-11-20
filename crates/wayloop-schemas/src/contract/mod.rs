@@ -17,14 +17,14 @@
 //!   - an integer `format` such as `uint32` is removed: the type and the bounds remain;
 //!   - in the input direction every object is closed with `additionalProperties: false`; in
 //!     the output direction objects stay open (ADR 0009 C5, as amended on 2026-11-20).
-//! - The checks of the generator, after the transform: a description on the root, on every
-//!   definition and on every member, the meaning of every enum value in its description, no
-//!   `null` type, no `pattern`, `default` or `uniqueItems`, only the named formats of
-//!   [`Format`](crate::Format), no `additionalProperties` produced by the derive in an output,
-//!   and at most four levels of objects (ADR 0009 C4).
+//! - The checks of the generator, after the transform, for the rules that are not rules of the
+//!   subset: a description on the root, on every definition and on every member (one of
+//!   blanks only is none), the meaning of every enum value in its description, no
+//!   `additionalProperties` in an output, and at most four levels of objects (ADR 0009 C4).
 //!
-//! The rest of the subset is the loader of the core (`wayloop_core::schema::Schema::load`); its
-//! tests load the schema of every type of [`TYPES`].
+//! The subset has one definition, the loader of the core (`wayloop_core::schema::Schema::load`,
+//! ADR 0030 G3): `wayloop_core::schema::contract_schema` runs these checks and then the loader
+//! on a type of [`TYPES`].
 
 mod check;
 pub mod rules;
@@ -37,6 +37,8 @@ use core::fmt;
 
 use schemars::JsonSchema;
 use schemars::generate::SchemaSettings;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::{
@@ -63,15 +65,9 @@ pub enum Problem {
     MissingDescription,
     /// An enum value whose meaning the description does not give.
     UndocumentedValue(String),
-    /// A `null` type: an optional member is absent, never null (ADR 0009 C2).
-    Null,
-    /// A keyword the contracts do not use: `pattern`, `default`, `uniqueItems`, or
-    /// `additionalProperties` produced by the derive in an output.
-    Refused(&'static str),
-    /// A boolean schema left after the transform.
-    Boolean,
-    /// A `format` that is not a named format of [`Format`](crate::Format).
-    UnknownFormat(String),
+    /// `additionalProperties` in an output, written by the derive (for example
+    /// `deny_unknown_fields`) or by a map: an output is open (ADR 0009 C5).
+    ClosedOutput,
     /// Objects nested deeper than [`MAX_OBJECT_LEVELS`].
     TooDeep,
 }
@@ -98,17 +94,10 @@ impl fmt::Display for ContractError {
                 f,
                 "at {place}: the description gives no meaning for the value {value}"
             ),
-            Problem::Null => write!(f, "at {place}: a `null` type; absent means not given"),
-            Problem::Refused(keyword) => {
-                write!(
-                    f,
-                    "at {place}: the keyword `{keyword}` is not used in contracts"
-                )
-            }
-            Problem::Boolean => write!(f, "at {place}: a boolean schema"),
-            Problem::UnknownFormat(name) => {
-                write!(f, "at {place}: `{name}` is not a named format")
-            }
+            Problem::ClosedOutput => write!(
+                f,
+                "at {place}: `additionalProperties` in an output, which is open"
+            ),
             Problem::TooDeep => write!(
                 f,
                 "at {place}: objects nested deeper than {MAX_OBJECT_LEVELS} levels"
@@ -144,72 +133,56 @@ pub fn schema_for<T: JsonSchema>(direction: Direction) -> Result<Value, Contract
     Ok(schema)
 }
 
-/// A contract type and the function that generates its schema.
+/// A contract type, the function that generates its schema, and the one that reads a document
+/// into the type and writes it again (the round trip of ADR 0030 G1).
 #[derive(Debug, Clone, Copy)]
 pub struct Registered {
-    /// Name of the type.
+    /// Name of the type, which is also the `title` of its schema.
     pub name: &'static str,
     /// [`schema_for`] the type.
     pub schema: fn(Direction) -> Result<Value, ContractError>,
+    /// [`reread`] into the type.
+    pub reread: fn(&Value) -> Result<Value, serde_json::Error>,
+}
+
+/// `document` read into `T` and written again: a document the schema of `T` accepts must give
+/// itself back, members set to null and members `T` does not know left out.
+///
+/// # Errors
+///
+/// The error of `serde_json` when `document` is not a value of `T`.
+pub fn reread<T: Serialize + DeserializeOwned>(
+    document: &Value,
+) -> Result<Value, serde_json::Error> {
+    serde_json::to_value(T::deserialize(document)?)
+}
+
+/// The registration of a contract type, named as written.
+macro_rules! registered {
+    ($t:ty) => {
+        Registered {
+            name: stringify!($t),
+            schema: schema_for::<$t>,
+            reread: reread::<$t>,
+        }
+    };
 }
 
 /// Every contract type of this crate whose schema is derived. The envelope joins with its
 /// generic form (ADR 0030 G1).
 pub const TYPES: [Registered; 14] = [
-    Registered {
-        name: "Check",
-        schema: schema_for::<Check>,
-    },
-    Registered {
-        name: "Code",
-        schema: schema_for::<Code>,
-    },
-    Registered {
-        name: "DefaultApplied",
-        schema: schema_for::<DefaultApplied>,
-    },
-    Registered {
-        name: "DefaultReason",
-        schema: schema_for::<DefaultReason>,
-    },
-    Registered {
-        name: "Diagnostics",
-        schema: schema_for::<Diagnostics>,
-    },
-    Registered {
-        name: "Error",
-        schema: schema_for::<Error>,
-    },
-    Registered {
-        name: "ErrorReport",
-        schema: schema_for::<ErrorReport>,
-    },
-    Registered {
-        name: "InputHash",
-        schema: schema_for::<InputHash>,
-    },
-    Registered {
-        name: "Meta",
-        schema: schema_for::<Meta>,
-    },
-    Registered {
-        name: "NotDone",
-        schema: schema_for::<NotDone>,
-    },
-    Registered {
-        name: "NotDoneReason",
-        schema: schema_for::<NotDoneReason>,
-    },
-    Registered {
-        name: "Pointer",
-        schema: schema_for::<Pointer>,
-    },
-    Registered {
-        name: "Reason",
-        schema: schema_for::<Reason>,
-    },
-    Registered {
-        name: "Source",
-        schema: schema_for::<Source>,
-    },
+    registered!(Check),
+    registered!(Code),
+    registered!(DefaultApplied),
+    registered!(DefaultReason),
+    registered!(Diagnostics),
+    registered!(Error),
+    registered!(ErrorReport),
+    registered!(InputHash),
+    registered!(Meta),
+    registered!(NotDone),
+    registered!(NotDoneReason),
+    registered!(Pointer),
+    registered!(Reason),
+    registered!(Source),
 ];

@@ -17,8 +17,9 @@
 use core::num::NonZeroU32;
 
 use schemars::JsonSchema;
+use serde::de::Error as _;
 use serde::ser::SerializeMap;
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use crate::{Error, ErrorReport, Pointer};
@@ -27,25 +28,35 @@ use crate::{Error, ErrorReport, Pointer};
 /// with a breaking change of the envelope itself (ADR 0009 C5).
 pub const ENVELOPE_VERSION: NonZeroU32 = NonZeroU32::MIN;
 
-crate::contract_enum! {
-    /// Exit codes of the command line (ADR 0009 C7).
-    pub enum ExitCode {
-        /// 0: the command succeeded.
-        Success = "success",
-        /// 1: the input was refused.
-        InputError = "input_error",
-        /// 2: the command line was not understood.
-        UsageError = "usage_error",
-        /// 3: the environment failed: a file, the network or an output stream.
-        EnvironmentError = "environment_error",
-        /// 4: the loop stopped at a gate and waits for a person.
-        StoppedAtGate = "stopped_at_gate",
-        /// 5: a computation or internal error of the engine.
-        InternalError = "internal_error",
-    }
+/// Exit codes of the command line (ADR 0009 C7). An exit code is a number by contract, never
+/// spelt: [`ExitCode::code`] is the one source of each number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ExitCode {
+    /// 0: the command succeeded.
+    Success,
+    /// 1: the input was refused.
+    InputError,
+    /// 2: the command line was not understood.
+    UsageError,
+    /// 3: the environment failed: a file, the network or an output stream.
+    EnvironmentError,
+    /// 4: the loop stopped at a gate and waits for a person.
+    StoppedAtGate,
+    /// 5: a computation or internal error of the engine.
+    InternalError,
 }
 
 impl ExitCode {
+    /// All exit codes, in the order of C7.
+    pub const ALL: [ExitCode; 6] = [
+        ExitCode::Success,
+        ExitCode::InputError,
+        ExitCode::UsageError,
+        ExitCode::EnvironmentError,
+        ExitCode::StoppedAtGate,
+        ExitCode::InternalError,
+    ];
+
     /// The number the process exits with.
     #[must_use]
     pub const fn code(self) -> u8 {
@@ -65,6 +76,21 @@ impl ExitCode {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, JsonSchema)]
 #[serde(transparent)]
 pub struct InputHash(#[schemars(length(min = 64, max = 64))] String);
+
+/// Reads the text of a hash and refuses one that is not 64 lower-case hexadecimal digits.
+impl<'de> Deserialize<'de> for InputHash {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        let hexadecimal = |b: u8| b.is_ascii_digit() || (b'a'..=b'f').contains(&b);
+        if text.len() == 64 && text.bytes().all(hexadecimal) {
+            Ok(Self(text))
+        } else {
+            Err(D::Error::custom(
+                "an input hash is 64 lower-case hexadecimal digits",
+            ))
+        }
+    }
+}
 
 impl InputHash {
     /// The hash written from its 32 bytes.
@@ -96,12 +122,15 @@ crate::static_id! {
 
 /// A default the engine applied on behalf of the caller (ADR 0009 C2): an entry of
 /// `meta.defaults_applied`, `{pointer, value, reason, message}`. `message` is optional and left
-/// out of the serialised form when not given.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+/// out of the serialised form when not given. The value applied is never null: null means not
+/// given (C2).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DefaultApplied {
     /// RFC 6901 pointer, from the root of the input, to where the default applies.
     pointer: Pointer,
     /// The value applied.
+    #[serde(deserialize_with = "not_null")]
+    #[schemars(with = "Value")]
     value: Value,
     /// Stable `snake_case` identifier of why the default applies, documented with the command
     /// that applies it.
@@ -111,16 +140,26 @@ pub struct DefaultApplied {
     message: Option<String>,
 }
 
+/// Reads a value and refuses null, which means not given (ADR 0009 C2).
+fn not_null<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Value, D::Error> {
+    match Value::deserialize(deserializer)? {
+        Value::Null => Err(D::Error::custom("the value applied is null")),
+        value => Ok(value),
+    }
+}
+
 impl DefaultApplied {
-    /// The default `value` applied at `pointer` of the input, for `reason`.
+    /// The default `value` applied at `pointer` of the input, for `reason`; `None` when `value`
+    /// is null, which means not given (ADR 0009 C2): a default is a value.
     #[must_use]
-    pub fn new(pointer: Pointer, value: impl Into<Value>, reason: DefaultReason) -> Self {
-        Self {
+    pub fn new(pointer: Pointer, value: impl Into<Value>, reason: DefaultReason) -> Option<Self> {
+        let value = value.into();
+        (!value.is_null()).then_some(Self {
             pointer,
-            value: value.into(),
+            value,
             reason,
             message: None,
-        }
+        })
     }
 
     /// The entry with a `message` for a person.
@@ -144,8 +183,8 @@ impl DefaultApplied {
 
     /// Why the default applies.
     #[must_use]
-    pub const fn reason(&self) -> DefaultReason {
-        self.reason
+    pub const fn reason(&self) -> &DefaultReason {
+        &self.reason
     }
 
     /// Why the default applies, for a person; `None` when not given.
@@ -176,7 +215,9 @@ crate::contract_enum! {
 
 /// A check the engine did not run, and why: an entry of `diagnostics.not_done`,
 /// `{check, reason}`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 pub struct NotDone {
     /// Identifier of the check, documented with the command that runs it.
     check: Check,
@@ -193,13 +234,13 @@ impl NotDone {
 
     /// The check not run.
     #[must_use]
-    pub const fn check(self) -> Check {
-        self.check
+    pub const fn check(&self) -> &Check {
+        &self.check
     }
 
     /// Why it was not run.
     #[must_use]
-    pub const fn reason(self) -> NotDoneReason {
+    pub const fn reason(&self) -> NotDoneReason {
         self.reason
     }
 }
@@ -218,7 +259,7 @@ pub enum Outcome {
 
 /// The field `diagnostics`: what the engine reports beside the result. All three lists are
 /// always written, `[]` when empty.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
 pub struct Diagnostics {
     /// Warnings, in the shape of an error; the input is not refused for them.
     warnings: Vec<Error>,
@@ -261,7 +302,7 @@ impl Diagnostics {
 
 /// The field `meta`: how the result was produced; nothing in it depends on the machine or the
 /// moment.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Meta {
     /// Version of the engine that produced the result.
     engine_version: String,
@@ -566,12 +607,14 @@ mod tests {
             true,
             vec![
                 DefaultApplied::new(at("/language"), "en", PROJECT_LANGUAGE)
+                    .unwrap()
                     .with_message("The language of the project applies."),
                 DefaultApplied::new(
                     at("/policy"),
                     json!({}),
                     DefaultReason::new("default_policy"),
-                ),
+                )
+                .unwrap(),
             ],
         );
         assert_eq!(meta.envelope_version(), ENVELOPE_VERSION);
@@ -593,10 +636,10 @@ mod tests {
 
     #[test]
     fn a_default_reason_is_an_identifier_and_its_message_is_optional() {
-        let applied = DefaultApplied::new(at("/a"), 1, PROJECT_LANGUAGE);
+        let applied = DefaultApplied::new(at("/a"), 1, PROJECT_LANGUAGE).unwrap();
         assert_eq!(applied.pointer(), &at("/a"));
         assert_eq!(applied.value(), &json!(1));
-        assert_eq!(applied.reason(), PROJECT_LANGUAGE);
+        assert_eq!(applied.reason(), &PROJECT_LANGUAGE);
         assert_eq!(applied.reason().id(), "project_language");
         assert_eq!(PROJECT_LANGUAGE.to_string(), "project_language");
         assert_eq!(applied.message(), None);
@@ -622,10 +665,11 @@ mod tests {
         );
         let warning = Error::new(INVALID_INPUT, "Old ADR.", at("/related/0"), Reason::State);
         let skipped = NotDone::new(LINKS, NotDoneReason::InputAbsent);
-        let diagnostics = Diagnostics::new(vec![warning.clone()], vec![skipped], vec![SCHEMA]);
+        let diagnostics =
+            Diagnostics::new(vec![warning.clone()], vec![skipped.clone()], vec![SCHEMA]);
         assert_eq!(diagnostics.warnings(), core::slice::from_ref(&warning));
-        assert_eq!(diagnostics.not_done(), [skipped]);
-        assert_eq!(skipped.check(), LINKS);
+        assert_eq!(diagnostics.not_done(), core::slice::from_ref(&skipped));
+        assert_eq!(skipped.check(), &LINKS);
         assert_eq!(skipped.reason(), NotDoneReason::InputAbsent);
         assert_eq!(diagnostics.checks(), [SCHEMA]);
         assert_eq!(SCHEMA.id(), "schema");
@@ -648,7 +692,7 @@ mod tests {
         assert!(!meta.dry_run());
         assert_eq!(meta.defaults_applied(), []);
         // Values other than the defaults, so that an accessor returning a constant fails.
-        let applied = DefaultApplied::new(at("/a"), 1, PROJECT_LANGUAGE);
+        let applied = DefaultApplied::new(at("/a"), 1, PROJECT_LANGUAGE).unwrap();
         let other = Meta::new(
             "0.0.0",
             NonZeroU32::MIN,
@@ -663,5 +707,46 @@ mod tests {
         assert_eq!(envelope.outcome(), &Outcome::Refused(refusal()));
         assert_eq!(envelope.diagnostics(), &Diagnostics::default());
         assert_eq!(envelope.meta(), &meta);
+    }
+
+    #[test]
+    fn a_default_is_a_value_never_null() {
+        // ADR 0009 C2: null means not given, and the schema of an entry refuses it.
+        assert_eq!(
+            DefaultApplied::new(at("/a"), serde_json::Value::Null, PROJECT_LANGUAGE),
+            None
+        );
+        let read = serde_json::from_value::<DefaultApplied>(
+            json!({"pointer": "/a", "value": null, "reason": "project_language"}),
+        );
+        assert!(read.unwrap_err().to_string().contains("null"));
+    }
+
+    #[test]
+    fn an_input_hash_is_read_only_in_its_form() {
+        let hash = hash();
+        let read: InputHash = serde_json::from_value(json!(hash.as_str())).unwrap();
+        assert_eq!(read, hash);
+        for wrong in [
+            "ab".to_owned(),
+            hash.as_str().to_uppercase(),
+            format!("{}0", hash.as_str()),
+            "g".repeat(64),
+        ] {
+            assert!(
+                serde_json::from_value::<InputHash>(json!(wrong)).is_err(),
+                "{wrong}"
+            );
+        }
+    }
+
+    #[test]
+    fn identifiers_read_from_a_document_own_their_text() {
+        let check: Check = serde_json::from_value(json!("links")).unwrap();
+        assert_eq!(check, LINKS);
+        assert_eq!(check.id(), "links");
+        let reason: NotDoneReason = serde_json::from_value(json!("not_built")).unwrap();
+        assert_eq!(reason, NotDoneReason::NotBuilt);
+        assert!(serde_json::from_value::<NotDoneReason>(json!("later")).is_err());
     }
 }

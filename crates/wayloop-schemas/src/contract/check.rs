@@ -1,27 +1,32 @@
 //! The checks of the generator, after the transform (ADR 0030 G1, G3): the rules of the
-//! contracts that a schema of the subset could still break.
+//! contracts that are not rules of the subset.
+//!
+//! The subset has one definition, the loader of the core (`wayloop_core::schema::Schema::load`):
+//! a keyword outside it (`pattern`, `default`, `uniqueItems`, a boolean schema, a `null`
+//! type, a format that is not named, a reference out of the file or a reference chain) is
+//! refused there, and `wayloop_core::schema::contract_schema` runs both. These checks hold
+//! what a schema of the subset can still break: a description on the root, every definition and
+//! every member; the meaning of every enum value; at most four levels of objects; and no
+//! `additionalProperties` in an output.
 
 use serde_json::{Map, Value};
 
 use super::transform::{meaning_line, value_text};
 use super::{ContractError, Direction, MAX_OBJECT_LEVELS, Problem};
-use crate::{Format, Pointer};
-
-/// Keywords the contracts never use: the core holds no regular expression engine, defaults are
-/// applied by the core and reported (ADR 0009 C2), and lists are `Vec`, not sets.
-const REFUSED: [&str; 3] = ["pattern", "default", "uniqueItems"];
+use crate::Pointer;
 
 /// Keywords whose value is one subschema that needs no description of its own.
 const SUBSCHEMA: [&str; 2] = ["items", "additionalProperties"];
 
 /// Keywords whose value is a condition, or what a condition requires: their members are names
 /// of the members of the object, described where they are declared.
-const CONDITION: [&str; 4] = ["if", "then", "else", "contains"];
+const CONDITION: [&str; 3] = ["if", "then", "contains"];
 
 /// Keywords whose value is a list of subschemas.
 const SUBSCHEMAS: [&str; 3] = ["allOf", "anyOf", "oneOf"];
 
-/// Most references followed on one path, a bound for a schema that reaches itself.
+/// Most references followed on one path. A reference that reaches itself is refused by the
+/// loader of the core; this bound only stops the walk.
 const MAX_HOPS: usize = 64;
 
 /// The first place of `schema` that leaves the rules of the contracts.
@@ -48,18 +53,16 @@ enum Need {
     InCondition,
 }
 
-/// Checks the subschema `value` at `pointer` and every subschema below it.
+/// Checks the subschema `value` at `pointer` and every subschema below it. A value that is not
+/// an object is not a schema of the subset; the loader of the core refuses it.
 fn walk(
     value: &Value,
     pointer: &Pointer,
     need: Need,
     direction: Direction,
 ) -> Result<(), ContractError> {
-    let schema = match value {
-        Value::Object(schema) => schema,
-        Value::Bool(_) => return Err(refuse(pointer, Problem::Boolean)),
-        // Not a schema: the loader of the core refuses it.
-        _ => return Ok(()),
+    let Some(schema) = value.as_object() else {
+        return Ok(());
     };
     let description = schema
         .get("description")
@@ -86,7 +89,7 @@ fn walk(
         Need::Description | Need::Nothing => Need::Nothing,
     };
     for keyword in SUBSCHEMA {
-        if let Some(sub) = schema.get(keyword).filter(|s| s.is_object()) {
+        if let Some(sub) = schema.get(keyword) {
             walk(sub, &pointer.join(keyword), inner, direction)?;
         }
     }
@@ -113,29 +116,9 @@ fn own_keywords(
     description: &str,
     direction: Direction,
 ) -> Result<(), ContractError> {
-    let null = |t: &Value| t == "null";
-    match schema.get("type") {
-        Some(Value::Array(types)) if types.iter().any(null) => {
-            return Err(refuse(&pointer.join("type"), Problem::Null));
-        }
-        Some(t) if null(t) => return Err(refuse(&pointer.join("type"), Problem::Null)),
-        _ => {}
-    }
-    if let Some(keyword) = REFUSED.into_iter().find(|k| schema.contains_key(*k)) {
-        return Err(refuse(&pointer.join(keyword), Problem::Refused(keyword)));
-    }
     if direction == Direction::Output && schema.contains_key("additionalProperties") {
-        let keyword = "additionalProperties";
-        return Err(refuse(&pointer.join(keyword), Problem::Refused(keyword)));
-    }
-    if let Some(format) = schema.get("format") {
-        if format.as_str().and_then(Format::from_id).is_none() {
-            let name = value_text(format);
-            return Err(refuse(
-                &pointer.join("format"),
-                Problem::UnknownFormat(name),
-            ));
-        }
+        let at = pointer.join("additionalProperties");
+        return Err(refuse(&at, Problem::ClosedOutput));
     }
     if let Some(Value::Array(values)) = schema.get("enum") {
         let at = pointer.join("enum");
@@ -165,7 +148,8 @@ fn own_keywords(
 }
 
 /// Refuses objects nested deeper than [`MAX_OBJECT_LEVELS`] below `node`, which is inside
-/// `level` objects, following references into the definitions of `root`.
+/// `level` objects, following references into the definitions of `root`. A reference out of
+/// `#/$defs/`, to a missing definition or reaching itself is left to the loader of the core.
 fn levels(
     root: &Value,
     node: &Value,
@@ -179,14 +163,13 @@ fn levels(
     if let Some(target) = schema.get("$ref").and_then(Value::as_str) {
         let name = target.strip_prefix("#/$defs/").unwrap_or_default();
         let definition = root.get("$defs").and_then(|defs| defs.get(name));
-        if hops >= MAX_HOPS {
-            return Err(refuse(pointer, Problem::TooDeep));
-        }
-        if let Some(definition) = definition {
-            let at = Pointer::root().join("$defs").join(name);
-            return levels(root, definition, &at, level, hops.saturating_add(1));
-        }
-        return Ok(());
+        return match definition {
+            Some(definition) if hops < MAX_HOPS => {
+                let at = Pointer::root().join("$defs").join(name);
+                levels(root, definition, &at, level, hops.saturating_add(1))
+            }
+            _ => Ok(()),
+        };
     }
     let is_object = schema.get("type").and_then(Value::as_str) == Some("object");
     let level = if is_object {

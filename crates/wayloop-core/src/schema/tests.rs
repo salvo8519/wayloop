@@ -257,7 +257,7 @@ fn a_valid_document_gives_no_error() {
 fn required_maps_to_missing() {
     let errors = check(&brief(), &without(valid_brief(), "problem"));
     let error = only(&errors);
-    assert_eq!(error.code(), CODE);
+    assert_eq!(error.code(), &CODE);
     assert_eq!(error.pointer(), &at("/problem"));
     assert_eq!(error.reason(), Reason::Missing);
     assert_eq!(error.expected(), None);
@@ -1397,7 +1397,7 @@ proptest! {
         let errors = check(&faults_schema(), &document);
         prop_assert_eq!(errors.len(), faults.iter().filter(|f| **f).count());
         prop_assert_eq!(found(&errors), expected);
-        prop_assert!(errors.iter().all(|e| e.code() == CODE));
+        prop_assert!(errors.iter().all(|e| *e.code() == CODE));
     }
 
     /// ADR 0009 C2: setting optional members to null never adds an error, wherever the

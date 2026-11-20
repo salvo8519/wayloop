@@ -42,7 +42,7 @@ pub use wayloop_schemas::{
 /// Version of the engine, taken from the workspace manifest.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-wayloop_schemas::contract_enum! {
+wayloop_schemas::closed_enum! {
     /// Steps of the issue cycle, in order. The full state machine, with its transitions,
     /// guards and approval states, is specified in milestone M1. The identifier of a step is
     /// its spelling in the contract: in the ledger, in hand-overs and in the JSON output of

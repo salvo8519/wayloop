@@ -1,16 +1,46 @@
 //! Closed enums and static identifiers of the contracts, each written once.
 //!
-//! A closed enum of the contract (a reason, a format, an exit code, a step) has one spelling per
-//! value, written once in [`contract_enum!`]: its identifier `id()`, its serialised form and the
-//! value of its JSON Schema all read it, so they cannot differ. The doc comments of the enum
-//! and of each value are the descriptions of its schema. A static identifier (a code, a check,
-//! the reason of a default) is a newtype of a `&'static str`, written once in [`static_id!`].
+//! A closed enum has one spelling per value, written once in [`closed_enum!`]: `id()`,
+//! `from_id()` and `Display` read it, and two values with the same spelling do not compile. A
+//! closed enum of a contract (a reason, a format) is written with [`contract_enum!`]: its
+//! serialised form and the values of its JSON Schema read the same spelling, and the doc
+//! comments of the enum and of each value are the descriptions of its schema. A static
+//! identifier (a code, a check, the reason of a default) is written once in [`static_id!`]:
+//! constants of the engine borrow their text, values read from a document own it.
 //!
-//! Both macros write `Serialize` and `JsonSchema` by hand, through paths of this crate, so a
-//! crate that uses them needs neither `serde` nor `schemars` among its own dependencies.
+//! The macros write `Serialize`, `Deserialize` and `JsonSchema` by hand, through paths of this
+//! crate, so a crate that uses them needs neither `serde` nor `schemars` among its own
+//! dependencies.
 
 use schemars::Schema;
 use serde_json::{Map, Value};
+
+/// Whether no spelling of `ids` appears twice; [`closed_enum!`] checks it at compile time.
+#[doc(hidden)]
+#[must_use]
+pub const fn distinct(ids: &[&str]) -> bool {
+    match ids {
+        [] => true,
+        [first, rest @ ..] => !contains(rest, first) && distinct(rest),
+    }
+}
+
+/// Whether `ids` holds `id`, in a constant context.
+const fn contains(ids: &[&str], id: &str) -> bool {
+    match ids {
+        [] => false,
+        [first, rest @ ..] => same(first.as_bytes(), id.as_bytes()) || contains(rest, id),
+    }
+}
+
+/// Whether `a` and `b` are the same bytes, in a constant context.
+const fn same(a: &[u8], b: &[u8]) -> bool {
+    match (a, b) {
+        ([], []) => true,
+        ([x, a @ ..], [y, b @ ..]) => *x == *y && same(a, b),
+        _ => false,
+    }
+}
 
 #[doc(hidden)]
 pub mod __private {
@@ -40,7 +70,8 @@ pub fn enum_schema(description: &str, values: &[(&str, &str)]) -> Schema {
     Schema::from(schema)
 }
 
-/// The schema of a static identifier: a described string. Called by [`static_id!`] only.
+/// The schema of a string with its `description`, the base of every string schema written by
+/// hand.
 #[doc(hidden)]
 #[must_use]
 pub fn string_schema(description: &str) -> Schema {
@@ -50,10 +81,10 @@ pub fn string_schema(description: &str) -> Schema {
     Schema::from(schema)
 }
 
-/// A closed enum of the contract, from its doc comments and one spelling per value.
+/// A closed enum, from its doc comments and one spelling per value.
 ///
 /// ```
-/// wayloop_schemas::contract_enum! {
+/// wayloop_schemas::closed_enum! {
 ///     /// Colour of a light.
 ///     pub enum Light {
 ///         /// Stop.
@@ -68,13 +99,26 @@ pub fn string_schema(description: &str) -> Schema {
 /// assert_eq!(Light::Red.to_string(), "red");
 /// ```
 ///
+/// Two values with the same spelling do not compile:
+///
+/// ```compile_fail
+/// wayloop_schemas::closed_enum! {
+///     /// Colour of a light.
+///     pub enum Light {
+///         /// Stop.
+///         Red = "red",
+///         /// Also stop.
+///         Crimson = "red",
+///     }
+/// }
+/// ```
+///
 /// The enum derives `Debug`, `Clone`, `Copy`, `PartialEq`, `Eq`, `Hash`, `PartialOrd` and `Ord`,
 /// with the values in the order written. It gets `ALL`, every value in that order; `id()`, its
-/// spelling; `from_id()`, the value of a spelling; `Display`, which writes `id()`; `Serialize`,
-/// which writes `id()` as a string; and `JsonSchema`, whose descriptions are the doc comments.
-/// Only doc comments are accepted on the enum and on its values.
+/// spelling; `from_id()`, the value of a spelling; and `Display`, which writes `id()`. Only doc
+/// comments are accepted on the enum and on its values.
 #[macro_export]
-macro_rules! contract_enum {
+macro_rules! closed_enum {
     (
         $(#[doc = $doc:literal])*
         $vis:vis enum $name:ident {
@@ -93,13 +137,17 @@ macro_rules! contract_enum {
             )+
         }
 
+        const _: () = assert!(
+            $crate::ident::distinct(&[$($id),+]),
+            "two values of the enum have the same spelling"
+        );
+
         impl $name {
             /// Every value, in the order of declaration.
             pub const ALL: [Self; { let ids: &[&str] = &[$($id),+]; ids.len() }] =
                 [$(Self::$variant),+];
 
-            /// The spelling of the value in the contract: its serialised form and its value in
-            /// the JSON Schema.
+            /// The spelling of the value.
             #[must_use]
             pub const fn id(self) -> &'static str {
                 match self {
@@ -119,6 +167,50 @@ macro_rules! contract_enum {
                 f.write_str(self.id())
             }
         }
+    };
+}
+
+/// A closed enum of a contract: a [`closed_enum!`] whose spelling is also its serialised form
+/// and the values of its JSON Schema.
+///
+/// ```
+/// wayloop_schemas::contract_enum! {
+///     /// Colour of a light.
+///     pub enum Light {
+///         /// Stop.
+///         Red = "red",
+///         /// Go.
+///         Green = "green",
+///     }
+/// }
+/// assert_eq!(serde_json::to_string(&Light::Green).unwrap(), r#""green""#);
+/// assert_eq!(serde_json::from_str::<Light>(r#""red""#).unwrap(), Light::Red);
+/// assert!(serde_json::from_str::<Light>(r#""blue""#).is_err());
+/// ```
+///
+/// On top of [`closed_enum!`] the enum gets `Serialize`, which writes `id()` as a string;
+/// `Deserialize`, which reads a spelling and refuses any other text; and `JsonSchema`, whose
+/// descriptions are the doc comments.
+#[macro_export]
+macro_rules! contract_enum {
+    (
+        $(#[doc = $doc:literal])*
+        $vis:vis enum $name:ident {
+            $(
+                $(#[doc = $value_doc:literal])*
+                $variant:ident = $id:literal
+            ),+ $(,)?
+        }
+    ) => {
+        $crate::closed_enum! {
+            $(#[doc = $doc])*
+            $vis enum $name {
+                $(
+                    $(#[doc = $value_doc])*
+                    $variant = $id,
+                )+
+            }
+        }
 
         impl $crate::ident::__private::serde::Serialize for $name {
             fn serialize<S: $crate::ident::__private::serde::Serializer>(
@@ -126,6 +218,21 @@ macro_rules! contract_enum {
                 serializer: S,
             ) -> ::core::result::Result<S::Ok, S::Error> {
                 serializer.serialize_str(self.id())
+            }
+        }
+
+        impl<'de> $crate::ident::__private::serde::Deserialize<'de> for $name {
+            fn deserialize<D: $crate::ident::__private::serde::Deserializer<'de>>(
+                deserializer: D,
+            ) -> ::core::result::Result<Self, D::Error> {
+                const IDS: &[&str] = &[$($id),+];
+                let id = <::std::string::String as $crate::ident::__private::serde::Deserialize>
+                    ::deserialize(deserializer)?;
+                Self::from_id(&id).ok_or_else(|| {
+                    <D::Error as $crate::ident::__private::serde::de::Error>::unknown_variant(
+                        &id, IDS,
+                    )
+                })
             }
         }
 
@@ -146,8 +253,8 @@ macro_rules! contract_enum {
     };
 }
 
-/// A static identifier of the contract: a newtype of a `snake_case` `&'static str`, written by
-/// constants of the engine.
+/// A static identifier of a contract: a newtype of a text that the constants of the engine
+/// borrow and a value read from a document owns.
 ///
 /// ```
 /// wayloop_schemas::static_id! {
@@ -157,11 +264,14 @@ macro_rules! contract_enum {
 /// const SCHEMA: Probe = Probe::new("schema");
 /// assert_eq!(SCHEMA.id(), "schema");
 /// assert_eq!(SCHEMA.to_string(), "schema");
+/// let read: Probe = serde_json::from_str(r#""links""#).unwrap();
+/// assert_eq!(read.id(), "links");
 /// ```
 ///
-/// The type derives `Debug`, `Clone`, `Copy`, `PartialEq`, `Eq`, `PartialOrd`, `Ord` and `Hash`,
-/// and gets `new()`, `id()`, `Display`, `Serialize` as its string, and `JsonSchema`, a string
-/// whose description is the doc comment.
+/// The type derives `Debug`, `Clone`, `PartialEq`, `Eq`, `PartialOrd`, `Ord` and `Hash`, and
+/// gets `new()`, a constant constructor; `id()`; `Display`; `Serialize` and `Deserialize` as
+/// its string; and `JsonSchema`, a string whose description is the doc comment. The macro
+/// checks no spelling: the type documents the convention its values follow.
 #[macro_export]
 macro_rules! static_id {
     (
@@ -169,26 +279,26 @@ macro_rules! static_id {
         $vis:vis struct $name:ident;
     ) => {
         $(#[doc = $doc])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        $vis struct $name(&'static str);
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        $vis struct $name(::std::borrow::Cow<'static, str>);
 
         impl $name {
-            /// The identifier `id`, in `snake_case`.
+            /// The identifier `id`, borrowed: usable in a constant.
             #[must_use]
             pub const fn new(id: &'static str) -> Self {
-                Self(id)
+                Self(::std::borrow::Cow::Borrowed(id))
             }
 
             /// The identifier as written in the contract.
             #[must_use]
-            pub const fn id(self) -> &'static str {
-                self.0
+            pub fn id(&self) -> &str {
+                &self.0
             }
         }
 
         impl ::core::fmt::Display for $name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                f.write_str(self.0)
+                f.write_str(&self.0)
             }
         }
 
@@ -197,7 +307,17 @@ macro_rules! static_id {
                 &self,
                 serializer: S,
             ) -> ::core::result::Result<S::Ok, S::Error> {
-                serializer.serialize_str(self.0)
+                serializer.serialize_str(&self.0)
+            }
+        }
+
+        impl<'de> $crate::ident::__private::serde::Deserialize<'de> for $name {
+            fn deserialize<D: $crate::ident::__private::serde::Deserializer<'de>>(
+                deserializer: D,
+            ) -> ::core::result::Result<Self, D::Error> {
+                <::std::string::String as $crate::ident::__private::serde::Deserialize>
+                    ::deserialize(deserializer)
+                    .map(|id| Self(::std::borrow::Cow::Owned(id)))
             }
         }
 

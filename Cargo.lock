@@ -865,6 +865,7 @@ dependencies = [
  "jsonschema",
  "proptest",
  "regex",
+ "schemars",
  "serde_json",
  "sha2",
  "wayloop-schemas",

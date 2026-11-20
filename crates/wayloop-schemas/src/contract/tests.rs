@@ -3,7 +3,7 @@
 // The test types exist for their schema only; they are never built.
 #![allow(dead_code)]
 
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde_json::{Value, json};
@@ -169,11 +169,14 @@ fn a_flattened_struct_merges_its_members_into_one_object() {
 }
 
 #[test]
-fn the_source_requires_a_line_beside_a_file() {
+fn the_source_requires_file_and_line_together() {
     let schema = schema_for::<crate::Source>(Direction::Output).unwrap();
     assert_eq!(
         schema["allOf"],
-        json!([{"if": {"required": ["file"]}, "then": {"required": ["line"]}}])
+        json!([
+            {"if": {"required": ["file"]}, "then": {"required": ["line"]}},
+            {"if": {"required": ["line"]}, "then": {"required": ["file"]}}
+        ])
     );
     assert!(schema.get("required").is_none());
 }
@@ -236,44 +239,6 @@ enum Unexplained {
 struct HoldsUndocumented {
     /// A member.
     a: Undocumented,
-}
-
-/// Described.
-#[derive(JsonSchema)]
-struct RequiredNull {
-    /// A member that serialises as null when not given.
-    a: Option<u32>,
-}
-
-/// Described.
-#[derive(JsonSchema)]
-struct WithPattern {
-    /// A member.
-    #[schemars(regex(pattern = "^a$"))]
-    a: String,
-}
-
-/// Described.
-#[derive(JsonSchema)]
-struct WithDefault {
-    /// A member.
-    #[schemars(extend("default" = 1))]
-    a: u32,
-}
-
-/// Described.
-#[derive(JsonSchema)]
-struct WithSet {
-    /// A member.
-    a: BTreeSet<String>,
-}
-
-/// Described.
-#[derive(JsonSchema)]
-struct WithUnknownFormat {
-    /// A member.
-    #[schemars(extend("format" = "email"))]
-    a: String,
 }
 
 /// Described.
@@ -412,52 +377,12 @@ fn an_enum_value_without_its_meaning_is_refused() {
 }
 
 #[test]
-fn a_null_type_is_refused() {
-    // In an output, an `Option` without skip_serializing_if is required and written as null.
-    assert_eq!(
-        refused::<RequiredNull>(Direction::Output),
-        ContractError {
-            pointer: at("/properties/a/type"),
-            problem: Problem::Null
-        }
-    );
-}
-
-#[test]
-fn pattern_default_and_unique_items_are_refused() {
-    for (error, keyword) in [
-        (refused::<WithPattern>(Direction::Input), "pattern"),
-        (refused::<WithDefault>(Direction::Output), "default"),
-        (refused::<WithSet>(Direction::Output), "uniqueItems"),
-    ] {
-        assert_eq!(
-            error,
-            ContractError {
-                pointer: at(&format!("/properties/a/{keyword}")),
-                problem: Problem::Refused(keyword)
-            }
-        );
-    }
-}
-
-#[test]
-fn a_format_that_is_not_named_is_refused() {
-    assert_eq!(
-        refused::<WithUnknownFormat>(Direction::Output),
-        ContractError {
-            pointer: at("/properties/a/format"),
-            problem: Problem::UnknownFormat("email".into())
-        }
-    );
-}
-
-#[test]
 fn an_output_closed_by_the_derive_is_refused() {
     assert_eq!(
         refused::<Closed>(Direction::Output),
         ContractError {
             pointer: at("/additionalProperties"),
-            problem: Problem::Refused("additionalProperties")
+            problem: Problem::ClosedOutput
         }
     );
     assert!(schema_for::<Closed>(Direction::Input).is_ok());
@@ -500,33 +425,6 @@ fn a_named_format_and_a_conditional_requirement_stay_in_the_subset() {
 }
 
 #[test]
-fn a_boolean_schema_is_refused() {
-    /// Described.
-    struct Never;
-    impl JsonSchema for Never {
-        fn schema_name() -> std::borrow::Cow<'static, str> {
-            "Never".into()
-        }
-        fn json_schema(_: &mut SchemaGenerator) -> Schema {
-            false.into()
-        }
-    }
-    /// Described.
-    #[derive(JsonSchema)]
-    struct HoldsNever {
-        /// A list of nothing.
-        a: Vec<Never>,
-    }
-    assert_eq!(
-        refused::<HoldsNever>(Direction::Output),
-        ContractError {
-            pointer: at("/$defs/Never"),
-            problem: Problem::Boolean
-        }
-    );
-}
-
-#[test]
 fn each_problem_is_told_in_words_with_its_place() {
     let cases = [
         (
@@ -540,24 +438,9 @@ fn each_problem_is_told_in_words_with_its_place() {
             "at /enum/0: the description gives no meaning for the value x",
         ),
         (
-            at("/type"),
-            Problem::Null,
-            "at /type: a `null` type; absent means not given",
-        ),
-        (
-            at("/pattern"),
-            Problem::Refused("pattern"),
-            "at /pattern: the keyword `pattern` is not used in contracts",
-        ),
-        (
-            at("/items"),
-            Problem::Boolean,
-            "at /items: a boolean schema",
-        ),
-        (
-            at("/format"),
-            Problem::UnknownFormat("email".into()),
-            "at /format: `email` is not a named format",
+            at("/additionalProperties"),
+            Problem::ClosedOutput,
+            "at /additionalProperties: `additionalProperties` in an output, which is open",
         ),
         (
             at("/$defs/A"),
@@ -627,29 +510,115 @@ fn only_the_integer_formats_of_integers_are_removed() {
     }
 }
 
-/// The verdict of the checks of the generator on `schema`, in the output direction.
-fn checked(schema: &Value) -> Result<(), ContractError> {
-    super::check::check(schema, Direction::Output)
+/// Described.
+#[derive(JsonSchema)]
+struct BlankDescription {
+    #[schemars(description = " \n  ")]
+    a: u32,
+}
+
+/// Described.
+#[derive(JsonSchema)]
+struct WithMap {
+    /// A map of numbers.
+    a: BTreeMap<String, u32>,
 }
 
 #[test]
-fn a_null_type_alone_or_in_a_list_is_refused_and_other_lists_are_left_to_the_core() {
-    for kind in [json!("null"), json!(["string", "null"])] {
-        assert_eq!(
-            checked(&json!({"description": "d", "type": kind})),
-            Err(ContractError {
-                pointer: at("/type"),
-                problem: Problem::Null
-            })
+fn a_description_of_blanks_only_is_none() {
+    assert_eq!(
+        refused::<BlankDescription>(Direction::Output),
+        ContractError {
+            pointer: at("/properties/a"),
+            problem: Problem::MissingDescription
+        }
+    );
+}
+
+#[test]
+fn a_map_is_refused_in_an_output_and_kept_for_the_loader_in_an_input() {
+    assert_eq!(
+        refused::<WithMap>(Direction::Output),
+        ContractError {
+            pointer: at("/properties/a/additionalProperties"),
+            problem: Problem::ClosedOutput
+        }
+    );
+    // In an input the schema of the values stays, never overwritten by `false`: the loader of
+    // the core refuses it by its place.
+    let schema = schema_for::<WithMap>(Direction::Input).unwrap();
+    assert_eq!(
+        schema["properties"]["a"]["additionalProperties"],
+        json!({"type": "integer", "minimum": 0})
+    );
+    assert_eq!(schema["additionalProperties"], json!(false));
+}
+
+#[test]
+fn a_conditional_requirement_never_drops_an_all_of_that_is_not_a_list() {
+    let mut schema = Schema::from(serde_json::Map::new());
+    schema.insert("allOf".to_owned(), json!({"broken": true}));
+    require_if_present(&mut schema, "a", &["b"]);
+    assert_eq!(
+        schema.get("allOf"),
+        Some(&json!([
+            {"broken": true},
+            {"if": {"required": ["a"]}, "then": {"required": ["b"]}}
+        ]))
+    );
+}
+
+#[test]
+fn every_contract_type_is_registered_under_the_title_of_its_schema() {
+    for registered in TYPES {
+        let schema = (registered.schema)(Direction::Output).unwrap();
+        assert_eq!(schema["title"], registered.name);
+    }
+}
+
+#[test]
+fn reread_gives_back_a_document_of_the_type_and_refuses_another() {
+    let document = json!({"check": "links", "reason": "input_absent", "later": 1});
+    assert_eq!(
+        super::reread::<crate::NotDone>(&document).unwrap(),
+        json!({"check": "links", "reason": "input_absent"})
+    );
+    assert!(super::reread::<crate::NotDone>(&json!({"check": "links"})).is_err());
+}
+
+/// A schema whose root reaches, through `length` definitions that are lists, a definition
+/// holding five levels of objects.
+fn chain(length: usize) -> Value {
+    let object =
+        |inner: Value| json!({"description": "d", "type": "object", "properties": {"a": inner}});
+    let deep = object(object(object(object(object(json!({"description": "d"}))))));
+    let mut defs = serde_json::Map::new();
+    for i in 0..length {
+        let next = if i + 1 == length {
+            "#/$defs/Deep".to_owned()
+        } else {
+            format!("#/$defs/D{}", i + 1)
+        };
+        defs.insert(
+            format!("D{i}"),
+            json!({"description": "d", "type": "array", "items": {"$ref": next}}),
         );
     }
-    // A list of types without null is outside the subset; the loader of the core refuses it.
-    assert_eq!(
-        checked(&json!({"description": "d", "type": ["string", "integer"]})),
-        Ok(())
-    );
-    assert_eq!(
-        checked(&json!({"description": "d", "type": "string"})),
-        Ok(())
-    );
+    defs.insert("Deep".to_owned(), deep);
+    json!({"description": "d", "$ref": "#/$defs/D0", "$defs": defs})
+}
+
+#[test]
+fn the_walk_of_references_stops_after_its_bound_and_leaves_the_rest_to_the_loader() {
+    let problem = |length| super::check::check(&chain(length), Direction::Output);
+    let deep = ContractError {
+        pointer: at("/$defs/Deep/properties/a/properties/a/properties/a/properties/a"),
+        problem: Problem::TooDeep,
+    };
+    assert_eq!(problem(1), Err(deep.clone()));
+    // 63 lists then Deep: reached within 64 references.
+    assert_eq!(problem(63), Err(deep));
+    // 64 lists then Deep: the walk stops at its bound. Such a schema is deeper than the 32
+    // levels the loader of the core accepts, and is refused there.
+    assert_eq!(problem(64), Ok(()));
 }

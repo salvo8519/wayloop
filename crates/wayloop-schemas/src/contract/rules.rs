@@ -10,6 +10,7 @@ use schemars::Schema;
 use serde_json::{Map, Value, json};
 
 use crate::Format;
+use crate::ident::string_schema;
 
 /// Requires the members `then` whenever the member `when` is present.
 pub fn require_if_present(schema: &mut Schema, when: &str, then: &[&str]) {
@@ -29,14 +30,14 @@ pub fn require_if_equals(schema: &mut Schema, when: &str, value: impl Into<Value
 /// The schema of a string in the named `format`, with its `description`.
 #[must_use]
 pub fn formatted(format: Format, description: &str) -> Schema {
-    let mut schema = Map::new();
-    schema.insert("description".to_owned(), description.into());
-    schema.insert("type".to_owned(), "string".into());
+    let mut schema = string_schema(description);
     schema.insert("format".to_owned(), format.id().into());
-    Schema::from(schema)
+    schema
 }
 
 /// Appends the pair of `condition` and the requirement of `then` to the `allOf` of `schema`.
+/// An `allOf` that is not a list is kept as the first entry of the new list, so that the
+/// loader of the core refuses it by its place instead of losing a rule.
 fn push(schema: &mut Schema, condition: Value, then: &[&str]) {
     let mut pair = Map::new();
     pair.insert("if".to_owned(), condition);
@@ -46,7 +47,8 @@ fn push(schema: &mut Schema, condition: Value, then: &[&str]) {
         .ensure_object()
         .entry("allOf")
         .or_insert_with(|| Value::Array(Vec::new()));
-    if let Value::Array(entries) = entries {
-        entries.push(pair);
+    match entries {
+        Value::Array(entries) => entries.push(pair),
+        other => *other = Value::Array(vec![other.take(), pair]),
     }
 }

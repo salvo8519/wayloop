@@ -62,6 +62,9 @@ SERDE = frozenset(
 # without its preserve_order feature. The set lists every crate `cargo tree` reaches from it
 # beyond SERDE: its derive and the serde attribute parser it reads, and the two helpers of its
 # schema type (dyn-clone, ref-cast with its macro).
+# Reviewed on 2026-11-20 in #301: ref-cast has a build script that runs `rustc --version` and
+# writes into OUT_DIR, nothing runs at run time; dyn-clone and ref-cast contain confined
+# unsafe (the clone of a trait object, a cast between repr(transparent) types), accepted.
 SCHEMARS = frozenset(
     {
         "schemars",

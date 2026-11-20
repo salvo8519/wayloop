@@ -189,9 +189,9 @@ lower-case hexadecimal, so the same input gives the same hash on every channel a
 ### The schema interpreter
 
 The schemas of the contracts are JSON Schema (draft 2020-12), derived from the contract types
-(see the next section). The core reads them with a small interpreter of a documented subset, `wayloop_core::schema`, so that every
-error of a document is reported in one pass with its pointer and its reason, and the core
-needs no validator crate (plan of SPEC-0001, D5). A schema that uses a keyword outside the
+(see the next section). The core reads them with a small interpreter of a documented subset,
+`wayloop_core::schema`, so that every error of a document is reported in one pass with its
+pointer and its reason, and the core needs no validator crate (plan of SPEC-0001, D5). A schema that uses a keyword outside the
 subset, or a keyword out of its place, is refused when it is loaded: no rule of a schema is
 silently ignored.
 
@@ -259,11 +259,17 @@ comments become the descriptions
 ([ADR 0030](../project/adr/0030-contracts-generated-from-rust-types.md)).
 `wayloop_schemas::contract::schema_for` returns the schema of a type for one direction, input
 or output, and writes no file; `contract::TYPES` lists every contract type whose schema is
-derived. A closed enum of the contract (`Reason`, `NotDoneReason`, `ExitCode`, `Format`,
-`IssueStep`) is written with the macro `contract_enum!` of `wayloop_schemas::ident`, one
-spelling per value read by `id()`, by its serialised form and by its schema; a static
-identifier (`Code`, `Check`, `DefaultReason`) with `static_id!`. What the derive does not write
-is written once, in the module `contract`:
+derived. Every contract type also reads back what it writes: a document its schema accepts
+deserialises into the type, which writes the same JSON again (`contract::reread`). A closed
+enum is written with the macro `closed_enum!` of `wayloop_schemas::ident`, one spelling per
+value read by `id()`, `from_id()` and `Display`; two values with the same spelling do not
+compile. A closed enum of a contract (`Reason`, `NotDoneReason`, `Format`) is written with
+`contract_enum!`, so that its serialised form and the values of its schema read the same
+spelling; `IssueStep`, in no contract yet, uses `closed_enum!`, and `ExitCode`, a number by
+contract (ADR 0009 C7), has no spelling. A static identifier (`Code`, `Check`,
+`DefaultReason`) is written with `static_id!`: constants of the engine borrow their text, a
+value read from a document owns it. What the derive does not write is written once, in the
+module `contract`:
 
 | Need | How it is written |
 | --- | --- |
@@ -273,16 +279,24 @@ is written once, in the module `contract`:
 | An enum value with its meaning | A `oneOf` of documented constants becomes an `enum`, and each value is appended to the description as a line ``- `value`: meaning`` |
 | Any JSON value | The boolean schema `true` becomes an object schema with a description |
 | Integer formats | A `format` such as `uint32` is removed; the type and the bounds remain |
-| Closed inputs, open outputs | In an input every object gets `additionalProperties: false`; an output has none |
+| Closed inputs, open outputs | In an input every object without `additionalProperties` gets `additionalProperties: false`; an output has none |
 
 The lines of a doc comment are joined into paragraphs, since they wrap at the width of the
-code. The generator then refuses a schema without a description on its root, a definition or
-a member; an enum value whose meaning the description does not give; a `null` type; the
-keywords `pattern`, `default` and `uniqueItems`; a `format` that is not named; an
-`additionalProperties` in an output; and objects nested deeper than four levels (ADR 0009 C4).
+code. The generator then checks the rules of the contracts that are not rules of the subset:
+a description on the root, every definition and every member (one of blanks only is none),
+the meaning of every enum value in its description, no `additionalProperties` in an output,
+and at most four levels of objects (ADR 0009 C4). The subset itself has one definition, the
+loader of the interpreter (ADR 0030 G3): `wayloop_core::schema::contract_schema` runs the
+checks of the generator and then `Schema::load` on a registered type, and fails with
+`ContractFault::Rule` or `ContractFault::Subset`. A `null` type, the keywords `pattern`,
+`default` and `uniqueItems`, a format that is not named, a boolean schema or a map in an input
+are refused there, at their place.
+
 A type whose serialised form the derive cannot describe in the subset has a private form type
-for its schema: `Source`, whose forms are one object with optional members and `line`
-required beside `file`, and `ErrorReport`, the members of its first error merged with
-`errors`. The tests of the core load the schema of every type of `contract::TYPES` in both
-directions, check it against the meta-schema of draft 2020-12 with the oracle, and check that
-the serialised values of the types are accepted.
+for its schema and for reading: `Source`, whose forms are one object with optional members
+and `file` and `line` given together, which the type reads as exactly one form, and
+`ErrorReport`, the members of its first error merged with `errors`, read only when `errors`
+starts with those members. The tests of the core run `contract_schema` on every type of
+`contract::TYPES` in both directions, check each schema against the meta-schema of draft
+2020-12 with the oracle, and check that the serialised values of the types are accepted and
+read back into the same JSON.

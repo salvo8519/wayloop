@@ -91,7 +91,7 @@ pub(super) struct Checker<'s> {
 
 impl Checker<'_> {
     fn error(&self, message: String, pointer: &Pointer, reason: Reason) -> Error {
-        Error::new(self.code, message, pointer.clone(), reason)
+        Error::new(self.code.clone(), message, pointer.clone(), reason)
     }
 
     fn push(&mut self, message: String, pointer: &Pointer, reason: Reason) {

@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: ef9515f76068
+source_hash: 1a5ccaebb96e
 ---
 # Architettura
 
@@ -204,10 +204,10 @@ esadecimale minuscolo, così lo stesso input dà lo stesso hash su ogni canale e
 ### L'interprete degli schemi
 
 Gli schemi dei contratti sono JSON Schema (draft 2020-12), derivati dai tipi dei contratti
-(vedi la sezione seguente). Il core li legge
-con un piccolo interprete di un sottoinsieme documentato, `wayloop_core::schema`, così che ogni
-errore di un documento sia riportato in un solo passaggio con il suo puntatore e il suo
-motivo, e il core non abbia bisogno di un crate di validazione (piano della SPEC-0001, D5). Uno
+(vedi la sezione seguente). Il core li legge con un piccolo interprete di un sottoinsieme
+documentato, `wayloop_core::schema`, così che ogni errore di un documento sia riportato in un
+solo passaggio con il suo puntatore e il suo motivo, e il core non abbia bisogno di un crate
+di validazione (piano della SPEC-0001, D5). Uno
 schema che usa una parola chiave fuori dal sottoinsieme, o una parola chiave fuori dal suo
 posto, è rifiutato quando viene caricato: nessuna regola di uno schema è ignorata in silenzio.
 
@@ -280,11 +280,18 @@ suoi commenti di documentazione diventano le descrizioni
 ([ADR 0030](../project/adr/0030-contracts-generated-from-rust-types.md)).
 `wayloop_schemas::contract::schema_for` restituisce lo schema di un tipo per una direzione,
 input o output, e non scrive alcun file; `contract::TYPES` elenca ogni tipo dei contratti il cui
-schema è derivato. Un enum chiuso del contratto (`Reason`, `NotDoneReason`, `ExitCode`,
-`Format`, `IssueStep`) è scritto con la macro `contract_enum!` di `wayloop_schemas::ident`, con
-una sola grafia per valore, letta da `id()`, dalla sua forma serializzata e dal suo schema; un
-identificativo statico (`Code`, `Check`, `DefaultReason`) con `static_id!`. Ciò che la derive
-non scrive è scritto una sola volta, nel modulo `contract`:
+schema è derivato. Ogni tipo dei contratti rilegge anche ciò che scrive: un documento che il
+suo schema accetta si deserializza nel tipo, che riscrive lo stesso JSON
+(`contract::reread`). Un enum chiuso è scritto con la macro `closed_enum!` di
+`wayloop_schemas::ident`, con una sola grafia per valore, letta da `id()`, `from_id()` e
+`Display`; due valori con la stessa grafia non compilano. Un enum chiuso di un contratto
+(`Reason`, `NotDoneReason`, `Format`) è scritto con `contract_enum!`, così che la sua forma
+serializzata e i valori del suo schema leggano la stessa grafia; `IssueStep`, che non compare
+ancora in alcun contratto, usa `closed_enum!`, ed `ExitCode`, un numero per contratto (ADR
+0009 C7), non ha grafia. Un identificativo statico (`Code`, `Check`, `DefaultReason`) è
+scritto con `static_id!`: le costanti del motore prendono in prestito il loro testo, un
+valore letto da un documento lo possiede. Ciò che la derive non scrive è scritto una sola
+volta, nel modulo `contract`:
 
 | Esigenza | Come è scritta |
 | --- | --- |
@@ -294,17 +301,25 @@ non scrive è scritto una sola volta, nel modulo `contract`:
 | Un valore di enum con il suo significato | Un `oneOf` di costanti documentate diventa un `enum`, e ogni valore è aggiunto alla descrizione come riga ``- `valore`: significato`` |
 | Un qualsiasi valore JSON | Lo schema booleano `true` diventa uno schema oggetto con una descrizione |
 | Formati degli interi | Un `format` come `uint32` è rimosso; il tipo e i limiti restano |
-| Input chiusi, output aperti | In un input ogni oggetto riceve `additionalProperties: false`; un output non ne ha |
+| Input chiusi, output aperti | In un input ogni oggetto senza `additionalProperties` riceve `additionalProperties: false`; un output non ne ha |
 
 Le righe di un commento di documentazione sono unite in paragrafi, perché vanno a capo alla
-larghezza del codice. Il generatore poi rifiuta uno schema senza descrizione sulla radice, su
-una definizione o su un membro; un valore di enum di cui la descrizione non dà il significato;
-un tipo `null`; le parole chiave `pattern`, `default` e `uniqueItems`; un `format` che non è
-un formato con nome; un `additionalProperties` in un output; e oggetti annidati oltre quattro
-livelli (ADR 0009 C4). Un tipo la cui forma serializzata la derive non sa descrivere nel
-sottoinsieme ha un tipo di forma privato per il proprio schema: `Source`, le cui forme sono un
-solo oggetto con membri facoltativi e `line` obbligatorio accanto a `file`, ed `ErrorReport`, i
-membri del suo primo errore uniti a `errors`. I test del core caricano lo schema di ogni tipo
-di `contract::TYPES` in entrambe le direzioni, lo verificano con l'oracolo rispetto al
-meta-schema della draft 2020-12, e verificano che i valori serializzati dei tipi siano
-accettati.
+larghezza del codice. Il generatore poi verifica le regole dei contratti che non sono regole
+del sottoinsieme: una descrizione sulla radice, su ogni definizione e su ogni membro (una fatta
+solo di spazi non conta), il significato di ogni valore di enum nella sua descrizione, nessun
+`additionalProperties` in un output, e al massimo quattro livelli di oggetti (ADR 0009 C4). Il
+sottoinsieme ha una sola definizione, il caricatore dell'interprete (ADR 0030 G3):
+`wayloop_core::schema::contract_schema` esegue i controlli del generatore e poi
+`Schema::load` su un tipo registrato, e fallisce con `ContractFault::Rule` o
+`ContractFault::Subset`. Un tipo `null`, le parole chiave `pattern`, `default` e
+`uniqueItems`, un formato senza nome, uno schema booleano o una mappa in un input sono
+rifiutati lì, al loro posto.
+
+Un tipo la cui forma serializzata la derive non sa descrivere nel sottoinsieme ha un tipo di
+forma privato per il proprio schema e per la lettura: `Source`, le cui forme sono un solo
+oggetto con membri facoltativi e `file` e `line` dati insieme, che il tipo legge come
+esattamente una forma, ed `ErrorReport`, i membri del suo primo errore uniti a `errors`, letto
+solo quando `errors` comincia con quei membri. I test del core eseguono `contract_schema` su
+ogni tipo di `contract::TYPES` in entrambe le direzioni, verificano ogni schema con l'oracolo
+rispetto al meta-schema della draft 2020-12, e verificano che i valori serializzati dei tipi
+siano accettati e riletti nello stesso JSON.

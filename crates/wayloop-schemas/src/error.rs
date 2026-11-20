@@ -9,12 +9,13 @@
 //! serialised form, and an empty list is written `[]`: absent means not given, `[]` means none
 //! (C2). The codes themselves are constants of the core (C8).
 
-use alloc::borrow::Cow;
 use core::fmt;
 use core::num::NonZeroU64;
+use std::borrow::Cow;
 
 use schemars::{JsonSchema, Schema, SchemaGenerator};
-use serde::{Serialize, Serializer};
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use crate::contract::rules;
@@ -67,6 +68,15 @@ crate::static_id! {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, JsonSchema)]
 #[serde(transparent)]
 pub struct Pointer(String);
+
+/// Reads the text of a pointer and refuses one out of the form of RFC 6901.
+impl<'de> Deserialize<'de> for Pointer {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        Pointer::parse(&text)
+            .ok_or_else(|| D::Error::custom(format!("not an RFC 6901 pointer: {text:?}")))
+    }
+}
 
 impl Pointer {
     /// The pointer to the whole input, `""`.
@@ -130,12 +140,13 @@ impl fmt::Display for Pointer {
 /// Where the faulty value is stored (SPEC-0001 Errors, R12): the field `source` of an error.
 ///
 /// It serialises as the object of its form, with no tag, because the field names tell the
-/// forms apart and the field is output only. A `Deserialize`, if one is ever added, must put
-/// `#[serde(deny_unknown_fields)]` on each form, or an untagged enum would accept an object
-/// with extra fields as the first form that matches.
+/// forms apart. It is read through the members of all the forms, and an object that is not
+/// exactly one form is refused: an untagged enum would accept an object with the members of
+/// two forms as the first that matches. Other members are ignored, as in every output (C5).
 ///
-/// Its schema is one object whose members are each optional, with `line` required beside
-/// `file`: the subset of the core has no `oneOf` (ADR 0030 G2).
+/// Its schema is one object whose members are each optional, with `line` and `file` given
+/// together: the subset of the core has no `oneOf` (ADR 0030 G2), so the schema cannot require
+/// exactly one form; the type refuses an object that is not exactly one.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum Source {
@@ -161,14 +172,13 @@ pub enum Source {
 
 /// Where the faulty value is stored: `file`, with `line`, for a repository file; `issue` for a
 /// tracker issue; `milestone` for a tracker milestone. Absent for a document sent directly.
-// The schema of `Source`, never built: the subset of the core has no `oneOf`, so the forms are
-// one object whose members are each optional, with `line` required beside `file`.
-#[derive(JsonSchema)]
-#[schemars(rename = "Source", transform = file_requires_line)]
-#[expect(
-    dead_code,
-    reason = "a schema only: Source is the type that is serialised"
-)]
+/// Exactly one form is given, never an empty object; the schema checks only that `file` and
+/// `line` come together.
+// The schema of `Source` and the form it is read from: the subset of the core has no `oneOf`,
+// so the forms are one object whose members are each optional, with `file` and `line`
+// required together.
+#[derive(Deserialize, JsonSchema)]
+#[schemars(rename = "Source", transform = file_and_line_together)]
 struct SourceForm {
     /// Path of the file relative to the root of the repository, with `/` separators.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -184,9 +194,24 @@ struct SourceForm {
     milestone: Option<NonZeroU64>,
 }
 
-/// `line` is given with every `file`.
-fn file_requires_line(schema: &mut Schema) {
+/// `file` and `line` are given together.
+fn file_and_line_together(schema: &mut Schema) {
     rules::require_if_present(schema, "file", &["line"]);
+    rules::require_if_present(schema, "line", &["file"]);
+}
+
+impl<'de> Deserialize<'de> for Source {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let form = SourceForm::deserialize(deserializer)?;
+        match (form.file, form.line, form.issue, form.milestone) {
+            (Some(file), Some(line), None, None) => Ok(Source::File { file, line }),
+            (None, None, Some(issue), None) => Ok(Source::Issue { issue }),
+            (None, None, None, Some(milestone)) => Ok(Source::Milestone { milestone }),
+            _ => Err(D::Error::custom(
+                "a source is exactly one of {file, line}, {issue} and {milestone}",
+            )),
+        }
+    }
 }
 
 impl JsonSchema for Source {
@@ -203,7 +228,7 @@ impl JsonSchema for Source {
 ///
 /// `pointers`, `expected`, `fix` and `source` are optional and left out of the serialised form
 /// when not given; a list given empty is written `[]` (C2).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Error {
     /// Stable `snake_case` code of the error; codes are never renamed or reused (ADR 0009 C8).
     code: Code,
@@ -273,7 +298,8 @@ impl Error {
     /// value.
     #[must_use]
     pub fn with_fix(mut self, fix: impl Into<Value>) -> Self {
-        self.fix = Some(fix.into());
+        // A null fix is no fix: null means not given (ADR 0009 C2).
+        self.fix = Some(fix.into()).filter(|fix| !fix.is_null());
         self
     }
 
@@ -286,8 +312,8 @@ impl Error {
 
     /// Stable error code.
     #[must_use]
-    pub const fn code(&self) -> Code {
-        self.code
+    pub const fn code(&self) -> &Code {
+        &self.code
     }
 
     /// What went wrong, for a person.
@@ -381,13 +407,10 @@ impl ErrorReport {
 
 /// Every error found in one pass (ADR 0009 C3): the members of the first error, and every
 /// error, the first included, in `errors`.
-// The schema of `ErrorReport`, in the shape its serialiser writes; never built.
-#[derive(JsonSchema)]
+// The schema of `ErrorReport`, in the shape its serialiser writes, and the form it is read
+// from.
+#[derive(Deserialize, JsonSchema)]
 #[schemars(rename = "ErrorReport")]
-#[expect(
-    dead_code,
-    reason = "a schema only: ErrorReport is the type that is serialised"
-)]
 struct ErrorReportForm {
     #[serde(flatten)]
     first: Error,
@@ -403,6 +426,25 @@ impl JsonSchema for ErrorReport {
 
     fn json_schema(generator: &mut SchemaGenerator) -> Schema {
         ErrorReportForm::json_schema(generator)
+    }
+}
+
+/// Reads a report and refuses one whose `errors` is empty or does not start with the members
+/// of the report.
+impl<'de> Deserialize<'de> for ErrorReport {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let form = ErrorReportForm::deserialize(deserializer)?;
+        let mut errors = form.errors.into_iter();
+        match errors.next() {
+            Some(first) if first == form.first => Ok(Self {
+                first,
+                rest: errors.collect(),
+            }),
+            Some(_) => Err(D::Error::custom(
+                "the first error of `errors` differs from the members of the report",
+            )),
+            None => Err(D::Error::invalid_length(0, &"at least one error")),
+        }
     }
 }
 
@@ -828,5 +870,74 @@ mod tests {
             "invalid_input: unknown_field at /problema: Unknown field.\n\
              invalid_input: missing at /problem: No problem."
         );
+    }
+
+    #[test]
+    fn a_null_fix_is_no_fix() {
+        // ADR 0009 C2: null means not given.
+        let error = Error::new(INVALID_INPUT, "No.", at("/a"), Reason::Type)
+            .with_fix(serde_json::Value::Null);
+        assert_eq!(error.fix(), None);
+        assert!(serde_json::to_value(&error).unwrap().get("fix").is_none());
+        let error = error.with_fix(0);
+        assert_eq!(error.fix(), Some(&json!(0)));
+    }
+
+    #[test]
+    fn a_pointer_is_read_only_in_the_form_of_rfc_6901() {
+        let read: Pointer = serde_json::from_value(json!("/a~1b")).unwrap();
+        assert_eq!(read, at("/a~1b"));
+        assert!(serde_json::from_value::<Pointer>(json!("a")).is_err());
+        assert!(serde_json::from_value::<Pointer>(json!("/a~2")).is_err());
+    }
+
+    #[test]
+    fn a_source_is_read_as_exactly_one_form() {
+        let read = |value| serde_json::from_value::<Source>(value);
+        assert_eq!(
+            read(json!({"file": "a.md", "line": 2, "later": true})).unwrap(),
+            Source::File {
+                file: "a.md".into(),
+                line: number(2)
+            }
+        );
+        assert_eq!(
+            read(json!({"issue": 252})).unwrap(),
+            Source::Issue { issue: number(252) }
+        );
+        assert_eq!(
+            read(json!({"milestone": 3})).unwrap(),
+            Source::Milestone {
+                milestone: number(3)
+            }
+        );
+        for wrong in [
+            json!({}),
+            json!({"file": "a.md"}),
+            json!({"line": 2}),
+            json!({"issue": 1, "milestone": 2}),
+            json!({"file": "a.md", "line": 2, "issue": 1}),
+            json!({"issue": 0}),
+        ] {
+            assert!(read(wrong.clone()).is_err(), "{wrong}");
+        }
+    }
+
+    #[test]
+    fn a_report_is_read_only_when_errors_starts_with_its_members() {
+        let (first, second) = unknown_then_missing();
+        let report = ErrorReport::from_errors([first, second.clone()]).unwrap();
+        let written = serde_json::to_value(&report).unwrap();
+        assert_eq!(
+            serde_json::from_value::<ErrorReport>(written.clone()).unwrap(),
+            report
+        );
+        let mut empty = written.clone();
+        empty["errors"] = json!([]);
+        assert!(serde_json::from_value::<ErrorReport>(empty).is_err());
+        let mut other = written;
+        other["errors"] = json!([serde_json::to_value(&second).unwrap()]);
+        let refused = serde_json::from_value::<ErrorReport>(other).unwrap_err();
+        assert!(refused.to_string().contains("differs"), "{refused}");
     }
 }

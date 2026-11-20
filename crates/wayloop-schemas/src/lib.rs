@@ -24,8 +24,6 @@
     clippy::disallowed_types
 )]
 
-extern crate alloc;
-
 pub mod contract;
 mod envelope;
 mod error;

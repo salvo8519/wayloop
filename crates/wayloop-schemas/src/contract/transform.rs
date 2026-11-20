@@ -44,7 +44,11 @@ impl Transform for Subset {
             if self.direction == Direction::Input
                 && object.get("type").and_then(Value::as_str) == Some("object")
             {
-                object.insert("additionalProperties".to_owned(), Value::Bool(false));
+                // A map keeps its schema of values, which the loader of the core refuses: an
+                // input is closed, never a map.
+                object
+                    .entry("additionalProperties")
+                    .or_insert(Value::Bool(false));
             }
         }
         transform_subschemas(self, schema);
@@ -53,7 +57,7 @@ impl Transform for Subset {
 
 /// Removes the `null` that the derive adds to an `Option`, from the members of `object` that
 /// are not in its `required`: such a member is left out when not given (ADR 0009 C2). A
-/// required member keeps its `null`, which the checks then refuse.
+/// required member keeps its `null`, which the loader of the core then refuses.
 fn optional_members_without_null(object: &mut Map<String, Value>) {
     let required: BTreeSet<String> = object
         .get("required")
