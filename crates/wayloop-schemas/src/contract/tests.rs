@@ -8,14 +8,13 @@ use std::collections::BTreeMap;
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde_json::{Value, json};
 
-use super::rules::{formatted, require_if_equals, require_if_present};
+use super::rules::{formatted, require_if_absent, require_if_equals, require_if_present};
 use super::transform::{ANY_VALUE, unwrapped};
-use super::{ContractError, Direction, MAX_OBJECT_LEVELS, Problem, TYPES, schema_for};
+use super::{
+    ContractError, Direction, MAX_OBJECT_LEVELS, PUBLISHED_AT, Problem, TYPES, schema_for, snapshot,
+};
+use crate::fixtures::at;
 use crate::{Format, Pointer};
-
-fn at(pointer: &str) -> Pointer {
-    Pointer::parse(pointer).unwrap()
-}
 
 fn refused<T: JsonSchema>(direction: Direction) -> ContractError {
     schema_for::<T>(direction).unwrap_err()
@@ -569,11 +568,79 @@ fn a_conditional_requirement_never_drops_an_all_of_that_is_not_a_list() {
 }
 
 #[test]
-fn every_contract_type_is_registered_under_the_title_of_its_schema() {
-    for registered in TYPES {
-        let schema = (registered.schema)(Direction::Output).unwrap();
-        assert_eq!(schema["title"], registered.name);
-    }
+fn a_requirement_on_an_absent_member_tests_it_against_null() {
+    let mut schema = Schema::from(serde_json::Map::new());
+    require_if_absent(&mut schema, "data", &["error"]);
+    assert_eq!(
+        schema.get("allOf"),
+        Some(&json!([
+            {"if": {"properties": {"data": {"const": null}}}, "then": {"required": ["error"]}}
+        ]))
+    );
+}
+
+#[test]
+fn the_envelope_requires_its_error_when_its_data_is_absent() {
+    let schema = schema_for::<crate::Envelope<Value>>(Direction::Output).unwrap();
+    assert_eq!(schema["title"], "Envelope");
+    assert_eq!(
+        schema["required"],
+        json!(["command", "diagnostics", "meta"])
+    );
+    assert_eq!(
+        schema["allOf"],
+        json!([{"if": {"properties": {"data": {"const": null}}}, "then": {"required": ["error"]}}])
+    );
+    assert_eq!(schema["properties"]["error"]["$ref"], "#/$defs/ErrorReport");
+    // Any data: an object schema with the description of the member.
+    assert_eq!(
+        schema["properties"]["data"],
+        json!({"description": "The result of the command; absent when the command did not succeed."})
+    );
+}
+
+/// The data of a command in the tests.
+#[derive(JsonSchema)]
+struct Counted {
+    /// Number of documents, from 0.
+    documents: u32,
+}
+
+#[test]
+fn the_envelope_of_a_command_differs_from_the_generic_one_only_by_its_data() {
+    let generic = schema_for::<crate::Envelope<Value>>(Direction::Output).unwrap();
+    let mut typed = schema_for::<crate::Envelope<Counted>>(Direction::Output).unwrap();
+    assert_eq!(
+        typed["properties"]["data"],
+        json!({
+            "$ref": "#/$defs/Counted",
+            "description": "The result of the command; absent when the command did not succeed."
+        })
+    );
+    assert_eq!(typed["$defs"]["Counted"]["type"], "object");
+    typed["$defs"].as_object_mut().unwrap().remove("Counted");
+    typed["properties"]["data"] = generic["properties"]["data"].clone();
+    assert_eq!(typed, generic);
+}
+
+#[test]
+fn a_snapshot_is_the_schema_with_its_published_id_in_one_stable_text() {
+    assert_eq!(PUBLISHED_AT, "https://salvo8519.github.io/wayloop/schemas/");
+    let schema = json!({"title": "T", "description": "\u{e8} vero.", "$schema": "s"});
+    let text = snapshot(schema.clone(), "envelope/v1.json").unwrap();
+    assert_eq!(
+        text,
+        concat!(
+            "{\n",
+            "  \"$id\": \"https://salvo8519.github.io/wayloop/schemas/envelope/v1.json\",\n",
+            "  \"$schema\": \"s\",\n",
+            "  \"description\": \"\u{e8} vero.\",\n",
+            "  \"title\": \"T\"\n",
+            "}\n"
+        )
+    );
+    assert_eq!(snapshot(schema, "envelope/v1.json").unwrap(), text);
+    assert_eq!(snapshot(json!(true), "a/v1.json").unwrap(), "true\n");
 }
 
 #[test]

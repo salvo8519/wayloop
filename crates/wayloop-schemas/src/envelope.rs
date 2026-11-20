@@ -2,7 +2,8 @@
 //! 2026-11-20) and the exit codes of C7.
 //!
 //! The types are contract types: they live in this crate, the core fills them and re-exports
-//! them. The envelope is
+//! them. [`Envelope<D>`] is generic over `D`, the data type of one command, and every other
+//! part of it is defined once here or in the error report (ADR 0030 G1). The envelope is
 //! `{command, data | error, diagnostics {warnings, not_done, checks}, meta {engine_version,
 //! envelope_version, command_version, input_hash, dry_run, defaults_applied}}`. A result that
 //! succeeded has `data` and no `error`; a refused or failed one has `error`, the
@@ -15,14 +16,16 @@
 //! input, the command and the engine version only.
 
 use core::num::NonZeroU32;
+use std::borrow::Cow;
 
-use schemars::JsonSchema;
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::de::Error as _;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
-use crate::{Error, ErrorReport, Pointer};
+use crate::contract::rules;
+use crate::{Error, ErrorReport, Pointer, Reason};
 
 /// Version of the shape of the envelope, written in `meta.envelope_version`. It changes only
 /// with a breaking change of the envelope itself (ADR 0009 C5).
@@ -245,16 +248,35 @@ impl NotDone {
     }
 }
 
-/// What the result of a command is: its data, a refusal of the input, or an internal error.
+/// What the result of a command is: its data, of type `D`, a refusal of the input, or an
+/// internal error.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Outcome {
+pub enum Outcome<D> {
     /// The command ran: `data` holds its result. Exit code 0.
-    Success(Value),
-    /// The input was refused: `error` holds every error found in one pass. Exit code 1.
+    Success(D),
+    /// The input was refused: `error` holds every error found in one pass, none of them with
+    /// the reason [`Reason::Internal`]. Exit code 1.
     Refused(ErrorReport),
-    /// The engine could not compute the result: `error` holds the report, whose errors have
-    /// the reason [`Reason::Internal`](crate::Reason::Internal). Exit code 5.
+    /// The engine could not compute the result: `error` holds the report, whose errors all
+    /// have the reason [`Reason::Internal`]. Exit code 5.
     Failed(ErrorReport),
+}
+
+impl<D> Outcome<D> {
+    /// The outcome that `report` tells, read from the reasons of its errors (ADR 0009 C3, as
+    /// amended on 2026-11-20): [`Outcome::Failed`] when every error has the reason `internal`,
+    /// [`Outcome::Refused`] when none has; `None` for a report that mixes them, which the
+    /// contract does not define.
+    fn of_report(report: ErrorReport) -> Option<Self> {
+        let internal = |error: &Error| error.reason() == Reason::Internal;
+        if report.errors().all(internal) {
+            Some(Self::Failed(report))
+        } else if report.errors().any(internal) {
+            None
+        } else {
+            Some(Self::Refused(report))
+        }
+    }
 }
 
 /// The field `diagnostics`: what the engine reports beside the result. All three lists are
@@ -377,21 +399,28 @@ impl Meta {
     }
 }
 
-/// The result of one command, on every channel (ADR 0009 C1, ADR 0028).
+/// The result of one command, on every channel (ADR 0009 C1, ADR 0028), where `D` is the type
+/// of the data of that command.
+///
+/// It serialises as `{command, data | error, diagnostics, meta}`: a success has `data` and no
+/// `error`; a refusal or a failure has `error` and no `data` (SPEC-0004 R18). It is read
+/// through the same members, and a document with both or neither is refused, as is a report
+/// that mixes the reason `internal` with others. Its schema requires `error` when `data` is
+/// absent; the subset of the core has no negation, so only the type refuses both.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Envelope {
+pub struct Envelope<D> {
     command: String,
-    outcome: Outcome,
+    outcome: Outcome<D>,
     diagnostics: Diagnostics,
     meta: Meta,
 }
 
-impl Envelope {
+impl<D> Envelope<D> {
     /// The envelope of `command`, its identifier, with its outcome, diagnostics and meta.
     #[must_use]
     pub fn new(
         command: impl Into<String>,
-        outcome: Outcome,
+        outcome: Outcome<D>,
         diagnostics: Diagnostics,
         meta: Meta,
     ) -> Self {
@@ -411,7 +440,7 @@ impl Envelope {
 
     /// The data, the refusal or the internal error.
     #[must_use]
-    pub const fn outcome(&self) -> &Outcome {
+    pub const fn outcome(&self) -> &Outcome<D> {
         &self.outcome
     }
 
@@ -439,7 +468,7 @@ impl Envelope {
     }
 }
 
-impl Serialize for Envelope {
+impl<D: Serialize> Serialize for Envelope<D> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(Some(4))?;
         map.serialize_entry("command", &self.command)?;
@@ -455,25 +484,95 @@ impl Serialize for Envelope {
     }
 }
 
+/// The result of one command (ADR 0009 C1): its `data` when it succeeded (exit code 0), or the
+/// `error` report when its input was refused (exit code 1) or the engine failed to compute it
+/// (exit code 5); what the engine reports beside the result; and how the result was produced.
+/// A failure is told apart from a refusal by the reason `internal` of its errors. Exactly one
+/// of `data` and `error` is given; the schema checks only that `error` is given when `data` is
+/// absent.
+// The schema of `Envelope<D>`, in the shape its serialiser writes, and the form it is read
+// from. The subset of the core has no negation, so the schema cannot refuse both members; the
+// type does. The name of the schema is `Envelope` whatever `D`: each schema holds one envelope.
+#[derive(Deserialize, JsonSchema)]
+#[schemars(rename = "Envelope", transform = error_without_data)]
+struct EnvelopeForm<D> {
+    /// Identifier of the command.
+    command: String,
+    /// The result of the command; absent when the command did not succeed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<D>,
+    /// Every error found in one pass; absent when the command succeeded.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<ErrorReport>,
+    /// What the engine reports beside the result.
+    diagnostics: Diagnostics,
+    /// How the result was produced.
+    meta: Meta,
+}
+
+/// `error` is required when `data` is absent.
+fn error_without_data(schema: &mut Schema) {
+    rules::require_if_absent(schema, "data", &["error"]);
+}
+
+impl<D: JsonSchema> JsonSchema for Envelope<D> {
+    fn schema_name() -> Cow<'static, str> {
+        EnvelopeForm::<D>::schema_name()
+    }
+
+    fn schema_id() -> Cow<'static, str> {
+        EnvelopeForm::<D>::schema_id()
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        EnvelopeForm::<D>::json_schema(generator)
+    }
+}
+
+/// Reads an envelope and refuses one with both `data` and `error` or neither, or whose report
+/// mixes the reason `internal` with others.
+impl<'de, D: Deserialize<'de>> Deserialize<'de> for Envelope<D> {
+    fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
+        let form = EnvelopeForm::<D>::deserialize(deserializer)?;
+        let outcome = match (form.data, form.error) {
+            (Some(data), None) => Outcome::Success(data),
+            (None, Some(report)) => Outcome::of_report(report).ok_or_else(|| {
+                De::Error::custom(
+                    "the errors of a report all have the reason `internal`, or none has",
+                )
+            })?,
+            _ => {
+                return Err(De::Error::custom(
+                    "an envelope has exactly one of `data` and `error`",
+                ));
+            }
+        };
+        Ok(Self {
+            command: form.command,
+            outcome,
+            diagnostics: form.diagnostics,
+            meta: form.meta,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        Check, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope, ExitCode,
-        InputHash, Meta, NotDone, NotDoneReason, Outcome,
+        Check, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope,
+        EnvelopeForm, ExitCode, InputHash, Meta, NotDone, NotDoneReason, Outcome,
     };
+    use crate::fixtures::{INVALID_INPUT, at, unknown_then_missing};
     use crate::{Code, Error, ErrorReport, Pointer, Reason};
     use core::num::NonZeroU32;
-    use serde_json::json;
+    use schemars::JsonSchema;
+    use serde::{Deserialize, Serialize};
+    use serde_json::{Value, json};
 
-    const INVALID_INPUT: Code = Code::new("invalid_input");
     const INTERNAL_ERROR: Code = Code::new("internal_error");
     const SCHEMA: Check = Check::new("schema");
     const LINKS: Check = Check::new("links");
     const PROJECT_LANGUAGE: DefaultReason = DefaultReason::new("project_language");
-
-    fn at(pointer: &str) -> Pointer {
-        Pointer::parse(pointer).unwrap()
-    }
 
     fn hash() -> InputHash {
         InputHash::from_digest(&[0xab; 32])
@@ -484,22 +583,8 @@ mod tests {
     }
 
     fn refusal() -> ErrorReport {
-        ErrorReport::from_errors([
-            Error::new(
-                INVALID_INPUT,
-                "Unknown field.",
-                at("/problema"),
-                Reason::UnknownField,
-            )
-            .with_fix("problem"),
-            Error::new(
-                INVALID_INPUT,
-                "No problem.",
-                at("/problem"),
-                Reason::Missing,
-            ),
-        ])
-        .unwrap()
+        let (first, second) = unknown_then_missing();
+        ErrorReport::from_errors([first, second]).unwrap()
     }
 
     fn failure() -> ErrorReport {
@@ -512,7 +597,7 @@ mod tests {
         .unwrap()
     }
 
-    fn envelope(outcome: Outcome) -> Envelope {
+    fn envelope(outcome: Outcome<Value>) -> Envelope<Value> {
         Envelope::new("validate", outcome, Diagnostics::default(), meta())
     }
 
@@ -748,5 +833,118 @@ mod tests {
         let reason: NotDoneReason = serde_json::from_value(json!("not_built")).unwrap();
         assert_eq!(reason, NotDoneReason::NotBuilt);
         assert!(serde_json::from_value::<NotDoneReason>(json!("later")).is_err());
+    }
+    /// The data of a command in the tests: a type of its own, not a JSON value.
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+    struct Counted {
+        /// Number of documents, from 0.
+        documents: u32,
+    }
+
+    #[test]
+    fn the_envelope_of_each_data_type_has_its_own_schema_id_and_one_name() {
+        // Two envelopes in one generator stay two definitions, both named `Envelope`.
+        assert_eq!(
+            Envelope::<Counted>::schema_id(),
+            EnvelopeForm::<Counted>::schema_id()
+        );
+        assert_ne!(
+            Envelope::<Counted>::schema_id(),
+            Envelope::<Value>::schema_id()
+        );
+        assert_eq!(Envelope::<Counted>::schema_name(), "Envelope");
+    }
+
+    /// `written` read back as an envelope with data of type `D`.
+    fn read<D: serde::de::DeserializeOwned>(written: Value) -> Result<Envelope<D>, String> {
+        serde_json::from_value(written).map_err(|e| e.to_string())
+    }
+
+    #[test]
+    fn the_data_of_an_envelope_is_the_data_type_of_its_command() {
+        let typed = Envelope::new(
+            "validate",
+            Outcome::Success(Counted { documents: 3 }),
+            Diagnostics::default(),
+            meta(),
+        );
+        assert_eq!(
+            text(&typed),
+            format!(
+                r#"{{"command":"validate","data":{{"documents":3}},{}}}"#,
+                empty_diagnostics_and_meta()
+            )
+        );
+        let written = serde_json::to_value(&typed).unwrap();
+        assert_eq!(read::<Counted>(written.clone()).unwrap(), typed);
+        // The same document read as the envelope of any data.
+        assert_eq!(
+            read::<Value>(written).unwrap().outcome(),
+            &Outcome::Success(json!({"documents": 3}))
+        );
+    }
+
+    #[test]
+    fn a_written_envelope_reads_back_as_itself() {
+        let applied = DefaultApplied::new(at("/language"), "en", PROJECT_LANGUAGE)
+            .unwrap()
+            .with_message("The language of the project applies.");
+        let diagnostics = Diagnostics::new(
+            vec![Error::new(INVALID_INPUT, "Old.", at("/a"), Reason::State)],
+            vec![NotDone::new(LINKS, NotDoneReason::NotBuilt)],
+            vec![SCHEMA],
+        );
+        let meta = Meta::new("0.1.0", NonZeroU32::MIN, hash(), true, vec![applied]);
+        for outcome in [
+            Outcome::Success(json!({"documents": []})),
+            Outcome::Refused(refusal()),
+            Outcome::Failed(failure()),
+        ] {
+            let envelope = Envelope::new("validate", outcome, diagnostics.clone(), meta.clone());
+            let written = serde_json::to_value(&envelope).unwrap();
+            assert_eq!(read::<Value>(written).unwrap(), envelope);
+        }
+    }
+
+    #[test]
+    fn an_envelope_with_both_data_and_error_or_neither_is_refused() {
+        let success = serde_json::to_value(envelope(Outcome::Success(json!({})))).unwrap();
+        let mut both = success.clone();
+        both["error"] = serde_json::to_value(refusal()).unwrap();
+        let mut neither = success.clone();
+        neither.as_object_mut().unwrap().remove("data");
+        // Null means not given (ADR 0009 C2).
+        let mut null = success;
+        null["data"] = Value::Null;
+        for wrong in [both, neither, null] {
+            let refused = read::<Value>(wrong.clone()).unwrap_err();
+            assert!(
+                refused.contains("exactly one of `data` and `error`"),
+                "{wrong}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_report_reads_as_a_failure_when_every_error_is_internal_and_a_refusal_when_none_is() {
+        let failed = serde_json::to_value(envelope(Outcome::Failed(failure()))).unwrap();
+        let read_back = read::<Value>(failed.clone()).unwrap();
+        assert_eq!(read_back.exit_code(), ExitCode::InternalError);
+        let refused = serde_json::to_value(envelope(Outcome::Refused(refusal()))).unwrap();
+        assert_eq!(
+            read::<Value>(refused).unwrap().exit_code(),
+            ExitCode::InputError
+        );
+        // A report that mixes `internal` with another reason: either reading would be a guess.
+        for errors in [
+            [failure().first().clone(), unknown_then_missing().0],
+            [unknown_then_missing().0, failure().first().clone()],
+        ] {
+            let mixed = ErrorReport::from_errors(errors).unwrap();
+            let mut written = failed.clone();
+            written["error"] = serde_json::to_value(mixed).unwrap();
+            let refused = read::<Value>(written).unwrap_err();
+            assert!(refused.contains("reason `internal`"), "{refused}");
+        }
     }
 }

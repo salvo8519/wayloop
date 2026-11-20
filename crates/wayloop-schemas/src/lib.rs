@@ -1,15 +1,15 @@
 //! Wayloop schemas: the Rust types of the contracts (ADR 0009, ADR 0028).
 //!
-//! The JSON schemas under `schemas/` are the only contract of the engine. This crate holds the
-//! types that mirror them, generated from the schemas or checked against them, so that the
-//! core, the runtime and every adapter read and write the same shapes.
+//! The JSON schemas under `schemas/` are the contract of the engine. They are generated from
+//! the types of this crate and committed as snapshots (ADR 0030), so that the core, the runtime
+//! and every adapter read and write the same shapes.
 //!
 //! The crate is pure: it performs no I/O and holds no decision logic, because `wayloop-core`
 //! is built on it. It depends only on the crates of its reviewed allowlist, checked by
 //! `scripts/check_core_io.py`; I/O of the standard library in its source is refused by the
 //! Clippy lints forbidden below, with the paths listed in its `clippy.toml`. It holds the error
-//! report of ADR 0009 C3 and the envelope of C1 with the exit codes of C7; the types of the
-//! command schemas come with the first command. Every contract type derives its JSON Schema;
+//! report of ADR 0009 C3 and the envelope of C1, generic over the data of a command, with the
+//! exit codes of C7; the data types of the commands come with the first command. Every contract type derives its JSON Schema;
 //! [`contract`] generates it inside the subset that the core interprets, with the named formats
 //! of [`Format`] (ADR 0030). Closed enums and static identifiers are written once with the
 //! macros of [`ident`].
@@ -27,6 +27,8 @@
 pub mod contract;
 mod envelope;
 mod error;
+#[cfg(test)]
+mod fixtures;
 mod format;
 pub mod ident;
 
