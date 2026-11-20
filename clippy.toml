@@ -9,10 +9,11 @@ allow-panic-in-tests = true
 allow-indexing-slicing-in-tests = true
 
 # What a pure crate may not use: it performs no I/O and reads no ambient state (ADR 0001,
-# ADR 0006). The lints that read these lists are allowed in the workspace lints of Cargo.toml,
-# so the runtime and the adapters are free to act; each pure crate forbids them at its root,
-# which a crate attribute may do over the level Cargo passes, and forbid cannot be lifted by an
-# inner allow. scripts/check_core_io.py refuses the removal of an entry or of the attribute.
+# ADR 0006). The lists bind every crate and every target, tests included, by default: a crate
+# that performs I/O, the runtime or an adapter, opts out with an allow of disallowed_methods and
+# disallowed_types at the root of each of its targets. Each pure crate also forbids both lints
+# at its root, which an inner allow cannot lift. scripts/check_core_io.py refuses the removal of
+# an entry or of the attribute, a clippy.toml of a crate and a manifest that allows the lints.
 disallowed-methods = [
   # Files and directories.
   { path = "std::fs::canonicalize", reason = "no file system in a pure crate" },

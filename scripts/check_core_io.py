@@ -15,14 +15,15 @@ boundary from eroding unnoticed:
                 Wayloop crate, core on schemas only, and neither on the runtime or the CLI.
   source        I/O in the source is refused by Clippy, not by this script: each pure crate
                 forbids the print, dbg, disallowed-methods and disallowed-types lints at its
-                root, and the clippy.toml Clippy reads for it, the one of the workspace, lists
-                the parts of the standard library that perform I/O or read ambient state (files,
-                network, processes, environment, standard streams, threads, clocks, randomly
-                seeded hash maps). The workspace lints allow both disallowed lints, so the
-                runtime and the adapters are not bound by the lists; the forbid attribute
-                overrides that level in the pure crates. `cargo clippy` in `just check` and CI
-                enforces them. This script only checks that the attribute and the entries of
-                that clippy.toml are present, so that neither is removed silently.
+                root, and the clippy.toml of the workspace, the only one, lists the parts of
+                the standard library that perform I/O or read ambient state (files, network,
+                processes, environment, standard streams, threads, clocks, randomly seeded hash
+                maps). The disallowed lints apply the lists to every crate and target, tests
+                included; the runtime and the adapters opt out with an allow at the root of
+                each of their targets. `cargo clippy` in `just check` and CI enforces them.
+                This script checks that the attribute and the entries are present, that no
+                crate has a clippy.toml of its own (Clippy would read it instead) and that no
+                manifest allows the lints, so that no guard is removed silently.
 
 IO_CRATES and the order of WORKSPACE only make the error message clearer; the allowlist
 decides.
@@ -166,7 +167,7 @@ def _paths(module: str, *names: str) -> frozenset[str]:
     return frozenset(f"{module}::{name}" for name in names)
 
 
-# Entries the clippy.toml read for a pure crate must hold; it may hold more.
+# Entries the clippy.toml of the workspace must hold; it may hold more.
 REQUIRED_METHODS = (
     _paths(
         "std::fs",
@@ -336,56 +337,83 @@ def _entries(config: dict[str, object], key: str) -> set[str]:
     }
 
 
-# The names Clippy looks for in a directory, in the order it prefers them.
+# The names Clippy looks for in a directory; it reads the nearest one above a crate.
 CLIPPY_FILES = (".clippy.toml", "clippy.toml")
 
-
-def clippy_config(crate_dir: Path, root: Path) -> Path | None:
-    """The configuration Clippy reads for the crate at `crate_dir`: the first file found in the
-    crate's directory and its parents, up to `root`."""
-    for directory in (crate_dir, *crate_dir.parents):
-        for name in CLIPPY_FILES:
-            if (directory / name).is_file():
-                return directory / name
-        if directory == root:
-            break
-    return None
+# Lint names whose level `allow` in a manifest would lift the lists of clippy.toml: the two
+# lints and the groups that hold them.
+BAN_LINTS = ("disallowed_methods", "disallowed_types", "style", "all")
 
 
-def missing_guards(crate_dir: Path, root: Path = ROOT) -> list[str]:
-    """What is missing of the lint guards of a pure crate: the entries of the clippy.toml read
-    for it, its forbid lints."""
+def _level(value: object) -> object:
+    return value.get("level") if isinstance(value, dict) else value
+
+
+def _lowered(manifest: Path, keys: tuple[str, ...], root: Path) -> list[str]:
+    """Every lint of BAN_LINTS that `manifest` allows under the table at `keys`."""
+    if not manifest.is_file():
+        return []
+    table: object = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    for key in keys:
+        table = table.get(key, {}) if isinstance(table, dict) else {}
+    if not isinstance(table, dict):
+        return []
+    name = manifest.relative_to(root).as_posix()
+    return [
+        f"{name}: [{'.'.join(keys)}] {lint} = allow lifts the lists of clippy.toml from every "
+        "target of the pure crates; allow the lints at the roots of the crates that do I/O"
+        for lint in BAN_LINTS
+        if _level(table.get(lint)) == "allow"
+    ]
+
+
+def clippy_problems(root: Path = ROOT) -> list[str]:
+    """What is wrong with the one clippy.toml of the workspace: missing, invalid or lacking an
+    entry, shadowed by the file of a crate, or lifted by the level of a manifest."""
     found = []
-    clippy = clippy_config(crate_dir, root)
-    if clippy is None:
-        found.append("no clippy.toml in the crate or above it")
+    clippy = root / "clippy.toml"
+    if not clippy.is_file():
+        found.append("clippy.toml is missing at the workspace root")
     else:
-        name = clippy.relative_to(root).as_posix()
         try:
             config = tomllib.loads(clippy.read_text(encoding="utf-8"))
         except tomllib.TOMLDecodeError as error:
-            found.append(f"{name} is not valid TOML: {error}")
+            found.append(f"clippy.toml is not valid TOML: {error}")
         else:
             for key, required in (
                 ("disallowed-methods", REQUIRED_METHODS),
                 ("disallowed-types", REQUIRED_TYPES),
             ):
                 found += [
-                    f"{name}: {key} lacks {path}"
+                    f"clippy.toml: {key} lacks {path}"
                     for path in sorted(required - _entries(config, key))
                 ]
+    found += [
+        f"{path.relative_to(root).as_posix()}: remove it; the clippy.toml at the workspace root "
+        "is the only one, and Clippy would read this file instead of it for the crate"
+        for name in CLIPPY_FILES
+        for path in sorted((root / "crates").glob(f"*/{name}"))
+    ]
+    found += _lowered(root / "Cargo.toml", ("workspace", "lints", "clippy"), root)
+    for crate in PURE_CRATES:
+        found += _lowered(root / "crates" / crate / "Cargo.toml", ("lints", "clippy"), root)
+    return found
+
+
+def missing_lints(crate_dir: Path) -> list[str]:
+    """The lints of REQUIRED_LINTS that the root of the pure crate at `crate_dir` does not
+    forbid."""
     lib = crate_dir / "src" / "lib.rs"
     text = lib.read_text(encoding="utf-8") if lib.is_file() else ""
     code = LINE_COMMENT.sub("", BLOCK_COMMENT.sub("", text))
     forbidden = {
         lint.strip() for match in FORBID.finditer(code) for lint in match.group(1).split(",")
     }
-    found += [
+    return [
         f"src/lib.rs: #![forbid(...)] lacks {lint}"
         for lint in REQUIRED_LINTS
         if lint not in forbidden
     ]
-    return found
 
 
 def main(root: Path = ROOT) -> None:
@@ -396,9 +424,9 @@ def main(root: Path = ROOT) -> None:
         except (CargoError, TreeLineError) as error:
             problems.append(f"{crate}: cargo tree failed: {error}")
         problems += [
-            f"crates/{crate}: {problem}"
-            for problem in missing_guards(root / "crates" / crate, root)
+            f"crates/{crate}: {problem}" for problem in missing_lints(root / "crates" / crate)
         ]
+    problems += clippy_problems(root)
     if problems:
         sys.exit(
             f"{' and '.join(PURE_CRATES)} must perform no I/O (ADR 0001, ADR 0006). Move I/O to "

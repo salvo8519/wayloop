@@ -18,9 +18,9 @@
 //! ([`envelope`]). The envelope types themselves are contract types of `wayloop-schemas`,
 //! re-exported here; [`Envelope`] is generic over the data of a command.
 
-// I/O is refused by the compiler: these lints read the clippy.toml of the workspace, forbid
-// overrides the level of the workspace lints, which allow them, and forbid, unlike deny,
-// cannot be lifted by an inner allow. `scripts/check_core_io.py` keeps them here.
+// I/O is refused by the compiler: these lints read the clippy.toml of the workspace, and
+// forbid, unlike deny, cannot be lifted by an inner allow. `scripts/check_core_io.py` keeps
+// them here.
 #![forbid(
     clippy::print_stdout,
     clippy::print_stderr,

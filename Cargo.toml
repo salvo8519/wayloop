@@ -49,10 +49,6 @@ get_unwrap = "warn"
 exit = "warn"
 mem_forget = "warn"
 string_slice = "warn"
-# The lists of clippy.toml name what a pure crate may not use; the runtime and the adapters may.
-# Each pure crate forbids both lints at its root, which overrides this level.
-disallowed_methods = "allow"
-disallowed_types = "allow"
 # arithmetic_side_effects is left off: it flags every `+` on an index or a counter and would
 # turn the code into checked arithmetic everywhere. Arithmetic on values read from input uses
 # checked_* explicitly, and the specification that introduces such a value says so.

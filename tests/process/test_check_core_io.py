@@ -124,64 +124,108 @@ def test_the_allowlists_are_those_reviewed() -> None:
     } == core_io.PURE_CRATES
 
 
-# The lint guards: the clippy.toml Clippy reads for the crate and the forbid attribute at its
-# root. The crate is `crate` under the workspace root `tmp_path`.
+# The lint guards: the one clippy.toml of the workspace, the manifests that could lift it, and
+# the forbid attribute at the root of each pure crate. The workspace root is `tmp_path`.
+
+CLIPPY = (ROOT / "clippy.toml").read_text(encoding="utf-8")
+LIB = (ROOT / "crates/wayloop-core/src/lib.rs").read_text(encoding="utf-8")
 
 
-def crate_dir(tmp_path: Path, clippy: str | None, lib: str) -> Path:
+def guarded(tmp_path: Path, clippy: str | None = CLIPPY, manifest: str = "") -> Path:
+    """A workspace root with `clippy.toml` (none when None) and the workspace `manifest`."""
+    if clippy is not None:
+        (tmp_path / "clippy.toml").write_text(clippy, encoding="utf-8")
+    (tmp_path / "Cargo.toml").write_text(manifest, encoding="utf-8")
+    (tmp_path / "crates").mkdir()
+    return tmp_path
+
+
+def crate_dir(tmp_path: Path, lib: str) -> Path:
     path = tmp_path / "crate"
     (path / "src").mkdir(parents=True)
     (path / "src" / "lib.rs").write_text(lib, encoding="utf-8")
-    if clippy is not None:
-        (path / "clippy.toml").write_text(clippy, encoding="utf-8")
     return path
 
 
 def test_the_lint_guards_of_the_pure_crates_are_present() -> None:
+    assert core_io.clippy_problems() == []
     for crate in core_io.PURE_CRATES:
-        assert core_io.missing_guards(ROOT / "crates" / crate) == []
+        assert core_io.missing_lints(ROOT / "crates" / crate) == []
 
 
-def test_the_pure_crates_read_the_one_clippy_toml_of_the_workspace() -> None:
-    for crate in core_io.PURE_CRATES:
-        assert core_io.clippy_config(ROOT / "crates" / crate, ROOT) == ROOT / "clippy.toml"
+def test_no_crate_has_a_clippy_toml_of_its_own() -> None:
+    for name in core_io.CLIPPY_FILES:
+        assert list((ROOT / "crates").glob(f"*/{name}")) == []
+
+
+def test_the_clippy_toml_of_the_workspace_passes(tmp_path: Path) -> None:
+    assert core_io.clippy_problems(guarded(tmp_path)) == []
 
 
 def test_a_missing_clippy_toml_is_reported(tmp_path: Path) -> None:
-    lib = (ROOT / "crates/wayloop-core/src/lib.rs").read_text(encoding="utf-8")
-    assert core_io.missing_guards(crate_dir(tmp_path, None, lib), tmp_path) == [
-        "no clippy.toml in the crate or above it"
+    assert core_io.clippy_problems(guarded(tmp_path, None)) == [
+        "clippy.toml is missing at the workspace root"
     ]
 
 
-def test_the_clippy_toml_above_the_crate_is_read(tmp_path: Path) -> None:
-    lib = (ROOT / "crates/wayloop-core/src/lib.rs").read_text(encoding="utf-8")
-    path = crate_dir(tmp_path, None, lib)
-    shutil.copy(ROOT / "clippy.toml", tmp_path / "clippy.toml")
-    assert core_io.missing_guards(path, tmp_path) == []
+@pytest.mark.parametrize("name", core_io.CLIPPY_FILES)
+def test_a_clippy_toml_of_a_crate_is_refused_even_as_a_full_copy(tmp_path: Path, name: str) -> None:
+    root = guarded(tmp_path)
+    (root / "crates/wayloop-runtime").mkdir()
+    (root / "crates/wayloop-runtime" / name).write_text(CLIPPY, encoding="utf-8")
+    assert core_io.clippy_problems(root) == [
+        f"crates/wayloop-runtime/{name}: remove it; the clippy.toml at the workspace root is the "
+        "only one, and Clippy would read this file instead of it for the crate"
+    ]
 
 
-def test_a_clippy_toml_of_the_crate_replaces_the_one_above(tmp_path: Path) -> None:
-    lib = (ROOT / "crates/wayloop-core/src/lib.rs").read_text(encoding="utf-8")
-    path = crate_dir(tmp_path, "allow-unwrap-in-tests = true\n", lib)
-    shutil.copy(ROOT / "clippy.toml", tmp_path / "clippy.toml")
-    (path / ".clippy.toml").write_text('disallowed-types = ["std::fs::File"]\n', encoding="utf-8")
-    assert core_io.clippy_config(path, tmp_path) == path / ".clippy.toml"
-    found = core_io.missing_guards(path, tmp_path)
-    assert "crate/.clippy.toml: disallowed-methods lacks std::fs::read" in found
-    assert "crate/.clippy.toml: disallowed-types lacks std::fs::File" not in found
+@pytest.mark.parametrize(
+    ("table", "lints"),
+    [
+        (
+            'disallowed_methods = "allow"\ndisallowed_types = "allow"\n',
+            ["disallowed_methods", "disallowed_types"],
+        ),
+        ('style = { level = "allow", priority = -1 }\n', ["style"]),
+        ('disallowed_methods = "warn"\nall = { level = "warn", priority = -1 }\n', []),
+    ],
+)
+def test_a_workspace_lint_that_lifts_the_lists_is_refused(
+    tmp_path: Path, table: str, lints: list[str]
+) -> None:
+    root = guarded(tmp_path, manifest="[workspace.lints.clippy]\n" + table)
+    assert core_io.clippy_problems(root) == [
+        f"Cargo.toml: [workspace.lints.clippy] {lint} = allow lifts the lists of clippy.toml from "
+        "every target of the pure crates; allow the lints at the roots of the crates that do I/O"
+        for lint in lints
+    ]
+
+
+def test_a_pure_crate_that_lifts_the_lists_is_refused(tmp_path: Path) -> None:
+    root = guarded(tmp_path)
+    (root / "crates/wayloop-core").mkdir()
+    (root / "crates/wayloop-core/Cargo.toml").write_text(
+        '[lints.clippy]\ndisallowed_types = "allow"\n', encoding="utf-8"
+    )
+    (root / "crates/wayloop-cli").mkdir()
+    (root / "crates/wayloop-cli/Cargo.toml").write_text(
+        '[lints.clippy]\ndisallowed_types = "allow"\n', encoding="utf-8"
+    )
+    assert core_io.clippy_problems(root) == [
+        "crates/wayloop-core/Cargo.toml: [lints.clippy] disallowed_types = allow lifts the lists "
+        "of clippy.toml from every target of the pure crates; allow the lints at the roots of "
+        "the crates that do I/O"
+    ]
 
 
 def test_an_entry_removed_from_clippy_toml_is_reported(tmp_path: Path) -> None:
-    clippy = (ROOT / "clippy.toml").read_text(encoding="utf-8")
-    lib = (ROOT / "crates/wayloop-core/src/lib.rs").read_text(encoding="utf-8")
-    clippy = "\n".join(line for line in clippy.splitlines() if '"std::thread::spawn"' not in line)
+    clippy = "\n".join(line for line in CLIPPY.splitlines() if '"std::thread::spawn"' not in line)
     clippy = "\n".join(
         line for line in clippy.splitlines() if '"std::collections::HashMap"' not in line
     )
-    assert core_io.missing_guards(crate_dir(tmp_path, clippy, lib), tmp_path) == [
-        "crate/clippy.toml: disallowed-methods lacks std::thread::spawn",
-        "crate/clippy.toml: disallowed-types lacks std::collections::HashMap",
+    assert core_io.clippy_problems(guarded(tmp_path, clippy)) == [
+        "clippy.toml: disallowed-methods lacks std::thread::spawn",
+        "clippy.toml: disallowed-types lacks std::collections::HashMap",
     ]
 
 
@@ -189,14 +233,12 @@ def test_entries_may_be_plain_paths(tmp_path: Path) -> None:
     methods = ", ".join(f'"{path}"' for path in sorted(core_io.REQUIRED_METHODS))
     types = ", ".join(f'"{path}"' for path in sorted(core_io.REQUIRED_TYPES))
     clippy = f"disallowed-methods = [{methods}]\ndisallowed-types = [{types}]\n"
-    lib = (ROOT / "crates/wayloop-core/src/lib.rs").read_text(encoding="utf-8")
-    assert core_io.missing_guards(crate_dir(tmp_path, clippy, lib), tmp_path) == []
+    assert core_io.clippy_problems(guarded(tmp_path, clippy)) == []
 
 
 def test_an_invalid_clippy_toml_is_reported(tmp_path: Path) -> None:
-    lib = (ROOT / "crates/wayloop-core/src/lib.rs").read_text(encoding="utf-8")
-    found = core_io.missing_guards(crate_dir(tmp_path, "disallowed-methods = [", lib), tmp_path)
-    assert len(found) == 1 and found[0].startswith("crate/clippy.toml is not valid TOML")
+    found = core_io.clippy_problems(guarded(tmp_path, "disallowed-methods = ["))
+    assert len(found) == 1 and found[0].startswith("clippy.toml is not valid TOML")
 
 
 @pytest.mark.parametrize(
@@ -216,19 +258,18 @@ def test_an_invalid_clippy_toml_is_reported(tmp_path: Path) -> None:
 def test_a_lint_missing_from_the_forbid_attribute_is_reported(
     tmp_path: Path, lib: str, missing: tuple[str, ...]
 ) -> None:
-    clippy = (ROOT / "clippy.toml").read_text(encoding="utf-8")
-    assert core_io.missing_guards(crate_dir(tmp_path, clippy, lib), tmp_path) == [
+    assert core_io.missing_lints(crate_dir(tmp_path, lib)) == [
         f"src/lib.rs: #![forbid(...)] lacks {lint}" for lint in missing
     ]
 
 
 def test_the_forbid_attribute_may_span_lines_and_be_split(tmp_path: Path) -> None:
-    clippy = (ROOT / "clippy.toml").read_text(encoding="utf-8")
     lib = (
         "//! Pure.\n#![forbid(\n    clippy::print_stdout,\n    clippy::print_stderr,\n)]\n"
         "#![forbid(clippy::dbg_macro, clippy::disallowed_methods, clippy::disallowed_types)]\n"
     )
-    assert core_io.missing_guards(crate_dir(tmp_path, clippy, lib), tmp_path) == []
+    assert core_io.missing_lints(crate_dir(tmp_path, lib)) == []
+    assert core_io.missing_lints(crate_dir(tmp_path / "other", LIB)) == []
 
 
 # Real resolution by cargo, on a small workspace of path crates (no network).
@@ -398,16 +439,12 @@ def test_main_passes_a_clean_workspace(tmp_path: Path, capsys: pytest.CaptureFix
 @needs_cargo
 def test_main_refuses_a_dependency_and_a_missing_guard(tmp_path: Path) -> None:
     root = pure_workspace(tmp_path, 'tokio = { path = "../tokio" }\n')
-    (root / "crates/wayloop-schemas/clippy.toml").write_text("", encoding="utf-8")
+    (root / "crates/wayloop-schemas/clippy.toml").write_text(CLIPPY, encoding="utf-8")
     with pytest.raises(SystemExit) as refused:
         core_io.main(root)
     message = str(refused.value)
     assert "wayloop-core -> tokio: tokio is not on the allowlist of wayloop-core" in message
-    assert (
-        "crates/wayloop-schemas: crates/wayloop-schemas/clippy.toml: "
-        "disallowed-methods lacks std::fs::read" in message
-    )
-    assert "crates/wayloop-core: clippy.toml" not in message
+    assert "crates/wayloop-schemas/clippy.toml: remove it" in message
 
 
 @needs_cargo
