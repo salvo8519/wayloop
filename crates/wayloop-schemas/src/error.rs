@@ -10,7 +10,6 @@
 //! (C2). The codes themselves are constants of the core (C8).
 
 use core::fmt;
-use core::num::NonZeroU64;
 use std::borrow::Cow;
 
 use schemars::{JsonSchema, Schema, SchemaGenerator};
@@ -19,6 +18,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use crate::contract::rules;
+use crate::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
 
 crate::contract_enum! {
     /// Why the engine refused an input, or `internal` when it failed to compute the result: the
@@ -45,7 +45,8 @@ crate::contract_enum! {
         Range = "range",
         /// A string or a list is too short or too long.
         Length = "length",
-        /// The current state does not allow the command.
+        /// The current state or the environment does not allow the command, for example an
+        /// input that cannot be read.
         State = "state",
         /// The expected revision is older than the state (ADR 0009 C6).
         Stale = "stale",
@@ -62,9 +63,9 @@ crate::static_id! {
     pub struct Code;
 }
 
-/// An RFC 6901 JSON pointer from the root of the input sent: empty for the whole input, or a
-/// sequence of `/`-prefixed reference tokens in which `~` is written `~0` and `/` is written
-/// `~1`. It serialises as its string.
+/// An RFC 6901 JSON pointer; its root is stated where it is used. Empty for the whole value,
+/// or a sequence of `/`-prefixed reference tokens in which `~` is written `~0` and `/` is
+/// written `~1`. It serialises as its string.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, JsonSchema)]
 #[serde(transparent)]
 pub struct Pointer(String);
@@ -144,59 +145,60 @@ impl fmt::Display for Pointer {
 /// exactly one form is refused: an untagged enum would accept an object with the members of
 /// two forms as the first that matches. Other members are ignored, as in every output (C5).
 ///
-/// Its schema is one object whose members are each optional, with `line` and `file` given
-/// together: the subset of the core has no `oneOf` (ADR 0030 G2), so the schema cannot require
-/// exactly one form; the type refuses an object that is not exactly one.
+/// Its schema is one object whose members are each optional, with `line` only beside `file`:
+/// the subset of the core has no `oneOf` (ADR 0030 G2), so the schema cannot require exactly
+/// one form; the type refuses an object that is not exactly one.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum Source {
-    /// A repository file: its path relative to the root, with `/` separators, and the line of
-    /// the value.
+    /// A repository file: its path relative to the root of the project, and the line of the
+    /// value when it is known.
     File {
-        /// Path of the file relative to the root of the repository.
-        file: String,
-        /// Line of the faulty value; lines are counted from 1.
-        line: NonZeroU64,
+        /// Path of the file relative to the root of the project.
+        file: ProjectPath,
+        /// Line of the faulty value, counted from 1; `None` when it is not known, never
+        /// guessed (SPEC-0004 R2).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        line: Option<Line>,
     },
     /// A tracker issue, by its number.
     Issue {
         /// Number of the issue.
-        issue: NonZeroU64,
+        issue: IssueNumber,
     },
     /// A tracker milestone, by its number.
     Milestone {
         /// Number of the milestone.
-        milestone: NonZeroU64,
+        milestone: MilestoneNumber,
     },
 }
 
-/// Where the faulty value is stored: `file`, with `line`, for a repository file; `issue` for a
-/// tracker issue; `milestone` for a tracker milestone. Absent for a document sent directly.
-/// Exactly one form is given, never an empty object; the schema checks only that `file` and
-/// `line` come together.
+/// Where the faulty value is stored: `file`, with `line` when the line is known, for a
+/// repository file; `issue` for a tracker issue; `milestone` for a tracker milestone. Absent for
+/// a document sent directly. Exactly one form is given, never an empty object; the schema
+/// checks only that `line` comes with `file`.
 // The schema of `Source` and the form it is read from: the subset of the core has no `oneOf`,
-// so the forms are one object whose members are each optional, with `file` and `line`
-// required together.
+// so the forms are one object whose members are each optional, with `line` only beside `file`.
 #[derive(Deserialize, JsonSchema)]
-#[schemars(rename = "Source", transform = file_and_line_together)]
+#[schemars(rename = "Source", transform = line_with_file)]
 struct SourceForm {
-    /// Path of the file relative to the root of the repository, with `/` separators.
+    /// Path of the file relative to the root of the project.
     #[serde(skip_serializing_if = "Option::is_none")]
-    file: Option<String>,
-    /// Line of the faulty value in `file`; lines are counted from 1.
+    file: Option<ProjectPath>,
+    /// Line of the faulty value in `file`, counted from 1; absent when it is not known, never
+    /// guessed.
     #[serde(skip_serializing_if = "Option::is_none")]
-    line: Option<NonZeroU64>,
+    line: Option<Line>,
     /// Number of the tracker issue, from 1.
     #[serde(skip_serializing_if = "Option::is_none")]
-    issue: Option<NonZeroU64>,
+    issue: Option<IssueNumber>,
     /// Number of the tracker milestone, from 1.
     #[serde(skip_serializing_if = "Option::is_none")]
-    milestone: Option<NonZeroU64>,
+    milestone: Option<MilestoneNumber>,
 }
 
-/// `file` and `line` are given together.
-fn file_and_line_together(schema: &mut Schema) {
-    rules::require_if_present(schema, "file", &["line"]);
+/// `line` is given only with `file`.
+fn line_with_file(schema: &mut Schema) {
     rules::require_if_present(schema, "line", &["file"]);
 }
 
@@ -204,11 +206,11 @@ impl<'de> Deserialize<'de> for Source {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let form = SourceForm::deserialize(deserializer)?;
         match (form.file, form.line, form.issue, form.milestone) {
-            (Some(file), Some(line), None, None) => Ok(Source::File { file, line }),
+            (Some(file), line, None, None) => Ok(Source::File { file, line }),
             (None, None, Some(issue), None) => Ok(Source::Issue { issue }),
             (None, None, None, Some(milestone)) => Ok(Source::Milestone { milestone }),
             _ => Err(D::Error::custom(
-                "a source is exactly one of {file, line}, {issue} and {milestone}",
+                "a source is exactly one of {file, line}, {file}, {issue} and {milestone}",
             )),
         }
     }
@@ -224,18 +226,21 @@ impl JsonSchema for Source {
     }
 }
 
-/// A refusal of the engine, with the fields of ADR 0009 C3 and its `source`.
+/// A refusal of the engine, with the fields of ADR 0009 C3, its `source`, and `document`, the
+/// index of the document of the input it belongs to (SPEC-0004 R2).
 ///
-/// `pointers`, `expected`, `fix` and `source` are optional and left out of the serialised form
-/// when not given; a list given empty is written `[]` (C2).
+/// `pointers`, `expected`, `fix`, `source` and `document` are optional and left out of the
+/// serialised form when not given; a list given empty is written `[]` (C2).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Error {
     /// Stable `snake_case` code of the error; codes are never renamed or reused (ADR 0009 C8).
     code: Code,
     /// What went wrong, for a person; its wording is not part of the contract.
     message: String,
-    /// RFC 6901 pointer to the faulty value, from the root of the input sent; empty for the
-    /// whole input.
+    /// RFC 6901 pointer to the faulty value: into the document given by `document` for an error
+    /// of a document, into the input sent otherwise; empty for the whole document or the whole
+    /// input. With the code `command_input` and the reason `enum`, the pointer `""` designates
+    /// the context of the command, its requested version, which has no place in the input.
     pointer: Pointer,
     /// Pointers to the other values involved, such as both sides of a conflict; absent when
     /// none is given.
@@ -254,6 +259,10 @@ pub struct Error {
     /// Where the faulty value is stored; absent for a document sent directly.
     #[serde(skip_serializing_if = "Option::is_none")]
     source: Option<Source>,
+    /// Index, from 0, in the input array `documents` of the document the error belongs to;
+    /// absent for an error of the input itself (SPEC-0004 R2).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    document: Option<u64>,
 }
 
 impl Error {
@@ -271,7 +280,21 @@ impl Error {
             expected: None,
             fix: None,
             source: None,
+            document: None,
         }
+    }
+
+    /// A failure of the engine, not a refusal of the input: the code
+    /// [`INTERNAL_ERROR`](crate::INTERNAL_ERROR), the reason [`Reason::Internal`] and the
+    /// pointer to the whole input; `message` says what failed (ADR 0009 C3, C7: exit code 5).
+    #[must_use]
+    pub fn internal(message: impl Into<String>) -> Self {
+        Self::new(
+            crate::envelope::INTERNAL_ERROR,
+            message,
+            Pointer::root(),
+            Reason::Internal,
+        )
     }
 
     /// The error with the pointers of the other parts of the input involved, such as both
@@ -308,6 +331,20 @@ impl Error {
     pub fn with_location(mut self, source: Source) -> Self {
         self.source = Some(source);
         self
+    }
+
+    /// The error of the document at `index`, from 0, of the input array `documents`: its
+    /// `pointer` is then relative to that document (SPEC-0004 R2).
+    #[must_use]
+    pub const fn with_document(mut self, index: u64) -> Self {
+        self.document = Some(index);
+        self
+    }
+
+    /// Index of the document the error belongs to; `None` for an error of the input itself.
+    #[must_use]
+    pub const fn document(&self) -> Option<u64> {
+        self.document
     }
 
     /// Stable error code.
@@ -391,6 +428,15 @@ impl ErrorReport {
             first,
             rest: errors.collect(),
         })
+    }
+
+    /// The report of one error.
+    #[must_use]
+    pub fn single(error: Error) -> Self {
+        Self {
+            first: error,
+            rest: Vec::new(),
+        }
     }
 
     /// The first error, repeated at the top level.
@@ -490,6 +536,7 @@ impl std::error::Error for ErrorReport {}
 mod tests {
     use super::{Code, Error, ErrorReport, Pointer, Reason, Source};
     use crate::fixtures::{INVALID_INPUT, at, number, unknown_then_missing};
+    use crate::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
     use serde_json::json;
 
     const STALE_REVISION: Code = Code::new("stale_revision");
@@ -705,8 +752,8 @@ mod tests {
         .with_expected([json!(1), json!("two")])
         .with_fix("removed")
         .with_location(Source::File {
-            file: "specs/0001-artifact-model/spec.md".into(),
-            line: number(42),
+            file: ProjectPath::new("specs/0001-artifact-model/spec.md"),
+            line: Some(Line::new(number(42))),
         })
     }
 
@@ -735,19 +782,39 @@ mod tests {
     }
 
     #[test]
+    fn an_error_of_a_document_names_its_index() {
+        // SPEC-0004 R2: the pointer of an error of a document is relative to that document.
+        let error = Error::new(INVALID_INPUT, "No title.", at("/title"), Reason::Missing);
+        assert_eq!(error.document(), None);
+        for index in [0, 3] {
+            let error = error.clone().with_document(index);
+            assert_eq!(error.document(), Some(index));
+            assert_eq!(
+                serde_json::to_value(&error).unwrap()["document"],
+                json!(index)
+            );
+        }
+    }
+
+    #[test]
     fn each_form_of_source_serialises_with_its_own_fields() {
         let cases = [
             (
                 Source::File {
-                    file: "plan/items/TASK-0001.yaml".into(),
-                    line: number(7),
+                    file: ProjectPath::new("plan/items/TASK-0001.yaml"),
+                    line: Some(Line::new(number(7))),
                 },
                 json!({"file": "plan/items/TASK-0001.yaml", "line": 7}),
             ),
-            (Source::Issue { issue: number(252) }, json!({"issue": 252})),
+            (
+                Source::Issue {
+                    issue: IssueNumber::new(number(252)),
+                },
+                json!({"issue": 252}),
+            ),
             (
                 Source::Milestone {
-                    milestone: number(3),
+                    milestone: MilestoneNumber::new(number(3)),
                 },
                 json!({"milestone": 3}),
             ),
@@ -870,23 +937,32 @@ mod tests {
         assert_eq!(
             read(json!({"file": "a.md", "line": 2, "later": true})).unwrap(),
             Source::File {
-                file: "a.md".into(),
-                line: number(2)
+                file: ProjectPath::new("a.md"),
+                line: Some(Line::new(number(2)))
             }
         );
         assert_eq!(
             read(json!({"issue": 252})).unwrap(),
-            Source::Issue { issue: number(252) }
+            Source::Issue {
+                issue: IssueNumber::new(number(252))
+            }
         );
         assert_eq!(
             read(json!({"milestone": 3})).unwrap(),
             Source::Milestone {
-                milestone: number(3)
+                milestone: MilestoneNumber::new(number(3))
+            }
+        );
+        // The line is written only when it is known (SPEC-0004 R2).
+        assert_eq!(
+            read(json!({"file": "a.md"})).unwrap(),
+            Source::File {
+                file: ProjectPath::new("a.md"),
+                line: None
             }
         );
         for wrong in [
             json!({}),
-            json!({"file": "a.md"}),
             json!({"line": 2}),
             json!({"issue": 1, "milestone": 2}),
             json!({"file": "a.md", "line": 2, "issue": 1}),

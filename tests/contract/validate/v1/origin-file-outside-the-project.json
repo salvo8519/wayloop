@@ -1,0 +1,35 @@
+{
+  "description": "A file origin that is absolute or leaves the project is refused with syntax.",
+  "covers": [
+    "SPEC-0001 R12"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "markdown",
+        "text": "# SPEC-0001: x",
+        "origin": {
+          "file": "../outside/spec.md"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "command_input",
+      "/error/pointer": "/documents/0/origin/file",
+      "/error/reason": "syntax",
+      "/meta/input_hash": "78100d3e34bb10f16f3316b5709929f75a8be5c71c98d23ebc2a3b423e1561bf"
+    },
+    "absent": [
+      "/data",
+      "/error/document"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

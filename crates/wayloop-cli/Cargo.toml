@@ -16,6 +16,14 @@ path = "src/main.rs"
 [dependencies]
 # The version follows the workspace version; crates.io requires it on a path dependency.
 wayloop-core = { path = "../wayloop-core", version = "0.0.0" }
+# The data of an envelope is a JSON value (`Envelope<Value>`).
+serde_json.workspace = true
+
+# Tests only: the contract cases are JSON files; the hash of their inputs is recomputed with a
+# hashing crate, independently of the core.
+[dev-dependencies]
+sha2 = { version = "0.11.0", default-features = false }
+wayloop-schemas = { path = "../wayloop-schemas", version = "0.0.0" }
 
 [lints]
 workspace = true

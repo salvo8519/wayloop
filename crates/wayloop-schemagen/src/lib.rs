@@ -132,11 +132,22 @@ mod tests {
     #[test]
     fn every_file_is_the_snapshot_of_its_type_at_its_registry_path() {
         let document = generate().unwrap();
-        let [envelope] = document["contracts"].as_array().unwrap().as_slice() else {
-            panic!("one contract")
-        };
-        assert_eq!(envelope["area"], "envelope");
-        assert_eq!(envelope["name"], "result");
+        let contracts = document["contracts"].as_array().unwrap();
+        let folders: Vec<String> = contracts
+            .iter()
+            .map(|c| {
+                format!(
+                    "{}/{}",
+                    c["area"].as_str().unwrap(),
+                    c["name"].as_str().unwrap()
+                )
+            })
+            .collect();
+        assert_eq!(
+            folders,
+            ["artifacts/brief", "commands/validate", "envelope/result"]
+        );
+        let envelope = &contracts[2];
         assert_eq!(envelope["version"], 1);
         let [file] = envelope["files"].as_array().unwrap().as_slice() else {
             panic!("one file")
@@ -148,6 +159,25 @@ mod tests {
         assert_eq!(
             file["text"],
             snapshot(schema, "envelope/result/v1.json").unwrap()
+        );
+        let parts: Vec<(&str, &str, &str)> = contracts[1]["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| {
+                (
+                    f["part"].as_str().unwrap(),
+                    f["direction"].as_str().unwrap(),
+                    f["path"].as_str().unwrap(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            parts,
+            [
+                ("schema", "input", "commands/validate/v1.json"),
+                ("output", "output", "commands/validate/v1.output.json"),
+            ]
         );
         assert_eq!(generate().unwrap(), document, "the same every run");
     }

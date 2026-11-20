@@ -6,8 +6,10 @@
 
 use core::num::NonZeroU32;
 
-use super::{Direction, ENVELOPE, Registered};
+use super::{Direction, ENVELOPE, Registered, VALIDATE_OUTPUT, reread, schema_for};
 use crate::ENVELOPE_VERSION;
+use crate::artifact::{ArtifactKind, Brief};
+use crate::validate::ValidateInput;
 
 crate::closed_enum! {
     /// The area of a contract, the first folder of its path under `schemas/`.
@@ -86,15 +88,52 @@ impl Contract {
     pub fn path(&self, part: Part, version: NonZeroU32) -> String {
         format!("{}/{}", self.folder(), part.file_name(version))
     }
+
+    /// The embedded snapshot of the file `part` of `version`; `None` when it is not embedded.
+    #[must_use]
+    pub fn embedded(&self, part: Part, version: NonZeroU32) -> Option<Embedded> {
+        let path = self.path(part, version);
+        super::EMBEDDED.iter().find(|e| e.path == path).copied()
+    }
 }
 
-/// Every contract, in the byte order of their folders. A contract is never removed and its
-/// version never goes back (ADR 0030 G5).
-///
-/// The envelope is `envelope/result`: the envelope that wraps the result of every command,
-/// with data of any shape, at the version of `meta.envelope_version`. The output snapshot of
-/// each command repeats it with the data of that command.
-pub const CONTRACTS: &[Contract] = &[Contract {
+/// The brief (SPEC-0001, Brief): an artifact, read by the engine, so its schema is an input
+/// (closed). Its name is the `kind` of the artifact and its version the `schema_version` a
+/// current brief carries.
+pub const BRIEF: Contract = Contract {
+    area: Area::Artifacts,
+    name: ArtifactKind::Brief.id(),
+    version: NonZeroU32::MIN,
+    files: &[ContractFile {
+        part: Part::Schema,
+        direction: Direction::Input,
+        registered: registered!(Brief),
+    }],
+};
+
+/// The command `validate` (SPEC-0001): its canonical input and its envelope with its data.
+pub const VALIDATE: Contract = Contract {
+    area: Area::Commands,
+    name: "validate",
+    version: NonZeroU32::MIN,
+    files: &[
+        ContractFile {
+            part: Part::Schema,
+            direction: Direction::Input,
+            registered: registered!(ValidateInput),
+        },
+        ContractFile {
+            part: Part::Output,
+            direction: Direction::Output,
+            registered: VALIDATE_OUTPUT,
+        },
+    ],
+};
+
+/// The envelope `envelope/result`: the envelope that wraps the result of every command, with
+/// data of any shape, at the version of `meta.envelope_version`. The output snapshot of each
+/// command repeats it with the data of that command.
+const RESULT: Contract = Contract {
     area: Area::Envelope,
     name: "result",
     version: ENVELOPE_VERSION,
@@ -103,7 +142,11 @@ pub const CONTRACTS: &[Contract] = &[Contract {
         direction: Direction::Output,
         registered: ENVELOPE,
     }],
-}];
+};
+
+/// Every contract, in the byte order of their folders. A contract is never removed and its
+/// version never goes back (ADR 0030 G5).
+pub const CONTRACTS: &[Contract] = &[BRIEF, VALIDATE, RESULT];
 
 /// A snapshot embedded in this crate: its path under `schemas/` and its text, byte for byte.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -176,9 +219,7 @@ mod tests {
 
     #[test]
     fn the_envelope_is_registered_at_the_version_of_the_envelope() {
-        let [envelope] = CONTRACTS else {
-            panic!("one contract is registered until the first command")
-        };
+        let envelope = &super::RESULT;
         assert_eq!(envelope.folder(), "envelope/result");
         assert_eq!(envelope.version, crate::ENVELOPE_VERSION);
         assert_eq!(
@@ -227,9 +268,8 @@ mod tests {
         for contract in CONTRACTS {
             for file in contract.files {
                 let path = contract.path(file.part, contract.version);
-                let embedded = EMBEDDED
-                    .iter()
-                    .find(|e| e.path == path)
+                let embedded = contract
+                    .embedded(file.part, contract.version)
                     .unwrap_or_else(|| panic!("{path} is not embedded: run `just generate`"));
                 let schema = (file.registered.schema)(file.direction).unwrap();
                 assert_eq!(

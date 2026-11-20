@@ -8,7 +8,21 @@
 use super::Embedded;
 
 /// Every committed snapshot, of every version, in the byte order of their paths.
-pub const EMBEDDED: &[Embedded] = &[Embedded {
-    path: "envelope/result/v1.json",
-    text: include_str!("../../snapshots/envelope/result/v1.json"),
-}];
+pub const EMBEDDED: &[Embedded] = &[
+    Embedded {
+        path: "artifacts/brief/v1.json",
+        text: include_str!("../../snapshots/artifacts/brief/v1.json"),
+    },
+    Embedded {
+        path: "commands/validate/v1.json",
+        text: include_str!("../../snapshots/commands/validate/v1.json"),
+    },
+    Embedded {
+        path: "commands/validate/v1.output.json",
+        text: include_str!("../../snapshots/commands/validate/v1.output.json"),
+    },
+    Embedded {
+        path: "envelope/result/v1.json",
+        text: include_str!("../../snapshots/envelope/result/v1.json"),
+    },
+];

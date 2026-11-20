@@ -6,6 +6,8 @@
 //! inside the subset of the core: an entry of `allOf` is a pair of `if` and `then`, the
 //! condition tests declared members only, and `then` holds `required` only.
 
+use core::num::NonZeroU32;
+
 use schemars::Schema;
 use serde_json::{Map, Value, json};
 
@@ -33,6 +35,50 @@ pub fn require_if_equals(schema: &mut Schema, when: &str, value: impl Into<Value
         "required": [when],
     });
     push(schema, condition, then);
+}
+
+/// The rules of an artifact the derive does not write (SPEC-0001, Common rules): `kind` is the
+/// constant `kind` and `schema_version` the constant `version`, both from the registration of
+/// the contract (ADR 0030 G5); `superseded_by` is required when `status` equals `superseded`,
+/// the spelling of the terminal status of replacement of the type.
+pub fn artifact(schema: &mut Schema, kind: &str, version: NonZeroU32, superseded: &str) {
+    constant(schema, "kind", kind.into(), None);
+    constant(
+        schema,
+        "schema_version",
+        version.get().into(),
+        Some("integer"),
+    );
+    require_if_equals(schema, "status", superseded, &["superseded_by"]);
+}
+
+/// The member `member` of `schema` becomes the constant `value`, of the JSON type `kind` when
+/// given, keeping its description: the subset allows only annotations beside a `$ref`, so the
+/// derived schema of the member is replaced, not extended. A type keeps a value of another type
+/// refused with `type`, before `enum`, as the interpreter reports it. A schema without
+/// `properties` gets them, so that the rule is never lost; `properties` that are not an object
+/// are kept, for the loader of the core to refuse by their place.
+fn constant(schema: &mut Schema, member: &str, value: Value, kind: Option<&str>) {
+    let properties = schema
+        .ensure_object()
+        .entry("properties")
+        .or_insert_with(|| Value::Object(Map::new()));
+    let Value::Object(properties) = properties else {
+        return;
+    };
+    let description = properties
+        .get(member)
+        .and_then(|m| m.get("description"))
+        .cloned();
+    let mut replaced = Map::new();
+    if let Some(description) = description {
+        replaced.insert("description".to_owned(), description);
+    }
+    if let Some(kind) = kind {
+        replaced.insert("type".to_owned(), kind.into());
+    }
+    replaced.insert("const".to_owned(), value);
+    properties.insert(member.to_owned(), Value::Object(replaced));
 }
 
 /// The schema of a string in the named `format`, with its `description`.

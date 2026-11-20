@@ -1,0 +1,58 @@
+{
+  "description": "A brief whose identifier is not in the canonical form is refused with identifier_format and the corrected identifier.",
+  "covers": [
+    "SPEC-0001 R14"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-1",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "identifier_format",
+      "/error/pointer": "/id",
+      "/error/reason": "syntax",
+      "/error/fix": "BRIEF-0001",
+      "/meta/input_hash": "e281c51b8080b15fb4bd28a6e61a934360fd16d3e85af2cdc3093370d6a4205a"
+    },
+    "absent": [
+      "/data",
+      "/error/expected"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

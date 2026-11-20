@@ -1,0 +1,34 @@
+{
+  "description": "Text that is not JSON, with a version of the command the engine does not run: one report with the version first, then the syntax.",
+  "covers": [
+    "SPEC-0004 R14",
+    "SPEC-0001 R1"
+  ],
+  "context": {
+    "command_version": 2
+  },
+  "input_text": "{\"documents\": [",
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "command_input",
+      "/error/pointer": "",
+      "/error/reason": "enum",
+      "/error/expected": [
+        1
+      ],
+      "/error/errors/1/code": "command_input",
+      "/error/errors/1/pointer": "",
+      "/error/errors/1/reason": "syntax",
+      "/meta/input_hash": "e0eae86901a4d19b5372e1136a2e2120b024fd838aa63aab71c084e3b66c58d7"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 2
+    }
+  }
+}

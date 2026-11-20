@@ -1,0 +1,38 @@
+{
+  "description": "An unreadable entry without a file origin is refused: only a file can fail to parse.",
+  "covers": [
+    "SPEC-0001 R12"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "unreadable",
+        "error": {
+          "line": 4,
+          "message": "found a duplicate key"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "command_input",
+      "/error/pointer": "/documents/0/origin",
+      "/error/reason": "requires",
+      "/error/pointers": [
+        "/documents/0/format"
+      ],
+      "/meta/input_hash": "155f46fb37a7f6b86bc533bb2ad79c34163e314a0e3c7412a36ba8ad8da49349"
+    },
+    "absent": [
+      "/data",
+      "/error/document"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

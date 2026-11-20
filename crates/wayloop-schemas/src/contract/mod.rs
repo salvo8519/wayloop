@@ -46,6 +46,11 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
+use crate::artifact::{ArtifactKind, Brief, BriefOrigin, BriefStatus};
+use crate::validate::{
+    BaseStatus, DocumentEntry, DocumentSummary, EntryFormat, InputKind, Origin, ParseError, Policy,
+    Status, ValidateData, ValidateInput,
+};
 use crate::{
     Check, Code, DefaultApplied, DefaultReason, Diagnostics, Envelope, Error, ErrorReport,
     InputHash, Meta, NotDone, NotDoneReason, Pointer, Reason, Source,
@@ -76,6 +81,9 @@ pub enum Problem {
     ClosedOutput,
     /// Objects nested deeper than [`MAX_OBJECT_LEVELS`].
     TooDeep,
+    /// An object of an input without `additionalProperties: false` that is not a free object
+    /// of the input: an input is closed (ADR 0009 C5, ADR 0030 G2).
+    OpenInput,
 }
 
 /// A generated schema that leaves the rules of the contracts, and where.
@@ -103,6 +111,10 @@ impl fmt::Display for ContractError {
             Problem::ClosedOutput => write!(
                 f,
                 "at {place}: `additionalProperties` in an output, which is open"
+            ),
+            Problem::OpenInput => write!(
+                f,
+                "at {place}: an object of an input that is open and not a declared free object"
             ),
             Problem::TooDeep => write!(
                 f,
@@ -208,27 +220,47 @@ macro_rules! registered {
 /// is the envelope with the data type of that command.
 const ENVELOPE: Registered = registered!(Envelope<Value> as "Envelope");
 
+/// The output of the command `validate`: the envelope with its data, the file
+/// `v<N>.output.json` of the contract `commands/validate`.
+const VALIDATE_OUTPUT: Registered = registered!(Envelope<ValidateData> as "Envelope<ValidateData>");
+
 mod embedded;
 mod registry;
 
 pub use embedded::EMBEDDED;
-pub use registry::{Area, CONTRACTS, Contract, ContractFile, Embedded, Part};
+pub use registry::{Area, BRIEF, CONTRACTS, Contract, ContractFile, Embedded, Part, VALIDATE};
 
 /// Every contract type of this crate whose schema is derived, in the byte order of their names.
-pub const TYPES: [Registered; 15] = [
+pub const TYPES: [Registered; 31] = [
+    registered!(ArtifactKind),
+    registered!(BaseStatus),
+    registered!(Brief),
+    registered!(BriefOrigin),
+    registered!(BriefStatus),
     registered!(Check),
     registered!(Code),
     registered!(DefaultApplied),
     registered!(DefaultReason),
     registered!(Diagnostics),
+    registered!(DocumentEntry),
+    registered!(DocumentSummary),
+    registered!(EntryFormat),
     ENVELOPE,
+    VALIDATE_OUTPUT,
     registered!(Error),
     registered!(ErrorReport),
     registered!(InputHash),
+    registered!(InputKind),
     registered!(Meta),
     registered!(NotDone),
     registered!(NotDoneReason),
+    registered!(Origin),
+    registered!(ParseError),
     registered!(Pointer),
+    registered!(Policy),
     registered!(Reason),
     registered!(Source),
+    registered!(Status),
+    registered!(ValidateData),
+    registered!(ValidateInput),
 ];

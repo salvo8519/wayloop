@@ -1,0 +1,32 @@
+{
+  "description": "A version of the command that the engine does not run, requested in the context, is refused with enum and the known versions.",
+  "covers": [
+    "SPEC-0004 R14"
+  ],
+  "context": {
+    "command_version": 2
+  },
+  "input": {
+    "documents": []
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "command_input",
+      "/error/pointer": "",
+      "/error/reason": "enum",
+      "/error/expected": [
+        1
+      ],
+      "/meta/input_hash": "f332a4181af7c4a82f09927e71369910957b21632a21eb990216dbd59c728dd3"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

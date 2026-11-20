@@ -19,6 +19,8 @@ enum Shape {
     LanguageTag,
     /// Tracker handle, `@` and a user name.
     TrackerHandle,
+    /// A path relative to the root of the project, in one spelling.
+    ProjectPath,
     /// `<PREFIX>-<seq>`: four digits, or five or more without a leading zero.
     Sequence(&'static str),
     /// `M<n>`: `0` or a number without a leading zero.
@@ -36,6 +38,7 @@ const fn shape(format: Format) -> Shape {
         Format::UtcDateTime => Shape::UtcDateTime,
         Format::LanguageTag => Shape::LanguageTag,
         Format::TrackerHandle => Shape::TrackerHandle,
+        Format::ProjectPath => Shape::ProjectPath,
         Format::BriefId => Shape::Sequence("BRIEF"),
         Format::CouncilId => Shape::Sequence("COUNCIL"),
         Format::GateId => Shape::Sequence("GATE"),
@@ -71,6 +74,7 @@ impl Shape {
             Shape::UtcDateTime => is_utc_date_time(text.as_bytes()),
             Shape::LanguageTag => is_language_tag(text),
             Shape::TrackerHandle => is_tracker_handle(text),
+            Shape::ProjectPath => is_project_path(text),
             Shape::Sequence(prefix) => text
                 .strip_prefix(prefix)
                 .and_then(|rest| rest.strip_prefix('-'))
@@ -92,6 +96,7 @@ impl Shape {
             Shape::Date | Shape::UtcDateTime => None,
             Shape::LanguageTag => Some(text.replace('_', "-")),
             Shape::TrackerHandle => (!text.starts_with('@')).then(|| format!("@{text}")),
+            Shape::ProjectPath => project_path_fix(text),
             Shape::Sequence(prefix) => after_prefix(text, &[prefix])
                 .and_then(number)
                 .map(|n| format!("{prefix}-{n:0>4}")),
@@ -108,6 +113,30 @@ impl Shape {
         }?;
         (candidate != text && self.accepts(&candidate)).then_some(candidate)
     }
+}
+
+/// Whether `text` is a path relative to the root of the project in its one spelling: segments
+/// joined by `/`, none empty, `.` or `..`; no `\`; no drive letter (`C:`) at the start.
+fn is_project_path(text: &str) -> bool {
+    let drive = matches!(text.as_bytes(), [letter, b':', ..] if letter.is_ascii_alphabetic());
+    !drive
+        && !text.contains('\\')
+        && text
+            .split('/')
+            .all(|segment| !matches!(segment, "" | "." | ".."))
+}
+
+/// The path written in its one spelling: `\` as `/`, without empty and `.` segments. None for
+/// an absolute path, whose meaning a fix would change.
+fn project_path_fix(text: &str) -> Option<String> {
+    if text.starts_with(['/', '\\']) {
+        return None;
+    }
+    let segments: Vec<&str> = text
+        .split(['/', '\\'])
+        .filter(|segment| !matches!(*segment, "" | "."))
+        .collect();
+    Some(segments.join("/"))
 }
 
 /// What follows the first of `prefixes` that starts `text`, ignoring ASCII case, and one

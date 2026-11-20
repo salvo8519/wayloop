@@ -1,0 +1,44 @@
+{
+  "description": "Three independent errors of the input are reported in one pass, in the order of the schema pass: the members of an object in the byte order of their keys (adrs, documents, policy_).",
+  "covers": [
+    "SPEC-0001 R1"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "pdf"
+      }
+    ],
+    "policy_": {},
+    "adrs": [
+      "9"
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "command_input",
+      "/error/pointer": "/adrs/0",
+      "/error/reason": "type",
+      "/error/errors/1/pointer": "/documents/0/format",
+      "/error/errors/1/reason": "enum",
+      "/error/errors/1/expected": [
+        "document",
+        "markdown",
+        "unreadable"
+      ],
+      "/error/errors/2/pointer": "/policy_",
+      "/error/errors/2/reason": "unknown_field",
+      "/error/errors/2/fix": "policy",
+      "/meta/input_hash": "bec78c47b075195ab19b1bc637c56ad394f355b4c9c7a3bdae8fd86e8a58cf92"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 3
+    }
+  }
+}

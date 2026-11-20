@@ -1,0 +1,46 @@
+{
+  "description": "A document whose kind is not an artifact type is refused with enum and the ten types.",
+  "covers": [
+    "SPEC-0001 R1"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "ticket",
+          "schema_version": 1
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "artifact_schema",
+      "/error/pointer": "/kind",
+      "/error/reason": "enum",
+      "/error/expected": [
+        "brief",
+        "council_report",
+        "gate",
+        "milestone",
+        "epic",
+        "story",
+        "specification",
+        "change",
+        "task",
+        "handover"
+      ],
+      "/meta/input_hash": "da10a4c3b4a0012c9259cc7ff76b80ea5e49a2a2fd21a0a7fbd25679fdae4ffc"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

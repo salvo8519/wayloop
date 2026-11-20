@@ -1,0 +1,24 @@
+{
+  "description": "A number beyond the range of a double is refused with range at its pointer.",
+  "covers": [
+    "SPEC-0001 R1"
+  ],
+  "input_text": "{\"documents\": [], \"adrs\": [1e400]}",
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "command_input",
+      "/error/pointer": "/adrs/0",
+      "/error/reason": "range",
+      "/meta/input_hash": "1494362d39c33a01a88fee4015318e660354292574b293f741346deb661f7e01"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

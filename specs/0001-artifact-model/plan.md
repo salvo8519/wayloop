@@ -42,7 +42,7 @@ The entry point of ADR 0028 takes JSON. The input of `validate`, version 1, is:
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `documents` | list of objects, may be empty | One entry per stored artifact or input, in the order the runtime sorted them |
-| `documents/<i>/origin` | object `{file}`, `{issue}`, `{milestone}`, or absent | Where the document was read; becomes `source` in every error (R12). Absent for a document sent directly. |
+| `documents/<i>/origin` | object `{file}`, `{issue}`, `{milestone}`, or absent | Where the document was read; becomes `source` in every error (R12). Absent for a document sent directly. A choice without a kind tag, against the letter of ADR 0009 C4: it mirrors `source` of the error report, whose member names tell the forms apart, and exactly one member is accepted (a `kind` would add a member that could disagree with the one present). `file` is a path relative to the project, format `project-path`. |
 | `documents/<i>/format` | enum: `document`, `markdown`, `unreadable` | `document`: a JSON value in the normalised form; `markdown`: the text of a `spec.md`; `unreadable`: a file that did not parse |
 | `documents/<i>/document` | object | With `document`: the value |
 | `documents/<i>/lines` | object, JSON pointer to line number | With `document` and a file origin: where each value is in the file |
@@ -51,7 +51,8 @@ The entry point of ADR 0028 takes JSON. The input of `validate`, version 1, is:
 | `documents/<i>/input_kind` | enum: `pull_request`, `commit`, `handover_input` | For inputs, which have no `kind` field; absent for artifacts |
 | `base` | list of objects `{id, status}` | Statuses on the default branch of the artifacts of this set; absent when not compared (R13, R19) |
 | `policy` | object `{types, scopes, areas}` | Subset of the project policy; absent means the default policy, listed in `meta.defaults_applied` (R21) |
-| `adrs` | list of integers | Numbers of the ADRs of the project, for the warning on `related` (Q5 of the specification; Q3 below); absent means not checked, listed in `diagnostics.not_done` |
+| `adrs` | list of integers from 1 | Numbers of the ADRs of the project, for the warning on `related` (Q5 of the specification; Q3 below); absent means not checked, listed in `diagnostics.not_done` |
+| `language` | BCP 47 tag | Language of the project (decided by the maintainer on 2026-11-20); when absent and a check needs it, the default is listed in `meta.defaults_applied`; while no check reads it, no default is applied or reported |
 
 The whole version 1 is fixed in task T5, so that the command contract does not change at each
 slice. A check of a field whose slice has not landed yet is listed in `diagnostics.not_done`,
@@ -97,7 +98,13 @@ pub struct Validation {
   (R13, R19); (7) titles and naming (R7, R8, R10, R11). A document that fails stage 2 is kept
   out of the index, so that its broken shape does not cause a wave of link errors elsewhere.
 - Error order is deterministic: by position of the document in the input, then by stage, then
-  by pointer in document order. The first error is the top-level one (C3).
+  within a stage in the order of the schema pass: a value's own errors before the errors
+  inside it, the members of an object in the byte order of their keys (so `/aa` before
+  `/zz`), the elements of an array by index, absent members after present ones. A format error
+  of `/id` belongs to the identifier stage and follows the schema errors of its document. The
+  first error is the top-level one (C3). Errors of the canonical input itself (code
+  `command_input`) come before any document is checked, in the order of the schema pass of the
+  input schema, then entry by entry for the rules the schema cannot state.
 - `run` validates the canonical input against the input schema of the command, calls
   `validate`, and builds the envelope: a refusal when `errors` is not empty (exit code 1), a
   success with `data` and warnings otherwise. `Envelope::exit_code()` is the function the CLI

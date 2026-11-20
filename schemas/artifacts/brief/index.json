@@ -1,0 +1,11 @@
+{
+  "current": "1",
+  "format": 1,
+  "versions": {
+    "1": {
+      "file": "artifacts/brief/v1.json",
+      "introduced_in": "unreleased",
+      "sha256": "81b59642faa8b4250e3a4d665fda601fd8909a0fb74c664f9668b32e5b18a40d"
+    }
+  }
+}

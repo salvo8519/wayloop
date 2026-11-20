@@ -1,0 +1,57 @@
+{
+  "description": "A brief whose schema_version is beyond plus or minus (2^53 - 1) is refused with range at /schema_version.",
+  "covers": [
+    "SPEC-0001 R16"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 9007199254740992,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "artifact_schema",
+      "/error/pointer": "/schema_version",
+      "/error/reason": "range",
+      "/error/document": 0,
+      "/meta/input_hash": "f70ea3ae55cf0d9351be5dc80b9d887ec7387ff47ac452ee90c8d906b4cca627"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

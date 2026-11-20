@@ -1,0 +1,69 @@
+{
+  "description": "An error of a document read from a file carries the file and the line of the faulty value in source.",
+  "covers": [
+    "SPEC-0001 R12"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ],
+          "note": "Recorded in the meeting of 2026-11-17."
+        },
+        "origin": {
+          "file": "plan/briefs/BRIEF-0001.yaml"
+        },
+        "lines": {
+          "": 1,
+          "/note": 21
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "artifact_schema",
+      "/error/pointer": "/note",
+      "/error/reason": "unknown_field",
+      "/error/source": {
+        "file": "plan/briefs/BRIEF-0001.yaml",
+        "line": 21
+      },
+      "/error/document": 0,
+      "/meta/input_hash": "66ce3f68387424d6372cf629600e1ab7379bde1e68cc55a4aed17051f692a8f1"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

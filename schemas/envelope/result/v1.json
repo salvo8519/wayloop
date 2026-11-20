@@ -17,7 +17,7 @@
         },
         "pointer": {
           "$ref": "#/$defs/Pointer",
-          "description": "RFC 6901 pointer, from the root of the input, to where the default applies."
+          "description": "RFC 6901 pointer, from the root of the input, to where the default applies. With the reason `current_command_version`, the pointer `\"\"` designates the context of the command, its version, which has no place in the input."
         },
         "reason": {
           "$ref": "#/$defs/DefaultReason",
@@ -71,11 +71,16 @@
       "type": "object"
     },
     "Error": {
-      "description": "A refusal of the engine, with the fields of ADR 0009 C3 and its `source`.\n\n`pointers`, `expected`, `fix` and `source` are optional and left out of the serialised form when not given; a list given empty is written `[]` (C2).",
+      "description": "A refusal of the engine, with the fields of ADR 0009 C3, its `source`, and `document`, the index of the document of the input it belongs to (SPEC-0004 R2).\n\n`pointers`, `expected`, `fix`, `source` and `document` are optional and left out of the serialised form when not given; a list given empty is written `[]` (C2).",
       "properties": {
         "code": {
           "$ref": "#/$defs/Code",
           "description": "Stable `snake_case` code of the error; codes are never renamed or reused (ADR 0009 C8)."
+        },
+        "document": {
+          "description": "Index, from 0, in the input array `documents` of the document the error belongs to; absent for an error of the input itself (SPEC-0004 R2).",
+          "minimum": 0,
+          "type": "integer"
         },
         "expected": {
           "description": "The values accepted at `pointer`, never a pattern; `[]` when no value is accepted; absent when not given.",
@@ -93,7 +98,7 @@
         },
         "pointer": {
           "$ref": "#/$defs/Pointer",
-          "description": "RFC 6901 pointer to the faulty value, from the root of the input sent; empty for the whole input."
+          "description": "RFC 6901 pointer to the faulty value: into the document given by `document` for an error of a document, into the input sent otherwise; empty for the whole document or the whole input. With the code `command_input` and the reason `enum`, the pointer `\"\"` designates the context of the command, its requested version, which has no place in the input."
         },
         "pointers": {
           "description": "Pointers to the other values involved, such as both sides of a conflict; absent when none is given.",
@@ -126,6 +131,11 @@
           "$ref": "#/$defs/Code",
           "description": "Stable `snake_case` code of the error; codes are never renamed or reused (ADR 0009 C8)."
         },
+        "document": {
+          "description": "Index, from 0, in the input array `documents` of the document the error belongs to; absent for an error of the input itself (SPEC-0004 R2).",
+          "minimum": 0,
+          "type": "integer"
+        },
         "errors": {
           "description": "Every error, in the order found; the first equals the members of the report.",
           "items": {
@@ -150,7 +160,7 @@
         },
         "pointer": {
           "$ref": "#/$defs/Pointer",
-          "description": "RFC 6901 pointer to the faulty value, from the root of the input sent; empty for the whole input."
+          "description": "RFC 6901 pointer to the faulty value: into the document given by `document` for an error of a document, into the input sent otherwise; empty for the whole document or the whole input. With the code `command_input` and the reason `enum`, the pointer `\"\"` designates the context of the command, its requested version, which has no place in the input."
         },
         "pointers": {
           "description": "Pointers to the other values involved, such as both sides of a conflict; absent when none is given.",
@@ -253,11 +263,11 @@
       "type": "string"
     },
     "Pointer": {
-      "description": "An RFC 6901 JSON pointer from the root of the input sent: empty for the whole input, or a sequence of `/`-prefixed reference tokens in which `~` is written `~0` and `/` is written `~1`. It serialises as its string.",
+      "description": "An RFC 6901 JSON pointer; its root is stated where it is used. Empty for the whole value, or a sequence of `/`-prefixed reference tokens in which `~` is written `~0` and `/` is written `~1`. It serialises as its string.",
       "type": "string"
     },
     "Reason": {
-      "description": "Why the engine refused an input, or `internal` when it failed to compute the result: the documented enum of ADR 0009 C3 and its amendment of 2026-11-20. It serialises as its identifier; clients accept values they do not know (C5).\n\n- `syntax`: The input is not well-formed.\n- `missing`: A required field is absent.\n- `unknown_field`: A field is not part of the schema.\n- `duplicate`: A value that must be unique appears more than once.\n- `type`: A value has the wrong type.\n- `enum`: A value is not one of the accepted values.\n- `conflict`: Two values contradict each other.\n- `requires`: A field is given without another field it requires.\n- `range`: A number is outside its accepted range.\n- `length`: A string or a list is too short or too long.\n- `state`: The current state does not allow the command.\n- `stale`: The expected revision is older than the state (ADR 0009 C6).\n- `internal`: The engine could not compute the result: the input may be valid (ADR 0009 C3, amended on 2026-11-20). The command exits with code 5, not 1 (C7).",
+      "description": "Why the engine refused an input, or `internal` when it failed to compute the result: the documented enum of ADR 0009 C3 and its amendment of 2026-11-20. It serialises as its identifier; clients accept values they do not know (C5).\n\n- `syntax`: The input is not well-formed.\n- `missing`: A required field is absent.\n- `unknown_field`: A field is not part of the schema.\n- `duplicate`: A value that must be unique appears more than once.\n- `type`: A value has the wrong type.\n- `enum`: A value is not one of the accepted values.\n- `conflict`: Two values contradict each other.\n- `requires`: A field is given without another field it requires.\n- `range`: A number is outside its accepted range.\n- `length`: A string or a list is too short or too long.\n- `state`: The current state or the environment does not allow the command, for example an input that cannot be read.\n- `stale`: The expected revision is older than the state (ADR 0009 C6).\n- `internal`: The engine could not compute the result: the input may be valid (ADR 0009 C3, amended on 2026-11-20). The command exits with code 5, not 1 (C7).",
       "enum": [
         "syntax",
         "missing",
@@ -280,18 +290,6 @@
         {
           "if": {
             "required": [
-              "file"
-            ]
-          },
-          "then": {
-            "required": [
-              "line"
-            ]
-          }
-        },
-        {
-          "if": {
-            "required": [
               "line"
             ]
           },
@@ -302,10 +300,11 @@
           }
         }
       ],
-      "description": "Where the faulty value is stored: `file`, with `line`, for a repository file; `issue` for a tracker issue; `milestone` for a tracker milestone. Absent for a document sent directly. Exactly one form is given, never an empty object; the schema checks only that `file` and `line` come together.",
+      "description": "Where the faulty value is stored: `file`, with `line` when the line is known, for a repository file; `issue` for a tracker issue; `milestone` for a tracker milestone. Absent for a document sent directly. Exactly one form is given, never an empty object; the schema checks only that `line` comes with `file`.",
       "properties": {
         "file": {
-          "description": "Path of the file relative to the root of the repository, with `/` separators.",
+          "description": "Path of the file relative to the root of the project.",
+          "format": "project-path",
           "type": "string"
         },
         "issue": {
@@ -314,7 +313,7 @@
           "type": "integer"
         },
         "line": {
-          "description": "Line of the faulty value in `file`; lines are counted from 1.",
+          "description": "Line of the faulty value in `file`, counted from 1; absent when it is not known, never guessed.",
           "minimum": 1,
           "type": "integer"
         },
@@ -345,7 +344,7 @@
       }
     }
   ],
-  "description": "The result of one command (ADR 0009 C1): its `data` when it succeeded (exit code 0), or the `error` report when its input was refused (exit code 1) or the engine failed to compute it (exit code 5); what the engine reports beside the result; and how the result was produced. A failure is told apart from a refusal by the reason `internal` of its errors. Exactly one of `data` and `error` is given; the schema checks only that `error` is given when `data` is absent.",
+  "description": "The result of one command (ADR 0009 C1): its `data` when it succeeded (exit code 0), or the `error` report when its input was refused (exit code 1), the channel was not used as documented (code `usage`, exit code 2), the input could not be read (code `input_unreadable`, exit code 3) or the engine failed to compute it (exit code 5); what the engine reports beside the result; and how the result was produced. A failure is told apart from a refusal by the reason `internal` of its errors. Exactly one of `data` and `error` is given; the schema checks only that `error` is given when `data` is absent.",
   "properties": {
     "command": {
       "description": "Identifier of the command.",

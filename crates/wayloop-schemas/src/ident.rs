@@ -322,6 +322,12 @@ macro_rules! static_id {
             pub fn id(&self) -> &str {
                 &self.0
             }
+
+            /// The identifier `id`, owned: for one built from other identifiers.
+            #[must_use]
+            pub fn owned(id: ::std::string::String) -> Self {
+                Self(::std::borrow::Cow::Owned(id))
+            }
         }
 
         impl ::core::fmt::Display for $name {

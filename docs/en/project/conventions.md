@@ -176,13 +176,23 @@ Rules, checked by `scripts/schema_snapshots.py` in `just check` (recipe `schemas
 - `--check` fails when a committed snapshot, history, copy or list differs from the generated
   one, on a file under `schemas/` that is neither generated nor recorded, and on a folder of a
   contract the registry does not list.
-- A version earlier than the current one never changes. The current version, once on `main`,
-  changes only additively: a new optional input member, a new output member, a new `enum`
-  value, documentation. Any other change is a new version `v<N+1>`, written beside the
+- A version earlier than the current one never changes. The current version, once a release
+  holds it, changes only additively: a new optional input member, a new output member, a new
+  `enum` value, documentation. Any other change is a new version `v<N+1>`, written beside the
   unchanged `v<N>`. `--diff-against <base>` classifies the changes against the merge base with
   `main`, and refuses a rewritten history: an earlier version changed, a released file deleted,
   replaced by a symlink or with another mode, a version or a contract removed, a current
-  version gone back. A version not yet on `main` may change freely.
+  version gone back.
+- Until the first release that holds it, the current version may also change incompatibly
+  (ADR 0030, amendment of 2026-11-20). No release holds a version when its record on `main`
+  says `introduced_in: unreleased` and no release tag holds its file. Only a tag
+  `v<major>.<minor>.<patch>` counts as a release, the pattern `SEMVER` of `scripts/roadmap.py`;
+  if pre-release tags are introduced, that pattern must be extended first. `--diff-against`
+  then allows the breaking change and still prints it as breaking, so that the pull request
+  shows it. It runs against the updated base: a release tagged between the check and the merge
+  is caught, because the release writes `introduced_in` on `main` and the check runs again.
+  The site publishes `main`, so the `$id` of an unreleased version is public and the schema at
+  that URL may change before the first release.
 - A released file is one that a history on `main` records, whatever its name, or one that the
   snapshot pattern matches. A released version record never changes, except `introduced_in`,
   from `unreleased` to a release, and the hashes of the files of the current version; a key a

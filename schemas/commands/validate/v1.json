@@ -1,0 +1,277 @@
+{
+  "$defs": {
+    "BaseStatus": {
+      "additionalProperties": false,
+      "description": "The status of one artifact of the set on the default branch.",
+      "properties": {
+        "id": {
+          "description": "Identifier of the artifact.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/Status",
+          "description": "Its status on the default branch."
+        }
+      },
+      "required": [
+        "id",
+        "status"
+      ],
+      "type": "object"
+    },
+    "DocumentEntry": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "format": {
+                "const": "document"
+              }
+            },
+            "required": [
+              "format"
+            ]
+          },
+          "then": {
+            "required": [
+              "document"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "format": {
+                "const": "markdown"
+              }
+            },
+            "required": [
+              "format"
+            ]
+          },
+          "then": {
+            "required": [
+              "text"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "format": {
+                "const": "unreadable"
+              }
+            },
+            "required": [
+              "format"
+            ]
+          },
+          "then": {
+            "required": [
+              "error"
+            ]
+          }
+        }
+      ],
+      "description": "One stored artifact or input. `format` chooses which other members are given: `document` (with `lines` for a file), `markdown` (with `text`), `unreadable` (with `error`, and a `file` origin: only a file can fail to parse).",
+      "properties": {
+        "document": {
+          "$ref": "#/$defs/FreeDocument",
+          "description": "With the format `document`: the document."
+        },
+        "error": {
+          "$ref": "#/$defs/ParseError",
+          "description": "With the format `unreadable`: what the parser reported."
+        },
+        "format": {
+          "$ref": "#/$defs/EntryFormat",
+          "description": "What the entry holds."
+        },
+        "input_kind": {
+          "$ref": "#/$defs/InputKind",
+          "description": "With the format `document`, for an input; absent for an artifact."
+        },
+        "lines": {
+          "$ref": "#/$defs/Lines",
+          "description": "With the format `document` and a file origin: where each value is in the file."
+        },
+        "origin": {
+          "$ref": "#/$defs/Origin",
+          "description": "Where the document was read; it becomes `source` in every error. Absent for a document sent directly."
+        },
+        "text": {
+          "description": "With the format `markdown`: the content of the file.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format"
+      ],
+      "type": "object"
+    },
+    "EntryFormat": {
+      "description": "What an entry of `documents` holds; it chooses which other members are given.\n\n- `document`: A JSON value in the normalised form of its type, in `document`, with `lines` for a file.\n- `markdown`: The text of a living specification (`spec.md`), in `text`.\n- `unreadable`: A file that did not parse, with what the parser reported in `error`.",
+      "enum": [
+        "document",
+        "markdown",
+        "unreadable"
+      ],
+      "type": "string"
+    },
+    "FreeDocument": {
+      "description": "A document in the normalised form of its type, checked by the schema of its kind.",
+      "type": "object"
+    },
+    "InputKind": {
+      "description": "Type of an input (SPEC-0001, Inputs), which has no `kind` member.\n\n- `pull_request`: A pull request: title, body, branch and labels.\n- `commit`: A commit message: header and body.\n- `handover_input`: A hand-over submitted by an agent, before the engine fills its own fields.",
+      "enum": [
+        "pull_request",
+        "commit",
+        "handover_input"
+      ],
+      "type": "string"
+    },
+    "Lines": {
+      "description": "The line, from 1, of each value of the document, keyed by its RFC 6901 pointer into the document.",
+      "type": "object"
+    },
+    "Origin": {
+      "additionalProperties": false,
+      "description": "Where a document was read: exactly one of `file`, `issue`, `milestone`, which the core checks. The member present tells the form, with no tag, as for `source` of an error: a choice without a kind, against the letter of ADR 0009 C4, so that the input and the error report write a place the same way (plan of SPEC-0001).",
+      "properties": {
+        "file": {
+          "description": "Path of the file relative to the root of the project.",
+          "format": "project-path",
+          "type": "string"
+        },
+        "issue": {
+          "description": "A tracker issue, by its number.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "milestone": {
+          "description": "A tracker milestone, by its number.",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ParseError": {
+      "additionalProperties": false,
+      "description": "What the parser of a file reported when it could not read it.",
+      "properties": {
+        "line": {
+          "description": "Line of the fault, counted from 1.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "message": {
+          "description": "Message of the parser, for a person.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "line",
+        "message"
+      ],
+      "type": "object"
+    },
+    "Policy": {
+      "additionalProperties": false,
+      "description": "The subset of the project policy the artifact model reads (SPEC-0021 R1): the types and scopes of commits and the areas of epics and tasks.",
+      "properties": {
+        "areas": {
+          "description": "Areas of epics and tasks, without the `area:` prefix.",
+          "items": {
+            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, spelt as the policy spells it, of at least one character.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "scopes": {
+          "description": "Scopes of commits and pull request titles.",
+          "items": {
+            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, spelt as the policy spells it, of at least one character.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "types": {
+          "description": "Types of commits, branches and pull request titles.",
+          "items": {
+            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, spelt as the policy spells it, of at least one character.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "types",
+        "scopes",
+        "areas"
+      ],
+      "type": "object"
+    },
+    "Status": {
+      "description": "Status of an artifact (SPEC-0001 R5), as any type allows it.\n\n- `draft`: Written, not approved.\n- `approved`: Approved by a person.\n- `surveyed`: A specification written by the survey of an existing project, not approved.\n- `implementing`: Work on it has started.\n- `done`: Delivered; terminal.\n- `superseded`: Replaced by other artifacts; terminal.",
+      "enum": [
+        "draft",
+        "approved",
+        "surveyed",
+        "implementing",
+        "done",
+        "superseded"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://salvo8519.github.io/wayloop/schemas/commands/validate/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The canonical input of `wayloop validate`: a set of stored artifacts and inputs, validated together in one pass. A member set to null is not given (ADR 0009 C2). Checks whose part of the engine is not built yet are listed in `diagnostics.not_done` of the result.",
+  "properties": {
+    "adrs": {
+      "description": "Numbers of the ADRs of the project, for the warning on a citation `ADR <NNNN>` with no ADR of that number. Absent: citations are not checked.",
+      "items": {
+        "description": "Number of an ADR of the project, from 1.",
+        "minimum": 1,
+        "type": "integer"
+      },
+      "type": "array"
+    },
+    "base": {
+      "description": "Statuses on the default branch of the artifacts of this set, for the checks of transitions and initial statuses (SPEC-0001 R13, R19). Absent: those checks are not done.",
+      "items": {
+        "$ref": "#/$defs/BaseStatus"
+      },
+      "type": "array"
+    },
+    "documents": {
+      "description": "One entry per stored artifact or input, in the order the caller sorted them; `[]` means none. Errors of documents are reported in this order.",
+      "items": {
+        "$ref": "#/$defs/DocumentEntry"
+      },
+      "type": "array"
+    },
+    "language": {
+      "description": "Language of the project: the language of the prose of a document without its own `language`. When it is absent and a check needs it, the default is listed in `meta.defaults_applied`; no check of this version reads it.",
+      "format": "language-tag",
+      "type": "string"
+    },
+    "policy": {
+      "$ref": "#/$defs/Policy",
+      "description": "The subset of the project policy. Absent: the default policy applies."
+    }
+  },
+  "required": [
+    "documents"
+  ],
+  "title": "ValidateInput",
+  "type": "object"
+}

@@ -3,24 +3,42 @@
 //!
 //! The envelope types are contract types of `wayloop-schemas`, re-exported at the root of the
 //! crate; `Envelope<D>` is generic over the data of one command (ADR 0030 G1). The entry point
-//! of ADR 0028 (#221) fills them with these functions; no channel computes the hash or the
-//! versions itself.
+//! of ADR 0028 fills them with these functions; no channel computes the hash or the versions
+//! itself.
 
 use core::num::NonZeroU32;
 
 use serde_json::Value;
-use wayloop_schemas::{DefaultApplied, InputHash, Meta};
+use wayloop_schemas::{DefaultApplied, Envelope, InputHash, Meta};
 
 use crate::VERSION;
 use crate::canonical::canonical_json;
 use crate::sha256::sha256;
 
-/// `meta.input_hash` of `input`: the SHA-256 of its canonical JSON (RFC 8785), in lower-case
-/// hexadecimal (ADR 0009 C1, SPEC-0004 R11). The same input gives the same hash whatever the
+/// `meta.input_hash` of `input`: the SHA-256 of the canonical JSON (RFC 8785) of the input
+/// without its members set to null, in lower-case hexadecimal (ADR 0009 C1, SPEC-0004 R11). A
+/// member set to null is not given (C2), so it does not change the hash; an element of an
+/// array is a value, kept even when null. The same input gives the same hash whatever the
 /// order of its keys.
 #[must_use]
 pub fn input_hash(input: &Value) -> InputHash {
-    InputHash::from_digest(&sha256(canonical_json(input).as_bytes()))
+    InputHash::from_digest(&sha256(canonical_json(&without_nulls(input)).as_bytes()))
+}
+
+/// `value` without the members of objects set to null, at any depth; elements of arrays are
+/// kept. The recursion follows the input, whose depth the JSON parser bounds.
+pub(crate) fn without_nulls(value: &Value) -> Value {
+    match value {
+        Value::Object(members) => Value::Object(
+            members
+                .iter()
+                .filter(|(_, member)| !member.is_null())
+                .map(|(key, member)| (key.clone(), without_nulls(member)))
+                .collect(),
+        ),
+        Value::Array(items) => Value::Array(items.iter().map(without_nulls).collect()),
+        other => other.clone(),
+    }
 }
 
 /// The meta of a result of this engine for version `command_version` of a command on `input`,
@@ -42,9 +60,39 @@ pub fn meta(
     )
 }
 
+/// The meta of a result for an input that has no canonical JSON, because its bytes are not
+/// JSON or no input was received: `input_hash` is the SHA-256 of the bytes received.
+#[must_use]
+pub fn meta_of_bytes(
+    command_version: NonZeroU32,
+    bytes: &[u8],
+    dry_run: bool,
+    defaults_applied: Vec<DefaultApplied>,
+) -> Meta {
+    Meta::new(
+        VERSION,
+        command_version,
+        InputHash::from_digest(&sha256(bytes)),
+        dry_run,
+        defaults_applied,
+    )
+}
+
+/// The JSON text of `envelope`, on one line, with the members in the order of ADR 0009 C1 and
+/// C3: the text every channel that writes text prints, byte for byte (ADR 0028).
+///
+/// # Errors
+///
+/// The error of `serde_json` if the envelope cannot be written, which its types do not allow.
+pub fn envelope_json<D: serde::Serialize>(
+    envelope: &Envelope<D>,
+) -> Result<String, serde_json::Error> {
+    serde_json::to_string(envelope)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{input_hash, meta};
+    use super::{input_hash, meta, meta_of_bytes};
     use crate::VERSION;
     use crate::canonical::canonical_json;
     use crate::test_support::SplitMix64;
@@ -166,6 +214,48 @@ mod tests {
             let read_back: Value = serde_json::from_str(&canonical).unwrap();
             assert_eq!(canonical_json(&read_back), canonical);
         }
+    }
+
+    #[test]
+    fn members_set_to_null_do_not_change_the_hash_but_null_elements_do() {
+        // ADR 0009 C2, SPEC-0004 R11: a member set to null is not given.
+        let plain = json!({"documents": [{"a": 1, "b": [null, {"c": 2}]}]});
+        let with_nulls = json!({"documents": [{"a": 1, "z": null, "b": [null, {"c": 2, "d": null}]}], "e": null});
+        assert_eq!(input_hash(&plain), input_hash(&with_nulls));
+        let fewer_elements = json!({"documents": [{"a": 1, "b": [{"c": 2}]}]});
+        assert_ne!(input_hash(&plain), input_hash(&fewer_elements));
+        assert_eq!(
+            input_hash(&json!({"a": null})).as_str(),
+            input_hash(&json!({})).as_str()
+        );
+    }
+
+    #[test]
+    fn the_text_of_an_envelope_is_its_json_on_one_line() {
+        use wayloop_schemas::{Diagnostics, Envelope, Outcome};
+        let envelope = Envelope::new(
+            "validate",
+            Outcome::success(json!({"documents": []})).unwrap(),
+            Diagnostics::default(),
+            meta(NonZeroU32::MIN, &json!({}), false, vec![]),
+        );
+        let text = super::envelope_json(&envelope).unwrap();
+        assert_eq!(text, serde_json::to_string(&envelope).unwrap());
+        assert!(text.starts_with(r#"{"command":"validate","data":{"documents":[]},"#));
+        assert!(!text.contains('\n'));
+    }
+
+    #[test]
+    fn the_meta_of_bytes_hashes_the_bytes_received() {
+        let meta = meta_of_bytes(NonZeroU32::MIN, b"{", false, vec![]);
+        let digest: [u8; 32] = Sha256::digest(b"{").into();
+        assert_eq!(
+            meta.input_hash(),
+            &wayloop_schemas::InputHash::from_digest(&digest)
+        );
+        assert_eq!(meta.engine_version(), VERSION);
+        assert!(!meta.dry_run());
+        assert_eq!(meta.defaults_applied(), []);
     }
 
     #[test]

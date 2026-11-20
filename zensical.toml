@@ -33,6 +33,7 @@ nav = [
   ] },
   { "Reference" = [
     "reference/index.md",
+    "reference/validate.md",
   ] },
   { "Project" = [
     "project/vision.md",

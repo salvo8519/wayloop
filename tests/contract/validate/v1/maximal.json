@@ -1,0 +1,134 @@
+{
+  "description": "Every member of the input given: two briefs read from files with their lines, the statuses of the default branch, the policy and the ADR numbers.",
+  "covers": [
+    "SPEC-0001 R1",
+    "SPEC-0001 R12"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "superseded",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [],
+          "constraints": [],
+          "superseded_by": [
+            "BRIEF-0002"
+          ],
+          "language": "en-GB",
+          "open_questions": []
+        },
+        "origin": {
+          "file": "plan/briefs/BRIEF-0001.yaml"
+        },
+        "lines": {
+          "": 2,
+          "/status": 6
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0002",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "draft",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ],
+          "language": "en",
+          "open_questions": [
+            "Which export formats are needed?"
+          ]
+        },
+        "origin": {
+          "file": "plan/briefs/BRIEF-0002.yaml"
+        },
+        "lines": {
+          "": 2
+        }
+      }
+    ],
+    "base": [
+      {
+        "id": "BRIEF-0001",
+        "status": "approved"
+      }
+    ],
+    "policy": {
+      "types": [
+        "feat",
+        "fix"
+      ],
+      "scopes": [
+        "core"
+      ],
+      "areas": [
+        "core"
+      ]
+    },
+    "adrs": [
+      1,
+      2,
+      9
+    ],
+    "language": "en"
+  },
+  "expect": {
+    "exit_code": 0,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/meta/envelope_version": 1,
+      "/meta/dry_run": false,
+      "/data/documents/0/id": "BRIEF-0001",
+      "/data/documents/0/status": "superseded",
+      "/data/documents/0/origin": {
+        "file": "plan/briefs/BRIEF-0001.yaml"
+      },
+      "/data/documents/1/id": "BRIEF-0002",
+      "/data/documents/1/status": "draft",
+      "/meta/input_hash": "c938f7d9fd362ec68c73c4dc4ac23e04aa91e41d2a41d8ae3e7219b9ae3da47d"
+    },
+    "absent": [
+      "/error"
+    ],
+    "lengths": {
+      "/data/documents": 2
+    }
+  }
+}

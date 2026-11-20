@@ -8,8 +8,8 @@ use std::collections::BTreeMap;
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde_json::{Value, json};
 
-use super::rules::{formatted, require_if_absent, require_if_equals, require_if_present};
-use super::transform::{ANY_VALUE, unwrapped};
+use super::rules::{artifact, formatted, require_if_absent, require_if_equals, require_if_present};
+use super::transform::{ANY_VALUE, only_reachable_definitions, unwrapped};
 use super::{
     ContractError, Direction, MAX_OBJECT_LEVELS, PUBLISHED_AT, Problem, TYPES, schema_for, snapshot,
 };
@@ -49,7 +49,10 @@ fn every_contract_type_generates_its_schema_in_both_directions() {
         for direction in [Direction::Input, Direction::Output] {
             let schema = (registered.schema)(direction)
                 .unwrap_or_else(|e| panic!("{} {direction:?}: {e}", registered.name));
-            assert_eq!(schema["title"], registered.name);
+            // A generic type is registered with its parameter, `Envelope<ValidateData>`; its
+            // schema keeps the name of the type, `Envelope`.
+            let title = registered.name.split('<').next().unwrap_or_default();
+            assert_eq!(schema["title"], title);
             assert_eq!(
                 schema["$schema"],
                 "https://json-schema.org/draft/2020-12/schema"
@@ -70,8 +73,10 @@ fn objects_are_open_in_an_output_and_closed_in_an_input() {
         }
         let mut found = Vec::new();
         objects(&input, &Pointer::root(), &mut found);
+        // An object that declares members is closed; one that declares none is a free object
+        // (a document of another schema), open in an input too (ADR 0030 G2, amended with #256).
         for (pointer, schema) in found {
-            if schema.get("type") == Some(&json!("object")) {
+            if schema.get("type") == Some(&json!("object")) && schema.get("properties").is_some() {
                 assert_eq!(
                     schema["additionalProperties"],
                     json!(false),
@@ -156,8 +161,8 @@ fn a_flattened_struct_merges_its_members_into_one_object() {
     assert_eq!(
         members,
         [
-            "code", "errors", "expected", "fix", "message", "pointer", "pointers", "reason",
-            "source"
+            "code", "document", "errors", "expected", "fix", "message", "pointer", "pointers",
+            "reason", "source"
         ]
     );
     assert_eq!(
@@ -168,14 +173,12 @@ fn a_flattened_struct_merges_its_members_into_one_object() {
 }
 
 #[test]
-fn the_source_requires_file_and_line_together() {
+fn the_line_of_a_source_comes_only_with_its_file() {
+    // The line is written only when it is known, never guessed (SPEC-0004 R2).
     let schema = schema_for::<crate::Source>(Direction::Output).unwrap();
     assert_eq!(
         schema["allOf"],
-        json!([
-            {"if": {"required": ["file"]}, "then": {"required": ["line"]}},
-            {"if": {"required": ["line"]}, "then": {"required": ["file"]}}
-        ])
+        json!([{"if": {"required": ["line"]}, "then": {"required": ["file"]}}])
     );
     assert!(schema.get("required").is_none());
 }
@@ -535,7 +538,7 @@ fn a_description_of_blanks_only_is_none() {
 }
 
 #[test]
-fn a_map_is_refused_in_an_output_and_kept_for_the_loader_in_an_input() {
+fn a_map_is_refused_in_an_output_and_in_an_input() {
     assert_eq!(
         refused::<WithMap>(Direction::Output),
         ContractError {
@@ -543,14 +546,15 @@ fn a_map_is_refused_in_an_output_and_kept_for_the_loader_in_an_input() {
             problem: Problem::ClosedOutput
         }
     );
-    // In an input the schema of the values stays, never overwritten by `false`: the loader of
-    // the core refuses it by its place.
-    let schema = schema_for::<WithMap>(Direction::Input).unwrap();
+    // In an input the schema of the values is never overwritten by `false`, and the object
+    // stays open: the generator refuses it (contract audit S5).
     assert_eq!(
-        schema["properties"]["a"]["additionalProperties"],
-        json!({"type": "integer", "minimum": 0})
+        refused::<WithMap>(Direction::Input),
+        ContractError {
+            pointer: at("/properties/a"),
+            problem: Problem::OpenInput
+        }
     );
-    assert_eq!(schema["additionalProperties"], json!(false));
 }
 
 #[test]
@@ -738,4 +742,182 @@ fn an_enum_line_without_a_meaning_is_refused() {
         super::check::check(&schema("d\n\n- `a`: First."), Direction::Output),
         Ok(())
     );
+}
+
+/// A free object of an input: a document whose schema is another one.
+struct Free;
+
+impl JsonSchema for Free {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "Free".into()
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> Schema {
+        crate::value::free_object_schema("A document of another schema.")
+    }
+}
+
+/// An input with a free member.
+#[derive(JsonSchema)]
+#[allow(dead_code, reason = "a schema only, never built")]
+struct WithFree {
+    /// A free document.
+    document: Free,
+}
+
+#[test]
+fn only_a_declared_free_object_stays_open_in_an_input() {
+    // Contract audit S5: an open object of an input is refused unless it is listed in
+    // FREE_OBJECTS, as the documents and the lines of `validate` are.
+    assert_eq!(
+        refused::<WithFree>(Direction::Input),
+        ContractError {
+            pointer: at("/$defs/Free"),
+            problem: Problem::OpenInput
+        }
+    );
+    assert_eq!(
+        super::check::FREE_OBJECTS,
+        [
+            crate::validate::FreeDocument::NAME,
+            crate::validate::Lines::NAME
+        ]
+    );
+    let schema = schema_for::<crate::validate::ValidateInput>(Direction::Input).unwrap();
+    assert_eq!(schema["additionalProperties"], json!(false));
+    for name in super::check::FREE_OBJECTS {
+        let free = &schema["$defs"][name];
+        assert_eq!(free["type"], "object");
+        assert!(free.get("additionalProperties").is_none(), "{schema}");
+    }
+    // The same object in an output is open, as every output is.
+    assert!(schema_for::<WithFree>(Direction::Output).is_ok());
+    // A condition names members; it is not an object of the input.
+    let mut conditional = json!({
+        "additionalProperties": false,
+        "description": "d",
+        "properties": {"a": {"description": "a", "type": "string"}},
+        "type": "object",
+        "allOf": [{"if": {"type": "object", "required": ["a"]}, "then": {"required": ["a"]}}]
+    });
+    assert_eq!(super::check::check(&conditional, Direction::Input), Ok(()));
+    conditional["additionalProperties"] = json!(true);
+    assert_eq!(
+        super::check::check(&conditional, Direction::Input),
+        Err(ContractError {
+            pointer: at(""),
+            problem: Problem::OpenInput
+        })
+    );
+}
+
+#[test]
+fn the_rules_of_an_artifact_hold_on_a_schema_without_members_and_keep_odd_members() {
+    // Review N5: no member to replace is no reason to lose the rule, nor to panic.
+    let one = core::num::NonZeroU32::MIN;
+    let mut bare = Schema::from(serde_json::Map::new());
+    artifact(&mut bare, "brief", one, "superseded");
+    assert_eq!(
+        bare.get("properties").unwrap()["kind"],
+        json!({"const": "brief"})
+    );
+    assert_eq!(
+        bare.get("properties").unwrap()["schema_version"],
+        json!({"const": 1, "type": "integer"})
+    );
+    let mut odd = Schema::try_from(json!({"properties": true})).unwrap();
+    artifact(&mut odd, "brief", one, "superseded");
+    assert_eq!(odd.get("properties"), Some(&json!(true)));
+}
+
+#[test]
+fn a_definition_no_reference_reaches_is_removed() {
+    // Audit N1: the constant kind of a brief leaves ArtifactKind unused.
+    let brief = schema_for::<crate::artifact::Brief>(Direction::Input).unwrap();
+    assert!(brief["$defs"].get("ArtifactKind").is_none(), "{brief}");
+    assert!(brief["$defs"].get("BriefStatus").is_some());
+    let mut object = json!({
+        "$ref": "#/$defs/A",
+        "items": {"$ref": "#/$defs/B"},
+        "$defs": {
+            "A": {"$ref": "#/$defs/C"},
+            "B": {},
+            "C": {"items": [{"$ref": "#/$defs/A"}]},
+            "Unused": {"$ref": "#/$defs/Also"},
+            "Also": {}
+        }
+    });
+    only_reachable_definitions(object.as_object_mut().unwrap());
+    let kept: Vec<&String> = object["$defs"].as_object().unwrap().keys().collect();
+    assert_eq!(kept, ["A", "B", "C"]);
+    let mut none = json!({"type": "object", "$defs": {"Unused": {}}});
+    only_reachable_definitions(none.as_object_mut().unwrap());
+    assert_eq!(none, json!({"type": "object"}));
+}
+
+/// An object written by hand with members and no `type`.
+struct Untyped;
+
+impl JsonSchema for Untyped {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "Untyped".into()
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> Schema {
+        Schema::try_from(json!({
+            "description": "Members without a type.",
+            "properties": {"a": {"description": "A member.", "type": "string"}}
+        }))
+        .unwrap()
+    }
+}
+
+/// An input holding an untyped object.
+#[derive(JsonSchema)]
+#[allow(dead_code, reason = "a schema only, never built")]
+struct WithUntyped {
+    /// The untyped object.
+    inner: Untyped,
+}
+
+#[test]
+fn a_schema_with_members_is_an_object_without_its_type() {
+    // Second review: `properties` alone makes an object, closed by the transform in an input
+    // and refused by the checks when open; a condition is never closed.
+    let schema = schema_for::<WithUntyped>(Direction::Input).unwrap();
+    assert_eq!(
+        schema["$defs"]["Untyped"]["additionalProperties"],
+        json!(false)
+    );
+    let output = schema_for::<WithUntyped>(Direction::Output).unwrap();
+    assert!(
+        output["$defs"]["Untyped"]
+            .get("additionalProperties")
+            .is_none()
+    );
+    let open = json!({
+        "additionalProperties": false,
+        "description": "d",
+        "properties": {"a": {"description": "a", "properties": {}}},
+        "type": "object"
+    });
+    assert_eq!(
+        super::check::check(&open, Direction::Input),
+        Err(ContractError {
+            pointer: at("/properties/a"),
+            problem: Problem::OpenInput
+        })
+    );
+    let entry = &schema_for::<crate::validate::ValidateInput>(Direction::Input).unwrap()["$defs"]["DocumentEntry"]
+        ["allOf"];
+    for condition in entry.as_array().unwrap() {
+        assert!(
+            condition["if"].get("additionalProperties").is_none(),
+            "{condition}"
+        );
+        assert!(
+            condition["then"].get("additionalProperties").is_none(),
+            "{condition}"
+        );
+    }
 }

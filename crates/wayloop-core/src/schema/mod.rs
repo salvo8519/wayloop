@@ -61,6 +61,7 @@
 //! | `utc-date-time` | `YYYY-MM-DDThh:mm:ssZ`, with an optional fraction of 1 to 9 digits; hours 00 to 23, seconds 00 to 59, upper-case `T` and `Z` | none |
 //! | `language-tag` | A BCP 47 tag of language (2 or 3 letters), optional script (4 letters), optional region (2 letters or 3 digits) and variants (5 to 8 letters or digits, or a digit and 3 letters or digits), any case; no extension, private use or grandfathered tag | `_` written `-` |
 //! | `tracker-handle` | `@` then 1 to 39 letters, digits or single hyphens, not at either end | `@` added |
+//! | `project-path` | A path relative to the root of the project in one spelling: segments joined by `/`, none empty, `.` or `..`; no `\`, no drive letter (`C:`) | `\` written `/`, empty and `.` segments dropped; none for a path that starts with `/` or `\` |
 //! | `brief-id`, `council-id`, `gate-id`, `epic-id`, `story-id`, `spec-id`, `change-id`, `task-id` | `BRIEF-`, `COUNCIL-`, `GATE-`, `EPIC-`, `STORY-`, `SPEC-`, `CHANGE-` or `TASK-` then four digits, or five or more without a leading zero (SPEC-0001, Identifiers) | prefix in upper case, separator `-`, sequence padded or unpadded |
 //! | `milestone-id` | `M` then `0` or a number without a leading zero | `M` and the number, from `m2`, `M02` or `Milestone 2` |
 //! | `handover-id` | `HANDOVER-<issue>-<k>`, both numbers from 1 without a leading zero | prefix in upper case, leading zeros removed |
@@ -98,7 +99,7 @@ mod format;
 mod load;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 /// Deepest nesting of subschemas a schema may have, counted through `$ref`: the root is at
 /// depth 0 and each `properties` member, `items`, `if`, `contains` and reference target adds

@@ -6,10 +6,12 @@
 //! part of it is defined once here or in the error report (ADR 0030 G1). The envelope is
 //! `{command, data | error, diagnostics {warnings, not_done, checks}, meta {engine_version,
 //! envelope_version, command_version, input_hash, dry_run, defaults_applied}}`. A result that
-//! succeeded has `data` and no `error`; a refused or failed one has `error`, the
+//! succeeded has `data` and no `error`; a refused or failed one, and one stopped because the
+//! channel was not used as documented or could not read the input, has `error`, the
 //! [`ErrorReport`], and no `data` (SPEC-0004 R18). A failure is told apart from a refusal by the
 //! reason `internal` of its errors (C3, amended on 2026-11-20) and by its exit code: 5 for a
-//! failure, 1 for a refusal. Lists are always written, `[]` when empty (C2). Every identifier is
+//! failure, 1 for a refusal; a usage error and an unreadable input by their codes, [`USAGE`] and
+//! [`INPUT_UNREADABLE`], and their exit codes 2 and 3 (SPEC-0004, Errors). Lists are always written, `[]` when empty (C2). Every identifier is
 //! a stable `snake_case` value, and clients accept values they do not know (C5). Nothing in the
 //! envelope depends on the machine or the moment: it has no field for a clock time, a host name
 //! or an absolute path (SPEC-0004 R15), and the values the engine writes in it come from the
@@ -25,7 +27,22 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use crate::contract::rules;
-use crate::{Error, ErrorReport, Pointer, Reason};
+use crate::{Code, Error, ErrorReport, Pointer, Reason};
+
+/// The channel was not used as documented, for example a command line its adapter does not
+/// understand: reason `syntax`, exit code 2 (SPEC-0004, Errors). A code of the envelope, not of
+/// one command: the exit code of an envelope depends on it.
+pub const USAGE: Code = Code::new("usage");
+
+/// The channel could not read the input from the environment, for example a file that does not
+/// exist (reason `missing`) or cannot be read (reason `state`): exit code 3 (SPEC-0004, Errors).
+/// A code of the envelope, not of one command: the exit code of an envelope depends on it.
+pub const INPUT_UNREADABLE: Code = Code::new("input_unreadable");
+
+/// The engine could not compute the result; the input may be valid. Its errors have the reason
+/// `internal` and the command exits with code 5 (ADR 0009 C3, C7). A code of the envelope, not
+/// of one command, built by [`Error::internal`].
+pub const INTERNAL_ERROR: Code = Code::new("internal_error");
 
 /// Version of the shape of the envelope, written in `meta.envelope_version`. It changes only
 /// with a breaking change of the envelope itself (ADR 0009 C5).
@@ -140,7 +157,9 @@ crate::static_id! {
 /// given (C2).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DefaultApplied {
-    /// RFC 6901 pointer, from the root of the input, to where the default applies.
+    /// RFC 6901 pointer, from the root of the input, to where the default applies. With the
+    /// reason `current_command_version`, the pointer `""` designates the context of the
+    /// command, its version, which has no place in the input.
     pointer: Pointer,
     /// The value applied.
     #[serde(deserialize_with = "not_null")]
@@ -271,11 +290,23 @@ enum Kind<D> {
     Success(D),
     Refused(ErrorReport),
     Failed(ErrorReport),
+    Unusable(ErrorReport),
+    Environment(ErrorReport),
 }
 
 /// Whether `error` is a failure of the engine rather than a refusal of the input.
 fn is_internal(error: &Error) -> bool {
     error.reason() == Reason::Internal
+}
+
+/// Whether `error` stops the command before it ran: a usage error or an unreadable input.
+fn is_stop(error: &Error) -> bool {
+    *error.code() == USAGE || *error.code() == INPUT_UNREADABLE
+}
+
+/// Whether every error of `report` has the code `code`.
+fn all_coded(report: &ErrorReport, code: &Code) -> bool {
+    report.errors().all(|e| e.code() == code)
 }
 
 impl<D: Serialize> Outcome<D> {
@@ -296,15 +327,29 @@ impl<D> Outcome<D> {
     /// error of `report` has the reason [`Reason::Internal`], which is a failure.
     #[must_use]
     pub fn refused(report: ErrorReport) -> Option<Self> {
-        let any_internal = report.errors().any(is_internal);
-        (!any_internal).then(|| Self(Kind::Refused(report)))
+        let other = report.errors().any(|e| is_internal(e) || is_stop(e));
+        (!other).then(|| Self(Kind::Refused(report)))
+    }
+
+    /// The channel was not used as documented: exit code 2. `None` unless every error of
+    /// `report` has the code [`USAGE`].
+    #[must_use]
+    pub fn unusable(report: ErrorReport) -> Option<Self> {
+        all_coded(&report, &USAGE).then(|| Self(Kind::Unusable(report)))
+    }
+
+    /// The channel could not read the input: exit code 3. `None` unless every error of
+    /// `report` has the code [`INPUT_UNREADABLE`].
+    #[must_use]
+    pub fn environment(report: ErrorReport) -> Option<Self> {
+        all_coded(&report, &INPUT_UNREADABLE).then(|| Self(Kind::Environment(report)))
     }
 
     /// The engine could not compute the result: exit code 5. `None` unless every error of
     /// `report` has the reason [`Reason::Internal`] (ADR 0009 C3, as amended on 2026-11-20).
     #[must_use]
     pub fn failed(report: ErrorReport) -> Option<Self> {
-        let all_internal = report.errors().all(is_internal);
+        let all_internal = report.errors().all(|e| is_internal(e) && !is_stop(e));
         all_internal.then(|| Self(Kind::Failed(report)))
     }
 
@@ -312,11 +357,34 @@ impl<D> Outcome<D> {
     /// every error has the reason `internal`, a refusal when none has; `None` for a report that
     /// mixes them, which the contract does not define.
     fn of_report(report: ErrorReport) -> Option<Self> {
-        if report.errors().all(is_internal) {
+        if all_coded(&report, &USAGE) {
+            Self::unusable(report)
+        } else if all_coded(&report, &INPUT_UNREADABLE) {
+            Self::environment(report)
+        } else if report.errors().all(is_internal) {
             Self::failed(report)
         } else {
             Self::refused(report)
         }
+    }
+
+    /// A failure of the engine with the one error [`Error::internal`] of `message`: exit code
+    /// 5. Always an outcome, for a caller that must give one when no other can be built.
+    #[must_use]
+    pub fn internal(message: impl Into<String>) -> Self {
+        Self(Kind::Failed(ErrorReport::single(Error::internal(message))))
+    }
+
+    /// The same outcome with its data, if any, turned by `f`; a report is kept as it is.
+    #[must_use]
+    pub fn map<E>(self, f: impl FnOnce(D) -> E) -> Outcome<E> {
+        Outcome(match self.0 {
+            Kind::Success(data) => Kind::Success(f(data)),
+            Kind::Refused(report) => Kind::Refused(report),
+            Kind::Failed(report) => Kind::Failed(report),
+            Kind::Unusable(report) => Kind::Unusable(report),
+            Kind::Environment(report) => Kind::Environment(report),
+        })
     }
 
     /// The data of a success; `None` for a refusal or a failure.
@@ -324,7 +392,7 @@ impl<D> Outcome<D> {
     pub const fn data(&self) -> Option<&D> {
         match &self.0 {
             Kind::Success(data) => Some(data),
-            Kind::Refused(_) | Kind::Failed(_) => None,
+            Kind::Refused(_) | Kind::Failed(_) | Kind::Unusable(_) | Kind::Environment(_) => None,
         }
     }
 
@@ -333,17 +401,23 @@ impl<D> Outcome<D> {
     pub const fn report(&self) -> Option<&ErrorReport> {
         match &self.0 {
             Kind::Success(_) => None,
-            Kind::Refused(report) | Kind::Failed(report) => Some(report),
+            Kind::Refused(report)
+            | Kind::Failed(report)
+            | Kind::Unusable(report)
+            | Kind::Environment(report) => Some(report),
         }
     }
 
-    /// The exit code of the outcome (ADR 0009 C7): 0 for a success, 1 for a refused input, 5
-    /// for an internal error. The command line exits with it and never maps outcomes itself.
+    /// The exit code of the outcome (ADR 0009 C7): 0 for a success, 1 for a refused input, 2 for
+    /// a usage error, 3 for an unreadable input, 5 for an internal error. The command line exits
+    /// with it and never maps outcomes itself.
     #[must_use]
     pub const fn exit_code(&self) -> ExitCode {
         match self.0 {
             Kind::Success(_) => ExitCode::Success,
             Kind::Refused(_) => ExitCode::InputError,
+            Kind::Unusable(_) => ExitCode::UsageError,
+            Kind::Environment(_) => ExitCode::EnvironmentError,
             Kind::Failed(_) => ExitCode::InternalError,
         }
     }
@@ -539,7 +613,10 @@ impl<D: Serialize> Serialize for Envelope<D> {
         map.serialize_entry("command", &self.command)?;
         match &self.outcome.0 {
             Kind::Success(data) => map.serialize_entry("data", data)?,
-            Kind::Refused(report) | Kind::Failed(report) => {
+            Kind::Refused(report)
+            | Kind::Failed(report)
+            | Kind::Unusable(report)
+            | Kind::Environment(report) => {
                 map.serialize_entry("error", report)?;
             }
         }
@@ -550,9 +627,11 @@ impl<D: Serialize> Serialize for Envelope<D> {
 }
 
 /// The result of one command (ADR 0009 C1): its `data` when it succeeded (exit code 0), or the
-/// `error` report when its input was refused (exit code 1) or the engine failed to compute it
-/// (exit code 5); what the engine reports beside the result; and how the result was produced.
-/// A failure is told apart from a refusal by the reason `internal` of its errors. Exactly one
+/// `error` report when its input was refused (exit code 1), the channel was not used as
+/// documented (code `usage`, exit code 2), the input could not be read (code
+/// `input_unreadable`, exit code 3) or the engine failed to compute it (exit code 5); what the
+/// engine reports beside the result; and how the result was produced. A failure is told apart
+/// from a refusal by the reason `internal` of its errors. Exactly one
 /// of `data` and `error` is given; the schema checks only that `error` is given when `data` is
 /// absent.
 // The schema of `Envelope<D>`, in the shape its serialiser writes, and the form it is read
@@ -628,7 +707,7 @@ impl<'de, D: Deserialize<'de> + Serialize> Deserialize<'de> for Envelope<D> {
 mod tests {
     use super::{
         Check, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope,
-        EnvelopeForm, ExitCode, InputHash, Meta, NotDone, NotDoneReason, Outcome,
+        EnvelopeForm, ExitCode, INTERNAL_ERROR, InputHash, Meta, NotDone, NotDoneReason, Outcome,
     };
     use crate::fixtures::{Counted, INVALID_INPUT, at, unknown_then_missing};
     use crate::{Code, Error, ErrorReport, Pointer, Reason};
@@ -637,7 +716,6 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use serde_json::{Value, json};
 
-    const INTERNAL_ERROR: Code = Code::new("internal_error");
     const SCHEMA: Check = Check::new("schema");
     const LINKS: Check = Check::new("links");
     const PROJECT_LANGUAGE: DefaultReason = DefaultReason::new("project_language");
@@ -656,13 +734,7 @@ mod tests {
     }
 
     fn failure() -> ErrorReport {
-        ErrorReport::from_errors([Error::new(
-            INTERNAL_ERROR,
-            "The engine could not compute the result.",
-            Pointer::root(),
-            Reason::Internal,
-        )])
-        .unwrap()
+        ErrorReport::single(Error::internal("The engine could not compute the result."))
     }
 
     fn success(data: Value) -> Outcome<Value> {
@@ -701,6 +773,65 @@ mod tests {
     fn exit_codes_are_those_of_adr_0009_c7() {
         let codes: Vec<u8> = ExitCode::ALL.iter().map(|c| c.code()).collect();
         assert_eq!(codes, [0, 1, 2, 3, 4, 5]);
+    }
+
+    /// A report of one error of `code`.
+    fn coded(code: &'static str, reason: Reason) -> ErrorReport {
+        ErrorReport::single(Error::new(
+            Code::new(code),
+            "Stopped.",
+            Pointer::root(),
+            reason,
+        ))
+    }
+
+    #[test]
+    fn a_usage_error_and_an_unreadable_input_have_their_outcomes_and_exit_codes() {
+        // SPEC-0004, Errors: the codes `usage` and `input_unreadable` tell them apart.
+        let usage = coded("usage", Reason::Syntax);
+        let unreadable = coded("input_unreadable", Reason::Missing);
+        let unusable: Outcome<Value> = Outcome::unusable(usage.clone()).unwrap();
+        assert_eq!(unusable.exit_code(), ExitCode::UsageError);
+        assert_eq!(unusable.report(), Some(&usage));
+        assert_eq!(unusable.data(), None);
+        let environment: Outcome<Value> = Outcome::environment(unreadable.clone()).unwrap();
+        assert_eq!(environment.exit_code(), ExitCode::EnvironmentError);
+        // Each constructor takes only its own code; a refusal and a failure take neither.
+        assert!(Outcome::<Value>::unusable(unreadable.clone()).is_none());
+        assert!(Outcome::<Value>::environment(usage.clone()).is_none());
+        assert!(Outcome::<Value>::unusable(refusal()).is_none());
+        for stop in [&usage, &unreadable] {
+            assert!(Outcome::<Value>::refused(stop.clone()).is_none(), "{stop}");
+            let internal = ErrorReport::single(Error::new(
+                stop.first().code().clone(),
+                "Broken.",
+                Pointer::root(),
+                Reason::Internal,
+            ));
+            assert!(Outcome::<Value>::failed(internal).is_none(), "{stop}");
+        }
+        // Read back from its JSON, each keeps its outcome and its exit code.
+        for (outcome, code) in [(unusable, 2), (environment, 3)] {
+            let written = serde_json::to_value(envelope(outcome)).unwrap();
+            let read: Envelope<Value> = serde_json::from_value(written).unwrap();
+            assert_eq!(read.exit_code().code(), code);
+        }
+        // An internal outcome is always a failure; map keeps the outcome.
+        let internal: Outcome<Value> = Outcome::internal("Broken.");
+        assert_eq!(internal.exit_code(), ExitCode::InternalError);
+        let error = internal.report().unwrap().first();
+        assert_eq!(
+            (error.code(), error.reason(), error.pointer()),
+            (&INTERNAL_ERROR, Reason::Internal, &Pointer::root())
+        );
+        assert_eq!(
+            success(json!(1)).map(|v| v.to_string()).data(),
+            Some(&"1".to_owned())
+        );
+        assert_eq!(
+            refused().map(|v| v.to_string()).exit_code(),
+            ExitCode::InputError
+        );
     }
 
     #[test]

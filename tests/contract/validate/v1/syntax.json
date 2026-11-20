@@ -1,0 +1,24 @@
+{
+  "description": "Text that is not JSON is refused with syntax at the whole input.",
+  "covers": [
+    "SPEC-0001 R1"
+  ],
+  "input_text": "{\"documents\": [",
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "command_input",
+      "/error/pointer": "",
+      "/error/reason": "syntax",
+      "/meta/input_hash": "e0eae86901a4d19b5372e1136a2e2120b024fd838aa63aab71c084e3b66c58d7"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

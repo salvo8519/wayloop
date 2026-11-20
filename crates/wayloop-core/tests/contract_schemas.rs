@@ -24,6 +24,7 @@ use wayloop_core::{
 use wayloop_schemas::contract::{
     ContractError, Direction, EMBEDDED, PUBLISHED_AT, Registered, TYPES, reread, schema_for,
 };
+use wayloop_schemas::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
 
 const DIRECTIONS: [Direction; 2] = [Direction::Input, Direction::Output];
 
@@ -108,8 +109,8 @@ fn full_error() -> Error {
     .with_expected([json!(1), json!("two"), json!({"a": [null]})])
     .with_fix(json!({"op": "removed"}))
     .with_location(Source::File {
-        file: "specs/0001-artifact-model/spec.md".into(),
-        line: number(42),
+        file: ProjectPath::new("specs/0001-artifact-model/spec.md"),
+        line: Some(Line::new(number(42))),
     })
 }
 
@@ -137,12 +138,14 @@ fn every_serialised_value_is_accepted_and_reads_back_into_its_type() {
     accept!("InputHash", InputHash::from_digest(&[0xab; 32]));
     for source in [
         Source::File {
-            file: "plan/items/TASK-0001.yaml".into(),
-            line: number(7),
+            file: ProjectPath::new("plan/items/TASK-0001.yaml"),
+            line: Some(Line::new(number(7))),
         },
-        Source::Issue { issue: number(252) },
+        Source::Issue {
+            issue: IssueNumber::new(number(252)),
+        },
         Source::Milestone {
-            milestone: number(3),
+            milestone: MilestoneNumber::new(number(3)),
         },
     ] {
         accept!("Source", source);
@@ -278,10 +281,9 @@ fn every_embedded_snapshot_of_every_version_loads_in_the_core_and_the_oracle() {
 
 #[test]
 fn the_envelope_snapshot_is_the_schema_of_the_envelope_and_accepts_an_envelope() {
-    let embedded = EMBEDDED
-        .iter()
-        .find(|e| e.path == "envelope/result/v1.json")
-        .unwrap();
+    // The current version of the envelope; version 1 is frozen (ADR 0030 G5).
+    let path = format!("envelope/result/v{}.json", wayloop_core::ENVELOPE_VERSION);
+    let embedded = EMBEDDED.iter().find(|e| e.path == path).unwrap();
     let mut read: Value = serde_json::from_str(embedded.text).unwrap();
     read.as_object_mut().unwrap().remove("$id");
     assert_eq!(
@@ -344,10 +346,8 @@ fn the_schemas_refuse_what_the_types_never_write() {
     let check =
         |name: &str, direction: Direction, document: Value| errors_of(name, direction, &document);
     let output = Direction::Output;
-    assert_eq!(
-        check("Source", output, json!({"file": "a.md"})),
-        [("/line".to_owned(), Reason::Requires)]
-    );
+    // The line of a file is written only when it is known (SPEC-0004 R2).
+    assert_eq!(check("Source", output, json!({"file": "a.md"})), []);
     assert_eq!(
         check("Source", output, json!({"line": 2})),
         [("/file".to_owned(), Reason::Requires)]
@@ -534,14 +534,14 @@ fn a_boolean_schema_is_refused_by_the_loader() {
 }
 
 #[test]
-fn a_map_in_an_input_is_refused_by_the_loader_and_in_an_output_by_the_rules() {
-    let (pointer, problem) = invalid(refused::<WithMap>(Direction::Input));
-    assert_eq!(pointer, "/properties/a/additionalProperties");
-    assert_eq!(problem, "`additionalProperties` is only `false`");
-    let output = contract_schema(registered::<WithMap>(), Direction::Output).unwrap_err();
-    assert!(matches!(output, ContractFault::Rule(_)), "{output}");
-    assert!(output.to_string().starts_with("a rule of the contracts: "));
-    let subset = ContractFault::Subset(refused::<WithMap>(Direction::Input));
+fn a_map_is_refused_by_the_rules_in_both_directions() {
+    // An input map is an open object, refused before the loader sees it (contract audit S5).
+    for direction in [Direction::Input, Direction::Output] {
+        let fault = contract_schema(registered::<WithMap>(), direction).unwrap_err();
+        assert!(matches!(fault, ContractFault::Rule(_)), "{fault}");
+        assert!(fault.to_string().starts_with("a rule of the contracts: "));
+    }
+    let subset = ContractFault::Subset(refused::<RequiredNull>(Direction::Output));
     assert!(
         subset
             .to_string()
