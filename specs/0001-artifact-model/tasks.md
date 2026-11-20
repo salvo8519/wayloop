@@ -19,7 +19,7 @@ Prerequisites outside this specification:
 
 ## Foundations
 
-- [ ] **T1 Complete the error report of ADR 0009 in the core**
+- [x] **T1 Complete the error report of ADR 0009 in the core**
   - Covers: SPEC-0001 Errors; R12 (field `source`). Issue: #252.
   - Files: `crates/wayloop-schemas/src/` (report and `source` types), `crates/wayloop-core/src/error.rs`, `crates/wayloop-core/src/lib.rs`, `crates/wayloop-*/Cargo.toml`, `Cargo.lock`, `scripts/check_core_io.py`, `tests/process/test_check_core_io.py`, `docs/en/concepts/architecture.md` and its Italian edition.
   - Tests first: an error serialises with `message`, `pointers`, `expected`, `fix` and each form of `source`, absent fields left out; a report keeps `errors[0]` equal to the top level; the allowlist test lists the new crates.
@@ -27,7 +27,7 @@ Prerequisites outside this specification:
   - Depends on: D2.
   - Size: S. Maintainer (crates).
 
-- [ ] **T2 Add canonical JSON, SHA-256 and the envelope to the core**
+- [x] **T2 Add canonical JSON, SHA-256 and the envelope to the core**
   - Covers: ADR 0009 C1, C7; SPEC-0001 Interfaces (error report in the envelope). Issue: #253.
   - Files: `crates/wayloop-core/src/canonical.rs`, `crates/wayloop-core/src/sha256.rs`, `crates/wayloop-core/src/envelope.rs`, `crates/wayloop-schemas/src/` (envelope type), `crates/wayloop-core/Cargo.toml` (development dependencies).
   - Tests first: RFC 8785 test vectors; keys sorted by UTF-16 code units; SHA-256 published vectors and agreement with a test-only hashing crate on random inputs; the same input with keys in any order gives one `input_hash`; `Envelope::exit_code()` gives 0, 1 and 5 for success, refusal and internal error.
@@ -35,7 +35,7 @@ Prerequisites outside this specification:
   - Depends on: T1, D3, D6.
   - Size: M. Maintainer (crates).
 
-- [ ] **T3 [P] Refuse in CI any change to a released schema snapshot**
+- [x] **T3 [P] Refuse in CI any change to a released schema snapshot**
   - Covers: R1, R16; AC3. Issue: #254.
   - Files: `scripts/check_schemas.py`, `tests/process/test_check_schemas.py`, `justfile` (recipe `process`), `.claude/hooks/protect_contracts.py` (pattern extended to `v<N>.input.json`), `tests/process/test_claude_hooks.py`, `scripts/required_checks.py` if a new required check is added.
   - Tests first: a snapshot present on the base branch and changed fails; a new `v<N+1>.json` beside an unchanged `v<N>.json` passes; `v1.input.json` is protected by the hook and by the check; a gap in versions fails.
@@ -43,7 +43,7 @@ Prerequisites outside this specification:
   - Depends on: none.
   - Size: S. Small tier (tooling).
 
-- [ ] **T4 Interpret the JSON Schema subset in the core**
+- [x] **T4 Interpret the JSON Schema subset in the core**
   - Covers: R1, R12 (pointers); ADR 0009 C3 (every error in one pass). Issue: #255.
   - Files: `crates/wayloop-core/src/schema/` (interpreter, formats, closest key), `crates/wayloop-core/Cargo.toml` (test-only validator).
   - Tests first: each keyword of the subset maps to its reason (`missing`, `requires` inside `then`, `unknown_field` with `fix`, `type`, `enum` with `expected`, `length`, `range`, `syntax` for a format); three independent faults give three errors in document order; a schema with a keyword outside the subset is refused; the test-only validator agrees on the verdict of every test schema.
@@ -53,7 +53,7 @@ Prerequisites outside this specification:
 
 ## Slice 1: one kind end to end
 
-- [ ] **T5 Validate a brief through the entry point and wayloop validate --input**
+- [x] **T5 Validate a brief through the entry point and wayloop validate --input**
   - Covers: R1 (brief), R5 (statuses of the brief), R6, R12, R16; AC1 (brief pair), AC8 (brief in `implementing`), AC9 (key `problema` in place of `problem`, as in `brief.invalid.yaml`), AC25. Issue: #256.
   - Files: `schemas/artifacts/brief/v1.json`, `schemas/commands/validate/v1.json`, `schemas/commands/validate/v1.output.json`, `crates/wayloop-schemas/src/` (embedded snapshots), `crates/wayloop-core/src/artifacts/` (kinds, versions and migrations, `validate`, codes), `crates/wayloop-core/src/lib.rs` (`run`), `crates/wayloop-cli/src/main.rs` (`validate --input`), `tests/contract/validate/v1/`, `docs/en/reference/validate.md` and its Italian edition, `changes/`.
   - Tests first: golden cases `brief-valid`, `brief-invalid` (unknown key with `fix`, then `missing`), `schema-version-unknown` (`/schema_version`, `enum`, known versions in `expected`), `brief-status-implementing` (`enum`); migration of a test-only kind from `v1` to `v2`; the CLI prints the envelope of the entry point byte for byte and exits 1 on a refusal, 0 otherwise.
