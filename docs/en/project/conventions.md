@@ -111,9 +111,15 @@ Signed-off-by: Name Surname <email>
   squash-merged with their title, so the title becomes the commit on `main` and the line in
   `CHANGELOG.md`.
 - **Body**: the template sections, and the linked issue with a closing keyword: `Closes #42`
-  when the pull request completes the issue, `Refs #42` when it does not. Trivial changes
-  without an issue (a typo) carry the label `no-issue`.
+  when the pull request completes the issue, `Refs #42` when it does not. The checks read the
+  closing keywords as GitHub does: `close`, `closes`, `closed`, `fix`, `fixes`, `fixed`,
+  `resolve`, `resolves` and `resolved`, in any case, with an optional colon, anywhere in the
+  body. Trivial changes without an issue (a typo) carry the label `no-issue`.
 - **Branch and issue agree**: the issue number in the branch is the one linked in the body.
+- **One definition**: `scripts/conventions.py` owns the branch rule (`branch_issue`,
+  `sprint_of`) and the closing keywords (`closed_issues`, `linked_issues`); the other scripts
+  import them. The session briefing hook keeps a copy of the branch rule in shell, held equal
+  by a test.
 - **Size**: one issue, one concern. A change to `wayloop-core` and an unrelated workflow change
   are two pull requests.
 - **Roadmap**: the pull request marks its task `done` in `roadmap/roadmap.yaml` in the same

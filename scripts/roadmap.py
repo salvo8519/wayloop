@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from conventions import closed_issues
 
 ROOT = Path(__file__).resolve().parents[1]
 ROADMAP = ROOT / "roadmap" / "roadmap.yaml"
@@ -57,7 +58,6 @@ EPIC_KEYS = {"title", "issue", "labels", "tasks"}
 MILESTONE_KEYS = {"title", "gate", "release", "epics"}
 SEMVER = re.compile(r"^\d+\.\d+\.\d+\Z")
 TYPE_PREFIX = re.compile(r"^\[[^\]]*\]|^[a-z]+(\([^)]*\))?!?:\s")
-CLOSES = re.compile(r"(?im)^[ \t]*(?:closes|fixes|resolves)[ \t]+#(\d+)")
 HEADER = """\
 # Source of truth for the plan: milestones, epics (parent issues) and tasks (sub-issues).
 # The state of each issue lives on GitHub; `python scripts/roadmap.py sync --write` copies it
@@ -224,10 +224,10 @@ def problems_of(data: dict[str, Any], pr_body: str | None = None) -> list[str]:
     if INCLUDE not in PAGE.read_text(encoding="utf-8"):
         problems.append(f"docs/en/project/roadmap.md must include the generated tables: {INCLUDE}")
     if pr_body is not None:
-        for n in CLOSES.findall(pr_body):
-            if int(n) not in seen:
+        for n in sorted(closed_issues(pr_body)):
+            if n not in seen:
                 problems.append(f"the pull request closes #{n}, which is not in the roadmap")
-            elif int(n) in status_of and status_of[int(n)] == "open":
+            elif n in status_of and status_of[n] == "open":
                 # Merging closes the issue: the file must say so in the same change, or the
                 # roadmap and GitHub differ until another pull request.
                 problems.append(f"the pull request closes #{n}: mark its task done here")
@@ -343,11 +343,6 @@ def differences(
     return drift, untriaged
 
 
-def closed_by(body: str) -> set[int]:
-    """Issues that a pull request body closes on merge (`Closes #N`, `Fixes #N`, `Resolves #N`)."""
-    return {int(n) for n in CLOSES.findall(body)}
-
-
 def open_pull_roadmaps() -> dict[int, tuple[dict[str, Any], set[int]]]:
     """Roadmap file and closed issues of every open pull request from this repository.
 
@@ -373,7 +368,7 @@ def open_pull_roadmaps() -> dict[int, tuple[dict[str, Any], set[int]]]:
         text = base64.b64decode(content["content"]).decode("utf-8")
         data = yaml.safe_load(text)
         if isinstance(data, dict):
-            out[pr["number"]] = (data, closed_by(pr.get("body") or ""))
+            out[pr["number"]] = (data, closed_issues(pr.get("body") or ""))
     return out
 
 
