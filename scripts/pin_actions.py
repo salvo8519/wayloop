@@ -17,9 +17,10 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
+
+import _git
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
@@ -35,22 +36,12 @@ def resolve(action: str, ref: str, cache: dict[tuple[str, str], str]) -> str:
     """Commit of a tag (peeled when annotated) or of a branch, read with `git ls-remote`."""
     repo = "/".join(action.split("/")[:2])
     if (repo, ref) not in cache:
-        out = subprocess.run(
-            [
-                "git",
-                "ls-remote",
-                f"https://github.com/{repo}",
-                f"refs/tags/{ref}*",
-                f"refs/heads/{ref}",
-            ],
-            capture_output=True,
-            check=False,
-            text=True,
-            encoding="utf-8",
+        out = _git.run(
+            "ls-remote", f"https://github.com/{repo}", f"refs/tags/{ref}*", f"refs/heads/{ref}"
         )
         refs = {
             name: sha
-            for sha, name in (line.split("\t", 1) for line in out.stdout.split("\n") if line)
+            for sha, name in (line.split("\t", 1) for line in out.stdout.splitlines() if line)
         }
         sha = (
             refs.get(f"refs/tags/{ref}^{{}}")

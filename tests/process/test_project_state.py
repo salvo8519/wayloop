@@ -2,19 +2,14 @@
 
 from __future__ import annotations
 
-import importlib.util
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Any
 
+import project_state as ps
 import pytest
+from conftest import ROOT
 
-ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "project_state.py"
-_spec = importlib.util.spec_from_file_location("project_state", SCRIPT)
-assert _spec and _spec.loader
-ps = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(ps)
 
 
 def briefing(sprint: dict[str, Any] | None) -> dict[str, Any]:

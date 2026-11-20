@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import re
@@ -11,15 +10,11 @@ import subprocess
 from collections.abc import Mapping
 from pathlib import Path
 
+import conventions
 import pytest
+from conftest import ROOT, copy_hooks, git
 
-ROOT = Path(__file__).resolve().parents[2]
 HOOKS = ROOT / ".claude" / "hooks"
-
-_spec = importlib.util.spec_from_file_location("conventions", ROOT / "scripts" / "conventions.py")
-assert _spec and _spec.loader
-conventions = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(conventions)
 
 
 def registered() -> list[str]:
@@ -33,16 +28,7 @@ def registered() -> list[str]:
 
 
 def run(hook: str, payload: dict[str, object], cwd: Path) -> subprocess.CompletedProcess[str]:
-    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(cwd)}
-    return subprocess.run(
-        [str(cwd / ".claude" / "hooks" / hook)],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=cwd,
-        check=False,
-    )
+    return run_env(hook, payload, cwd)
 
 
 def test_every_hook_is_registered_and_executable() -> None:
@@ -52,21 +38,12 @@ def test_every_hook_is_registered_and_executable() -> None:
 
 
 @pytest.fixture
-def project(tmp_path: Path) -> Path:
-    """A git repository with the hooks and the documentation script."""
-    shutil.copytree(ROOT / ".claude", tmp_path / ".claude")
-    (tmp_path / "scripts").mkdir()
-    shutil.copy(ROOT / "scripts" / "docs_sync.py", tmp_path / "scripts" / "docs_sync.py")
-    env = {
-        **os.environ,
-        "GIT_AUTHOR_NAME": "t",
-        "GIT_AUTHOR_EMAIL": "t@t",
-        "GIT_COMMITTER_NAME": "t",
-        "GIT_COMMITTER_EMAIL": "t@t",
-    }
-    for cmd in (["init", "-q", "-b", "main"], ["add", "."], ["commit", "-q", "-m", "base"]):
-        subprocess.run(["git", *cmd], cwd=tmp_path, env=env, check=True)
-    return tmp_path
+def project(git_repo: Path) -> Path:
+    """A git repository with the hooks and the scripts they import or run."""
+    copy_hooks(git_repo)
+    git(git_repo, "add", ".")
+    git(git_repo, "commit", "-q", "-m", "base")
+    return git_repo
 
 
 def test_quality_gate_runs_when_the_session_and_a_subagent_stop() -> None:
@@ -108,18 +85,6 @@ def test_format_hook_formats_python_and_ignores_other_files(project: Path) -> No
 def test_format_hook_ignores_input_without_a_file(project: Path) -> None:
     assert run("format.sh", {"tool_input": {}}, project).returncode == 0
     assert run("format.sh", {}, project).returncode == 0
-
-
-GIT_ENV = {
-    "GIT_AUTHOR_NAME": "t",
-    "GIT_AUTHOR_EMAIL": "t@t",
-    "GIT_COMMITTER_NAME": "t",
-    "GIT_COMMITTER_EMAIL": "t@t",
-}
-
-
-def git(cwd: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=cwd, env={**os.environ, **GIT_ENV}, check=True)
 
 
 def run_env(

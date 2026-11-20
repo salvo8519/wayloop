@@ -2,21 +2,15 @@
 
 from __future__ import annotations
 
-import importlib.util
 import re
-import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
+import sprint as sp
+from conftest import ROOT, git
 
-ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "sprint.py"
-_spec = importlib.util.spec_from_file_location("sprint", SCRIPT)
-assert _spec and _spec.loader
-sp = importlib.util.module_from_spec(_spec)
-sys.modules["sprint"] = sp
-_spec.loader.exec_module(sp)
 
 
 def sprint_file(tmp_path: Path) -> Path:
@@ -135,7 +129,7 @@ def test_state_summary_flags_the_stale_file_of_a_closed_issue() -> None:
 def test_state_rejects_conflicting_pull_request_forms(tmp_path: Path, fixed_now: None) -> None:
     f = sprint_file(tmp_path)
     with pytest.raises(SystemExit, match="pull request must be an integer"):
-        sp.write_state(f, 12, pull_request="#33")
+        sp.write_state(f, 12, pull_request="#33")  # type: ignore[arg-type] # a wrong type on purpose
 
 
 def test_command_line_state_writes_and_prints(
@@ -159,34 +153,17 @@ def test_command_line_state_validates_the_sprint_first(tmp_path: Path) -> None:
 # Shared state across worktrees (issue #333)
 
 
-def _git(cwd: Path, *args: str) -> str:
-    import subprocess
-
-    env = {
-        "GIT_AUTHOR_NAME": "t",
-        "GIT_AUTHOR_EMAIL": "t@example.invalid",
-        "GIT_COMMITTER_NAME": "t",
-        "GIT_COMMITTER_EMAIL": "t@example.invalid",
-        "GIT_CONFIG_NOSYSTEM": "1",
-        "HOME": str(cwd),
-        "PATH": __import__("os").environ["PATH"],
-    }
-    return subprocess.run(
-        ["git", *args], cwd=cwd, env=env, capture_output=True, text=True, check=True
-    ).stdout
-
-
 @pytest.fixture
 def repo_with_worktree(tmp_path: Path) -> tuple[Path, Path]:
     """A repository with sprints/S01.yaml committed and a second worktree of it."""
     main = tmp_path / "main"
     (main / "sprints").mkdir(parents=True)
-    _git(main, "init", "-q", "-b", "main")
+    git(main, "init", "-q", "-b", "main")
     sprint_file(main / "sprints")
-    _git(main, "add", ".")
-    _git(main, "commit", "-q", "-m", "sprint")
+    git(main, "add", ".")
+    git(main, "commit", "-q", "-m", "sprint")
     lane = tmp_path / "lane"
-    _git(main, "worktree", "add", "-q", str(lane), "-b", "fix/12-lane")
+    git(main, "worktree", "add", "-q", str(lane), "-b", "fix/12-lane")
     return main, lane
 
 
@@ -221,7 +198,8 @@ def test_legacy_state_of_a_checkout_is_moved_once(
     files = sp.state_files(lane / "sprints" / "S01.yaml")
     assert [p.name for p in files] == ["13.yaml"]
     assert not legacy.exists()
-    assert sp.read_state(main / "sprints" / "S01.yaml", 13)["step"] == "review"
+    state = sp.read_state(main / "sprints" / "S01.yaml", 13)
+    assert state is not None and state["step"] == "review"
 
 
 def test_legacy_state_older_than_the_shared_one_is_dropped(
@@ -232,7 +210,8 @@ def test_legacy_state_older_than_the_shared_one_is_dropped(
     legacy = lane / "sprints" / "S01" / "state" / "12.yaml"
     legacy.parent.mkdir(parents=True)
     legacy.write_text("issue: 12\nstep: tests\nupdated: '2026-11-14T09:00:00+00:00'\n")
-    assert sp.read_state(lane / "sprints" / "S01.yaml", 12)["step"] == "pr"
+    state = sp.read_state(lane / "sprints" / "S01.yaml", 12)
+    assert state is not None and state["step"] == "pr"
     assert not legacy.exists()
 
 
@@ -354,11 +333,11 @@ def sprint_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A repository on a sprint branch of issue 40 (lane docs of S01)."""
     repo = tmp_path / "repo"
     (repo / "sprints").mkdir(parents=True)
-    _git(repo, "init", "-q", "-b", "main")
+    git(repo, "init", "-q", "-b", "main")
     sprint_file(repo / "sprints")
-    _git(repo, "add", ".")
-    _git(repo, "commit", "-q", "-m", "plan")
-    _git(repo, "switch", "-q", "-c", "sprint/S01/40-guide")
+    git(repo, "add", ".")
+    git(repo, "commit", "-q", "-m", "plan")
+    git(repo, "switch", "-q", "-c", "sprint/S01/40-guide")
     monkeypatch.chdir(repo)
     return repo
 
@@ -367,8 +346,8 @@ def commit_files(repo: Path, *paths: str) -> None:
     for path in paths:
         (repo / path).parent.mkdir(parents=True, exist_ok=True)
         (repo / path).write_text("x\n", encoding="utf-8")
-    _git(repo, "add", ".")
-    _git(repo, "commit", "-q", "-m", "work")
+    git(repo, "add", ".")
+    git(repo, "commit", "-q", "-m", "work")
 
 
 def check_diff(repo: Path, branch: str = "sprint/S01/40-guide") -> int:
@@ -398,7 +377,7 @@ def test_check_diff_rejects_generated_files_in_a_lane_that_does_not_generate(
 
 
 def test_check_diff_allows_generated_files_in_the_generating_lane(sprint_repo: Path) -> None:
-    _git(sprint_repo, "switch", "-q", "-c", "sprint/S01/12-core")
+    git(sprint_repo, "switch", "-q", "-c", "sprint/S01/12-core")
     commit_files(sprint_repo, "crates/wayloop-core/src/x.rs", ".claude/settings.json")
     assert check_diff(sprint_repo, "sprint/S01/12-core") == 0
 

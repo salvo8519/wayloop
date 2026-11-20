@@ -15,11 +15,11 @@ import functools
 import os
 import re
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+import _git
 import _github
 import yaml
 from conventions import branch_issue, sprint_of
@@ -231,25 +231,6 @@ def files_outside_lane(lane: dict[str, Any], changed: list[str]) -> list[str]:
     return [f for f in changed if not any(matches(f, p) for p in patterns)]
 
 
-def changed_files(base: str) -> list[str]:
-    out = subprocess.run(
-        ["git", "diff", "--name-only", "--no-renames", f"{base}...HEAD"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=False,
-    )
-    if out.returncode != 0:
-        out = subprocess.run(
-            ["git", "diff", "--name-only", "--no-renames", base, "HEAD"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=True,
-        )
-    return [line for line in out.stdout.splitlines() if line]
-
-
 def check_diff_command(args: argparse.Namespace) -> int:
     sprint_id, issue = sprint_of(args.branch), branch_issue(args.branch)
     if sprint_id is None or issue is None:
@@ -265,7 +246,7 @@ def check_diff_command(args: argparse.Namespace) -> int:
     lane = next((x for x in sprint["lanes"] if issue in x.get("issues", [])), None)
     if lane is None:
         sys.exit(f"#{issue} is not in the lanes of {sprint['id']}")
-    outside = files_outside_lane(lane, changed_files(args.base))
+    outside = files_outside_lane(lane, _git.changed(args.base, cwd="."))
     if outside:
         sys.exit(
             f"#{issue} belongs to lane {lane['name']} of {sprint['id']}, which may change "
@@ -291,15 +272,8 @@ def lane_of(sprint: dict[str, Any], issue: int) -> str:
 
 def git_common_dir(directory: Path) -> Path | None:
     """The git directory shared by every worktree of the repository, or None outside git."""
-    out = subprocess.run(
-        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-        cwd=directory,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=False,
-    )
-    return Path(out.stdout.strip()) if out.returncode == 0 and out.stdout.strip() else None
+    common = _git.output("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=directory)
+    return Path(common) if common else None
 
 
 def legacy_state_dir(sprint_file: Path) -> Path:

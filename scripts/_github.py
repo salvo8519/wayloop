@@ -20,6 +20,8 @@ import time
 from collections.abc import Callable, Sequence
 from typing import Any
 
+import _git
+
 DEFAULT_REPO = "salvo8519/wayloop"
 # `https://github.com/owner/name(.git)` or `git@github.com:owner/name(.git)`.
 REMOTE = re.compile(r"github\.com[:/](?P<repo>[^/\s]+/[^/\s]+?)(?:\.git)?/?$")
@@ -38,14 +40,7 @@ def repository() -> str:
     else the canonical repository."""
     if env := os.environ.get("GITHUB_REPOSITORY"):
         return env
-    out = subprocess.run(
-        ["git", "remote", "get-url", "origin"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=False,
-    )
-    return (repo_of_url(out.stdout) if out.returncode == 0 else None) or DEFAULT_REPO
+    return repo_of_url(_git.output("remote", "get-url", "origin")) or DEFAULT_REPO
 
 
 def cli(

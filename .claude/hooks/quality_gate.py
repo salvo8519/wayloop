@@ -31,25 +31,23 @@ import time
 import tomllib
 from pathlib import Path
 
+# The hooks run with the system python3, outside the project environment: the shared helpers of
+# the scripts (standard library only) are imported from scripts/ next to .claude/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+import _git
+
 MAX_LINES = 40
 MAX_BLOCKS = 3
 DEFAULT_BUDGET = 60.0
 
 
-def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args], cwd=root, capture_output=True, text=True, encoding="utf-8", check=False
-    )
-
-
 def changed_files(root: Path) -> list[str] | None:
     """Existing files changed against HEAD, staged or not, and untracked ones; None outside git."""
-    diff = _git(root, "diff", "-z", "--name-only", "HEAD")
-    untracked = _git(root, "ls-files", "-z", "--others", "--exclude-standard")
-    if diff.returncode != 0 or untracked.returncode != 0:
+    try:
+        names = _git.changed(untracked=True, cwd=root)
+    except subprocess.CalledProcessError:
         return None
-    names = {*diff.stdout.split("\0"), *untracked.stdout.split("\0")}
-    return sorted(n for n in names if n and (root / n).is_file())
+    return [n for n in names if (root / n).is_file()]
 
 
 def crate_of(root: Path, path: str) -> str | None:
@@ -189,7 +187,7 @@ def budget_from_env() -> float:
 
 def state_file(root: Path, session: str) -> Path | None:
     """Per-session state in the git directory: never committed, one folder per worktree."""
-    found = _git(root, "rev-parse", "--git-path", "wayloop-quality-gate")
+    found = _git.run("rev-parse", "--git-path", "wayloop-quality-gate", cwd=root)
     if found.returncode != 0:
         return None
     name = re.sub(r"[^A-Za-z0-9_-]", "_", session) or "default"

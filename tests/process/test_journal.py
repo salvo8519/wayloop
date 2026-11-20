@@ -2,18 +2,11 @@
 
 from __future__ import annotations
 
-import importlib.util
-import sys
 from pathlib import Path
 
+import journal as jr
 import pytest
-
-ROOT = Path(__file__).resolve().parents[2]
-_spec = importlib.util.spec_from_file_location("journal", ROOT / "scripts/journal.py")
-assert _spec and _spec.loader
-jr = importlib.util.module_from_spec(_spec)
-sys.modules["journal"] = jr  # dataclasses resolve their module by name
-_spec.loader.exec_module(jr)
+from conftest import ROOT
 
 ROADMAP = """labels: []
 milestones:

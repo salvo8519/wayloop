@@ -1,16 +1,7 @@
 """The naming conventions in scripts/conventions.py (docs/en/project/conventions.md)."""
 
-import importlib.util
-from pathlib import Path
-
+import conventions
 import pytest
-
-_spec = importlib.util.spec_from_file_location(
-    "conventions", Path(__file__).resolve().parents[2] / "scripts" / "conventions.py"
-)
-assert _spec and _spec.loader
-conventions = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(conventions)
 
 
 @pytest.mark.parametrize(

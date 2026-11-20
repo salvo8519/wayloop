@@ -2,38 +2,14 @@
 
 from __future__ import annotations
 
-import importlib.util
-import os
 import subprocess
 from pathlib import Path
-from types import ModuleType
 
+import _git
+import check_schemas as schemas
+import protect_contracts as hook
 import pytest
-
-ROOT = Path(__file__).resolve().parents[2]
-
-
-def _load(name: str, path: Path) -> ModuleType:
-    spec = importlib.util.spec_from_file_location(name, path)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-schemas = _load("check_schemas", ROOT / "scripts" / "check_schemas.py")
-hook = _load("protect_contracts", ROOT / ".claude" / "hooks" / "protect_contracts.py")
-
-GIT_ENV = {
-    "GIT_AUTHOR_NAME": "t",
-    "GIT_AUTHOR_EMAIL": "t@t",
-    "GIT_COMMITTER_NAME": "t",
-    "GIT_COMMITTER_EMAIL": "t@t",
-}
-
-
-def git(cwd: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=cwd, env={**os.environ, **GIT_ENV}, check=True)
+from conftest import git
 
 
 def write(root: Path, path: str, text: str = "{}\n") -> None:
@@ -48,21 +24,20 @@ def problems(root: Path, base: str = "main") -> list[str]:
 
 
 @pytest.fixture
-def repo(tmp_path: Path) -> Path:
+def repo(git_repo: Path) -> Path:
     """A repository whose `main` holds released snapshots; the work happens on a branch."""
-    write(tmp_path, "README.md", "x\n")
+    write(git_repo, "README.md", "x\n")
     for path in (
         "schemas/commands/next/v1.json",
         "schemas/commands/next/v1.output.json",
         "schemas/handover/v1.input.json",
         "schemas/index.json",
     ):
-        write(tmp_path, path)
-    git(tmp_path, "init", "-q", "-b", "main")
-    git(tmp_path, "add", ".")
-    git(tmp_path, "commit", "-q", "-m", "base")
-    git(tmp_path, "checkout", "-q", "-b", "feat/1-x")
-    return tmp_path
+        write(git_repo, path)
+    git(git_repo, "add", ".")
+    git(git_repo, "commit", "-q", "-m", "base")
+    git(git_repo, "checkout", "-q", "-b", "feat/1-x")
+    return git_repo
 
 
 def test_an_empty_tree_passes(tmp_path: Path) -> None:
@@ -202,23 +177,25 @@ def test_a_released_snapshot_with_a_changed_mode_fails(repo: Path) -> None:
 def test_an_incomplete_answer_of_git_is_a_clear_error(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    real = schemas._git
+    real = _git.run
 
-    def short(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-        result: subprocess.CompletedProcess[str] = real(root, *args)
+    def short(*args: str, cwd: Path | str) -> subprocess.CompletedProcess[str]:
+        result: subprocess.CompletedProcess[str] = real(*args, cwd=cwd)
         if args[0] == "hash-object":
             result.stdout = ""
         return result
 
-    monkeypatch.setattr(schemas, "_git", short)
+    monkeypatch.setattr(_git, "run", short)
     with pytest.raises(SystemExit, match="git hash-object returned 0 ids for 3 files"):
         problems(repo)
 
 
-def test_the_check_and_the_hook_recognise_the_same_snapshots() -> None:
-    assert schemas.SNAPSHOT.pattern == hook.SNAPSHOT.pattern
-    assert schemas.SNAPSHOT.search("schemas/a/v12.output.json")["version"] == "12"
+def test_the_pattern_of_snapshots_shared_by_the_check_and_the_hook() -> None:
+    # The hook imports SNAPSHOT from check_schemas, so both recognise the same files.
+    found = schemas.SNAPSHOT.search("schemas/a/v12.output.json")
+    assert found is not None and found["version"] == "12"
     for path in ("schemas/a/v1.json", "schemas/a/v12.output.json", "schemas/a/v1.input.json"):
-        assert hook.SNAPSHOT.search(path), path
+        assert schemas.SNAPSHOT.search(path), path
     for path in ("schemas/index.json", "schemas/a/v1.yaml", "docs/a/v1.json"):
-        assert not hook.SNAPSHOT.search(path), path
+        assert not schemas.SNAPSHOT.search(path), path
+    assert hook.reason_to_block("docs/a/v1.json", "main") is None

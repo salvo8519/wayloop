@@ -6,25 +6,17 @@ that happens to read it (a translation glossary went unread for days).
 
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
 
+import _git
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def tracked_yaml() -> list[Path]:
-    out = subprocess.run(
-        ["git", "ls-files", "*.yml", "*.yaml"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-        encoding="utf-8",
-    ).stdout
-    return [ROOT / line for line in out.splitlines() if line]
+    return [ROOT / f for f in _git.ls_files("*.yml", "*.yaml", cwd=ROOT)]
 
 
 def main() -> None:

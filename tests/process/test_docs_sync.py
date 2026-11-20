@@ -2,18 +2,13 @@
 
 from __future__ import annotations
 
-import importlib.util
 import re
 import shutil
 from pathlib import Path
 
+import docs_sync as ds
 import pytest
-
-ROOT = Path(__file__).resolve().parents[2]
-_spec = importlib.util.spec_from_file_location("docs_sync", ROOT / "scripts/docs_sync.py")
-assert _spec and _spec.loader
-ds = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(ds)
+from conftest import ROOT
 
 
 @pytest.fixture

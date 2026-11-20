@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
-_spec = importlib.util.spec_from_file_location("i18n", ROOT / "scripts/i18n.py")
-assert _spec and _spec.loader
-i18n = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(i18n)
+import i18n
 
 
 def test_root_documents_are_required_translations() -> None:

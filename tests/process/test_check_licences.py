@@ -2,16 +2,10 @@
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 
+import check_licences as lic
 import pytest
-
-ROOT = Path(__file__).resolve().parents[2]
-_spec = importlib.util.spec_from_file_location("check_licences", ROOT / "scripts/check_licences.py")
-assert _spec and _spec.loader
-lic = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(lic)
 
 WORKFLOW = """\
 jobs:

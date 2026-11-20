@@ -2,16 +2,10 @@
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 
+import check_agents as ca
 import pytest
-
-ROOT = Path(__file__).resolve().parents[2]
-_spec = importlib.util.spec_from_file_location("check_agents", ROOT / "scripts/check_agents.py")
-assert _spec and _spec.loader
-ca = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(ca)
 
 SKILL = """---
 name: demo

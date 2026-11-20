@@ -2,16 +2,10 @@
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 
+import pin_actions as pins
 import pytest
-
-ROOT = Path(__file__).resolve().parents[2]
-_spec = importlib.util.spec_from_file_location("pin_actions", ROOT / "scripts/pin_actions.py")
-assert _spec and _spec.loader
-pins = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(pins)
 
 SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
 

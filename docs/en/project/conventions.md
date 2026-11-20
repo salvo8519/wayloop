@@ -220,7 +220,11 @@ CI run the same commands.
   process scripts share their helpers through `scripts/_*.py`, written with the standard
   library only, so that hooks and workflows can import them without the project environment:
   `_github.py` (the repository, one call of the GitHub CLI with retries, the REST API, every
-  page of a list).
+  page of a list) and `_git.py` (tracked files, changed files, one call of git). The hooks
+  run with the system `python3` and put `scripts/` on their import path. Scripts import each
+  other by module name, as `python scripts/<name>.py` allows; the tests import the scripts and
+  the hooks the same way and share their fixtures in `tests/process/conftest.py` (a throwaway
+  git repository, the hooks with the scripts they need).
 
 Problems are fixed where they appear, without the maintainer watching for them:
 

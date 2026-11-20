@@ -14,10 +14,10 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
 from pathlib import Path
 from typing import Any
 
+import _git
 import _github
 import yaml
 from conventions import branch_issue
@@ -60,13 +60,6 @@ def _state_line(path: Path) -> str:
 
 
 JOURNAL = ROOT / ".agents" / "journal"
-
-
-def sh(*args: str) -> str:
-    out = subprocess.run(
-        args, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=False
-    )
-    return out.stdout.strip() if out.returncode == 0 else ""
 
 
 def gh(path: str) -> Any:
@@ -128,16 +121,16 @@ def checks_summary(r: str, sha: str) -> str:
 
 def collect() -> dict[str, Any]:
     r = _github.repository()
-    branch = sh("git", "rev-parse", "--abbrev-ref", "HEAD")
-    sh("git", "fetch", "--quiet", "origin", "main")
+    branch = _git.output("rev-parse", "--abbrev-ref", "HEAD")
+    _git.output("fetch", "--quiet", "origin", "main")
     state: dict[str, Any] = {
         "repository": r,
         "branch": branch,
         "branch_issue": branch_issue(branch),
-        "uncommitted_files": [ln for ln in sh("git", "status", "--porcelain").splitlines() if ln],
-        "ahead_of_main": sh("git", "rev-list", "--count", "origin/main..HEAD") or "0",
-        "behind_main": sh("git", "rev-list", "--count", "HEAD..origin/main") or "0",
-        "recent_commits": sh("git", "log", "-8", "--format=%h %s").splitlines(),
+        "uncommitted_files": [ln for ln in _git.output("status", "--porcelain").splitlines() if ln],
+        "ahead_of_main": _git.output("rev-list", "--count", "origin/main..HEAD") or "0",
+        "behind_main": _git.output("rev-list", "--count", "HEAD..origin/main") or "0",
+        "recent_commits": _git.output("log", "-8", "--format=%h %s").splitlines(),
         "journal": [
             p.name
             for p in sorted(JOURNAL.glob("*.md"), reverse=True)

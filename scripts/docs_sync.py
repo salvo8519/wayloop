@@ -26,11 +26,12 @@ from __future__ import annotations
 
 import argparse
 import re
-import subprocess
 import sys
 import tomllib
 from pathlib import Path
 from typing import Any
+
+import _git
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs" / "en"
@@ -75,21 +76,15 @@ RULES: list[tuple[str, str, str]] = [
 
 
 def git(*args: str) -> list[str]:
-    out = subprocess.run(
-        ["git", *args], cwd=ROOT, capture_output=True, text=True, check=True, encoding="utf-8"
-    )
-    return [line for line in out.stdout.splitlines() if line]
+    return _git.lines(*args, cwd=ROOT)
 
 
 def changed_files(args: argparse.Namespace) -> list[str]:
     if args.staged:
-        return git("diff", "--name-only", "--cached")
+        return _git.changed(staged=True, cwd=ROOT)
     if args.worktree:
-        return sorted(
-            set(git("diff", "--name-only", "HEAD"))
-            | set(git("ls-files", "--others", "--exclude-standard"))
-        )
-    return sorted(set(git("diff", "--name-only", f"{args.base}...HEAD")))
+        return _git.changed(untracked=True, cwd=ROOT)
+    return _git.changed(args.base, cwd=ROOT)
 
 
 def missing_docs(files: list[str]) -> list[str]:

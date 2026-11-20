@@ -10,9 +10,10 @@ shortcodes (``:material-…:``) are not.
 from __future__ import annotations
 
 import re
-import subprocess
 import sys
 from pathlib import Path
+
+import _git
 
 ROOT = Path(__file__).resolve().parents[1]
 SUFFIXES = {".md", ".py", ".rs", ".toml", ".yml", ".yaml", ".json", ".html", ".css", ".js"}
@@ -31,17 +32,9 @@ FORBIDDEN = re.compile(
 
 
 def tracked_files() -> list[Path]:
-    out = subprocess.run(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-        encoding="utf-8",
-    ).stdout
     return [
         ROOT / f
-        for f in out.splitlines()
+        for f in _git.ls_files(others=True, cwd=ROOT)
         if Path(f).suffix in SUFFIXES and not f.startswith(EXCLUDE) and (ROOT / f).is_file()
     ]
 

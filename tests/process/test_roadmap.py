@@ -3,18 +3,14 @@
 from __future__ import annotations
 
 import copy
-import importlib.util
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
-ROOT = Path(__file__).resolve().parents[2]
-_spec = importlib.util.spec_from_file_location("roadmap", ROOT / "scripts/roadmap.py")
-assert _spec and _spec.loader
-roadmap = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(roadmap)
+import roadmap
 
 
 def data() -> dict[str, Any]:
@@ -205,7 +201,7 @@ def test_a_milestone_without_epics_is_written_as_an_empty_list() -> None:
     d["milestones"][-1]["epics"] = []
     text = roadmap.dump(d)
     assert "    epics: []" in text
-    assert roadmap.yaml.safe_load(text)["milestones"][-1]["epics"] == []
+    assert yaml.safe_load(text)["milestones"][-1]["epics"] == []
 
 
 def test_unknown_keys_of_the_file_milestones_and_epics_are_refused() -> None:

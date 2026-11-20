@@ -2,23 +2,15 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
+import _github
+import failure_issue
 import pytest
 import yaml
-
-ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location(
-    "failure_issue", ROOT / "scripts" / "failure_issue.py"
-)
-assert spec is not None and spec.loader is not None
-failure_issue = importlib.util.module_from_spec(spec)
-sys.modules["failure_issue"] = failure_issue
-spec.loader.exec_module(failure_issue)
+from conftest import ROOT
 
 RUN = "https://github.com/o/r/actions/runs/"
 
@@ -197,7 +189,7 @@ def test_main_reads_the_details_file(tmp_path: Path, monkeypatch: pytest.MonkeyP
     details = tmp_path / "missed.md"
     details.write_text("Surviving mutants: 2", encoding="utf-8")
     gh = FakeGh(failed_jobs=["Build"])
-    monkeypatch.setattr(failure_issue._github, "cli", gh)
+    monkeypatch.setattr(_github, "cli", gh)
     argv = [
         "report",
         "--repo=o/r",
@@ -253,7 +245,7 @@ def test_every_watched_workflow_exists_under_its_exact_name() -> None:
 
 def test_an_empty_job_list_is_explicit(monkeypatch: pytest.MonkeyPatch) -> None:
     gh = FakeGh(failed_jobs=["Build"])
-    monkeypatch.setattr(failure_issue._github, "cli", gh)
+    monkeypatch.setattr(_github, "cli", gh)
     argv = ["report", "--repo=o/r", "--workflow=CI", "--run-id=5", f"--run-url={RUN}5"]
     argv += ["--conclusion=success", "--event=push", "--branch=main", "--jobs="]
     assert failure_issue.main(argv) == 0

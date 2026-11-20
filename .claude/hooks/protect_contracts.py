@@ -6,7 +6,8 @@ is protected when its path, relative to the root of the git worktree that contai
 on the base branch (`origin/main`, or `WAYLOOP_CONTRACT_BASE`). Snapshots added on the current
 branch stay editable until they merge.
 Outside a git repository, or when the base branch is unknown, every existing snapshot is
-protected. CI is the second line of defence (`scripts/check_schemas.py`, same pattern).
+protected. CI is the second line of defence (`scripts/check_schemas.py`, whose pattern this hook
+imports).
 
 Exit status 2 blocks the edit; the message on stderr is shown to the agent.
 """
@@ -15,17 +16,14 @@ from __future__ import annotations
 
 import json
 import os
-import re
-import subprocess
 import sys
+from pathlib import Path
 
-SNAPSHOT = re.compile(r"(^|/)schemas/(.+/)?v(?P<version>\d+)(\.output|\.input)?\.json$")
-
-
-def _git(*args: str, cwd: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, encoding="utf-8", check=False
-    )
+# The hooks run with the system python3, outside the project environment: the shared helpers of
+# the scripts (standard library only) are imported from scripts/ next to .claude/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+import _git
+from check_schemas import SNAPSHOT
 
 
 def _existing_dir(path: str) -> str:
@@ -43,16 +41,16 @@ def reason_to_block(file_path: str, base: str) -> str | None:
     if not SNAPSHOT.search(file_path.replace("\\", "/")):
         return None
     path = os.path.abspath(file_path)
-    top = _git("rev-parse", "--show-toplevel", cwd=_existing_dir(path))
+    top = _git.run("rev-parse", "--show-toplevel", cwd=_existing_dir(path))
     if top.returncode != 0:
         return "is an existing contract snapshot" if os.path.exists(path) else None
     root = top.stdout.strip()
     relative = os.path.relpath(os.path.realpath(path), os.path.realpath(root)).replace(os.sep, "/")
-    if _git("rev-parse", "--verify", "--quiet", f"{base}^{{commit}}", cwd=root).returncode != 0:
+    if _git.run("rev-parse", "--verify", "--quiet", f"{base}^{{commit}}", cwd=root).returncode != 0:
         if os.path.exists(path):
             return f"is an existing contract snapshot ({base} is not available to compare against)"
         return None
-    if _git("cat-file", "-e", f"{base}:{relative}", cwd=root).returncode == 0:
+    if _git.run("cat-file", "-e", f"{base}:{relative}", cwd=root).returncode == 0:
         return f"exists on {base}"
     return None
 
