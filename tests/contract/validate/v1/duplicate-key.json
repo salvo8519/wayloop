@@ -11,7 +11,8 @@
       "/meta/command_version": 1,
       "/error/code": "command_input",
       "/error/pointer": "/documents",
-      "/error/reason": "duplicate"
+      "/error/reason": "duplicate",
+      "/meta/input_hash": "9caddc199f5942a42f0f54b57c5c059a2e706f04f4347c6e28c5fb2955d5ec04"
     },
     "absent": [
       "/data"

@@ -17,14 +17,14 @@ use std::collections::BTreeSet;
 use serde::Deserialize as _;
 use serde_json::{Map, Value};
 use wayloop_schemas::artifact::{ArtifactKind, Brief};
-use wayloop_schemas::contract::{EMBEDDED, Part, VALIDATE};
+use wayloop_schemas::contract::{Part, VALIDATE};
 use wayloop_schemas::validate::{DocumentSummary, InputKind, Origin, ValidateData};
-use wayloop_schemas::{DefaultApplied, Diagnostics, ErrorReport, NotDone, NotDoneReason, Outcome};
+use wayloop_schemas::{Diagnostics, ErrorReport, NotDone, NotDoneReason, Outcome};
 
 use super::input::{self, Body, Entry, Input, Place};
 use super::kinds::{self, Checked, Kind, Loaded};
 use super::{checks, codes};
-use crate::command::{COMMAND_INPUT, INTERNAL_ERROR};
+use crate::command::COMMAND_INPUT;
 use crate::{Check, Error, Pointer, Reason};
 
 /// What validating a set gave.
@@ -36,8 +36,6 @@ pub(crate) struct Validation {
     pub(crate) errors: Vec<Error>,
     /// Warnings: the set is not refused for them.
     pub(crate) warnings: Vec<Error>,
-    /// Every default applied, in order.
-    pub(crate) defaults_applied: Vec<DefaultApplied>,
     /// The checks not run, each once, in the order of their identifiers.
     pub(crate) not_done: Vec<NotDone>,
     /// The checks run.
@@ -49,7 +47,7 @@ pub(crate) struct Validation {
 
 /// Validates `input` with the types `kinds`, loading their schemas first.
 pub(crate) fn validate(input: &Input, kinds: &[Kind]) -> Validation {
-    match kinds::load_all(kinds, &INTERNAL_ERROR) {
+    match kinds::load_all(kinds) {
         Ok(loaded) => validate_with(input, &loaded),
         Err(failure) => Validation {
             failures: vec![*failure],
@@ -71,11 +69,11 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         .iter()
         .map(|c| NotDone::new(c.clone(), NotDoneReason::NotBuilt))
         .collect();
-    for (index, entry) in input.documents.iter().enumerate() {
+    // The index counts in u64, the type of `document`, so it needs no conversion.
+    for (index, entry) in (0_u64..).zip(&input.documents) {
         let first = validation.errors.len();
         let summary = check_entry(entry, kinds, &mut validation, &mut not_done);
         validation.documents.push(summary);
-        let index = u64::try_from(index).unwrap_or(u64::MAX);
         for error in validation.errors.get_mut(first..).unwrap_or_default() {
             *error = error.clone().with_document(index);
         }
@@ -160,7 +158,7 @@ fn check_entry(
                 }
             };
             if let Some(loaded) = kinds.iter().find(|k| k.id == kind) {
-                match loaded.check(document, &codes::ARTIFACT_SCHEMA, &INTERNAL_ERROR) {
+                match loaded.check(document) {
                     Checked::Valid(current) => match read_artifact(loaded.id, current) {
                         Ok(read) => return summary(Some(&read), None, origin),
                         Err(failure) => validation.failures.push(*failure),
@@ -200,14 +198,12 @@ fn read_artifact(
     };
     match read {
         Ok(Value::Object(read)) => Ok(read),
-        Ok(_) => Err(Box::new(kinds::internal(
-            INTERNAL_ERROR,
-            format!("A {kind} is not written as an object."),
-        ))),
-        Err(e) => Err(Box::new(kinds::internal(
-            INTERNAL_ERROR,
-            format!("A {kind} the schema accepts does not read into its type: {e}."),
-        ))),
+        Ok(_) => Err(Box::new(Error::internal(format!(
+            "A {kind} is not written as an object."
+        )))),
+        Err(e) => Err(Box::new(Error::internal(format!(
+            "A {kind} the schema accepts does not read into its type: {e}."
+        )))),
     }
 }
 
@@ -234,21 +230,19 @@ fn summary(
     }
 }
 
-/// The outcome of `validate` on the canonical `input`, with its diagnostics and the defaults
-/// applied: the input is checked against the input schema of the command and its rules, then
-/// the set is validated.
-pub(crate) fn run(input: &Value) -> (Outcome<ValidateData>, Diagnostics, Vec<DefaultApplied>) {
-    match kinds::built(&INTERNAL_ERROR) {
+/// The outcome of `validate` on the canonical `input`, with its diagnostics: the input is
+/// checked against the input schema of the command and its rules, then the set is validated.
+/// No check of this version applies a default.
+pub(crate) fn run(input: &Value) -> (Outcome<ValidateData>, Diagnostics) {
+    match kinds::built() {
         Ok(kinds) => run_with(input, &kinds),
         Err(failure) => alone(failed(*failure)),
     }
 }
 
-/// An outcome with no diagnostics and no default applied.
-fn alone(
-    outcome: Outcome<ValidateData>,
-) -> (Outcome<ValidateData>, Diagnostics, Vec<DefaultApplied>) {
-    (outcome, Diagnostics::default(), Vec::new())
+/// An outcome with no diagnostics.
+fn alone(outcome: Outcome<ValidateData>) -> (Outcome<ValidateData>, Diagnostics) {
+    (outcome, Diagnostics::default())
 }
 
 /// The failure of `error`, an internal error.
@@ -264,23 +258,18 @@ fn refused(report: ErrorReport) -> Outcome<ValidateData> {
 /// The failure given when a report has no outcome of the contract, which the reasons and codes
 /// of the core never write.
 fn not_an_outcome() -> Outcome<ValidateData> {
-    Outcome::internal(
-        INTERNAL_ERROR,
-        "The engine wrote a report that mixes refusals and failures.",
-    )
+    Outcome::internal("The engine wrote a report that mixes refusals and failures.")
 }
 
 /// [`run`] with the types `kinds`.
-pub(crate) fn run_with(
-    input: &Value,
-    kinds: &[Kind],
-) -> (Outcome<ValidateData>, Diagnostics, Vec<DefaultApplied>) {
-    let path = VALIDATE.path(Part::Schema, VALIDATE.version);
-    let Some(snapshot) = EMBEDDED.iter().find(|e| e.path == path) else {
-        let message = format!("The schema {path} is not embedded.");
-        return alone(failed(kinds::internal(INTERNAL_ERROR, message)));
+pub(crate) fn run_with(input: &Value, kinds: &[Kind]) -> (Outcome<ValidateData>, Diagnostics) {
+    let Some(snapshot) = VALIDATE.embedded(Part::Schema, VALIDATE.version) else {
+        let path = VALIDATE.path(Part::Schema, VALIDATE.version);
+        return alone(failed(Error::internal(format!(
+            "The schema {path} is not embedded."
+        ))));
     };
-    let schema = match kinds::load(*snapshot, INTERNAL_ERROR) {
+    let schema = match kinds::load(snapshot) {
         Ok(schema) => schema,
         Err(failure) => return alone(failed(*failure)),
     };
@@ -306,5 +295,5 @@ pub(crate) fn run_with(
         })
         .unwrap_or_else(not_an_outcome),
     };
-    (outcome, diagnostics, validation.defaults_applied)
+    (outcome, diagnostics)
 }

@@ -1,0 +1,66 @@
+{
+  "description": "A line set to null in the map lines of a document is not given: the document is read as if the line were absent.",
+  "covers": [
+    "SPEC-0001 R1",
+    "SPEC-0001 R12"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        },
+        "origin": {
+          "file": "plan/briefs/BRIEF-0001.yaml"
+        },
+        "lines": {
+          "/id": null
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 0,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/meta/envelope_version": 1,
+      "/meta/dry_run": false,
+      "/data/documents/0/id": "BRIEF-0001",
+      "/data/documents/0/origin": {
+        "file": "plan/briefs/BRIEF-0001.yaml"
+      },
+      "/meta/input_hash": "1512eae9101e7e2634aacbf49372408952348cb5bee05b972698650aab2f9c05"
+    },
+    "absent": [
+      "/error"
+    ],
+    "lengths": {
+      "/data/documents": 1
+    }
+  }
+}

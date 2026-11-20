@@ -142,7 +142,7 @@
       "description": "Where a document was read: exactly one of `file`, `issue`, `milestone`, which the core checks. The member present tells the form, with no tag, as for `source` of an error: a choice without a kind, against the letter of ADR 0009 C4, so that the input and the error report write a place the same way (plan of SPEC-0001).",
       "properties": {
         "file": {
-          "description": "A repository file, by its path relative to the root of the project.",
+          "description": "Path of the file relative to the root of the project.",
           "format": "project-path",
           "type": "string"
         },

@@ -10,7 +10,6 @@
 //! (C2). The codes themselves are constants of the core (C8).
 
 use core::fmt;
-use core::num::NonZeroU64;
 use std::borrow::Cow;
 
 use schemars::{JsonSchema, Schema, SchemaGenerator};
@@ -19,6 +18,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use crate::contract::rules;
+use crate::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
 
 crate::contract_enum! {
     /// Why the engine refused an input, or `internal` when it failed to compute the result: the
@@ -150,25 +150,25 @@ impl fmt::Display for Pointer {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum Source {
-    /// A repository file: its path relative to the root, with `/` separators, and the line of
-    /// the value when it is known.
+    /// A repository file: its path relative to the root of the project, and the line of the
+    /// value when it is known.
     File {
-        /// Path of the file relative to the root of the repository.
-        file: String,
+        /// Path of the file relative to the root of the project.
+        file: ProjectPath,
         /// Line of the faulty value, counted from 1; `None` when it is not known, never
         /// guessed (SPEC-0004 R2).
         #[serde(skip_serializing_if = "Option::is_none")]
-        line: Option<NonZeroU64>,
+        line: Option<Line>,
     },
     /// A tracker issue, by its number.
     Issue {
         /// Number of the issue.
-        issue: NonZeroU64,
+        issue: IssueNumber,
     },
     /// A tracker milestone, by its number.
     Milestone {
         /// Number of the milestone.
-        milestone: NonZeroU64,
+        milestone: MilestoneNumber,
     },
 }
 
@@ -181,19 +181,19 @@ pub enum Source {
 #[derive(Deserialize, JsonSchema)]
 #[schemars(rename = "Source", transform = line_with_file)]
 struct SourceForm {
-    /// Path of the file relative to the root of the repository, with `/` separators.
+    /// Path of the file relative to the root of the project.
     #[serde(skip_serializing_if = "Option::is_none")]
-    file: Option<String>,
+    file: Option<ProjectPath>,
     /// Line of the faulty value in `file`, counted from 1; absent when it is not known, never
     /// guessed.
     #[serde(skip_serializing_if = "Option::is_none")]
-    line: Option<NonZeroU64>,
+    line: Option<Line>,
     /// Number of the tracker issue, from 1.
     #[serde(skip_serializing_if = "Option::is_none")]
-    issue: Option<NonZeroU64>,
+    issue: Option<IssueNumber>,
     /// Number of the tracker milestone, from 1.
     #[serde(skip_serializing_if = "Option::is_none")]
-    milestone: Option<NonZeroU64>,
+    milestone: Option<MilestoneNumber>,
 }
 
 /// `line` is given only with `file`.
@@ -280,6 +280,19 @@ impl Error {
             source: None,
             document: None,
         }
+    }
+
+    /// A failure of the engine, not a refusal of the input: the code
+    /// [`INTERNAL_ERROR`](crate::INTERNAL_ERROR), the reason [`Reason::Internal`] and the
+    /// pointer to the whole input; `message` says what failed (ADR 0009 C3, C7: exit code 5).
+    #[must_use]
+    pub fn internal(message: impl Into<String>) -> Self {
+        Self::new(
+            crate::envelope::INTERNAL_ERROR,
+            message,
+            Pointer::root(),
+            Reason::Internal,
+        )
     }
 
     /// The error with the pointers of the other parts of the input involved, such as both
@@ -521,6 +534,7 @@ impl std::error::Error for ErrorReport {}
 mod tests {
     use super::{Code, Error, ErrorReport, Pointer, Reason, Source};
     use crate::fixtures::{INVALID_INPUT, at, number, unknown_then_missing};
+    use crate::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
     use serde_json::json;
 
     const STALE_REVISION: Code = Code::new("stale_revision");
@@ -736,8 +750,8 @@ mod tests {
         .with_expected([json!(1), json!("two")])
         .with_fix("removed")
         .with_location(Source::File {
-            file: "specs/0001-artifact-model/spec.md".into(),
-            line: Some(number(42)),
+            file: ProjectPath::new("specs/0001-artifact-model/spec.md"),
+            line: Some(Line::new(number(42))),
         })
     }
 
@@ -785,15 +799,20 @@ mod tests {
         let cases = [
             (
                 Source::File {
-                    file: "plan/items/TASK-0001.yaml".into(),
-                    line: Some(number(7)),
+                    file: ProjectPath::new("plan/items/TASK-0001.yaml"),
+                    line: Some(Line::new(number(7))),
                 },
                 json!({"file": "plan/items/TASK-0001.yaml", "line": 7}),
             ),
-            (Source::Issue { issue: number(252) }, json!({"issue": 252})),
+            (
+                Source::Issue {
+                    issue: IssueNumber::new(number(252)),
+                },
+                json!({"issue": 252}),
+            ),
             (
                 Source::Milestone {
-                    milestone: number(3),
+                    milestone: MilestoneNumber::new(number(3)),
                 },
                 json!({"milestone": 3}),
             ),
@@ -916,25 +935,27 @@ mod tests {
         assert_eq!(
             read(json!({"file": "a.md", "line": 2, "later": true})).unwrap(),
             Source::File {
-                file: "a.md".into(),
-                line: Some(number(2))
+                file: ProjectPath::new("a.md"),
+                line: Some(Line::new(number(2)))
             }
         );
         assert_eq!(
             read(json!({"issue": 252})).unwrap(),
-            Source::Issue { issue: number(252) }
+            Source::Issue {
+                issue: IssueNumber::new(number(252))
+            }
         );
         assert_eq!(
             read(json!({"milestone": 3})).unwrap(),
             Source::Milestone {
-                milestone: number(3)
+                milestone: MilestoneNumber::new(number(3))
             }
         );
         // The line is written only when it is known (SPEC-0004 R2).
         assert_eq!(
             read(json!({"file": "a.md"})).unwrap(),
             Source::File {
-                file: "a.md".into(),
+                file: ProjectPath::new("a.md"),
                 line: None
             }
         );

@@ -33,13 +33,15 @@ use std::process::{Command as Process, Stdio};
 use serde_json::Value;
 use wayloop_core::schema::Schema;
 use wayloop_core::{Code, Command, Context, Envelope, envelope_json, run, run_json};
-use wayloop_schemas::contract::{Direction, EMBEDDED, Part, VALIDATE, reread, schema_for};
+use wayloop_schemas::contract::{Direction, Part, VALIDATE, reread, schema_for};
 use wayloop_schemas::validate::{ValidateData, ValidateInput};
 
 /// The text of the current output snapshot of `validate`.
 fn output_snapshot() -> &'static str {
-    let path = VALIDATE.path(Part::Output, VALIDATE.version);
-    EMBEDDED.iter().find(|e| e.path == path).unwrap().text
+    VALIDATE
+        .embedded(Part::Output, VALIDATE.version)
+        .unwrap()
+        .text
 }
 
 fn root() -> PathBuf {
@@ -190,7 +192,8 @@ fn every_envelope_conforms_to_the_output_snapshot_and_its_closed_form() {
 #[test]
 fn every_envelope_and_every_accepted_input_read_into_their_types() {
     // ADR 0030 G1, both ways: what the engine writes reads back into its type unchanged, and
-    // an input that passed the schema and the rules of the input reads into `ValidateInput`.
+    // an input that passed the schema and the rules of the input reads into `ValidateInput`,
+    // without its members set to null, which are not given (SPEC-0001 R1).
     for (name, case) in cases() {
         let written: Value =
             serde_json::from_str(&envelope_json(&envelope(&case)).unwrap()).unwrap();
@@ -201,7 +204,10 @@ fn every_envelope_and_every_accepted_input_read_into_their_types() {
         );
         let refused_input = written["error"]["code"] == "command_input";
         if let (Some(input), false) = (case.get("input"), refused_input) {
-            let read = reread::<ValidateInput>(input)
+            let mut given = String::new();
+            canonical(input, &mut given);
+            let given: Value = serde_json::from_str(&given).unwrap();
+            let read = reread::<ValidateInput>(&given)
                 .unwrap_or_else(|e| panic!("{name}: the input does not read: {e}"));
             assert!(read.is_object(), "{name}");
         }
@@ -268,26 +274,32 @@ fn canonical(value: &Value, out: &mut String) {
     }
 }
 
+/// The input hash of every case, computed apart from the core (SPEC-0004 R11): the SHA-256 of
+/// the canonical JSON of `input`, or of the bytes of `input_text`, which the cases use only for
+/// text the engine refuses to read as JSON (not JSON, a repeated key, a number beyond a double).
 #[test]
-fn the_input_hash_of_every_json_case_agrees_with_an_independent_computation() {
+fn the_input_hash_of_every_case_agrees_with_an_independent_computation() {
     use sha2::{Digest, Sha256};
-    let mut checked = 0;
+    let (mut json, mut text) = (0, 0);
     for (name, case) in cases() {
-        let Some(input) = case.get("input") else {
-            continue;
+        let hashed = if let Some(input) = case.get("input") {
+            let mut written = String::new();
+            canonical(input, &mut written);
+            json += 1;
+            written
+        } else {
+            text += 1;
+            case["input_text"].as_str().unwrap().to_owned()
         };
-        let mut text = String::new();
-        canonical(input, &mut text);
-        let digest = Sha256::digest(text.as_bytes());
+        let digest = Sha256::digest(hashed.as_bytes());
         let hex = digest.iter().fold(String::new(), |mut hex, byte| {
             write!(hex, "{byte:02x}").unwrap();
             hex
         });
         assert_eq!(envelope(&case).meta().input_hash().as_str(), hex, "{name}");
         assert_eq!(case["expect"]["values"]["/meta/input_hash"], hex, "{name}");
-        checked += 1;
     }
-    assert!(checked > 0);
+    assert!(json > 0 && text > 0);
     // Members set to null are not given: the two cases differ only by nulls.
     let all = cases();
     assert_eq!(

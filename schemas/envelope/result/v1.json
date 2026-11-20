@@ -303,7 +303,8 @@
       "description": "Where the faulty value is stored: `file`, with `line` when the line is known, for a repository file; `issue` for a tracker issue; `milestone` for a tracker milestone. Absent for a document sent directly. Exactly one form is given, never an empty object; the schema checks only that `line` comes with `file`.",
       "properties": {
         "file": {
-          "description": "Path of the file relative to the root of the repository, with `/` separators.",
+          "description": "Path of the file relative to the root of the project.",
+          "format": "project-path",
           "type": "string"
         },
         "issue": {

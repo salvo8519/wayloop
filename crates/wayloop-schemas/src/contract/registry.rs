@@ -88,6 +88,13 @@ impl Contract {
     pub fn path(&self, part: Part, version: NonZeroU32) -> String {
         format!("{}/{}", self.folder(), part.file_name(version))
     }
+
+    /// The embedded snapshot of the file `part` of `version`; `None` when it is not embedded.
+    #[must_use]
+    pub fn embedded(&self, part: Part, version: NonZeroU32) -> Option<Embedded> {
+        let path = self.path(part, version);
+        super::EMBEDDED.iter().find(|e| e.path == path).copied()
+    }
 }
 
 /// The brief (SPEC-0001, Brief): an artifact, read by the engine, so its schema is an input
@@ -261,9 +268,8 @@ mod tests {
         for contract in CONTRACTS {
             for file in contract.files {
                 let path = contract.path(file.part, contract.version);
-                let embedded = EMBEDDED
-                    .iter()
-                    .find(|e| e.path == path)
+                let embedded = contract
+                    .embedded(file.part, contract.version)
                     .unwrap_or_else(|| panic!("{path} is not embedded: run `just generate`"));
                 let schema = (file.registered.schema)(file.direction).unwrap();
                 assert_eq!(

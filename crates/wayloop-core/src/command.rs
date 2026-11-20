@@ -16,10 +16,6 @@ use crate::{Code, DefaultReason, Error, ErrorReport, Pointer, Reason};
 /// schema of the command or one of the rules of its input. No other check runs.
 pub const COMMAND_INPUT: Code = Code::new("command_input");
 
-/// The engine could not compute the result; the input may be valid. Its errors have the
-/// reason `internal` and the command exits with code 5 (ADR 0009 C3, C7).
-pub const INTERNAL_ERROR: Code = Code::new("internal_error");
-
 /// Why the engine applied the current version of a command: the channel did not request one
 /// (ADR 0028, amended on 2026-11-20).
 pub const CURRENT_COMMAND_VERSION: DefaultReason = DefaultReason::new("current_command_version");

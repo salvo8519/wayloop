@@ -9,20 +9,21 @@
 //! that is not an RFC 6901 pointer (`syntax`) and a line that is not an integer from 1
 //! (`type`, `range`). Every error is found in one pass, entry by entry.
 //!
-//! An input that passed the schema and these rules is then read into its contract type,
-//! [`ValidateInput`]: a failure there is a defect of the engine (ADR 0030 G1).
+//! An input that passed the schema and these rules is then read, without its members set to
+//! null, which are not given (ADR 0009 C2), into its contract type, [`ValidateInput`]: a
+//! failure there is a defect of the engine (ADR 0030 G1).
 
-use core::num::NonZeroU64;
 use std::collections::BTreeMap;
 
 use serde::Deserialize as _;
 use serde_json::{Map, Value};
-use wayloop_schemas::validate::{DocumentEntry, EntryFormat, InputKind, Origin, ValidateInput};
-
-use super::kinds::internal;
-use crate::command::{COMMAND_INPUT, INTERNAL_ERROR};
-use crate::{Error, Pointer, Reason, Source};
 use wayloop_schemas::number::{integer, is_safe};
+use wayloop_schemas::validate::{DocumentEntry, EntryFormat, InputKind, Origin, ValidateInput};
+use wayloop_schemas::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
+
+use crate::command::COMMAND_INPUT;
+use crate::envelope::without_nulls;
+use crate::{Error, Pointer, Reason, Source};
 
 /// The set of `validate`, as the checks read it.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -33,9 +34,9 @@ pub(crate) struct Input {
 /// Where a document was read: the one member of its origin.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Place {
-    File(String),
-    Issue(NonZeroU64),
-    Milestone(NonZeroU64),
+    File(ProjectPath),
+    Issue(IssueNumber),
+    Milestone(MilestoneNumber),
 }
 
 /// One entry of `documents`.
@@ -47,7 +48,7 @@ pub(crate) struct Entry {
     pub(crate) origin: Option<Place>,
     pub(crate) body: Body,
     /// The line of each value of the document, by its pointer as written.
-    pub(crate) lines: BTreeMap<String, NonZeroU64>,
+    pub(crate) lines: BTreeMap<String, Line>,
 }
 
 /// What an entry holds, by its `format`.
@@ -61,16 +62,7 @@ pub(crate) enum Body {
     /// The text of a living specification.
     Markdown,
     /// A file that did not parse, with the line and the message of the parser.
-    Unreadable { line: NonZeroU64, message: String },
-}
-
-/// The members an entry of each format may give.
-fn allowed(format: Option<EntryFormat>) -> &'static [&'static str] {
-    match format {
-        Some(EntryFormat::Document) => &["document", "format", "input_kind", "lines", "origin"],
-        Some(EntryFormat::Markdown) => &["format", "origin", "text"],
-        Some(EntryFormat::Unreadable) | None => &["error", "format", "origin"],
-    }
+    Unreadable { line: Line, message: String },
 }
 
 /// Every error of the rules of `input`, which passed the input schema of the command, that its
@@ -91,64 +83,86 @@ pub(crate) fn rules(input: &Value) -> Vec<Error> {
     errors
 }
 
-/// `input`, which passed its schema and [`rules`], read into its contract type and then into
-/// the entries the checks read; an internal error when it does not read (ADR 0030 G1).
+/// `input`, which passed its schema and [`rules`], read without its members set to null into
+/// its contract type and then into the entries the checks read; an internal error when it does
+/// not read, or holds what the schema and the rules refuse (ADR 0030 G1). Nothing is invented
+/// for a member that should be there.
 pub(crate) fn read(input: &Value) -> Result<Input, Box<Error>> {
-    let typed = ValidateInput::deserialize(input).map_err(|e| {
-        Box::new(internal(
-            INTERNAL_ERROR,
-            format!("An input the schema accepts does not read into its type: {e}."),
+    let typed = ValidateInput::deserialize(&without_nulls(input)).map_err(|e| {
+        defect(format!(
+            "An input the schema accepts does not read into its type: {e}."
         ))
     })?;
-    Ok(Input {
-        documents: typed.documents.into_iter().map(entry).collect(),
-    })
+    let documents = typed
+        .documents
+        .into_iter()
+        .map(entry)
+        .collect::<Result<_, _>>()?;
+    Ok(Input { documents })
 }
 
-/// The entry the checks read from an entry of the contract.
-fn entry(entry: DocumentEntry) -> Entry {
+/// A failure of the engine, boxed: the input holds what its schema and its rules refuse.
+fn defect(message: String) -> Box<Error> {
+    Box::new(Error::internal(message))
+}
+
+/// The entry the checks read from an entry of the contract; an internal error when it lacks
+/// the content of its format, which the schema requires, or its origin is not one place,
+/// which the rules require.
+fn entry(entry: DocumentEntry) -> Result<Entry, Box<Error>> {
     let given = entry.origin;
-    let origin = given.clone().and_then(place);
-    let lines = entry
-        .lines
-        .map(|lines| lines.0.into_iter().map(|(k, v)| (k, v.get())).collect())
-        .unwrap_or_default();
-    let body = match (entry.format, entry.error) {
-        (EntryFormat::Document, _) => Body::Document {
-            document: entry.document.map(|d| d.0).unwrap_or_default(),
+    let origin = given.clone().map(place).transpose()?;
+    let lines = entry.lines.map(|lines| lines.0).unwrap_or_default();
+    let format = entry.format;
+    let missing = || {
+        defect(format!(
+            "An entry of the format {format} the schema accepts has no `{}`.",
+            format.content()
+        ))
+    };
+    let body = match format {
+        EntryFormat::Document => Body::Document {
+            document: entry.document.ok_or_else(missing)?.0,
             input_kind: entry.input_kind,
         },
-        (EntryFormat::Markdown, _) => Body::Markdown,
-        (EntryFormat::Unreadable, error) => {
-            let (line, message) = error.map_or((NonZeroU64::MIN, String::new()), |e| {
-                (e.line.get(), e.message)
-            });
-            Body::Unreadable { line, message }
+        EntryFormat::Markdown => Body::Markdown,
+        EntryFormat::Unreadable => {
+            let error = entry.error.ok_or_else(missing)?;
+            Body::Unreadable {
+                line: error.line,
+                message: error.message,
+            }
         }
     };
-    Entry {
+    Ok(Entry {
         given,
         origin,
         body,
         lines,
-    }
+    })
 }
 
-/// The one member of an origin, which [`rules`] has checked.
-fn place(origin: Origin) -> Option<Place> {
+/// The one member of an origin; an internal error when it gives none or more than one, which
+/// [`rules`] refuses.
+fn place(origin: Origin) -> Result<Place, Box<Error>> {
     match (origin.file, origin.issue, origin.milestone) {
-        (Some(file), None, None) => Some(Place::File(file.as_str().to_owned())),
-        (None, Some(issue), None) => Some(Place::Issue(issue.get())),
-        (None, None, Some(milestone)) => Some(Place::Milestone(milestone.get())),
-        _ => None,
+        (Some(file), None, None) => Ok(Place::File(file)),
+        (None, Some(issue), None) => Ok(Place::Issue(issue)),
+        (None, None, Some(milestone)) => Ok(Place::Milestone(milestone)),
+        _ => Err(defect(
+            "An origin the rules accept is not exactly one place.".to_owned(),
+        )),
     }
 }
 
+/// The rules of one entry, which passed the input schema: its `format` is one of the enum.
 fn entry_rules(members: &Map<String, Value>, at: &Pointer, errors: &mut Vec<Error>) {
     let given = |key: &str| members.get(key).filter(|v| !v.is_null());
     let spelling = given("format").and_then(Value::as_str).unwrap_or_default();
-    let format = EntryFormat::from_id(spelling);
-    let allowed = allowed(format);
+    let Some(format) = EntryFormat::from_id(spelling) else {
+        return;
+    };
+    let allowed = format.members();
     for key in members
         .iter()
         .filter(|(k, v)| !v.is_null() && !allowed.contains(&k.as_str()))
@@ -162,13 +176,11 @@ fn entry_rules(members: &Map<String, Value>, at: &Pointer, errors: &mut Vec<Erro
     }
     let origin = given("origin").map(|o| origin_rules(o, &at.join("origin"), errors));
     // In an entry of another format, `lines` is refused above as a conflict, once.
-    if let Some(Value::Object(lines)) =
-        given("lines").filter(|_| format == Some(EntryFormat::Document))
-    {
+    if let Some(Value::Object(lines)) = given("lines").filter(|_| format == EntryFormat::Document) {
         needs_file(origin, at, "lines", errors);
         line_rules(lines, &at.join("lines"), errors);
     }
-    if format == Some(EntryFormat::Unreadable) {
+    if format == EntryFormat::Unreadable {
         needs_file(origin, at, "format", errors);
     }
 }
@@ -277,7 +289,7 @@ impl Entry {
         })
     }
 
-    fn line_of(&self, pointer: &str) -> Option<NonZeroU64> {
+    fn line_of(&self, pointer: &str) -> Option<Line> {
         let mut current = pointer;
         loop {
             if let Some(line) = self.lines.get(current) {

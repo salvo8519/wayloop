@@ -24,6 +24,7 @@ use wayloop_core::{
 use wayloop_schemas::contract::{
     ContractError, Direction, EMBEDDED, PUBLISHED_AT, Registered, TYPES, reread, schema_for,
 };
+use wayloop_schemas::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
 
 const DIRECTIONS: [Direction; 2] = [Direction::Input, Direction::Output];
 
@@ -108,8 +109,8 @@ fn full_error() -> Error {
     .with_expected([json!(1), json!("two"), json!({"a": [null]})])
     .with_fix(json!({"op": "removed"}))
     .with_location(Source::File {
-        file: "specs/0001-artifact-model/spec.md".into(),
-        line: Some(number(42)),
+        file: ProjectPath::new("specs/0001-artifact-model/spec.md"),
+        line: Some(Line::new(number(42))),
     })
 }
 
@@ -137,12 +138,14 @@ fn every_serialised_value_is_accepted_and_reads_back_into_its_type() {
     accept!("InputHash", InputHash::from_digest(&[0xab; 32]));
     for source in [
         Source::File {
-            file: "plan/items/TASK-0001.yaml".into(),
-            line: Some(number(7)),
+            file: ProjectPath::new("plan/items/TASK-0001.yaml"),
+            line: Some(Line::new(number(7))),
         },
-        Source::Issue { issue: number(252) },
+        Source::Issue {
+            issue: IssueNumber::new(number(252)),
+        },
         Source::Milestone {
-            milestone: number(3),
+            milestone: MilestoneNumber::new(number(3)),
         },
     ] {
         accept!("Source", source);

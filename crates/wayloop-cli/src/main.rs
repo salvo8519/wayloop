@@ -24,11 +24,12 @@ use std::process::ExitCode;
 
 use serde_json::Value;
 use wayloop_core::{
-    Command, Context, Envelope, envelope_json, input_unreadable, run_json, usage_error,
+    Command, Context, Envelope, Reason, envelope_json, input_unreadable, run_json, usage_error,
 };
 
 /// The usage line, for a person, on standard error.
-const USAGE: &str = "Commands: version, steps, validate --input <file|-> [--command-version <n>].";
+const USAGE_LINE: &str =
+    "Commands: version, steps, validate --input <file|-> [--command-version <n>].";
 
 /// What a run did: its exit code and a message for a person, if any, for standard error.
 #[derive(Debug)]
@@ -81,8 +82,11 @@ fn main() -> ExitCode {
 
 /// Runs one command, reading standard input from `stdin`, and writes its JSON result to `out`.
 fn run(args: &[String], stdin: &mut impl Read, out: &mut impl Write) -> Result<Ran, Failure> {
-    let text = match args.first().map(String::as_str) {
-        Some("validate") => return validate(args.get(1..).unwrap_or_default(), stdin, out),
+    let first = args.first().map(String::as_str);
+    if first.and_then(Command::from_id) == Some(Command::Validate) {
+        return validate(args.get(1..).unwrap_or_default(), stdin, out);
+    }
+    let text = match first {
         Some("--version" | "version") => format!(
             "{{\"name\":\"wayloop\",\"version\":\"{}\"}}",
             wayloop_core::VERSION
@@ -113,6 +117,7 @@ fn run(args: &[String], stdin: &mut impl Read, out: &mut impl Write) -> Result<R
 
 /// `wayloop validate` with its options `args`.
 fn validate(args: &[String], stdin: &mut impl Read, out: &mut impl Write) -> Result<Ran, Failure> {
+    let command = Command::Validate;
     let mut input = None;
     let mut context = Context::default();
     let mut version_given = false;
@@ -122,7 +127,7 @@ fn validate(args: &[String], stdin: &mut impl Read, out: &mut impl Write) -> Res
             [flag, n] if flag == "--command-version" && !version_given => {
                 let Some(version) = n.parse::<u32>().ok().and_then(NonZeroU32::new) else {
                     let detail = "--command-version takes an integer from 1.";
-                    return usage("validate", detail, out);
+                    return usage(command.id(), detail, out);
                 };
                 context = context.with_command_version(version);
                 version_given = true;
@@ -130,12 +135,12 @@ fn validate(args: &[String], stdin: &mut impl Read, out: &mut impl Write) -> Res
             _ => {
                 let detail =
                     "The options are --input <file|-> and --command-version <n>, each once.";
-                return usage("validate", detail, out);
+                return usage(command.id(), detail, out);
             }
         }
     }
     let Some(path) = input else {
-        return usage("validate", "--input <file|-> is required.", out);
+        return usage(command.id(), "--input <file|-> is required.", out);
     };
     let mut bytes = Vec::new();
     let read = if path == "-" {
@@ -146,27 +151,26 @@ fn validate(args: &[String], stdin: &mut impl Read, out: &mut impl Write) -> Res
     if let Err(error) = read {
         // The envelope holds no path and no message of the platform (SPEC-0004 R15); the
         // message for a person, on standard error, has both.
-        let not_found = error.kind() == io::ErrorKind::NotFound;
-        let detail = if not_found {
-            "The input file does not exist."
+        let reason = if error.kind() == io::ErrorKind::NotFound {
+            Reason::Missing
         } else {
-            "The input file cannot be read."
+            Reason::State
         };
-        let envelope = input_unreadable(Command::Validate, detail, not_found);
+        let envelope = input_unreadable(command, reason);
         return print(
             &envelope,
             out,
             Some(format!("cannot read the input {path}: {error}")),
         );
     }
-    let envelope = run_json(Command::Validate, &bytes, &context);
+    let envelope = run_json(command, &bytes, &context);
     print(&envelope, out, None)
 }
 
 /// Prints the envelope of a command line that is not understood, with the usage line.
 fn usage(command: &str, detail: &str, out: &mut impl Write) -> Result<Ran, Failure> {
     let envelope = usage_error(command, detail);
-    print(&envelope, out, Some(format!("{detail} {USAGE}")))
+    print(&envelope, out, Some(format!("{detail} {USAGE_LINE}")))
 }
 
 /// Prints `envelope` and gives its exit code, with `message` for standard error.

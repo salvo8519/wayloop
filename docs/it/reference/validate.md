@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 048833933705
+source_hash: 2e54149d6f44
 ---
 # wayloop validate
 
@@ -122,11 +122,14 @@ che non conosce e accetta i valori di enum che non conosce.
   "current_command_version"}`: il puntatore è vuoto perché la versione è un'impostazione del
   contesto, non un membro dell'input. Quando `--command-version` indica una versione che il
   motore non esegue, anche il rifiuto ha il puntatore `""`, e `meta.command_version` è la
-  versione corrente, di cui l'envelope ha la forma. Un errore d'uso riporta la versione corrente
+  versione corrente, di cui l'envelope ha la forma; quando l'input è anche un testo che il
+  motore non può leggere come JSON, lo stesso rapporto elenca prima la versione, poi l'errore
+  del testo. Un errore d'uso riporta la versione corrente
   del comando che indica, e 1 quando non indica un comando noto.
 - `meta.input_hash` è lo SHA-256 del JSON canonico (RFC 8785) dell'input senza i suoi membri
   impostati a `null`, quindi un input con `"base": null` ha l'hash dell'input senza `base`. Per
-  byte che non sono JSON, è lo SHA-256 dei byte ricevuti; due canali che inviano lo stesso testo
+  un testo che il motore rifiuta di leggere come JSON (non JSON, una chiave ripetuta in un
+  oggetto, un numero oltre l'intervallo di un double), è lo SHA-256 dei byte ricevuti; due canali che inviano lo stesso testo
   con altri fine riga o con un byte order mark ottengono allora hash diversi. Quando nessun
   input è stato letto (uso errato, file illeggibile), è lo SHA-256 di zero byte.
 

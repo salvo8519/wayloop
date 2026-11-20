@@ -33,6 +33,29 @@ crate::contract_enum! {
     }
 }
 
+impl EntryFormat {
+    /// The member that holds the content of an entry of this format, which it requires.
+    #[must_use]
+    pub const fn content(self) -> &'static str {
+        match self {
+            EntryFormat::Document => "document",
+            EntryFormat::Markdown => "text",
+            EntryFormat::Unreadable => "error",
+        }
+    }
+
+    /// Every member an entry of this format may give, in byte order: `format`, `origin`, the
+    /// content and, for a document, `input_kind` and `lines`. The core refuses any other.
+    #[must_use]
+    pub const fn members(self) -> &'static [&'static str] {
+        match self {
+            EntryFormat::Document => &["document", "format", "input_kind", "lines", "origin"],
+            EntryFormat::Markdown => &["format", "origin", "text"],
+            EntryFormat::Unreadable => &["error", "format", "origin"],
+        }
+    }
+}
+
 crate::contract_enum! {
     /// Type of an input (SPEC-0001, Inputs), which has no `kind` member.
     pub enum InputKind {
@@ -69,7 +92,7 @@ crate::contract_enum! {
 /// write a place the same way (plan of SPEC-0001).
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
 pub struct Origin {
-    /// A repository file, by its path relative to the root of the project.
+    /// Path of the file relative to the root of the project.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file: Option<ProjectPath>,
     /// A tracker issue, by its number.
@@ -155,14 +178,10 @@ pub struct DocumentEntry {
     pub input_kind: Option<InputKind>,
 }
 
-/// The member each format requires.
+/// The member each format requires: its content.
 fn entry_rules(schema: &mut Schema) {
-    for (format, member) in [
-        (EntryFormat::Document, "document"),
-        (EntryFormat::Markdown, "text"),
-        (EntryFormat::Unreadable, "error"),
-    ] {
-        rules::require_if_equals(schema, "format", format.id(), &[member]);
+    for format in EntryFormat::ALL {
+        rules::require_if_equals(schema, "format", format.id(), &[format.content()]);
     }
 }
 
@@ -272,6 +291,23 @@ mod tests {
         let origin = &schema["$defs"]["Origin"];
         assert_eq!(origin["properties"]["file"]["format"], "project-path");
         assert_eq!(origin["properties"]["issue"]["minimum"], 1);
+    }
+
+    #[test]
+    fn every_format_gives_its_content_format_and_origin_and_only_members_of_an_entry() {
+        let schema = schema_for::<ValidateInput>(Direction::Input).unwrap();
+        let entry = &schema["$defs"]["DocumentEntry"]["properties"];
+        for format in EntryFormat::ALL {
+            let members = format.members();
+            assert!(members.is_sorted(), "{format}");
+            for given in [format.content(), "format", "origin"] {
+                assert!(members.contains(&given), "{format}: {given}");
+            }
+            for member in members {
+                assert!(entry.get(member).is_some(), "{format}: {member}");
+            }
+        }
+        assert_eq!(EntryFormat::Document.members().len(), 5);
     }
 
     #[test]

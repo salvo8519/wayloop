@@ -5,27 +5,28 @@
 // The helpers take JSON values by value so that a test reads as the document it builds.
 #![allow(clippy::needless_pass_by_value)]
 
-use core::num::NonZeroU64;
+use core::num::{NonZeroU32, NonZeroU64};
 
 use serde_json::{Map, Value, json};
 use wayloop_schemas::artifact::ArtifactKind;
-use wayloop_schemas::contract::{Area, CONTRACTS, EMBEDDED, Embedded, Part, VALIDATE};
+use wayloop_schemas::contract::{Area, BRIEF, CONTRACTS, Embedded, Part, VALIDATE};
 use wayloop_schemas::validate::InputKind;
+use wayloop_schemas::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
 use wayloop_schemas::{NotDone, NotDoneReason, Source};
 
 use super::input::{self, Input};
 use super::kinds::{self, Checked, Kind, Migration};
 use super::{checks, codes, run_with, validate_with};
-use crate::command::{COMMAND_INPUT, INTERNAL_ERROR};
+use crate::command::COMMAND_INPUT;
 use crate::envelope::without_nulls;
 use crate::schema::tests::oracle;
-use crate::{Code, Command, Context, Error, Pointer, Reason, run, run_json};
+use crate::{Code, Command, Context, Error, INTERNAL_ERROR, Pointer, Reason, run, run_json};
 
 // Helpers -------------------------------------------------------------------------------------
 
 /// The types whose schema is built.
 fn built() -> Vec<Kind> {
-    kinds::built(&INTERNAL_ERROR).unwrap()
+    kinds::built().unwrap()
 }
 
 /// Validates `input` with the types whose schema is built.
@@ -33,15 +34,9 @@ fn validate(input: &Input) -> super::Validation {
     super::validate(input, &built())
 }
 
-/// The embedded snapshot at `path` under `schemas/`.
-fn embedded(path: &str) -> Embedded {
-    *EMBEDDED.iter().find(|e| e.path == path).unwrap()
-}
-
 /// The input schema of `validate`, loaded.
 fn input_schema() -> crate::schema::Schema {
-    let path = VALIDATE.path(Part::Schema, VALIDATE.version);
-    kinds::load(embedded(&path), INTERNAL_ERROR).unwrap()
+    kinds::load(VALIDATE.embedded(Part::Schema, VALIDATE.version).unwrap()).unwrap()
 }
 
 fn brief() -> Value {
@@ -88,8 +83,8 @@ fn at(pointer: &str) -> Pointer {
     Pointer::parse(pointer).unwrap()
 }
 
-fn line(n: u64) -> NonZeroU64 {
-    NonZeroU64::new(n).unwrap()
+fn line(n: u64) -> Line {
+    Line::new(NonZeroU64::new(n).unwrap())
 }
 
 // The registry against the files ------------------------------------------------------------
@@ -118,11 +113,10 @@ fn the_built_kinds_are_the_artifacts_of_the_registry_with_every_version() {
 #[test]
 fn every_built_schema_loads_and_the_command_schemas_too() {
     let built = built();
-    let loaded = kinds::load_all(&built, &INTERNAL_ERROR).unwrap();
+    let loaded = kinds::load_all(&built).unwrap();
     assert_eq!(loaded.len(), built.len());
     for part in [Part::Schema, Part::Output] {
-        let path = VALIDATE.path(part, VALIDATE.version);
-        kinds::load(embedded(&path), INTERNAL_ERROR).unwrap();
+        kinds::load(VALIDATE.embedded(part, VALIDATE.version).unwrap()).unwrap();
     }
 }
 
@@ -135,8 +129,6 @@ fn every_kind_and_input_has_a_schema_check_named_after_it() {
     for kind in names {
         assert_eq!(kinds::schema_check(kind).id(), format!("schema_{kind}"));
     }
-    assert!(kinds::is_input_kind("commit"));
-    assert!(!kinds::is_input_kind("brief"));
     assert_eq!(kinds::kinds().len(), ArtifactKind::ALL.len());
 }
 
@@ -175,9 +167,9 @@ fn the_kinds_and_their_checks_are_snake_case_and_unique() {
 
 #[test]
 fn the_oracle_agrees_with_the_interpreter_on_briefs() {
-    let brief_v1 = embedded("artifacts/brief/v1.json");
+    let brief_v1 = BRIEF.embedded(Part::Schema, NonZeroU32::MIN).unwrap();
     let schema: Value = serde_json::from_str(brief_v1.text).unwrap();
-    let loaded = kinds::load(brief_v1, INTERNAL_ERROR).unwrap();
+    let loaded = kinds::load(brief_v1).unwrap();
     let oracle = oracle(&schema);
     let documents = [
         brief(),
@@ -278,9 +270,7 @@ fn sample_kind() -> Kind {
 }
 
 fn sample() -> kinds::Loaded {
-    kinds::load_all(&[sample_kind()], &INTERNAL_ERROR)
-        .unwrap()
-        .remove(0)
+    kinds::load_all(&[sample_kind()]).unwrap().remove(0)
 }
 
 fn object(value: Value) -> Map<String, Value> {
@@ -288,7 +278,7 @@ fn object(value: Value) -> Map<String, Value> {
 }
 
 fn check_sample(document: Value) -> Checked {
-    sample().check(&object(document), &codes::ARTIFACT_SCHEMA, &INTERNAL_ERROR)
+    sample().check(&object(document))
 }
 
 #[test]
@@ -382,7 +372,7 @@ fn every_version_of_every_built_schema_requires_an_integer_schema_version() {
     // The rule above relies on it: the current schema reports a missing or mistyped version.
     for kind in built() {
         for snapshot in &kind.versions {
-            let schema = kinds::load(*snapshot, INTERNAL_ERROR).unwrap();
+            let schema = kinds::load(*snapshot).unwrap();
             let missing = schema.validate(&json!({}), codes::ARTIFACT_SCHEMA);
             assert!(
                 found(&missing).contains(&(
@@ -442,13 +432,11 @@ fn a_migration_that_gives_an_invalid_document_is_a_failure_of_the_engine() {
         migrations: &BROKEN,
         ..sample_kind()
     };
-    let loaded = kinds::load_all(core::slice::from_ref(&kind), &INTERNAL_ERROR)
+    let loaded = kinds::load_all(core::slice::from_ref(&kind))
         .unwrap()
         .remove(0);
     let document = object(json!({"kind": "sample", "schema_version": 1, "name": "x"}));
-    let Checked::Failed(failure) =
-        loaded.check(&document, &codes::ARTIFACT_SCHEMA, &INTERNAL_ERROR)
-    else {
+    let Checked::Failed(failure) = loaded.check(&document) else {
         panic!("failure expected");
     };
     assert_eq!(*failure.code(), INTERNAL_ERROR);
@@ -460,15 +448,14 @@ fn a_migration_that_gives_an_invalid_document_is_a_failure_of_the_engine() {
     ]});
     assert_eq!(input::rules(&input), []);
     let read = input::read(&input).unwrap();
-    let loaded = kinds::load_all(core::slice::from_ref(&kind), &INTERNAL_ERROR).unwrap();
+    let loaded = kinds::load_all(core::slice::from_ref(&kind)).unwrap();
     let validation = validate_with(&read, &loaded);
     assert_eq!(validation.failures.len(), 1);
     assert_eq!(validation.errors.len(), 1);
-    let (outcome, diagnostics, defaults) = run_with(&input, &[kind]);
+    let (outcome, diagnostics) = run_with(&input, &[kind]);
     assert_eq!(outcome.exit_code(), crate::ExitCode::InternalError);
     assert_eq!(outcome.report().unwrap().first().reason(), Reason::Internal);
     assert_eq!(diagnostics, wayloop_schemas::Diagnostics::default());
-    assert_eq!(defaults, []);
 }
 
 #[test]
@@ -497,9 +484,9 @@ fn a_type_whose_schemas_cannot_be_loaded_is_a_failure_of_the_engine() {
             migrations: &[],
         },
     ] {
-        let failure = kinds::load_all(core::slice::from_ref(&kind), &INTERNAL_ERROR).unwrap_err();
+        let failure = kinds::load_all(core::slice::from_ref(&kind)).unwrap_err();
         assert_eq!(failure.reason(), Reason::Internal, "{failure}");
-        let (outcome, _, _) = run_with(&json!({"documents": []}), &[kind]);
+        let (outcome, _) = run_with(&json!({"documents": []}), &[kind]);
         assert_eq!(outcome.exit_code(), crate::ExitCode::InternalError);
     }
 }
@@ -593,7 +580,6 @@ fn checks_not_built_are_listed_once_with_their_reason() {
         ]
     );
     assert_eq!(validation.warnings, []);
-    assert_eq!(validation.defaults_applied, []);
     assert_eq!(
         NotDone::new(checks::LINKS, NotDoneReason::NotBuilt),
         validation.not_done[1]
@@ -654,7 +640,7 @@ fn sources(origin: Value, lines: Option<Value>, document: Value) -> Vec<Option<S
 fn the_source_of_an_error_is_the_line_of_its_value_or_of_the_nearest_value_holding_it() {
     let file = |line: Option<u64>| {
         Some(Source::File {
-            file: "plan/briefs/BRIEF-0001.yaml".into(),
+            file: ProjectPath::new("plan/briefs/BRIEF-0001.yaml"),
             line: line.map(self::line),
         })
     };
@@ -682,12 +668,16 @@ fn the_source_of_an_error_is_the_line_of_its_value_or_of_the_nearest_value_holdi
         sources(origin, Some(json!({"/goals/1": 11})), document.clone()),
         [file(None), file(None)]
     );
-    let issue = Some(Source::Issue { issue: line(12) });
+    let issue = Some(Source::Issue {
+        issue: IssueNumber::new(line(12).get()),
+    });
     assert_eq!(
         sources(json!({"issue": 12}), None, document.clone()),
         [issue.clone(), issue]
     );
-    let milestone = Some(Source::Milestone { milestone: line(3) });
+    let milestone = Some(Source::Milestone {
+        milestone: MilestoneNumber::new(line(3).get()),
+    });
     assert_eq!(
         sources(json!({"milestone": 3.0}), None, document),
         [milestone.clone(), milestone]
@@ -710,7 +700,7 @@ fn an_unreadable_entry_is_a_syntax_error_at_the_line_of_the_parser() {
     assert_eq!(
         error.location(),
         Some(&Source::File {
-            file: "plan/briefs/BRIEF-0002.yaml".into(),
+            file: ProjectPath::new("plan/briefs/BRIEF-0002.yaml"),
             line: Some(line(4))
         })
     );
@@ -980,9 +970,13 @@ fn without_a_requested_version_the_current_one_runs_and_is_listed_as_a_default()
 fn an_unknown_requested_version_is_refused_with_the_known_versions() {
     let two = core::num::NonZeroU32::new(2).unwrap();
     let context = Context::default().with_command_version(two);
-    for envelope in [
-        run(Command::Validate, &json!({"documents": []}), &context),
-        run_json(Command::Validate, b"{", &context),
+    // With text that is not JSON, the syntax error follows the version in the same report.
+    for (envelope, count) in [
+        (
+            run(Command::Validate, &json!({"documents": []}), &context),
+            1,
+        ),
+        (run_json(Command::Validate, b"{", &context), 2),
     ] {
         let Some(report) = envelope.outcome().report() else {
             panic!("refused expected");
@@ -992,7 +986,8 @@ fn an_unknown_requested_version_is_refused_with_the_known_versions() {
         assert_eq!(error.reason(), Reason::Enum);
         assert_eq!(error.pointer(), &Pointer::root());
         assert_eq!(error.expected(), Some(&[json!(1)][..]));
-        assert_eq!(report.errors().count(), 1);
+        let reasons: Vec<Reason> = report.errors().map(Error::reason).collect();
+        assert_eq!(reasons, [Reason::Enum, Reason::Syntax][..count]);
         assert_eq!(envelope.meta().command_version().get(), 1);
         assert_eq!(envelope.meta().defaults_applied(), []);
     }
@@ -1019,8 +1014,11 @@ fn usage_and_unreadable_input_envelopes_carry_the_error_and_their_exit_code() {
         "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     );
     assert_eq!(crate::usage_error("validate", "x").command(), "validate");
-    for (not_found, reason) in [(true, Reason::Missing), (false, Reason::State)] {
-        let envelope = crate::input_unreadable(Command::Validate, "No such file.", not_found);
+    for (reason, message) in [
+        (Reason::Missing, "The input does not exist."),
+        (Reason::State, "The input cannot be read."),
+    ] {
+        let envelope = crate::input_unreadable(Command::Validate, reason);
         assert_eq!(envelope.command(), "validate");
         assert_eq!(envelope.exit_code().code(), 3);
         let Some(report) = envelope.outcome().report() else {
@@ -1028,7 +1026,16 @@ fn usage_and_unreadable_input_envelopes_carry_the_error_and_their_exit_code() {
         };
         assert_eq!(*report.first().code(), crate::INPUT_UNREADABLE);
         assert_eq!(report.first().reason(), reason);
+        assert_eq!(report.first().message(), message);
     }
+    // Another reason is not a reason of the code: a failure of the engine, not a guess.
+    let envelope = crate::input_unreadable(Command::Validate, Reason::Syntax);
+    assert_eq!(envelope.exit_code().code(), 5);
+    let Some(report) = envelope.outcome().report() else {
+        panic!("failure expected");
+    };
+    assert_eq!(*report.first().code(), crate::INTERNAL_ERROR);
+    assert!(report.first().message().contains("syntax"), "{report:?}");
 }
 
 #[test]

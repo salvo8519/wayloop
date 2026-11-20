@@ -21,7 +21,7 @@ use serde_json::{Map, Value};
 
 use crate::Format;
 use crate::contract::rules;
-use crate::number::integer;
+use crate::number::{integer, is_safe};
 
 #[doc(hidden)]
 pub mod __private {
@@ -55,11 +55,13 @@ pub fn text(value: &Value) -> Option<String> {
     value.as_str().map(str::to_owned)
 }
 
-/// An integer from 1 read by value: `3.0` is `3`; `None` for any other value.
+/// An integer from 1 to [`SAFE_INTEGER`](crate::number::SAFE_INTEGER), read by value: `3.0` is
+/// `3`; `None` for any other value, as the interpreter refuses an integer beyond that range.
 #[doc(hidden)]
 #[must_use]
 pub fn positive(value: &Value) -> Option<NonZeroU64> {
     integer(value)
+        .filter(|n| is_safe(*n))
         .and_then(|n| u64::try_from(n).ok())
         .and_then(NonZeroU64::new)
 }
@@ -336,7 +338,17 @@ mod tests {
         assert_eq!(read.get().get(), 12);
         assert_eq!(read.to_string(), "12");
         assert_eq!(serde_json::to_value(read).unwrap(), json!(12));
-        for refused in [json!(0), json!(-1), json!(1.5), json!("1"), json!(null)] {
+        let beyond = json!(crate::number::SAFE_INTEGER + 1);
+        let largest: Line = serde_json::from_value(json!(crate::number::SAFE_INTEGER)).unwrap();
+        assert_eq!(largest.get().get(), 9_007_199_254_740_991);
+        for refused in [
+            json!(0),
+            json!(-1),
+            json!(1.5),
+            json!("1"),
+            json!(null),
+            beyond,
+        ] {
             assert!(
                 serde_json::from_value::<Line>(refused.clone()).is_err(),
                 "{refused}"

@@ -39,6 +39,11 @@ pub const USAGE: Code = Code::new("usage");
 /// A code of the envelope, not of one command: the exit code of an envelope depends on it.
 pub const INPUT_UNREADABLE: Code = Code::new("input_unreadable");
 
+/// The engine could not compute the result; the input may be valid. Its errors have the reason
+/// `internal` and the command exits with code 5 (ADR 0009 C3, C7). A code of the envelope, not
+/// of one command, built by [`Error::internal`].
+pub const INTERNAL_ERROR: Code = Code::new("internal_error");
+
 /// Version of the shape of the envelope, written in `meta.envelope_version`. It changes only
 /// with a breaking change of the envelope itself (ADR 0009 C5).
 pub const ENVELOPE_VERSION: NonZeroU32 = NonZeroU32::MIN;
@@ -361,13 +366,11 @@ impl<D> Outcome<D> {
         }
     }
 
-    /// A failure of the engine with one error of `code` and `message`, at the root, with the
-    /// reason [`Reason::Internal`]: exit code 5. Always an outcome, for a caller that must give
-    /// one when no other can be built.
+    /// A failure of the engine with the one error [`Error::internal`] of `message`: exit code
+    /// 5. Always an outcome, for a caller that must give one when no other can be built.
     #[must_use]
-    pub fn internal(code: Code, message: impl Into<String>) -> Self {
-        let error = Error::new(code, message, Pointer::root(), Reason::Internal);
-        Self(Kind::Failed(ErrorReport::single(error)))
+    pub fn internal(message: impl Into<String>) -> Self {
+        Self(Kind::Failed(ErrorReport::single(Error::internal(message))))
     }
 
     /// The same outcome with its data, if any, turned by `f`; a report is kept as it is.
@@ -702,7 +705,7 @@ impl<'de, D: Deserialize<'de> + Serialize> Deserialize<'de> for Envelope<D> {
 mod tests {
     use super::{
         Check, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope,
-        EnvelopeForm, ExitCode, InputHash, Meta, NotDone, NotDoneReason, Outcome,
+        EnvelopeForm, ExitCode, INTERNAL_ERROR, InputHash, Meta, NotDone, NotDoneReason, Outcome,
     };
     use crate::fixtures::{Counted, INVALID_INPUT, at, unknown_then_missing};
     use crate::{Code, Error, ErrorReport, Pointer, Reason};
@@ -711,7 +714,6 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use serde_json::{Value, json};
 
-    const INTERNAL_ERROR: Code = Code::new("internal_error");
     const SCHEMA: Check = Check::new("schema");
     const LINKS: Check = Check::new("links");
     const PROJECT_LANGUAGE: DefaultReason = DefaultReason::new("project_language");
@@ -730,13 +732,7 @@ mod tests {
     }
 
     fn failure() -> ErrorReport {
-        ErrorReport::from_errors([Error::new(
-            INTERNAL_ERROR,
-            "The engine could not compute the result.",
-            Pointer::root(),
-            Reason::Internal,
-        )])
-        .unwrap()
+        ErrorReport::single(Error::internal("The engine could not compute the result."))
     }
 
     fn success(data: Value) -> Outcome<Value> {
@@ -819,11 +815,12 @@ mod tests {
             assert_eq!(read.exit_code().code(), code);
         }
         // An internal outcome is always a failure; map keeps the outcome.
-        let internal: Outcome<Value> = Outcome::internal(INTERNAL_ERROR, "Broken.");
+        let internal: Outcome<Value> = Outcome::internal("Broken.");
         assert_eq!(internal.exit_code(), ExitCode::InternalError);
+        let error = internal.report().unwrap().first();
         assert_eq!(
-            internal.report().unwrap().first().reason(),
-            Reason::Internal
+            (error.code(), error.reason(), error.pointer()),
+            (&INTERNAL_ERROR, Reason::Internal, &Pointer::root())
         );
         assert_eq!(
             success(json!(1)).map(|v| v.to_string()).data(),

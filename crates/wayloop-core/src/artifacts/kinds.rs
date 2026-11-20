@@ -12,12 +12,11 @@ use core::num::NonZeroU32;
 
 use serde_json::{Map, Value};
 use wayloop_schemas::artifact::ArtifactKind;
-use wayloop_schemas::contract::{Area, CONTRACTS, EMBEDDED, Embedded, Part};
+use wayloop_schemas::contract::{Area, CONTRACTS, Embedded, Part};
 use wayloop_schemas::number::{SAFE_INTEGER, integer, is_safe};
-use wayloop_schemas::validate::InputKind;
 
 use crate::schema::Schema;
-use crate::{Check, Code, Error, Pointer, Reason};
+use crate::{Check, Error, Pointer, Reason};
 
 /// The spellings of the artifact types, the accepted values of `kind`, in the order of the
 /// enum of the contract.
@@ -31,12 +30,6 @@ pub fn kinds() -> Vec<&'static str> {
 #[must_use]
 pub fn schema_check(kind: &str) -> Check {
     Check::owned(format!("schema_{kind}"))
-}
-
-/// Whether `kind` is the spelling of an input, which `input_kind` names.
-#[must_use]
-pub fn is_input_kind(kind: &str) -> bool {
-    InputKind::from_id(kind).is_some()
 }
 
 /// A migration from one version of a document to the next.
@@ -59,7 +52,7 @@ pub struct Kind {
 
 /// The types whose schema is built: the artifacts of the registry, each with the embedded
 /// snapshot of every version; an internal error when a snapshot is not embedded.
-pub(crate) fn built(code: &Code) -> Result<Vec<Kind>, Box<Error>> {
+pub(crate) fn built() -> Result<Vec<Kind>, Box<Error>> {
     CONTRACTS
         .iter()
         .filter(|contract| contract.area == Area::Artifacts)
@@ -67,14 +60,12 @@ pub(crate) fn built(code: &Code) -> Result<Vec<Kind>, Box<Error>> {
             let versions = (1..=contract.version.get())
                 .filter_map(NonZeroU32::new)
                 .map(|version| {
-                    let path = contract.path(Part::Schema, version);
-                    EMBEDDED
-                        .iter()
-                        .find(|e| e.path == path)
-                        .copied()
-                        .ok_or_else(|| {
-                            boxed(code.clone(), format!("The schema {path} is not embedded."))
-                        })
+                    contract.embedded(Part::Schema, version).ok_or_else(|| {
+                        let path = contract.path(Part::Schema, version);
+                        Box::new(Error::internal(format!(
+                            "The schema {path} is not embedded."
+                        )))
+                    })
                 })
                 .collect::<Result<_, _>>()?;
             let migrations = MIGRATIONS
@@ -98,52 +89,41 @@ pub struct Loaded {
     migrations: &'static [Migration],
 }
 
-/// An error of the engine itself (reason `internal`, exit code 5): `what` failed.
-pub(crate) fn internal(code: Code, what: String) -> Error {
-    Error::new(code, what, Pointer::root(), Reason::Internal)
-}
-
-fn boxed(code: Code, what: String) -> Box<Error> {
-    Box::new(internal(code, what))
+/// An error of the engine itself, boxed: `what` failed.
+fn boxed(what: String) -> Box<Error> {
+    Box::new(Error::internal(what))
 }
 
 /// The schema of `snapshot`, parsed and loaded, or the internal error that says why not.
-pub(crate) fn load(snapshot: Embedded, code: Code) -> Result<Schema, Box<Error>> {
-    let value: Value = serde_json::from_str(snapshot.text).map_err(|e| {
-        boxed(
-            code.clone(),
-            format!("The schema {} is not JSON: {e}.", snapshot.path),
-        )
-    })?;
+pub(crate) fn load(snapshot: Embedded) -> Result<Schema, Box<Error>> {
+    let value: Value = serde_json::from_str(snapshot.text)
+        .map_err(|e| boxed(format!("The schema {} is not JSON: {e}.", snapshot.path)))?;
     Schema::load(&value).map_err(|e| {
-        boxed(
-            code,
-            format!("The schema {} cannot be loaded: {e}.", snapshot.path),
-        )
+        boxed(format!(
+            "The schema {} cannot be loaded: {e}.",
+            snapshot.path
+        ))
     })
 }
 
 /// Loads the schemas of `kinds`; an internal error when one cannot be loaded or a type has not
 /// one migration per step.
-pub(crate) fn load_all(kinds: &[Kind], code: &Code) -> Result<Vec<Loaded>, Box<Error>> {
+pub(crate) fn load_all(kinds: &[Kind]) -> Result<Vec<Loaded>, Box<Error>> {
     kinds
         .iter()
         .map(|kind| {
             if kind.versions.is_empty() || kind.migrations.len() != kind.versions.len() - 1 {
-                return Err(boxed(
-                    code.clone(),
-                    format!(
-                        "The type {} has {} versions and {} migrations.",
-                        kind.id,
-                        kind.versions.len(),
-                        kind.migrations.len()
-                    ),
-                ));
+                return Err(boxed(format!(
+                    "The type {} has {} versions and {} migrations.",
+                    kind.id,
+                    kind.versions.len(),
+                    kind.migrations.len()
+                )));
             }
             let versions = kind
                 .versions
                 .iter()
-                .map(|snapshot| load(*snapshot, code.clone()))
+                .map(|snapshot| load(*snapshot))
                 .collect::<Result<_, _>>()?;
             Ok(Loaded {
                 id: kind.id,
@@ -172,14 +152,9 @@ impl Loaded {
     }
 
     /// Checks `document`, of this type, against the schema of its `schema_version` and
-    /// migrates it to the current version (R16). `code` is the code of a schema error,
-    /// `internal_code` that of a failure of the engine.
-    pub(crate) fn check(
-        &self,
-        document: &Map<String, Value>,
-        code: &Code,
-        internal_code: &Code,
-    ) -> Checked {
+    /// migrates it to the current version (R16); a schema error has the code `artifact_schema`.
+    pub(crate) fn check(&self, document: &Map<String, Value>) -> Checked {
+        let code = &super::codes::ARTIFACT_SCHEMA;
         let at = Pointer::root().join("schema_version");
         let value = Value::Object(document.clone());
         let given = document.get("schema_version").filter(|v| !v.is_null());
@@ -235,15 +210,12 @@ impl Loaded {
         let latest = self
             .versions
             .last()
-            .map(|s| s.validate(&Value::Object(current.clone()), internal_code.clone()));
+            .map(|s| s.validate(&Value::Object(current.clone()), code.clone()));
         if let Some(first) = latest.and_then(|e| e.into_iter().next()) {
-            return Checked::Failed(internal(
-                internal_code.clone(),
-                format!(
-                    "The migration of a {} from version {version} gives a document that the current schema refuses: {first}",
-                    self.id
-                ),
-            ));
+            return Checked::Failed(Error::internal(format!(
+                "The migration of a {} from version {version} gives a document that the current schema refuses: {first}",
+                self.id
+            )));
         }
         Checked::Valid(current)
     }

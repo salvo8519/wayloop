@@ -44,14 +44,12 @@ use core::num::NonZeroU32;
 use serde::Serialize;
 use serde_json::Value;
 
-pub use command::{
-    COMMAND_INPUT, CURRENT_COMMAND_VERSION, Command, Context, INTERNAL_ERROR, parse_json,
-};
+pub use command::{COMMAND_INPUT, CURRENT_COMMAND_VERSION, Command, Context, parse_json};
 pub use envelope::envelope_json;
 pub use wayloop_schemas::{
     Check, Code, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope, Error,
-    ErrorReport, ExitCode, INPUT_UNREADABLE, InputHash, Meta, NotDone, NotDoneReason, Outcome,
-    Pointer, Reason, Source, USAGE,
+    ErrorReport, ExitCode, INPUT_UNREADABLE, INTERNAL_ERROR, InputHash, Meta, NotDone,
+    NotDoneReason, Outcome, Pointer, Reason, Source, USAGE,
 };
 
 /// The entry point of the engine (ADR 0028, SPEC-0004 R14): runs `command` on its canonical
@@ -76,14 +74,13 @@ pub fn run(command: Command, input: &Value, context: &Context) -> Envelope<Value
             command.version(),
             Vec::new(),
         ),
-        Ok((version, mut defaults)) => {
-            let (outcome, diagnostics, more) = match command {
+        Ok((version, defaults)) => {
+            let (outcome, diagnostics) = match command {
                 Command::Validate => {
-                    let (outcome, diagnostics, more) = artifacts::run(input);
-                    (as_value(outcome), diagnostics, more)
+                    let (outcome, diagnostics) = artifacts::run(input);
+                    (as_value(outcome), diagnostics)
                 }
             };
-            defaults.extend(more);
             (outcome, diagnostics, version, defaults)
         }
     };
@@ -97,24 +94,18 @@ fn as_value<D: Serialize>(outcome: Outcome<D>) -> Outcome<Value> {
     let written = outcome.data().map(serde_json::to_value);
     match written {
         None => outcome.map(|_| Value::Null),
-        Some(Ok(value)) => Outcome::success(value).unwrap_or_else(|| {
-            Outcome::internal(INTERNAL_ERROR, "The data of the result is written as null.")
-        }),
-        Some(Err(e)) => Outcome::internal(
-            INTERNAL_ERROR,
-            format!("The data of the result cannot be written: {e}."),
-        ),
+        Some(Ok(value)) => Outcome::success(value)
+            .unwrap_or_else(|| Outcome::internal("The data of the result is written as null.")),
+        Some(Err(e)) => {
+            Outcome::internal(format!("The data of the result cannot be written: {e}."))
+        }
     }
 }
 
 /// The refusal of `report`, whose errors are refusals of the input.
 fn refusal(report: ErrorReport) -> Outcome<Value> {
-    Outcome::refused(report).unwrap_or_else(|| {
-        Outcome::internal(
-            INTERNAL_ERROR,
-            "The engine wrote a refusal that holds a failure.",
-        )
-    })
+    Outcome::refused(report)
+        .unwrap_or_else(|| Outcome::internal("The engine wrote a refusal that holds a failure."))
 }
 
 /// The version of `command` the context requests, with the default applied when it requests
@@ -146,18 +137,23 @@ fn requested(
 }
 
 /// [`run`] on an input sent as JSON `text`, as a channel that reads text calls it. Text that
-/// is not JSON, or that repeats a key in one object, is refused with the code
-/// [`COMMAND_INPUT`] before the command runs; `meta.input_hash` is then the SHA-256 of the
-/// bytes received, since they have no canonical JSON. Two channels that send the same value
-/// with other bytes (line endings, a byte order mark) get the same envelope only when the bytes
-/// are JSON.
+/// is not JSON, that repeats a key in one object or that holds a number beyond a double, is
+/// refused with the code [`COMMAND_INPUT`] before the command runs; `meta.input_hash` is then
+/// the SHA-256 of the bytes received, since they have no canonical JSON (SPEC-0004 R11). Two
+/// channels that send the same value with other bytes (line endings, a byte order mark) get the
+/// same envelope only when the bytes are JSON. A version of the command the engine does not
+/// run is reported in the same report, before the errors of the text.
 #[must_use]
 pub fn run_json(command: Command, text: &[u8], context: &Context) -> Envelope<Value> {
     match parse_json(text) {
         Ok(input) => run(command, &input, context),
         Err(report) => {
             let (outcome, version, defaults) = match requested(command, *context) {
-                Err(refused) => (refusal(*refused), command.version(), Vec::new()),
+                Err(refused) => {
+                    let errors = refused.errors().chain(report.errors()).cloned();
+                    let both = ErrorReport::from_errors(errors).unwrap_or(*refused);
+                    (refusal(both), command.version(), Vec::new())
+                }
                 Ok((version, defaults)) => (refusal(*report), version, defaults),
             };
             let meta = envelope::meta_of_bytes(version, text, context.dry_run(), defaults);
@@ -180,26 +176,32 @@ pub fn usage_error(command: &str, detail: &str) -> Envelope<Value> {
 }
 
 /// The envelope of an input that the channel could not read from the environment, for example
-/// a file (ADR 0009 C7, exit code 3): code [`INPUT_UNREADABLE`], reason `missing` when it does
-/// not exist and `state` otherwise, at the root. `detail` says what failed, with no path. No
-/// input was received, so `meta.input_hash` is the SHA-256 of no bytes.
+/// a file (ADR 0009 C7, exit code 3): code [`INPUT_UNREADABLE`] at the root, with `reason`
+/// [`Reason::Missing`] when the input does not exist and [`Reason::State`] when it cannot be
+/// read. The message, with no path, is the engine's. Any other reason is not a reason of this
+/// code: the envelope is then a failure of the engine. No input was received, so
+/// `meta.input_hash` is the SHA-256 of no bytes.
 #[must_use]
-pub fn input_unreadable(command: Command, detail: &str, not_found: bool) -> Envelope<Value> {
-    let reason = if not_found {
-        Reason::Missing
-    } else {
-        Reason::State
+pub fn input_unreadable(command: Command, reason: Reason) -> Envelope<Value> {
+    let message = match reason {
+        Reason::Missing => "The input does not exist.",
+        Reason::State => "The input cannot be read.",
+        other => {
+            let failure = Outcome::internal(format!(
+                "An unreadable input was reported with the reason {other}."
+            ));
+            return stopped(command.id(), Some(failure));
+        }
     };
-    let error = Error::new(INPUT_UNREADABLE, detail, Pointer::root(), reason);
+    let error = Error::new(INPUT_UNREADABLE, message, Pointer::root(), reason);
     let outcome = Outcome::environment(ErrorReport::single(error));
     stopped(command.id(), outcome)
 }
 
 /// The envelope of a command stopped before it ran, or a failure when `outcome` is none.
 fn stopped(command: &str, outcome: Option<Outcome<Value>>) -> Envelope<Value> {
-    let outcome = outcome.unwrap_or_else(|| {
-        Outcome::internal(INTERNAL_ERROR, "The engine wrote a stop of another code.")
-    });
+    let outcome =
+        outcome.unwrap_or_else(|| Outcome::internal("The engine wrote a stop of another code."));
     let version = Command::from_id(command).map_or(NonZeroU32::MIN, Command::version);
     let meta = envelope::meta_of_bytes(version, b"", false, Vec::new());
     Envelope::new(command, outcome, Diagnostics::default(), meta)
