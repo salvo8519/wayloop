@@ -14,7 +14,7 @@
     "values": {
       "/command": "validate",
       "/meta/command_version": 1,
-      "/meta/envelope_version": 2,
+      "/meta/envelope_version": 1,
       "/meta/dry_run": false,
       "/meta/input_hash": "f332a4181af7c4a82f09927e71369910957b21632a21eb990216dbd59c728dd3"
     },

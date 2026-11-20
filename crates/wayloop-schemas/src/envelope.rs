@@ -40,9 +40,8 @@ pub const USAGE: Code = Code::new("usage");
 pub const INPUT_UNREADABLE: Code = Code::new("input_unreadable");
 
 /// Version of the shape of the envelope, written in `meta.envelope_version`. It changes only
-/// with a breaking change of the envelope itself (ADR 0009 C5). Version 2: the line of a
-/// `source` is written only when it is known (SPEC-0004 R2, with #256); version 1 is frozen.
-pub const ENVELOPE_VERSION: NonZeroU32 = NonZeroU32::MIN.saturating_add(1);
+/// with a breaking change of the envelope itself (ADR 0009 C5).
+pub const ENVELOPE_VERSION: NonZeroU32 = NonZeroU32::MIN;
 
 /// Exit codes of the command line (ADR 0009 C7). An exit code is a number by contract, never
 /// spelt: [`ExitCode::code`] is the one source of each number.
@@ -765,7 +764,7 @@ mod tests {
         format!(
             concat!(
                 r#""diagnostics":{{"warnings":[],"not_done":[],"checks":[]}},"#,
-                r#""meta":{{"engine_version":"0.0.0","envelope_version":2,"command_version":2,"#,
+                r#""meta":{{"engine_version":"0.0.0","envelope_version":1,"command_version":2,"#,
                 r#""input_hash":"{}","dry_run":false,"defaults_applied":[]}}"#
             ),
             hash().as_str()
@@ -916,12 +915,12 @@ mod tests {
             ],
         );
         assert_eq!(meta.envelope_version(), ENVELOPE_VERSION);
-        assert_eq!(ENVELOPE_VERSION.get(), 2);
+        assert_eq!(ENVELOPE_VERSION.get(), 1);
         assert_eq!(
             text(&meta),
             format!(
                 concat!(
-                    r#"{{"engine_version":"0.1.0","envelope_version":2,"command_version":3,"#,
+                    r#"{{"engine_version":"0.1.0","envelope_version":1,"command_version":3,"#,
                     r#""input_hash":"{}","dry_run":true,"defaults_applied":["#,
                     r#"{{"pointer":"/language","value":"en","reason":"project_language","#,
                     r#""message":"The language of the project applies."}},"#,

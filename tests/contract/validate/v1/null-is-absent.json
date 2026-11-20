@@ -48,7 +48,7 @@
     "values": {
       "/command": "validate",
       "/meta/command_version": 1,
-      "/meta/envelope_version": 2,
+      "/meta/envelope_version": 1,
       "/meta/dry_run": false,
       "/data/documents/0/id": "BRIEF-0001",
       "/meta/input_hash": "86191aa4df760ca6c63a38ce221a000d8171c49c76dfbee6dcdd94d839bfe5b4"

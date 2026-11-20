@@ -11,7 +11,7 @@
     "values": {
       "/command": "validate",
       "/meta/command_version": 1,
-      "/meta/envelope_version": 2,
+      "/meta/envelope_version": 1,
       "/meta/dry_run": false,
       "/meta/defaults_applied/0/pointer": "",
       "/meta/defaults_applied/0/value": 1,

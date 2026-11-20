@@ -217,7 +217,7 @@ mod tests {
         assert_eq!(envelope.version, crate::ENVELOPE_VERSION);
         assert_eq!(
             envelope.path(Part::Schema, envelope.version),
-            "envelope/result/v2.json"
+            "envelope/result/v1.json"
         );
     }
 

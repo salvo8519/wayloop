@@ -43,7 +43,7 @@
     "values": {
       "/command": "validate",
       "/meta/command_version": 1,
-      "/meta/envelope_version": 2,
+      "/meta/envelope_version": 1,
       "/meta/dry_run": false,
       "/data/documents/0/kind": "brief",
       "/data/documents/0/id": "BRIEF-0001",

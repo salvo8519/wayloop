@@ -25,8 +25,4 @@ pub const EMBEDDED: &[Embedded] = &[
         path: "envelope/result/v1.json",
         text: include_str!("../../snapshots/envelope/result/v1.json"),
     },
-    Embedded {
-        path: "envelope/result/v2.json",
-        text: include_str!("../../snapshots/envelope/result/v2.json"),
-    },
 ];

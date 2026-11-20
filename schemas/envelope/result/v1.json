@@ -71,11 +71,16 @@
       "type": "object"
     },
     "Error": {
-      "description": "A refusal of the engine, with the fields of ADR 0009 C3 and its `source`.\n\n`pointers`, `expected`, `fix` and `source` are optional and left out of the serialised form when not given; a list given empty is written `[]` (C2).",
+      "description": "A refusal of the engine, with the fields of ADR 0009 C3, its `source`, and `document`, the index of the document of the input it belongs to (SPEC-0004 R2).\n\n`pointers`, `expected`, `fix`, `source` and `document` are optional and left out of the serialised form when not given; a list given empty is written `[]` (C2).",
       "properties": {
         "code": {
           "$ref": "#/$defs/Code",
           "description": "Stable `snake_case` code of the error; codes are never renamed or reused (ADR 0009 C8)."
+        },
+        "document": {
+          "description": "Index, from 0, in the input array `documents` of the document the error belongs to; absent for an error of the input itself (SPEC-0004 R2).",
+          "minimum": 0,
+          "type": "integer"
         },
         "expected": {
           "description": "The values accepted at `pointer`, never a pattern; `[]` when no value is accepted; absent when not given.",
@@ -93,7 +98,7 @@
         },
         "pointer": {
           "$ref": "#/$defs/Pointer",
-          "description": "RFC 6901 pointer to the faulty value, from the root of the input sent; empty for the whole input."
+          "description": "RFC 6901 pointer to the faulty value: into the document given by `document` for an error of a document, into the input sent otherwise; empty for the whole document or the whole input."
         },
         "pointers": {
           "description": "Pointers to the other values involved, such as both sides of a conflict; absent when none is given.",
@@ -126,6 +131,11 @@
           "$ref": "#/$defs/Code",
           "description": "Stable `snake_case` code of the error; codes are never renamed or reused (ADR 0009 C8)."
         },
+        "document": {
+          "description": "Index, from 0, in the input array `documents` of the document the error belongs to; absent for an error of the input itself (SPEC-0004 R2).",
+          "minimum": 0,
+          "type": "integer"
+        },
         "errors": {
           "description": "Every error, in the order found; the first equals the members of the report.",
           "items": {
@@ -150,7 +160,7 @@
         },
         "pointer": {
           "$ref": "#/$defs/Pointer",
-          "description": "RFC 6901 pointer to the faulty value, from the root of the input sent; empty for the whole input."
+          "description": "RFC 6901 pointer to the faulty value: into the document given by `document` for an error of a document, into the input sent otherwise; empty for the whole document or the whole input."
         },
         "pointers": {
           "description": "Pointers to the other values involved, such as both sides of a conflict; absent when none is given.",
@@ -280,18 +290,6 @@
         {
           "if": {
             "required": [
-              "file"
-            ]
-          },
-          "then": {
-            "required": [
-              "line"
-            ]
-          }
-        },
-        {
-          "if": {
-            "required": [
               "line"
             ]
           },
@@ -302,7 +300,7 @@
           }
         }
       ],
-      "description": "Where the faulty value is stored: `file`, with `line`, for a repository file; `issue` for a tracker issue; `milestone` for a tracker milestone. Absent for a document sent directly. Exactly one form is given, never an empty object; the schema checks only that `file` and `line` come together.",
+      "description": "Where the faulty value is stored: `file`, with `line` when the line is known, for a repository file; `issue` for a tracker issue; `milestone` for a tracker milestone. Absent for a document sent directly. Exactly one form is given, never an empty object; the schema checks only that `line` comes with `file`.",
       "properties": {
         "file": {
           "description": "Path of the file relative to the root of the repository, with `/` separators.",
@@ -314,7 +312,7 @@
           "type": "integer"
         },
         "line": {
-          "description": "Line of the faulty value in `file`; lines are counted from 1.",
+          "description": "Line of the faulty value in `file`, counted from 1; absent when it is not known, never guessed.",
           "minimum": 1,
           "type": "integer"
         },
@@ -345,7 +343,7 @@
       }
     }
   ],
-  "description": "The result of one command (ADR 0009 C1): its `data` when it succeeded (exit code 0), or the `error` report when its input was refused (exit code 1) or the engine failed to compute it (exit code 5); what the engine reports beside the result; and how the result was produced. A failure is told apart from a refusal by the reason `internal` of its errors. Exactly one of `data` and `error` is given; the schema checks only that `error` is given when `data` is absent.",
+  "description": "The result of one command (ADR 0009 C1): its `data` when it succeeded (exit code 0), or the `error` report when its input was refused (exit code 1), the channel was not used as documented (code `usage`, exit code 2), the input could not be read (code `input_unreadable`, exit code 3) or the engine failed to compute it (exit code 5); what the engine reports beside the result; and how the result was produced. A failure is told apart from a refusal by the reason `internal` of its errors. Exactly one of `data` and `error` is given; the schema checks only that `error` is given when `data` is absent.",
   "properties": {
     "command": {
       "description": "Identifier of the command.",

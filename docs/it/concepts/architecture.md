@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 15e44af3fb32
+source_hash: 31fadd43a3e4
 ---
 # Architettura
 
@@ -182,7 +182,7 @@ sola volta per tutti i comandi
 | `data` | Il risultato; presente solo quando il comando è riuscito |
 | `error` | Il report degli errori ([sopra](#gli-errori-sono-valori)); presente solo quando il comando è stato rifiutato o è fallito, e allora `data` è assente |
 | `diagnostics` | `warnings` nella forma di un errore; `not_done`, un `{check, reason}` per ogni controllo non eseguito, con la reason `not_built` (la parte del motore che lo esegue non è ancora costruita) o `input_absent` (l'input che gli serve non è stato fornito); `checks`, i controlli eseguiti. Ogni lista è sempre scritta, `[]` quando è vuota |
-| `meta` | `engine_version`, `envelope_version` (2; la versione 1 è congelata), `command_version`, `input_hash`, `dry_run` e `defaults_applied`: un `{pointer, value, reason, message}` per ogni valore predefinito applicato dal motore, dove `reason` è un identificativo e `message`, per le persone, è facoltativo |
+| `meta` | `engine_version`, `envelope_version` (1), `command_version`, `input_hash`, `dry_run` e `defaults_applied`: un `{pointer, value, reason, message}` per ogni valore predefinito applicato dal motore, dove `reason` è un identificativo e `message`, per le persone, è facoltativo |
 
 Ogni identificativo nell'envelope (un controllo, una reason, un codice di errore) è un valore
 `snake_case` stabile, documentato con il comando che lo scrive; i client accettano i valori che

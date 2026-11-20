@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 1c5fad9317d3
+source_hash: 048833933705
 ---
 # wayloop validate
 
@@ -106,7 +106,7 @@ scegliere. Un numero oltre l'intervallo di un double, come `1e400`, è rifiutato
 ## Output
 
 L'envelope dell'[ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/),
-versione 2 di `envelope/result`, descritto in [Architettura](../concepts/architecture.md#lenvelope).
+versione 1 di `envelope/result`, descritto in [Architettura](../concepts/architecture.md#lenvelope).
 Quando l'insieme è accettato, `data` è:
 
 | Membro | Significato |

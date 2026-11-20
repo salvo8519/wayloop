@@ -148,17 +148,17 @@ mod tests {
             ["artifacts/brief", "commands/validate", "envelope/result"]
         );
         let envelope = &contracts[2];
-        assert_eq!(envelope["version"], 2);
+        assert_eq!(envelope["version"], 1);
         let [file] = envelope["files"].as_array().unwrap().as_slice() else {
             panic!("one file")
         };
         assert_eq!(file["part"], "schema");
         assert_eq!(file["direction"], "output");
-        assert_eq!(file["path"], "envelope/result/v2.json");
+        assert_eq!(file["path"], "envelope/result/v1.json");
         let schema = (named("Envelope").schema)(Direction::Output).unwrap();
         assert_eq!(
             file["text"],
-            snapshot(schema, "envelope/result/v2.json").unwrap()
+            snapshot(schema, "envelope/result/v1.json").unwrap()
         );
         let parts: Vec<(&str, &str, &str)> = contracts[1]["files"]
             .as_array()

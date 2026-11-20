@@ -100,7 +100,7 @@ number beyond the range of a double, such as `1e400`, is refused with the reason
 
 ## Output
 
-The envelope of [ADR 0009](../project/adr/0009-contract-guidelines.md), version 2 of
+The envelope of [ADR 0009](../project/adr/0009-contract-guidelines.md), version 1 of
 `envelope/result`, described in [Architecture](../concepts/architecture.md#the-envelope). When
 the set is accepted, `data` is:
 

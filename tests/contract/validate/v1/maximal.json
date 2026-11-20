@@ -113,7 +113,7 @@
     "values": {
       "/command": "validate",
       "/meta/command_version": 1,
-      "/meta/envelope_version": 2,
+      "/meta/envelope_version": 1,
       "/meta/dry_run": false,
       "/data/documents/0/id": "BRIEF-0001",
       "/data/documents/0/status": "superseded",
