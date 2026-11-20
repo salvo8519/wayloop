@@ -17,11 +17,13 @@ enum Failure {
 }
 
 impl Failure {
+    /// The exit code, from the one table of the numbers, `wayloop_core::ExitCode::code`.
     fn exit_code(&self) -> ExitCode {
-        match self {
-            Failure::Usage => ExitCode::from(2),
-            Failure::Output(_) => ExitCode::from(3),
-        }
+        let code = match self {
+            Failure::Usage => wayloop_core::ExitCode::UsageError,
+            Failure::Output(_) => wayloop_core::ExitCode::EnvironmentError,
+        };
+        ExitCode::from(code.code())
     }
 }
 
@@ -29,7 +31,7 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut stdout = io::stdout().lock();
     match run(&args, &mut stdout) {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(()) => ExitCode::from(wayloop_core::ExitCode::Success.code()),
         Err(failure) => {
             let message = match &failure {
                 Failure::Usage => format!(
