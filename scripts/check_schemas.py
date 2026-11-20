@@ -35,11 +35,16 @@ def released(root: Path, base: str) -> dict[str, tuple[str, str]]:
     after it forked. Without a merge base (unrelated history, a shallow clone) the tip of
     `base` is used.
     """
+    not_a_commit = f"check_schemas: base '{base}' is not a commit; fetch it or pass --base."
+    try:
+        _git.revision(base)
+    except ValueError:
+        sys.exit(not_a_commit)
     if _git.run("rev-parse", "--verify", "--quiet", f"{base}^{{commit}}", cwd=root).returncode != 0:
-        sys.exit(f"check_schemas: base '{base}' is not a commit; fetch it or pass --base.")
-    fork = _git.run("merge-base", base, "HEAD", cwd=root)
+        sys.exit(not_a_commit)
+    fork = _git.run("merge-base", "--end-of-options", base, "HEAD", cwd=root)
     tree = fork.stdout.strip() if fork.returncode == 0 else base
-    listing = _git.run("ls-tree", "-r", "-z", tree, "--", "schemas", cwd=root)
+    listing = _git.run("ls-tree", "-r", "-z", "--end-of-options", tree, "--", "schemas", cwd=root)
     if listing.returncode != 0:
         sys.exit(f"check_schemas: git ls-tree failed: {listing.stderr.strip()}")
     entries: dict[str, tuple[str, str]] = {}

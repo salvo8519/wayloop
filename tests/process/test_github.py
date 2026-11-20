@@ -91,3 +91,16 @@ def test_a_failure_is_retried_then_stops_or_gives_nothing(
         _github.api("repos/o/r/x")
     monkeypatch.setattr(subprocess, "run", FakeRun(done(1, "", "HTTP 404")))
     assert _github.api("repos/o/r/x", required=False) is None
+
+
+def test_pages_stops_after_the_maximum_number_of_pages() -> None:
+    def endless(path: str) -> list[int]:
+        return list(range(_github.PER_PAGE))
+
+    with pytest.raises(SystemExit, match="more than 100 pages"):
+        _github.pages("repos/o/r/issues", endless)
+
+
+def test_pages_refuses_an_answer_that_is_not_a_list() -> None:
+    with pytest.raises(SystemExit, match="not a list"):
+        _github.pages("repos/o/r/rulesets", lambda path: {"message": "Not Found"})

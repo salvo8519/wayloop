@@ -69,3 +69,10 @@ def test_output_and_lines_outside_a_repository(tmp_path: Path) -> None:
         _git.lines("rev-parse", "HEAD", cwd=tmp_path)
     with pytest.raises(subprocess.CalledProcessError):
         _git.changed(cwd=tmp_path)
+
+
+@pytest.mark.parametrize("base", ["--output=written-by-git", "-p", ""])
+def test_a_base_read_as_an_option_is_refused(repo: Path, base: str) -> None:
+    with pytest.raises(ValueError, match="not a revision"):
+        _git.changed(base, cwd=repo)
+    assert not (repo / "written-by-git").exists()

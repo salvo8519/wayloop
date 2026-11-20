@@ -23,13 +23,23 @@ from pathlib import Path
 import _git
 
 ROOT = Path(__file__).resolve().parents[1]
-# Workflows and the local composite actions they use: both pin the actions they call.
-WORKFLOWS = sorted(
-    [
-        *(ROOT / ".github" / "workflows").glob("*.yml"),
-        *(ROOT / ".github" / "actions").glob("*/action.yml"),
-    ]
-)
+
+
+# Workflows and the local composite actions they use (`action.yml` or `action.yaml`): both pin
+# the actions they call.
+def workflow_files(root: Path) -> list[Path]:
+    github = root / ".github"
+    return sorted(
+        [
+            *(github / "workflows").glob("*.yml"),
+            *(github / "workflows").glob("*.yaml"),
+            *(github / "actions").glob("*/action.yml"),
+            *(github / "actions").glob("*/action.yaml"),
+        ]
+    )
+
+
+WORKFLOWS = workflow_files(ROOT)
 USES = re.compile(
     r"^(?P<indent>\s*)(?P<dash>-\s+)?uses:\s+(?P<action>[^@\s]+)@(?P<ref>[^\s#]+)\s*(?:#.*)?$"
 )

@@ -32,8 +32,9 @@ import tomllib
 from pathlib import Path
 
 # The hooks run with the system python3, outside the project environment: the shared helpers of
-# the scripts (standard library only) are imported from scripts/ next to .claude/.
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+# the scripts (standard library only) are imported from scripts/ next to .claude/, appended to
+# the path so that the standard library keeps precedence over a file of the same name.
+sys.path.append(str(Path(__file__).resolve().parents[2] / "scripts"))
 import _git
 
 MAX_LINES = 40

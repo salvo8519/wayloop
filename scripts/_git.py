@@ -18,6 +18,21 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+class NotARevisionError(ValueError):
+    """A name that git would not read as a revision."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(f"{name!r} is not a revision")
+
+
+def revision(name: str) -> str:
+    """`name`, checked to be read by git as a revision: a name starting with `-` would be read as
+    an option (`--output=<file>` writes a file), so it is refused with NotARevisionError."""
+    if not name or name.startswith("-"):
+        raise NotARevisionError(name)
+    return name
+
+
 def run(*args: str, cwd: Path | str = ROOT) -> subprocess.CompletedProcess[str]:
     """`git <args>`, whatever its exit code: the caller reads `returncode`."""
     return subprocess.run(
@@ -64,17 +79,19 @@ def changed(
     """Changed paths, sorted, renames as a deletion and an addition.
 
     `staged`: the index against HEAD. `base`: the branch against its merge base with `base`, or
-    against `base` itself when they share no history. Otherwise: the working tree against HEAD.
-    `untracked` adds the new files that are not ignored. A failure raises CalledProcessError.
+    against `base` itself when they share no history; a `base` that git would read as an option
+    raises ValueError. Otherwise: the working tree against HEAD. `untracked` adds the new files
+    that are not ignored. A failure of git raises CalledProcessError.
     """
     diff = ["diff", "--name-only", "--no-renames"]
     if staged:
         names = _names(*diff, "--cached", cwd=cwd)
     elif base is not None:
+        revision(base)
         try:
-            names = _names(*diff, f"{base}...HEAD", cwd=cwd)
+            names = _names(*diff, "--end-of-options", f"{base}...HEAD", cwd=cwd)
         except subprocess.CalledProcessError:
-            names = _names(*diff, base, "HEAD", cwd=cwd)
+            names = _names(*diff, "--end-of-options", base, "HEAD", cwd=cwd)
     else:
         names = _names(*diff, "HEAD", cwd=cwd)
     if untracked:

@@ -25,8 +25,10 @@ import _git
 DEFAULT_REPO = "salvo8519/wayloop"
 # `https://github.com/owner/name(.git)` or `git@github.com:owner/name(.git)`.
 REMOTE = re.compile(r"github\.com[:/](?P<repo>[^/\s]+/[^/\s]+?)(?:\.git)?/?$")
-# A page of a list endpoint holds at most this many items.
+# A page of a list endpoint holds at most this many items, and a list is read in at most
+# MAX_PAGES pages: an endpoint that never ends stops the script instead of looping.
 PER_PAGE = 100
+MAX_PAGES = 100
 
 
 def repo_of_url(url: str) -> str | None:
@@ -93,10 +95,11 @@ def pages(path: str, fetch: Callable[[str], Any] = api, per_page: int = PER_PAGE
     of the form repositories/<id>/..., which some proxies refuse."""
     sep = "&" if "?" in path else "?"
     items: list[Any] = []
-    page = 1
-    while True:
+    for page in range(1, MAX_PAGES + 1):
         batch = fetch(f"{path}{sep}per_page={per_page}&page={page}") or []
+        if not isinstance(batch, list):
+            sys.exit(f"{path}: page {page} is not a list: {str(batch)[:200]}")
         items.extend(batch)
         if len(batch) < per_page:
             return items
-        page += 1
+    sys.exit(f"{path}: more than {MAX_PAGES} pages of {per_page} items; narrow the request.")

@@ -128,6 +128,29 @@ def test_an_existing_contract_snapshot_cannot_be_edited(contracts: Path, path: s
     assert "write the next version" in result.stderr
 
 
+@pytest.mark.parametrize("broken", ["_git.py", "check_schemas.py"])
+def test_the_contract_hook_fails_closed_when_its_scripts_cannot_load(
+    contracts: Path, broken: str
+) -> None:
+    (contracts / "scripts" / broken).write_text("def broken(:\n", encoding="utf-8")
+    snapshot = {"tool_input": {"file_path": str(contracts / "schemas/commands/next/v1.json")}}
+    result = run_env("protect-contracts.sh", snapshot, contracts, WAYLOOP_CONTRACT_BASE="main")
+    assert result.returncode == 2
+    assert "could not load" in result.stderr
+    other = {"tool_input": {"file_path": str(contracts / "docs/en/x.md")}}
+    assert run_env("protect-contracts.sh", other, contracts).returncode == 0
+
+
+def test_a_base_read_as_an_option_never_unprotects_a_snapshot(contracts: Path) -> None:
+    payload = {"tool_input": {"file_path": str(contracts / "schemas/commands/next/v1.json")}}
+    written = contracts / "written-by-git"
+    result = run_env(
+        "protect-contracts.sh", payload, contracts, WAYLOOP_CONTRACT_BASE=f"--output={written}"
+    )
+    assert result.returncode == 2
+    assert not written.exists()
+
+
 def test_a_new_snapshot_and_other_files_stay_editable(contracts: Path) -> None:
     for path in (
         "schemas/commands/next/v2.json",

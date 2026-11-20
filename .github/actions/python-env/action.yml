@@ -8,9 +8,9 @@ inputs:
     required: false
     default: "3.13"
   enable-cache:
-    description: Cache of uv (`true`, `false` or `auto`); keep it off in jobs that hold secrets.
+    description: Cache of uv (`true` or `false`), an explicit choice of each job; never in a job that holds secrets.
     required: false
-    default: "auto"
+    default: "false"
 runs:
   using: composite
   steps:

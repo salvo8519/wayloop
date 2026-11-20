@@ -190,6 +190,18 @@ def test_an_incomplete_answer_of_git_is_a_clear_error(
         problems(repo)
 
 
+def test_a_base_read_as_an_option_is_refused(repo: Path) -> None:
+    written = repo / "written-by-git"
+    with pytest.raises(SystemExit, match="not a commit"):
+        problems(repo, f"--output={written}")
+    assert not written.exists()
+
+
+def test_the_fallback_pattern_of_the_hook_equals_the_pattern_of_the_check() -> None:
+    # The hook keeps a copy for the case where it cannot import check_schemas (fail closed).
+    assert hook.FALLBACK_SNAPSHOT.pattern == schemas.SNAPSHOT.pattern
+
+
 def test_the_pattern_of_snapshots_shared_by_the_check_and_the_hook() -> None:
     # The hook imports SNAPSHOT from check_schemas, so both recognise the same files.
     found = schemas.SNAPSHOT.search("schemas/a/v12.output.json")
