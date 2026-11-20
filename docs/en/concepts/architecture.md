@@ -74,8 +74,8 @@ wayloop-schemas    contract types, no I/O
   and hash maps seeded at random (`HashMap`, `HashSet`; `BTreeMap` and `BTreeSet` are used
   instead). The Clippy lints `disallowed_methods` and `disallowed_types` apply the lists to
   every crate and every target by default, tests included. A crate that performs I/O, the
-  runtime or an adapter, opts out explicitly with an `allow` of the two lints at the root of
-  each of its targets. Each pure crate also forbids at its root `print_stdout`,
+  runtime, an adapter or the schema generator, opts out explicitly with an `allow` of the two
+  lints at the root of each of its targets that needs it. Each pure crate also forbids at its root `print_stdout`,
   `print_stderr`, `dbg_macro`, `disallowed_methods` and `disallowed_types`: `forbid`, unlike
   `deny`, cannot be lifted by an `allow` further in. The lints follow name resolution, so an
   alias or a nested import does not escape them. `cargo clippy` applies them in `just check`
