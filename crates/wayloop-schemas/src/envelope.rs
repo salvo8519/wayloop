@@ -6,10 +6,12 @@
 //! part of it is defined once here or in the error report (ADR 0030 G1). The envelope is
 //! `{command, data | error, diagnostics {warnings, not_done, checks}, meta {engine_version,
 //! envelope_version, command_version, input_hash, dry_run, defaults_applied}}`. A result that
-//! succeeded has `data` and no `error`; a refused or failed one has `error`, the
+//! succeeded has `data` and no `error`; a refused or failed one, and one stopped because the
+//! channel was not used as documented or could not read the input, has `error`, the
 //! [`ErrorReport`], and no `data` (SPEC-0004 R18). A failure is told apart from a refusal by the
 //! reason `internal` of its errors (C3, amended on 2026-11-20) and by its exit code: 5 for a
-//! failure, 1 for a refusal. Lists are always written, `[]` when empty (C2). Every identifier is
+//! failure, 1 for a refusal; a usage error and an unreadable input by their codes, [`USAGE`] and
+//! [`INPUT_UNREADABLE`], and their exit codes 2 and 3 (SPEC-0004, Errors). Lists are always written, `[]` when empty (C2). Every identifier is
 //! a stable `snake_case` value, and clients accept values they do not know (C5). Nothing in the
 //! envelope depends on the machine or the moment: it has no field for a clock time, a host name
 //! or an absolute path (SPEC-0004 R15), and the values the engine writes in it come from the
@@ -25,11 +27,22 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use crate::contract::rules;
-use crate::{Error, ErrorReport, Pointer, Reason};
+use crate::{Code, Error, ErrorReport, Pointer, Reason};
+
+/// The channel was not used as documented, for example a command line its adapter does not
+/// understand: reason `syntax`, exit code 2 (SPEC-0004, Errors). A code of the envelope, not of
+/// one command: the exit code of an envelope depends on it.
+pub const USAGE: Code = Code::new("usage");
+
+/// The channel could not read the input from the environment, for example a file that does not
+/// exist (reason `missing`) or cannot be read (reason `state`): exit code 3 (SPEC-0004, Errors).
+/// A code of the envelope, not of one command: the exit code of an envelope depends on it.
+pub const INPUT_UNREADABLE: Code = Code::new("input_unreadable");
 
 /// Version of the shape of the envelope, written in `meta.envelope_version`. It changes only
-/// with a breaking change of the envelope itself (ADR 0009 C5).
-pub const ENVELOPE_VERSION: NonZeroU32 = NonZeroU32::MIN;
+/// with a breaking change of the envelope itself (ADR 0009 C5). Version 2: the line of a
+/// `source` is written only when it is known (SPEC-0004 R2, with #256); version 1 is frozen.
+pub const ENVELOPE_VERSION: NonZeroU32 = NonZeroU32::MIN.saturating_add(1);
 
 /// Exit codes of the command line (ADR 0009 C7). An exit code is a number by contract, never
 /// spelt: [`ExitCode::code`] is the one source of each number.
@@ -271,11 +284,23 @@ enum Kind<D> {
     Success(D),
     Refused(ErrorReport),
     Failed(ErrorReport),
+    Unusable(ErrorReport),
+    Environment(ErrorReport),
 }
 
 /// Whether `error` is a failure of the engine rather than a refusal of the input.
 fn is_internal(error: &Error) -> bool {
     error.reason() == Reason::Internal
+}
+
+/// Whether `error` stops the command before it ran: a usage error or an unreadable input.
+fn is_stop(error: &Error) -> bool {
+    *error.code() == USAGE || *error.code() == INPUT_UNREADABLE
+}
+
+/// Whether every error of `report` has the code `code`.
+fn all_coded(report: &ErrorReport, code: &Code) -> bool {
+    report.errors().all(|e| e.code() == code)
 }
 
 impl<D: Serialize> Outcome<D> {
@@ -296,15 +321,29 @@ impl<D> Outcome<D> {
     /// error of `report` has the reason [`Reason::Internal`], which is a failure.
     #[must_use]
     pub fn refused(report: ErrorReport) -> Option<Self> {
-        let any_internal = report.errors().any(is_internal);
-        (!any_internal).then(|| Self(Kind::Refused(report)))
+        let other = report.errors().any(|e| is_internal(e) || is_stop(e));
+        (!other).then(|| Self(Kind::Refused(report)))
+    }
+
+    /// The channel was not used as documented: exit code 2. `None` unless every error of
+    /// `report` has the code [`USAGE`].
+    #[must_use]
+    pub fn unusable(report: ErrorReport) -> Option<Self> {
+        all_coded(&report, &USAGE).then(|| Self(Kind::Unusable(report)))
+    }
+
+    /// The channel could not read the input: exit code 3. `None` unless every error of
+    /// `report` has the code [`INPUT_UNREADABLE`].
+    #[must_use]
+    pub fn environment(report: ErrorReport) -> Option<Self> {
+        all_coded(&report, &INPUT_UNREADABLE).then(|| Self(Kind::Environment(report)))
     }
 
     /// The engine could not compute the result: exit code 5. `None` unless every error of
     /// `report` has the reason [`Reason::Internal`] (ADR 0009 C3, as amended on 2026-11-20).
     #[must_use]
     pub fn failed(report: ErrorReport) -> Option<Self> {
-        let all_internal = report.errors().all(is_internal);
+        let all_internal = report.errors().all(|e| is_internal(e) && !is_stop(e));
         all_internal.then(|| Self(Kind::Failed(report)))
     }
 
@@ -312,11 +351,36 @@ impl<D> Outcome<D> {
     /// every error has the reason `internal`, a refusal when none has; `None` for a report that
     /// mixes them, which the contract does not define.
     fn of_report(report: ErrorReport) -> Option<Self> {
-        if report.errors().all(is_internal) {
+        if all_coded(&report, &USAGE) {
+            Self::unusable(report)
+        } else if all_coded(&report, &INPUT_UNREADABLE) {
+            Self::environment(report)
+        } else if report.errors().all(is_internal) {
             Self::failed(report)
         } else {
             Self::refused(report)
         }
+    }
+
+    /// A failure of the engine with one error of `code` and `message`, at the root, with the
+    /// reason [`Reason::Internal`]: exit code 5. Always an outcome, for a caller that must give
+    /// one when no other can be built.
+    #[must_use]
+    pub fn internal(code: Code, message: impl Into<String>) -> Self {
+        let error = Error::new(code, message, Pointer::root(), Reason::Internal);
+        Self(Kind::Failed(ErrorReport::single(error)))
+    }
+
+    /// The same outcome with its data, if any, turned by `f`; a report is kept as it is.
+    #[must_use]
+    pub fn map<E>(self, f: impl FnOnce(D) -> E) -> Outcome<E> {
+        Outcome(match self.0 {
+            Kind::Success(data) => Kind::Success(f(data)),
+            Kind::Refused(report) => Kind::Refused(report),
+            Kind::Failed(report) => Kind::Failed(report),
+            Kind::Unusable(report) => Kind::Unusable(report),
+            Kind::Environment(report) => Kind::Environment(report),
+        })
     }
 
     /// The data of a success; `None` for a refusal or a failure.
@@ -324,7 +388,7 @@ impl<D> Outcome<D> {
     pub const fn data(&self) -> Option<&D> {
         match &self.0 {
             Kind::Success(data) => Some(data),
-            Kind::Refused(_) | Kind::Failed(_) => None,
+            Kind::Refused(_) | Kind::Failed(_) | Kind::Unusable(_) | Kind::Environment(_) => None,
         }
     }
 
@@ -333,17 +397,23 @@ impl<D> Outcome<D> {
     pub const fn report(&self) -> Option<&ErrorReport> {
         match &self.0 {
             Kind::Success(_) => None,
-            Kind::Refused(report) | Kind::Failed(report) => Some(report),
+            Kind::Refused(report)
+            | Kind::Failed(report)
+            | Kind::Unusable(report)
+            | Kind::Environment(report) => Some(report),
         }
     }
 
-    /// The exit code of the outcome (ADR 0009 C7): 0 for a success, 1 for a refused input, 5
-    /// for an internal error. The command line exits with it and never maps outcomes itself.
+    /// The exit code of the outcome (ADR 0009 C7): 0 for a success, 1 for a refused input, 2 for
+    /// a usage error, 3 for an unreadable input, 5 for an internal error. The command line exits
+    /// with it and never maps outcomes itself.
     #[must_use]
     pub const fn exit_code(&self) -> ExitCode {
         match self.0 {
             Kind::Success(_) => ExitCode::Success,
             Kind::Refused(_) => ExitCode::InputError,
+            Kind::Unusable(_) => ExitCode::UsageError,
+            Kind::Environment(_) => ExitCode::EnvironmentError,
             Kind::Failed(_) => ExitCode::InternalError,
         }
     }
@@ -539,7 +609,10 @@ impl<D: Serialize> Serialize for Envelope<D> {
         map.serialize_entry("command", &self.command)?;
         match &self.outcome.0 {
             Kind::Success(data) => map.serialize_entry("data", data)?,
-            Kind::Refused(report) | Kind::Failed(report) => {
+            Kind::Refused(report)
+            | Kind::Failed(report)
+            | Kind::Unusable(report)
+            | Kind::Environment(report) => {
                 map.serialize_entry("error", report)?;
             }
         }
@@ -550,9 +623,11 @@ impl<D: Serialize> Serialize for Envelope<D> {
 }
 
 /// The result of one command (ADR 0009 C1): its `data` when it succeeded (exit code 0), or the
-/// `error` report when its input was refused (exit code 1) or the engine failed to compute it
-/// (exit code 5); what the engine reports beside the result; and how the result was produced.
-/// A failure is told apart from a refusal by the reason `internal` of its errors. Exactly one
+/// `error` report when its input was refused (exit code 1), the channel was not used as
+/// documented (code `usage`, exit code 2), the input could not be read (code
+/// `input_unreadable`, exit code 3) or the engine failed to compute it (exit code 5); what the
+/// engine reports beside the result; and how the result was produced. A failure is told apart
+/// from a refusal by the reason `internal` of its errors. Exactly one
 /// of `data` and `error` is given; the schema checks only that `error` is given when `data` is
 /// absent.
 // The schema of `Envelope<D>`, in the shape its serialiser writes, and the form it is read
@@ -690,7 +765,7 @@ mod tests {
         format!(
             concat!(
                 r#""diagnostics":{{"warnings":[],"not_done":[],"checks":[]}},"#,
-                r#""meta":{{"engine_version":"0.0.0","envelope_version":1,"command_version":2,"#,
+                r#""meta":{{"engine_version":"0.0.0","envelope_version":2,"command_version":2,"#,
                 r#""input_hash":"{}","dry_run":false,"defaults_applied":[]}}"#
             ),
             hash().as_str()
@@ -783,12 +858,12 @@ mod tests {
             ],
         );
         assert_eq!(meta.envelope_version(), ENVELOPE_VERSION);
-        assert_eq!(ENVELOPE_VERSION.get(), 1);
+        assert_eq!(ENVELOPE_VERSION.get(), 2);
         assert_eq!(
             text(&meta),
             format!(
                 concat!(
-                    r#"{{"engine_version":"0.1.0","envelope_version":1,"command_version":3,"#,
+                    r#"{{"engine_version":"0.1.0","envelope_version":2,"command_version":3,"#,
                     r#""input_hash":"{}","dry_run":true,"defaults_applied":["#,
                     r#"{{"pointer":"/language","value":"en","reason":"project_language","#,
                     r#""message":"The language of the project applies."}},"#,

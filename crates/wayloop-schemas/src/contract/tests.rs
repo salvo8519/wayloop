@@ -49,7 +49,10 @@ fn every_contract_type_generates_its_schema_in_both_directions() {
         for direction in [Direction::Input, Direction::Output] {
             let schema = (registered.schema)(direction)
                 .unwrap_or_else(|e| panic!("{} {direction:?}: {e}", registered.name));
-            assert_eq!(schema["title"], registered.name);
+            // A generic type is registered with its parameter, `Envelope<ValidateData>`; its
+            // schema keeps the name of the type, `Envelope`.
+            let title = registered.name.split('<').next().unwrap_or_default();
+            assert_eq!(schema["title"], title);
             assert_eq!(
                 schema["$schema"],
                 "https://json-schema.org/draft/2020-12/schema"
@@ -70,8 +73,10 @@ fn objects_are_open_in_an_output_and_closed_in_an_input() {
         }
         let mut found = Vec::new();
         objects(&input, &Pointer::root(), &mut found);
+        // An object that declares members is closed; one that declares none is a free object
+        // (a document of another schema), open in an input too (ADR 0030 G2, amended with #256).
         for (pointer, schema) in found {
-            if schema.get("type") == Some(&json!("object")) {
+            if schema.get("type") == Some(&json!("object")) && schema.get("properties").is_some() {
                 assert_eq!(
                     schema["additionalProperties"],
                     json!(false),
@@ -156,8 +161,8 @@ fn a_flattened_struct_merges_its_members_into_one_object() {
     assert_eq!(
         members,
         [
-            "code", "errors", "expected", "fix", "message", "pointer", "pointers", "reason",
-            "source"
+            "code", "document", "errors", "expected", "fix", "message", "pointer", "pointers",
+            "reason", "source"
         ]
     );
     assert_eq!(
@@ -168,14 +173,12 @@ fn a_flattened_struct_merges_its_members_into_one_object() {
 }
 
 #[test]
-fn the_source_requires_file_and_line_together() {
+fn the_line_of_a_source_comes_only_with_its_file() {
+    // The line is written only when it is known, never guessed (SPEC-0004 R2).
     let schema = schema_for::<crate::Source>(Direction::Output).unwrap();
     assert_eq!(
         schema["allOf"],
-        json!([
-            {"if": {"required": ["file"]}, "then": {"required": ["line"]}},
-            {"if": {"required": ["line"]}, "then": {"required": ["file"]}}
-        ])
+        json!([{"if": {"required": ["line"]}, "then": {"required": ["file"]}}])
     );
     assert!(schema.get("required").is_none());
 }
@@ -738,4 +741,34 @@ fn an_enum_line_without_a_meaning_is_refused() {
         super::check::check(&schema("d\n\n- `a`: First."), Direction::Output),
         Ok(())
     );
+}
+
+/// A free object of an input: a document whose schema is another one.
+struct Free;
+
+impl JsonSchema for Free {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "Free".into()
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> Schema {
+        crate::value::free_object_schema("A document of another schema.")
+    }
+}
+
+/// An input with a free member.
+#[derive(JsonSchema)]
+#[allow(dead_code, reason = "a schema only, never built")]
+struct WithFree {
+    /// A free document.
+    document: Free,
+}
+
+#[test]
+fn a_free_object_stays_open_in_an_input_and_its_holder_is_closed() {
+    let schema = schema_for::<WithFree>(Direction::Input).unwrap();
+    assert_eq!(schema["additionalProperties"], json!(false));
+    let free = &schema["$defs"]["Free"];
+    assert_eq!(free["type"], "object");
+    assert!(free.get("additionalProperties").is_none(), "{schema}");
 }

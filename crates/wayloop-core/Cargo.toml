@@ -14,6 +14,9 @@ authors.workspace = true
 wayloop-schemas = { path = "../wayloop-schemas", version = "0.0.0" }
 # With float_roundtrip, from the workspace manifest.
 serde_json.workspace = true
+# The traits of serde, for the parser that refuses repeated keys (SPEC-0001 plan); on the
+# allowlist of the core, reached through serde_json and wayloop-schemas.
+serde = { version = "1.0.229", default-features = false }
 
 # Tests only: never shipped, so not on the allowlist of scripts/check_core_io.py.
 [dev-dependencies]

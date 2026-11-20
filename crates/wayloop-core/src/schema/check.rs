@@ -9,33 +9,7 @@ use super::format;
 use super::load::{Compiled, Node, Rules, Type, Values};
 use crate::{Code, Error, Pointer, Reason};
 
-/// The largest magnitude of an integer, 2^53 - 1: the range in which an IEEE 754 double holds
-/// every integer exactly (RFC 7493, I-JSON; decision of the maintainer, 2026-11-20).
-pub(super) const SAFE_INTEGER: i64 = 9_007_199_254_740_991;
-
-/// Whether `n` is within plus or minus [`SAFE_INTEGER`].
-pub(super) fn is_safe(n: i128) -> bool {
-    n.unsigned_abs() <= SAFE_INTEGER.unsigned_abs().into()
-}
-
-/// The integer value of `value`: a JSON number without a fraction. A number beyond the range
-/// of `i128` saturates, which keeps every comparison with an `i64` bound exact.
-pub(super) fn integer(value: &Value) -> Option<i128> {
-    let number = value.as_number()?;
-    if let Some(i) = number.as_i64() {
-        return Some(i.into());
-    }
-    if let Some(u) = number.as_u64() {
-        return Some(u.into());
-    }
-    let float = number.as_f64()?;
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "the value has no fraction, and a cast from a float saturates"
-    )]
-    let whole = float.trunc() as i128;
-    (float.is_finite() && float.trunc().to_bits() == float.to_bits()).then_some(whole)
-}
+pub(crate) use wayloop_schemas::number::{SAFE_INTEGER, integer, is_safe};
 
 /// Whether `a` and `b` are the same JSON value; numbers compare by value.
 fn same(a: &Value, b: &Value) -> bool {

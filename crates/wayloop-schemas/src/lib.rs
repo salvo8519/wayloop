@@ -9,10 +9,13 @@
 //! `scripts/check_core_io.py`; I/O of the standard library in its source is refused by the
 //! Clippy lints forbidden below, with the paths listed in the `clippy.toml` of the workspace.
 //! It holds the error report of ADR 0009 C3 and the envelope of C1, generic over the data of a
-//! command, with the exit codes of C7; the data types of the commands come with the first
-//! command. Every contract type derives its JSON Schema; [`contract`] generates it inside the
-//! subset that the core interprets, with the named formats of [`Format`] (ADR 0030). Closed
-//! enums and static identifiers are written once with the macros of [`ident`].
+//! command, with the exit codes of C7; the artifacts of SPEC-0001 built on one common type
+//! ([`artifact`]); the input and the data of the command `validate` ([`validate`]); and the value
+//! forms they share, one type each ([`value`]), with numbers read by value ([`number`]). Every
+//! contract type derives its JSON Schema; [`contract`] generates it inside the subset that the
+//! core interprets, with the named formats of [`Format`] (ADR 0030). Closed enums and static
+//! identifiers are written once with the macros of [`ident`], text and number forms with the
+//! macros of [`value`].
 
 // I/O is refused by the compiler: these lints read the clippy.toml of the workspace, and
 // forbid, unlike deny, cannot be lifted by an inner allow. `scripts/check_core_io.py` keeps
@@ -25,6 +28,7 @@
     clippy::disallowed_types
 )]
 
+pub mod artifact;
 pub mod contract;
 mod envelope;
 mod error;
@@ -32,10 +36,13 @@ mod error;
 mod fixtures;
 mod format;
 pub mod ident;
+pub mod number;
+pub mod validate;
+pub mod value;
 
 pub use envelope::{
     Check, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope, ExitCode,
-    InputHash, Meta, NotDone, NotDoneReason, Outcome,
+    INPUT_UNREADABLE, InputHash, Meta, NotDone, NotDoneReason, Outcome, USAGE,
 };
 pub use error::{Code, Error, ErrorReport, Pointer, Reason, Source};
 pub use format::Format;

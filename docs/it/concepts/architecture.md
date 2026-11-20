@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 7795e160011d
+source_hash: 15e44af3fb32
 ---
 # Architettura
 
@@ -12,10 +12,10 @@ nell'[ADR 0001](https://salvo8519.github.io/wayloop/project/adr/0001-rust-engine
 
 | Componente | Percorso | Cosa fa oggi |
 | --- | --- | --- |
-| Schemi | `crates/wayloop-schemas` | Libreria Rust senza I/O, sede dei tipi dei contratti che rispecchiano gli schemi JSON: il report degli errori ([sotto](#gli-errori-sono-valori)) e l'envelope con i suoi codici di uscita ([sotto](#lenvelope)). Ognuno deriva il proprio JSON Schema dentro il sottoinsieme del core ([sotto](#schemi-derivati-dai-tipi-dei-contratti)). |
-| Core | `crates/wayloop-core` | Libreria Rust senza I/O. Fissa il vocabolario del ciclo di un'issue: i nove passi in ordine, i loro identificativi stabili e quale passo è uno stato di approvazione. Riesporta l'errore di ogni rifiuto e l'envelope, e calcola l'hash di un input dal suo JSON canonico ([sotto](#lenvelope)). Legge gli schemi JSON dei contratti con un proprio interprete ([sotto](#linterprete-degli-schemi)). |
+| Schemi | `crates/wayloop-schemas` | Libreria Rust senza I/O, sede dei tipi dei contratti che rispecchiano gli schemi JSON: il report degli errori ([sotto](#gli-errori-sono-valori)), l'envelope con i suoi codici di uscita ([sotto](#lenvelope)), il brief e l'input e i dati di `validate`, con un tipo per ogni forma di valore (identificativi, percorsi del progetto, tag di lingua, numeri da 1). Ognuno deriva il proprio JSON Schema dentro il sottoinsieme del core ([sotto](#schemi-derivati-dai-tipi-dei-contratti)). |
+| Core | `crates/wayloop-core` | Libreria Rust senza I/O. Fissa il vocabolario del ciclo di un'issue: i nove passi in ordine, i loro identificativi stabili e quale passo è uno stato di approvazione. Riesporta l'errore di ogni rifiuto e l'envelope, e calcola l'hash di un input dal suo JSON canonico ([sotto](#lenvelope)). Legge gli schemi JSON dei contratti con un proprio interprete ([sotto](#linterprete-degli-schemi)). Il suo punto di ingresso esegue il comando `validate`, che controlla i brief rispetto al loro schema ([riferimento](../reference/validate.md)). |
 | Runtime | `crates/wayloop-runtime` | Libreria Rust che esegue il lavoro deciso dal core ([sotto](#core-sincrono-runtime-asincrono)). Non contiene ancora codice. |
-| Riga di comando | `crates/wayloop-cli` | Il binario `wayloop`, solo un adattatore: legge gli argomenti, chiama il core e stampa JSON. Comandi: `version` e `steps` ([riferimento](../reference/index.md)). |
+| Riga di comando | `crates/wayloop-cli` | Il binario `wayloop`, solo un adattatore: legge gli argomenti, chiama il core e stampa JSON. Comandi: `version` e `steps` ([riferimento](../reference/index.md)), e `validate`, che stampa l'envelope del punto di ingresso ([riferimento](../reference/validate.md)). |
 | Generatore degli schemi | `crates/wayloop-schemagen` | Uno strumento del repository, non pubblicato: stampa gli snapshot dei contratti, che `uv run just generate` scrive in `schemas/` ([sotto](#snapshot-dei-contratti)). |
 | Contenuti per agenti | `.agents/` | Ruoli e skill nel formato aperto Agent Skills, con mirror generati per Claude Code. Servono a costruire Wayloop stesso. |
 | Processo | `roadmap/`, `specs/`, `sprints/`, `scripts/` | Il piano come codice, sincronizzato con le issue di GitHub; specifiche con requisiti numerati; corsie degli sprint con percorsi disgiunti; i controlli eseguiti dalla CI. |
@@ -53,8 +53,18 @@ wayloop-schemas    tipi dei contratti, niente I/O
 - **Un solo punto di ingresso.** Il core espone una sola funzione a ogni canale: comando,
   input canonico e contesto in ingresso, envelope in uscita
   ([ADR 0028](https://salvo8519.github.io/wayloop/project/adr/0028-one-contract-on-every-channel/)).
-  Appartiene alla radice di `wayloop-core`; gli adattatori la chiamano e si limitano a
-  tradurne l'input e l'envelope.
+  È `wayloop_core::run`, alla radice di `wayloop-core`; gli adattatori la chiamano e si
+  limitano a tradurne l'input e l'envelope, `Envelope<Value>`, i cui dati sono il tipo dei dati
+  del comando scritto in JSON in un solo punto. `wayloop_core::run_json` riceve l'input come
+  testo JSON: un testo che non è JSON, contiene un numero oltre un double o ripete una chiave
+  nello stesso oggetto è rifiutato con il motivo `syntax`, `range` o `duplicate` prima che il
+  comando venga eseguito. Il contesto porta le impostazioni del canale: il dry run, scritto in
+  `meta.dry_run`, e la versione richiesta del comando; senza, viene eseguita la versione
+  corrente ed è elencata in `meta.defaults_applied`, e una versione che il motore non esegue è
+  rifiutata (ADR 0028, modificato il 2026-11-20). `wayloop_core::usage_error` e
+  `wayloop_core::input_unreadable` costruiscono gli envelope di un canale non usato come
+  documentato e di un input che non ha potuto leggere, così che la riga di comando stampi un
+  envelope per ogni esito.
 - **Dipendenze solo da un elenco approvato.** Ogni crate puro può dipendere solo dai crate
   della propria allowlist, approvata in revisione. Entrambi possono usare `serde` con le sue
   macro derive e `serde_json`, che non fanno I/O, con i crate che raggiungono (`serde_core`,
@@ -147,7 +157,8 @@ valore errato:
 | `reason` | Un valore dell'enum documentato: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale`, e `internal` per un guasto del motore stesso, che non è un rifiuto dell'input |
 | `expected` | I valori accettati in `pointer`, mai un pattern; facoltativo, e `[]` quando nessun valore è accettato |
 | `fix` | Il campo più vicino a una chiave scritta male, o un valore corretto; facoltativo |
-| `source` | Dove è salvato il valore: `{file, line}` per un file del repository, `{issue}` per una issue del tracker, `{milestone}` per una milestone del tracker, con righe e numeri a partire da 1; assente per un documento inviato direttamente |
+| `source` | Dove è salvato il valore: `{file, line}` per un file del repository, con `line` solo quando è nota, `{issue}` per una issue del tracker, `{milestone}` per una milestone del tracker, con righe e numeri a partire da 1; assente per un documento inviato direttamente |
+| `document` | Indice, da 0, del documento dell'input a cui l'errore appartiene, il cui `pointer` è allora relativo a quel documento; assente per un errore dell'input stesso |
 
 Un campo facoltativo non fornito è omesso dalla forma JSON; una lista fornita vuota è scritta
 `[]`, perché assente significa non fornito e `[]` significa nessuno (ADR 0009, C2). Il report
@@ -171,14 +182,16 @@ sola volta per tutti i comandi
 | `data` | Il risultato; presente solo quando il comando è riuscito |
 | `error` | Il report degli errori ([sopra](#gli-errori-sono-valori)); presente solo quando il comando è stato rifiutato o è fallito, e allora `data` è assente |
 | `diagnostics` | `warnings` nella forma di un errore; `not_done`, un `{check, reason}` per ogni controllo non eseguito, con la reason `not_built` (la parte del motore che lo esegue non è ancora costruita) o `input_absent` (l'input che gli serve non è stato fornito); `checks`, i controlli eseguiti. Ogni lista è sempre scritta, `[]` quando è vuota |
-| `meta` | `engine_version`, `envelope_version` (1), `command_version`, `input_hash`, `dry_run` e `defaults_applied`: un `{pointer, value, reason, message}` per ogni valore predefinito applicato dal motore, dove `reason` è un identificativo e `message`, per le persone, è facoltativo |
+| `meta` | `engine_version`, `envelope_version` (2; la versione 1 è congelata), `command_version`, `input_hash`, `dry_run` e `defaults_applied`: un `{pointer, value, reason, message}` per ogni valore predefinito applicato dal motore, dove `reason` è un identificativo e `message`, per le persone, è facoltativo |
 
 Ogni identificativo nell'envelope (un controllo, una reason, un codice di errore) è un valore
 `snake_case` stabile, documentato con il comando che lo scrive; i client accettano i valori che
 non conoscono (ADR 0009, C5).
 
 `Envelope::exit_code()` dà il codice di uscita dell'ADR 0009 C7: 0 per un risultato con `data`,
-1 per un input rifiutato, 5 per un errore interno del motore; restituisce
+1 per un input rifiutato, 2 per un canale non usato come documentato (codice `usage`), 3 per un
+input che non è stato possibile leggere (codice `input_unreadable`), 5 per un errore interno del
+motore; restituisce
 `Outcome::exit_code()`, l'unico punto in cui un esito diventa un codice di uscita. Un errore interno è scritto in `error` come un rifiuto; i suoi
 errori hanno la reason `internal`, che distingue i due casi nel JSON. L'envelope non contiene nulla che dipenda dalla macchina o
 dal momento: nessun orario, nome host o percorso assoluto.
@@ -186,7 +199,10 @@ dal momento: nessun orario, nome host o percorso assoluto.
 Un esito si costruisce solo con costruttori che rifiutano, restituendo `None`, ciò che il
 contratto non definisce: `Outcome::success` rifiuta dati scritti come null (null significa non
 fornito, ADR 0009 C2) o senza forma JSON, `Outcome::refused` un report con un errore di reason
-`internal`, e `Outcome::failed` un report con un errore di qualsiasi altra reason. Ogni envelope
+`internal`, `Outcome::failed` un report con un errore di qualsiasi altra reason,
+`Outcome::unusable` e `Outcome::environment` un report i cui errori non hanno tutti i codici
+`usage` e `input_unreadable`. `Outcome::internal` costruisce sempre un fallimento, per chi deve
+dare un esito quando nessun altro si può costruire. Ogni envelope
 che il motore può costruire è quindi uno che il suo lettore accetta. Il lettore rifiuta gli
 stessi casi, e un documento con sia `data` sia `error`, o con nessuno dei due. Lo schema
 richiede `error` quando `data` è assente; il sottoinsieme dell'interprete non ha negazione,
@@ -251,7 +267,9 @@ posto, è rifiutato quando viene caricato: nessuna regola di uno schema è ignor
 La condizione di un `if` usa `properties`, `required`, `enum`, `const` e `contains`. Non c'è
 `pattern`: il core non contiene un motore di espressioni regolari, e un formato con nome dà un
 `fix` preciso. I formati con nome sono `date`, `utc-date-time` (con il suffisso `Z`),
-`language-tag` (lingua, scrittura, regione e varianti di BCP 47), `tracker-handle`, gli
+`language-tag` (lingua, scrittura, regione e varianti di BCP 47), `tracker-handle`,
+`project-path` (un percorso relativo alla radice del progetto in una sola grafia: segmenti uniti
+da `/`, nessuno vuoto, `.` o `..`; nessun `\` e nessuna lettera di unità), gli
 identificativi di ogni tipo di artefatto (`brief-id`, `council-id`, `gate-id`, `epic-id`,
 `story-id`, `spec-id`, `change-id`, `task-id`, `milestone-id`, `handover-id`) e gli
 identificativi delle parti (`requirement-id`, `criterion-id`, `decision-id`, `question-id`),
@@ -324,7 +342,7 @@ volta, nel modulo `contract`:
 | Un valore di enum con il suo significato | Un `oneOf` di costanti documentate diventa un `enum`, e ogni valore è aggiunto alla descrizione come riga ``- `valore`: significato`` |
 | Un qualsiasi valore JSON | Lo schema booleano `true` diventa uno schema oggetto con una descrizione |
 | Formati degli interi | Un `format` come `uint32` è rimosso; il tipo e i limiti restano |
-| Input chiusi, output aperti | In un input ogni oggetto senza `additionalProperties` riceve `additionalProperties: false`; un output non ne ha |
+| Input chiusi, output aperti | In un input ogni oggetto che dichiara i suoi membri e non ha `additionalProperties` riceve `additionalProperties: false`; un oggetto che non ne dichiara è un oggetto libero, scritto a mano per un documento di un altro schema, e resta aperto; un output non ne ha |
 
 Le righe di un commento di documentazione sono unite in paragrafi, perché vanno a capo alla
 larghezza del codice. Il generatore poi verifica le regole dei contratti che non sono regole

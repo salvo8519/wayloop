@@ -3,9 +3,10 @@
 //! This crate holds all decision logic and performs no I/O. Adapters (CLI, Python and
 //! TypeScript SDKs, MCP server) translate requests into calls to this crate and never
 //! decide anything themselves (ADR 0001). The single entry point of ADR 0028 (command,
-//! canonical input and context in, envelope out) belongs to this crate, at its root, and
-//! every channel calls it; it is not written yet (#221). `wayloop-runtime` executes the work
-//! this crate decides (ADR 0006).
+//! canonical input and context in, envelope out) is [`run`], at the root of this crate, and
+//! every channel calls it, or [`run_json`] for an input sent as JSON text. Its one command is
+//! [`Command::Validate`], which validates artifacts against their schemas ([`artifacts`]).
+//! `wayloop-runtime` executes the work this crate decides (ADR 0006).
 //!
 //! The crate may depend only on the crates of its reviewed allowlist (`wayloop-schemas`, and
 //! `serde`, `serde_json` and `schemars` with the crates they reach), checked by
@@ -29,18 +30,180 @@
     clippy::disallowed_types
 )]
 
+pub mod artifacts;
 pub mod canonical;
+mod command;
 pub mod envelope;
 pub mod schema;
 pub mod sha256;
 #[cfg(test)]
 mod test_support;
 
+use core::num::NonZeroU32;
+
+use serde::Serialize;
+use serde_json::Value;
+
+pub use command::{
+    COMMAND_INPUT, CURRENT_COMMAND_VERSION, Command, Context, INTERNAL_ERROR, parse_json,
+};
+pub use envelope::envelope_json;
 pub use wayloop_schemas::{
     Check, Code, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope, Error,
-    ErrorReport, ExitCode, InputHash, Meta, NotDone, NotDoneReason, Outcome, Pointer, Reason,
-    Source,
+    ErrorReport, ExitCode, INPUT_UNREADABLE, InputHash, Meta, NotDone, NotDoneReason, Outcome,
+    Pointer, Reason, Source, USAGE,
 };
+
+/// The entry point of the engine (ADR 0028, SPEC-0004 R14): runs `command` on its canonical
+/// `input` with the settings of the channel in `context`, and gives the envelope of ADR 0009
+/// C1, with the data of the command as a JSON value, in the shape of its output contract. It
+/// never panics: a refused input and a failure of the engine are outcomes of the envelope, whose
+/// [`Envelope::exit_code`] the command line exits with. `meta.input_hash` is the SHA-256 of the
+/// canonical JSON of `input` without its members set to null.
+///
+/// The version of the command comes from the context (ADR 0028, amended on 2026-11-20): when
+/// the channel requests none, the current version runs and is listed in `meta.defaults_applied`
+/// with the pointer `""`, since the version is a setting of the context and has no place in
+/// the input; a version the engine does not run is refused with [`COMMAND_INPUT`], reason
+/// `enum`, the known versions in `expected` and the pointer `""`, and its envelope reports the
+/// current version in `meta.command_version`: the version whose shape the envelope has.
+#[must_use]
+pub fn run(command: Command, input: &Value, context: &Context) -> Envelope<Value> {
+    let (outcome, diagnostics, version, defaults_applied) = match requested(command, *context) {
+        Err(report) => (
+            refusal(*report),
+            Diagnostics::default(),
+            command.version(),
+            Vec::new(),
+        ),
+        Ok((version, mut defaults)) => {
+            let (outcome, diagnostics, more) = match command {
+                Command::Validate => {
+                    let (outcome, diagnostics, more) = artifacts::run(input);
+                    (as_value(outcome), diagnostics, more)
+                }
+            };
+            defaults.extend(more);
+            (outcome, diagnostics, version, defaults)
+        }
+    };
+    let meta = envelope::meta(version, input, context.dry_run(), defaults_applied);
+    Envelope::new(command.id(), outcome, diagnostics, meta)
+}
+
+/// `outcome` with its data written as a JSON value: the one place where the data of a command
+/// leaves its type.
+fn as_value<D: Serialize>(outcome: Outcome<D>) -> Outcome<Value> {
+    let written = outcome.data().map(serde_json::to_value);
+    match written {
+        None => outcome.map(|_| Value::Null),
+        Some(Ok(value)) => Outcome::success(value).unwrap_or_else(|| {
+            Outcome::internal(INTERNAL_ERROR, "The data of the result is written as null.")
+        }),
+        Some(Err(e)) => Outcome::internal(
+            INTERNAL_ERROR,
+            format!("The data of the result cannot be written: {e}."),
+        ),
+    }
+}
+
+/// The refusal of `report`, whose errors are refusals of the input.
+fn refusal(report: ErrorReport) -> Outcome<Value> {
+    Outcome::refused(report).unwrap_or_else(|| {
+        Outcome::internal(
+            INTERNAL_ERROR,
+            "The engine wrote a refusal that holds a failure.",
+        )
+    })
+}
+
+/// The version of `command` the context requests, with the default applied when it requests
+/// none, or the refusal of a version the engine does not run.
+fn requested(
+    command: Command,
+    context: Context,
+) -> Result<(NonZeroU32, Vec<DefaultApplied>), Box<ErrorReport>> {
+    let current = command.version();
+    let Some(version) = context.command_version() else {
+        let default = DefaultApplied::new(Pointer::root(), current.get(), CURRENT_COMMAND_VERSION)
+            .map(|d| {
+                d.with_message(format!(
+                    "No version of the command was requested: version {current} runs."
+                ))
+            });
+        return Ok((current, default.into_iter().collect()));
+    };
+    if command.runs(version) {
+        return Ok((version, Vec::new()));
+    }
+    let known: Vec<u32> = (1..=current.get()).collect();
+    let message = format!(
+        "The command {command} has no version {version}; the versions it runs are 1 to {current}."
+    );
+    Err(Box::new(ErrorReport::single(
+        Error::new(COMMAND_INPUT, message, Pointer::root(), Reason::Enum).with_expected(known),
+    )))
+}
+
+/// [`run`] on an input sent as JSON `text`, as a channel that reads text calls it. Text that
+/// is not JSON, or that repeats a key in one object, is refused with the code
+/// [`COMMAND_INPUT`] before the command runs; `meta.input_hash` is then the SHA-256 of the
+/// bytes received, since they have no canonical JSON. Two channels that send the same value
+/// with other bytes (line endings, a byte order mark) get the same envelope only when the bytes
+/// are JSON.
+#[must_use]
+pub fn run_json(command: Command, text: &[u8], context: &Context) -> Envelope<Value> {
+    match parse_json(text) {
+        Ok(input) => run(command, &input, context),
+        Err(report) => {
+            let (outcome, version, defaults) = match requested(command, *context) {
+                Err(refused) => (refusal(*refused), command.version(), Vec::new()),
+                Ok((version, defaults)) => (refusal(*report), version, defaults),
+            };
+            let meta = envelope::meta_of_bytes(version, text, context.dry_run(), defaults);
+            Envelope::new(command.id(), outcome, Diagnostics::default(), meta)
+        }
+    }
+}
+
+/// The envelope of a channel that was not used as documented, for example a command line its
+/// adapter does not understand (ADR 0009 C7, exit code 2): code [`USAGE`], reason `syntax`, at
+/// the root. `command` is the command the channel named, empty when it named none; `detail`
+/// says what was not understood. No input was received, so `meta.input_hash` is the SHA-256 of
+/// no bytes; `meta.command_version` is the current version of the command named, and 1 when it
+/// names no known command, since there is then no data whose shape a version would describe.
+#[must_use]
+pub fn usage_error(command: &str, detail: &str) -> Envelope<Value> {
+    let error = Error::new(USAGE, detail, Pointer::root(), Reason::Syntax);
+    let outcome = Outcome::unusable(ErrorReport::single(error));
+    stopped(command, outcome)
+}
+
+/// The envelope of an input that the channel could not read from the environment, for example
+/// a file (ADR 0009 C7, exit code 3): code [`INPUT_UNREADABLE`], reason `missing` when it does
+/// not exist and `state` otherwise, at the root. `detail` says what failed, with no path. No
+/// input was received, so `meta.input_hash` is the SHA-256 of no bytes.
+#[must_use]
+pub fn input_unreadable(command: Command, detail: &str, not_found: bool) -> Envelope<Value> {
+    let reason = if not_found {
+        Reason::Missing
+    } else {
+        Reason::State
+    };
+    let error = Error::new(INPUT_UNREADABLE, detail, Pointer::root(), reason);
+    let outcome = Outcome::environment(ErrorReport::single(error));
+    stopped(command.id(), outcome)
+}
+
+/// The envelope of a command stopped before it ran, or a failure when `outcome` is none.
+fn stopped(command: &str, outcome: Option<Outcome<Value>>) -> Envelope<Value> {
+    let outcome = outcome.unwrap_or_else(|| {
+        Outcome::internal(INTERNAL_ERROR, "The engine wrote a stop of another code.")
+    });
+    let version = Command::from_id(command).map_or(NonZeroU32::MIN, Command::version);
+    let meta = envelope::meta_of_bytes(version, b"", false, Vec::new());
+    Envelope::new(command, outcome, Diagnostics::default(), meta)
+}
 
 /// Version of the engine, taken from the workspace manifest.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

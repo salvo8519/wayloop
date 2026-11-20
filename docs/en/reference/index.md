@@ -5,14 +5,16 @@ Wayloop. There is no release yet; what comes next is in the [roadmap](../project
 
 ## Commands of a build from source
 
-The `wayloop` binary built from `crates/wayloop-cli` answers two commands. Both print one line
-of JSON on standard output and exit with code 0. The version is the one of the workspace
-manifest.
+The `wayloop` binary built from `crates/wayloop-cli` answers the commands below. Each prints one
+line of JSON on standard output. `version` and `steps` exit with code 0; the version is the one
+of the workspace manifest. `validate` checks artifacts against their schemas and is described on
+its own page, [wayloop validate](validate.md).
 
 | Command | Output |
 | --- | --- |
 | `wayloop version` (also `wayloop --version`) | The name and the version of the engine |
 | `wayloop steps` | The identifiers of the steps of the issue cycle, in order |
+| `wayloop validate --input <file\|->` | The envelope of the validation of a set of artifacts ([wayloop validate](validate.md)) |
 
 ```console
 $ cargo run -q -p wayloop-cli -- version
@@ -21,11 +23,13 @@ $ cargo run -q -p wayloop-cli -- steps
 {"issue_steps":["claim","reanalysis","counter_review","checklist","build","verify","review","pull_request","merge"]}
 ```
 
-Any other command, or no command, prints a usage line on standard error and exits with code 2:
+Any other command, or no command, prints on standard output the envelope of a usage error
+(code `usage`, described in [wayloop validate](validate.md#errors)), prints a usage line on
+standard error, and exits with code 2:
 
 ```console
-$ cargo run -q -p wayloop-cli
-wayloop 0.0.0: pre-alpha. Commands: version, steps.
+$ cargo run -q -p wayloop-cli 2>&1 >/dev/null
+wayloop: No command was given. Commands: version, steps, validate --input <file|-> [--command-version <n>].
 ```
 
 When standard output cannot be written, for example because the reading end of a pipe is
@@ -49,6 +53,8 @@ of each version and their SHA-256, is in `schemas/index.json` at the same addres
 
 | Contract | History, with the current version and the file of each version |
 | --- | --- |
+| Brief ([wayloop validate](validate.md)) | `schemas/artifacts/brief/index.json` |
+| Input and result of `wayloop validate` ([wayloop validate](validate.md)) | `schemas/commands/validate/index.json` |
 | Envelope of every command result ([ADR 0009](../project/adr/0009-contract-guidelines.md), C1) | `schemas/envelope/result/index.json` |
 
 A version, once released, changes only additively: a new optional input member, a new output

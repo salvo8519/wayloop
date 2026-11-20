@@ -109,7 +109,7 @@ fn full_error() -> Error {
     .with_fix(json!({"op": "removed"}))
     .with_location(Source::File {
         file: "specs/0001-artifact-model/spec.md".into(),
-        line: number(42),
+        line: Some(number(42)),
     })
 }
 
@@ -138,7 +138,7 @@ fn every_serialised_value_is_accepted_and_reads_back_into_its_type() {
     for source in [
         Source::File {
             file: "plan/items/TASK-0001.yaml".into(),
-            line: number(7),
+            line: Some(number(7)),
         },
         Source::Issue { issue: number(252) },
         Source::Milestone {
@@ -278,10 +278,9 @@ fn every_embedded_snapshot_of_every_version_loads_in_the_core_and_the_oracle() {
 
 #[test]
 fn the_envelope_snapshot_is_the_schema_of_the_envelope_and_accepts_an_envelope() {
-    let embedded = EMBEDDED
-        .iter()
-        .find(|e| e.path == "envelope/result/v1.json")
-        .unwrap();
+    // The current version of the envelope; version 1 is frozen (ADR 0030 G5).
+    let path = format!("envelope/result/v{}.json", wayloop_core::ENVELOPE_VERSION);
+    let embedded = EMBEDDED.iter().find(|e| e.path == path).unwrap();
     let mut read: Value = serde_json::from_str(embedded.text).unwrap();
     read.as_object_mut().unwrap().remove("$id");
     assert_eq!(
@@ -344,10 +343,8 @@ fn the_schemas_refuse_what_the_types_never_write() {
     let check =
         |name: &str, direction: Direction, document: Value| errors_of(name, direction, &document);
     let output = Direction::Output;
-    assert_eq!(
-        check("Source", output, json!({"file": "a.md"})),
-        [("/line".to_owned(), Reason::Requires)]
-    );
+    // The line of a file is written only when it is known (SPEC-0004 R2).
+    assert_eq!(check("Source", output, json!({"file": "a.md"})), []);
     assert_eq!(
         check("Source", output, json!({"line": 2})),
         [("/file".to_owned(), Reason::Requires)]

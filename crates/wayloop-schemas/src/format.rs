@@ -18,6 +18,10 @@ crate::closed_enum! {
         LanguageTag = "language-tag",
         /// `@` and a user name of the tracker.
         TrackerHandle = "tracker-handle",
+        /// A path relative to the root of the project, in one spelling: segments joined by `/`,
+        /// none empty, `.` or `..`; no `\` and no drive letter, so that it never leaves the
+        /// project.
+        ProjectPath = "project-path",
         /// `BRIEF-` and a sequence.
         BriefId = "brief-id",
         /// `COUNCIL-` and a sequence.
@@ -61,20 +65,21 @@ mod tests {
             Format::UtcDateTime => 1,
             Format::LanguageTag => 2,
             Format::TrackerHandle => 3,
-            Format::BriefId => 4,
-            Format::CouncilId => 5,
-            Format::GateId => 6,
-            Format::EpicId => 7,
-            Format::StoryId => 8,
-            Format::SpecId => 9,
-            Format::ChangeId => 10,
-            Format::TaskId => 11,
-            Format::MilestoneId => 12,
-            Format::HandoverId => 13,
-            Format::RequirementId => 14,
-            Format::CriterionId => 15,
-            Format::DecisionId => 16,
-            Format::QuestionId => 17,
+            Format::ProjectPath => 4,
+            Format::BriefId => 5,
+            Format::CouncilId => 6,
+            Format::GateId => 7,
+            Format::EpicId => 8,
+            Format::StoryId => 9,
+            Format::SpecId => 10,
+            Format::ChangeId => 11,
+            Format::TaskId => 12,
+            Format::MilestoneId => 13,
+            Format::HandoverId => 14,
+            Format::RequirementId => 15,
+            Format::CriterionId => 16,
+            Format::DecisionId => 17,
+            Format::QuestionId => 18,
         }
     }
 
@@ -98,6 +103,7 @@ mod tests {
                 "utc-date-time",
                 "language-tag",
                 "tracker-handle",
+                "project-path",
                 "brief-id",
                 "council-id",
                 "gate-id",

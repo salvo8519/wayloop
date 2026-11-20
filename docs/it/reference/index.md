@@ -1,6 +1,6 @@
 ---
 source: reference/index.md
-source_hash: cf1acb95f7d0
+source_hash: cef381e73987
 ---
 # Riferimento
 
@@ -9,14 +9,16 @@ di Wayloop. Non c'è ancora una release; ciò che viene dopo è nella [roadmap](
 
 ## Comandi di una build dai sorgenti
 
-Il binario `wayloop` costruito da `crates/wayloop-cli` risponde a due comandi. Entrambi
-stampano una riga di JSON sullo standard output ed escono con codice 0. La versione è quella
-del manifest del workspace.
+Il binario `wayloop` costruito da `crates/wayloop-cli` risponde ai comandi qui sotto. Ognuno
+stampa una riga di JSON sullo standard output. `version` e `steps` escono con codice 0; la
+versione è quella del manifest del workspace. `validate` controlla gli artefatti rispetto ai loro
+schemi ed è descritto in una pagina propria, [wayloop validate](validate.md).
 
 | Comando | Uscita |
 | --- | --- |
 | `wayloop version` (anche `wayloop --version`) | Il nome e la versione del motore |
 | `wayloop steps` | Gli identificativi dei passi del ciclo di un'issue, in ordine |
+| `wayloop validate --input <file\|->` | L'envelope della validazione di un insieme di artefatti ([wayloop validate](validate.md)) |
 
 ```console
 $ cargo run -q -p wayloop-cli -- version
@@ -25,12 +27,13 @@ $ cargo run -q -p wayloop-cli -- steps
 {"issue_steps":["claim","reanalysis","counter_review","checklist","build","verify","review","pull_request","merge"]}
 ```
 
-Qualunque altro comando, o nessun comando, stampa una riga d'uso sullo standard error ed esce
-con codice 2:
+Qualunque altro comando, o nessun comando, stampa sullo standard output l'envelope di un errore
+d'uso (codice `usage`, descritto in [wayloop validate](validate.md#errori)), stampa una riga
+d'uso sullo standard error ed esce con codice 2:
 
 ```console
-$ cargo run -q -p wayloop-cli
-wayloop 0.0.0: pre-alpha. Commands: version, steps.
+$ cargo run -q -p wayloop-cli 2>&1 >/dev/null
+wayloop: No command was given. Commands: version, steps, validate --input <file|-> [--command-version <n>].
 ```
 
 Quando lo standard output non si può scrivere, per esempio perché l'estremità in lettura di
@@ -55,6 +58,8 @@ nella cartella di ciascun contratto.
 
 | Contratto | Storia, con la versione corrente e il file di ogni versione |
 | --- | --- |
+| Brief ([wayloop validate](validate.md)) | `schemas/artifacts/brief/index.json` |
+| Input e risultato di `wayloop validate` ([wayloop validate](validate.md)) | `schemas/commands/validate/index.json` |
 | Envelope del risultato di ogni comando ([ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/), C1) | `schemas/envelope/result/index.json` |
 
 Una versione, una volta rilasciata, cambia solo in modo additivo: un nuovo membro facoltativo

@@ -43,9 +43,12 @@ impl Transform for Subset {
             }
             if self.direction == Direction::Input
                 && object.get("type").and_then(Value::as_str) == Some("object")
+                && object.contains_key("properties")
             {
-                // A map keeps its schema of values, which the loader of the core refuses: an
-                // input is closed, never a map.
+                // An object that declares its members is closed. One that declares none is a
+                // free object, written by hand for a document of another schema, and stays open
+                // (ADR 0030 G2, amended with #256). A map keeps its schema of values, which the
+                // loader of the core refuses: an input is never a map.
                 object
                     .entry("additionalProperties")
                     .or_insert(Value::Bool(false));

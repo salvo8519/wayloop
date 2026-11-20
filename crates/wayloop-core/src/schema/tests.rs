@@ -12,6 +12,7 @@ use regex::Regex;
 use serde_json::{Value, json};
 
 use super::{LoadError, MAX_DEPTH, Schema};
+use crate::envelope::without_nulls;
 use crate::{Code, Error, Pointer, Reason};
 
 const CODE: Code = Code::new("artifact_schema");
@@ -65,6 +66,17 @@ fn oracle_format(name: &str, text: &str) -> bool {
                 full("(?i)[a-z]{2,3}(-[a-z]{4})?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|[0-9][a-z0-9]{3}))*")
             })
             .is_match(text),
+        "project-path" => {
+            // Independent of the core: a regular expression per segment, written from the
+            // conventions of the contract (one spelling per path).
+            static SEGMENT: OnceLock<Regex> = OnceLock::new();
+            static DRIVE: OnceLock<Regex> = OnceLock::new();
+            let segment = SEGMENT.get_or_init(|| full(r"[^/\\]+"));
+            !DRIVE.get_or_init(|| Regex::new("^[A-Za-z]:").unwrap()).is_match(text)
+                && text
+                    .split('/')
+                    .all(|s| segment.is_match(s) && s != "." && s != "..")
+        }
         "tracker-handle" => {
             HANDLE
                 .get_or_init(|| full("@[A-Za-z0-9](-?[A-Za-z0-9])*"))
@@ -75,11 +87,12 @@ fn oracle_format(name: &str, text: &str) -> bool {
     }
 }
 
-const FORMATS: [&str; 18] = [
+const FORMATS: [&str; 19] = [
     "date",
     "utc-date-time",
     "language-tag",
     "tracker-handle",
+    "project-path",
     "brief-id",
     "council-id",
     "gate-id",
@@ -106,7 +119,7 @@ fn oracle_date() -> &'static jsonschema::Validator {
     })
 }
 
-fn oracle(schema: &Value) -> jsonschema::Validator {
+pub(crate) fn oracle(schema: &Value) -> jsonschema::Validator {
     assert!(
         jsonschema::meta::is_valid(schema),
         "not a JSON Schema: {schema}"
@@ -128,29 +141,14 @@ fn check(schema: &Value, document: &Value) -> Vec<Error> {
     // The oracle knows no bound on integers: the decision of the maintainer of 2026-11-20 is
     // added to its verdict, checked on every number of the document.
     assert_eq!(
+        // ADR 0009 C2 reads a member set to null as absent, which JSON Schema does not: the
+        // oracle is given the document as the interpreter reads it.
         oracle(schema).is_valid(&without_nulls(document)) && !beyond_safe(document),
         errors.is_empty(),
         "the oracle disagrees on {document} against {schema}: {errors:?}"
     );
     assert_eq!(loaded.validate(document, CODE), errors, "not deterministic");
     errors
-}
-
-/// `value` without the members of objects set to null, at any depth; elements of arrays are
-/// kept. ADR 0009 C2 reads a member set to null as absent, which JSON Schema does not: the
-/// oracle is given the document as the interpreter reads it.
-fn without_nulls(value: &Value) -> Value {
-    match value {
-        Value::Object(members) => Value::Object(
-            members
-                .iter()
-                .filter(|(_, v)| !v.is_null())
-                .map(|(k, v)| (k.clone(), without_nulls(v)))
-                .collect(),
-        ),
-        Value::Array(items) => Value::Array(items.iter().map(without_nulls).collect()),
-        other => other.clone(),
-    }
 }
 
 /// Whether `value` holds an integer beyond plus or minus (2^53 - 1), checked with the
@@ -751,7 +749,32 @@ fn every_named_format_is_known_to_the_interpreter_and_to_the_oracle() {
 }
 
 /// Accepted and refused examples of each named format.
-const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 18] = [
+const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 19] = [
+    (
+        "project-path",
+        &[
+            "plan/briefs/BRIEF-0001.yaml",
+            "spec.md",
+            "specs/0001-artifact-model/spec.md",
+            "..a/b..",
+            ".hidden/a",
+            "notes:2026.md",
+        ],
+        &[
+            "",
+            "/etc/passwd",
+            "../outside.yaml",
+            "plan/../../outside.yaml",
+            "plan/..",
+            "a//b",
+            "a/./b",
+            "./a",
+            "a/",
+            "plan\\briefs\\BRIEF-0001.yaml",
+            "C:/Users/x.yaml",
+            "c:relative.yaml",
+        ],
+    ),
     (
         "date",
         &[
@@ -920,6 +943,17 @@ fn fixes_of_formats() {
         ("criterion-id", "ac3", Some("AC3")),
         ("handover-id", "handover-012-3", Some("HANDOVER-12-3")),
         ("handover-id", "HANDOVER-12", None),
+        (
+            "project-path",
+            "plan\\briefs\\a.yaml",
+            Some("plan/briefs/a.yaml"),
+        ),
+        ("project-path", "a//b/./c/", Some("a/b/c")),
+        ("project-path", "./a", Some("a")),
+        ("project-path", "/etc/passwd", None),
+        ("project-path", "\\etc", None),
+        ("project-path", "../a.yaml", None),
+        ("project-path", "C:/a.yaml", None),
         ("tracker-handle", "example", Some("@example")),
         ("tracker-handle", "@@example", None),
         ("language-tag", "en_GB", Some("en-GB")),
@@ -1432,6 +1466,7 @@ proptest! {
             "@?[A-Za-z0-9-]{0,42}",
             "[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,10})?[Zz]?)?",
             "[a-zA-Z]{1,4}([-_][a-zA-Z0-9]{1,9}){0,3}",
+            "([A-Za-z]:)?[/\\\\]?([a-z.]{0,4}[/\\\\]){0,3}[a-z.]{0,5}",
             "(BRIEF|COUNCIL|GATE|EPIC|STORY|SPEC|CHANGE|TASK|HANDOVER|M|R|AC|D|Q)[-_ ]?[0-9]{0,6}(-[0-9]{0,3})?",
         ],
     ) {

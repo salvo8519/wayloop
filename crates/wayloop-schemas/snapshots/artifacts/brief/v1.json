@@ -1,0 +1,187 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "description": "Type of an artifact (SPEC-0001, Common rules): the value of `kind`, which selects the schema of the document.\n\n- `brief`: A short statement of an idea or a scope of work, input of the council.\n- `council_report`: The report of the council on a brief.\n- `gate`: The tracker issue on which a person approves a brief or a council report.\n- `milestone`: A milestone of the roadmap.\n- `epic`: An epic of a milestone.\n- `story`: A user story of an epic.\n- `specification`: A living specification of one capability.\n- `change`: A change delta of a living specification.\n- `task`: A task of an epic, closed by one pull request.\n- `handover`: The hand-over record of a session.",
+      "enum": [
+        "brief",
+        "council_report",
+        "gate",
+        "milestone",
+        "epic",
+        "story",
+        "specification",
+        "change",
+        "task",
+        "handover"
+      ],
+      "type": "string"
+    },
+    "BriefOrigin": {
+      "description": "What a brief was written from.\n\n- `light_requirements`: A short list of needs.\n- `scope_of_work`: A scope of work agreed with a client.",
+      "enum": [
+        "light_requirements",
+        "scope_of_work"
+      ],
+      "type": "string"
+    },
+    "BriefStatus": {
+      "description": "Status of a brief (SPEC-0001 R5); `draft` is its initial status.\n\n- `draft`: Written, not approved.\n- `approved`: Approved by a person on its gate issue; it goes to the council.\n- `superseded`: Replaced by the briefs in `superseded_by`; terminal.",
+      "enum": [
+        "draft",
+        "approved",
+        "superseded"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://salvo8519.github.io/wayloop/schemas/artifacts/brief/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "superseded"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "superseded_by"
+        ]
+      }
+    }
+  ],
+  "description": "A brief (SPEC-0001, Brief): a short statement of an idea or a scope of work, input of the council. Stored as `plan/briefs/BRIEF-<seq>.yaml` in this normalised form.",
+  "properties": {
+    "constraints": {
+      "description": "Budget, deadlines, technology, regulation; `[]` means none.",
+      "items": {
+        "description": "A prose text of at least one character, in the language of the project.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "goals": {
+      "description": "Outcomes the project must reach; at least one.",
+      "items": {
+        "description": "A prose text of at least one character, in the language of the project.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "id": {
+      "description": "Stable identifier, in the canonical form of the type; assigned by the engine and never reused (SPEC-0001 R2, R14).",
+      "format": "brief-id",
+      "type": "string"
+    },
+    "kind": {
+      "const": "brief",
+      "description": "Artifact type; selects the schema."
+    },
+    "language": {
+      "description": "Language of the prose, a BCP 47 tag; when absent, the language of the project.",
+      "format": "language-tag",
+      "type": "string"
+    },
+    "open_questions": {
+      "description": "Questions the council must answer; `[]` means none.",
+      "items": {
+        "description": "A prose text of at least one character, in the language of the project.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "origin": {
+      "$ref": "#/$defs/BriefOrigin",
+      "description": "What the brief was written from."
+    },
+    "owner": {
+      "description": "Person accountable for the brief.",
+      "format": "tracker-handle",
+      "type": "string"
+    },
+    "problem": {
+      "description": "Who needs this and why.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of the schema of the type the document was written against (SPEC-0001 R16).",
+      "type": "integer"
+    },
+    "scope_in": {
+      "description": "What is included; at least one entry.",
+      "items": {
+        "description": "A prose text of at least one character, in the language of the project.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "scope_out": {
+      "description": "What is excluded; `[]` means nothing.",
+      "items": {
+        "description": "A prose text of at least one character, in the language of the project.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "status": {
+      "$ref": "#/$defs/BriefStatus",
+      "description": "Current status (SPEC-0001 R5), not the issue-cycle state of SPEC-0002."
+    },
+    "superseded_by": {
+      "description": "Identifiers of the artifacts of the same type that replace this one, at least one; required when `status` is `superseded`.",
+      "items": {
+        "description": "Identifier of a brief: `BRIEF-` and four digits, or five or more without a leading zero, for example `BRIEF-0001` (SPEC-0001, Identifiers).",
+        "format": "brief-id",
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "title": {
+      "description": "Outcome or name, in sentence case without a final full stop; 1 to 120 characters (Unicode code points).",
+      "maxLength": 120,
+      "minLength": 1,
+      "type": "string"
+    },
+    "users": {
+      "description": "Who uses the result; at least one.",
+      "items": {
+        "description": "A prose text of at least one character, in the language of the project.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "title",
+    "status",
+    "origin",
+    "owner",
+    "problem",
+    "goals",
+    "users",
+    "scope_in"
+  ],
+  "title": "Brief",
+  "type": "object"
+}
