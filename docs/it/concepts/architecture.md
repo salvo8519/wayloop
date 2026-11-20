@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 3c5d5c6168e1
+source_hash: 2c1ef09c68e9
 ---
 # Architettura
 
@@ -13,7 +13,7 @@ nell'[ADR 0001](https://salvo8519.github.io/wayloop/project/adr/0001-rust-engine
 | Componente | Percorso | Cosa fa oggi |
 | --- | --- | --- |
 | Schemi | `crates/wayloop-schemas` | Libreria Rust senza I/O, sede dei tipi dei contratti che rispecchiano gli schemi JSON: il report degli errori ([sotto](#gli-errori-sono-valori)) e l'envelope con i suoi codici di uscita ([sotto](#lenvelope)). |
-| Core | `crates/wayloop-core` | Libreria Rust senza I/O. Fissa il vocabolario del ciclo di un'issue: i nove passi in ordine, i loro identificativi stabili e quale passo è uno stato di approvazione. Riesporta l'errore di ogni rifiuto e l'envelope, e calcola l'hash di un input dal suo JSON canonico ([sotto](#lenvelope)). |
+| Core | `crates/wayloop-core` | Libreria Rust senza I/O. Fissa il vocabolario del ciclo di un'issue: i nove passi in ordine, i loro identificativi stabili e quale passo è uno stato di approvazione. Riesporta l'errore di ogni rifiuto e l'envelope, e calcola l'hash di un input dal suo JSON canonico ([sotto](#lenvelope)). Legge gli schemi JSON dei contratti con un proprio interprete ([sotto](#linterprete-degli-schemi)). |
 | Runtime | `crates/wayloop-runtime` | Libreria Rust che esegue il lavoro deciso dal core ([sotto](#core-sincrono-runtime-asincrono)). Non contiene ancora codice. |
 | Riga di comando | `crates/wayloop-cli` | Il binario `wayloop`, solo un adattatore: legge gli argomenti, chiama il core e stampa JSON. Comandi: `version` e `steps` ([riferimento](../reference/index.md)). |
 | Contenuti per agenti | `.agents/` | Ruoli e skill nel formato aperto Agent Skills, con mirror generati per Claude Code. Servono a costruire Wayloop stesso. |
@@ -131,7 +131,7 @@ valore errato:
 | --- | --- |
 | `code` | Identificativo stabile del rifiuto; un nuovo significato riceve un nuovo codice, mai uno rinominato (C8) |
 | `message` | Che cosa non va, per una persona |
-| `pointer` | Puntatore RFC 6901 dalla radice dell'input inviato; vuoto per l'intero input; un valore del tipo `Pointer`, verificato quando viene costruito |
+| `pointer` | Puntatore RFC 6901 dalla radice dell'input inviato; vuoto per l'intero input; un valore del tipo `Pointer`, verificato quando è letto da un testo, oppure costruito un token alla volta con l'escape (`join`, `join_index`) |
 | `pointers` | Puntatori alle altre parti dell'input coinvolte, come i due lati di un conflitto; facoltativo |
 | `reason` | Un valore dell'enum documentato: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale`, e `internal` per un guasto del motore stesso, che non è un rifiuto dell'input |
 | `expected` | I valori accettati in `pointer`, mai un pattern; facoltativo, e `[]` quando nessun valore è accettato |
@@ -196,3 +196,72 @@ esadecimale minuscolo, così lo stesso input dà lo stesso hash su ogni canale e
   pubblicati e, su input casuali, contro un crate di hashing usato solo nei test (`sha2`, una
   dipendenza di sviluppo, mai distribuita e non presente nella allowlist del core). L'hash
   identifica un contenuto e non protegge segreti, quindi non cerca di avere tempo costante.
+
+### L'interprete degli schemi
+
+Gli schemi dei contratti sono file JSON Schema (draft 2020-12) scritti a mano. Il core li legge
+con un piccolo interprete di un sottoinsieme documentato, `wayloop_core::schema`, così che ogni
+errore di un documento sia riportato in un solo passaggio con il suo puntatore e il suo
+motivo, e il core non abbia bisogno di un crate di validazione (piano della SPEC-0001, D5). Uno
+schema che usa una parola chiave fuori dal sottoinsieme, o una parola chiave fuori dal suo
+posto, è rifiutato quando viene caricato: nessuna regola di uno schema è ignorata in silenzio.
+
+| Parola chiave | Significato | Motivo dell'errore |
+| --- | --- | --- |
+| `type` | `boolean`, `integer`, `string`, `array` o `object`; un intero è un numero finito senza parte frazionaria, quindi `2.0` lo è | `type`, e su quel valore non si controlla altro |
+| `enum`, `const` | Valori accettati: stringhe, interi, booleani o `null`, confrontati per valore | `enum`, con i valori accettati in `expected` |
+| `minLength`, `maxLength` | Limiti di una stringa, in code point Unicode | `length` |
+| `minItems`, `maxItems` | Limiti di un array | `length` |
+| `minimum`, `maximum` | Limiti interi inclusi, accanto a `type: integer` | `range` |
+| `format` | Un formato con nome del core, sulle stringhe | `syntax`, con un valore corretto in `fix` quando si può ricavare |
+| `items` | Schema di ogni elemento di un array | |
+| `properties` con `additionalProperties: false` | Schema di ogni membro dichiarato; ogni altro membro è rifiutato | `unknown_field`, con la chiave dichiarata più vicina in `fix` |
+| `required` | Membri dichiarati che devono essere presenti | `missing` |
+| `if` e `then`, `allOf` | Requisiti condizionali: quando il valore soddisfa la condizione di `if`, i membri del `required` di `then` devono essere presenti; `allOf` elenca coppie di questo tipo | `requires`, con i membri verificati dalla condizione in `pointers` |
+| `$ref`, `$defs` | Un riferimento a una definizione dello stesso file, il cui nome non contiene `/`, `~` o `%` | |
+| `$schema`, `$id`, `$comment`, `title`, `description` | Annotazioni, alla radice per `$schema` e `$id` | |
+
+La condizione di un `if` usa `properties`, `required`, `enum`, `const` e `contains`. Non c'è
+`pattern`: il core non contiene un motore di espressioni regolari, e un formato con nome dà un
+`fix` preciso. I formati con nome sono `date`, `utc-date-time` (con il suffisso `Z`),
+`language-tag` (lingua, scrittura, regione e varianti di BCP 47), `tracker-handle`, gli
+identificativi di ogni tipo di artefatto (`brief-id`, `council-id`, `gate-id`, `epic-id`,
+`story-id`, `spec-id`, `change-id`, `task-id`, `milestone-id`, `handover-id`) e gli
+identificativi delle parti (`requirement-id`, `criterion-id`, `decision-id`, `question-id`),
+con le forme canoniche della SPEC-0001. La documentazione del modulo elenca ogni forma e ogni
+correzione.
+
+- **Null.** Un membro di un oggetto impostato a `null` non è dato, esattamente come un membro
+  assente (ADR 0009 C2): accettato se facoltativo, `missing` se obbligatorio, mai un campo
+  sconosciuto, e assente per una condizione. Un elemento `null` di un array è un valore come
+  gli altri e non supera `type`, perché nessun tipo del sottoinsieme è `null`.
+- **Ordine degli errori.** Gli errori seguono l'ordine del documento: gli errori di un valore
+  prima di quelli al suo interno, i membri di un oggetto nell'ordine dei byte delle chiavi, gli
+  elementi di un array per indice, e i membri assenti di un oggetto dopo quelli presenti. Un
+  membro che manca sia per `required` sia per un `then` è riportato una volta sola, come
+  `missing`.
+- **Chiave più vicina.** La correzione di una chiave sconosciuta è una chiave dichiarata non
+  ancora presente, a una distanza di allineamento ottimo delle stringhe (la distanza di
+  Damerau-Levenshtein ristretta) non superiore a un terzo della lunghezza della chiave
+  sconosciuta; a parità vince la prima chiave nell'ordine dei byte. Una chiave più lunga di 64
+  caratteri non riceve correzioni.
+- **Interi.** Ogni intero controllato dall'interprete sta entro più o meno (2^53 - 1),
+  l'intervallo in cui un double IEEE 754 rappresenta esattamente ogni intero (RFC 7493,
+  I-JSON); un valore oltre è rifiutato con il motivo `range`, qualunque cosa dica il suo
+  schema. Gli interi di uno schema rispettano lo stesso limite. I numeri si confrontano per
+  valore, quindi `4364.0` è uguale a `4364`. Un numero in una parte del documento che nessuno
+  schema descrive non è controllato. I numeri sono letti come double IEEE 754, come li legge
+  RFC 8785, quindi le cifre oltre quella precisione non sono viste: `1.0000000000000001` è
+  l'intero 1.
+- **Limiti.** Uno schema ha al massimo 32 livelli di sottoschemi, contati attraverso i
+  riferimenti, e un riferimento che raggiunge la propria definizione è rifiutato. L'interprete
+  scende in un documento solo dove scende il suo schema, quindi la sua ricorsione è limitata
+  qualunque sia il documento.
+- **Oracolo.** I test verificano ogni schema e documento che usano con un crate di validazione
+  JSON Schema, una dipendenza di sviluppo che non viene mai distribuita; deve concordare con
+  l'interprete sul verdetto. Nell'oracolo i formati con nome sono controllati da espressioni
+  regolari scritte a partire dalla SPEC-0001, indipendentemente dai parser del core. Due regole
+  di Wayloop non sono JSON Schema, quindi l'oracolo vede il documento senza i membri impostati
+  a null, e al suo verdetto si aggiunge il limite degli interi; il limite è controllato su ogni
+  numero, il che coincide con l'interprete solo per i documenti che il loro schema descrive
+  per intero, come i documenti dei test.

@@ -97,7 +97,7 @@ milestones:
           - { issue: 252, title: "Complete the error report of ADR 0009 in the core", spec: "0001", status: done }
           - { issue: 253, title: "Add canonical JSON, SHA-256 and the envelope to the core", spec: "0001", status: done }
           - { issue: 254, title: "Refuse in CI any change to a released schema snapshot", spec: "0001", status: done }
-          - { issue: 255, title: "Interpret the JSON Schema subset in the core", spec: "0001", status: open }
+          - { issue: 255, title: "Interpret the JSON Schema subset in the core", spec: "0001", status: done }
           - { issue: 256, title: "Validate a brief through the entry point and wayloop validate --input", spec: "0001", status: open }
           - { issue: 257, title: "Load repository files into the canonical input of validate", spec: "0001", status: open }
           - { issue: 258, title: "Validate milestones, epics, stories, tasks and gate issues", spec: "0001", status: open }

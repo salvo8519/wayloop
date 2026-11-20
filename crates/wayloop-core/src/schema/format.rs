@@ -1,0 +1,267 @@
+//! Named formats of the subset and the fixes derived from them (SPEC-0001, Identifiers and
+//! the field tables; the list is in the documentation of the parent module).
+//!
+//! Every check works on ASCII and reads the text once; no regular expression is involved. A
+//! fix is offered only when it is a value the format accepts and differs from the text.
+
+/// A named format of the subset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Format {
+    /// RFC 3339 `full-date`.
+    Date,
+    /// RFC 3339 date-time in UTC, written with `Z`.
+    UtcDateTime,
+    /// BCP 47 language tag: language, script, region and variants.
+    LanguageTag,
+    /// Tracker handle, `@` and a user name.
+    TrackerHandle,
+    /// `<PREFIX>-<seq>`: four digits, or five or more without a leading zero.
+    Sequence(&'static str),
+    /// `M<n>`: `0` or a number without a leading zero.
+    Milestone,
+    /// `HANDOVER-<issue>-<k>`, both numbers from 1.
+    Handover,
+    /// `<PREFIX><k>`, a part of an artifact: a number from 1.
+    Part(&'static str),
+}
+
+/// Every format of the subset, by name.
+const NAMED: [(&str, Format); 18] = [
+    ("date", Format::Date),
+    ("utc-date-time", Format::UtcDateTime),
+    ("language-tag", Format::LanguageTag),
+    ("tracker-handle", Format::TrackerHandle),
+    ("brief-id", Format::Sequence("BRIEF")),
+    ("council-id", Format::Sequence("COUNCIL")),
+    ("gate-id", Format::Sequence("GATE")),
+    ("epic-id", Format::Sequence("EPIC")),
+    ("story-id", Format::Sequence("STORY")),
+    ("spec-id", Format::Sequence("SPEC")),
+    ("change-id", Format::Sequence("CHANGE")),
+    ("task-id", Format::Sequence("TASK")),
+    ("milestone-id", Format::Milestone),
+    ("handover-id", Format::Handover),
+    ("requirement-id", Format::Part("R")),
+    ("criterion-id", Format::Part("AC")),
+    ("decision-id", Format::Part("D")),
+    ("question-id", Format::Part("Q")),
+];
+
+impl Format {
+    /// The format called `name`, if it is in the subset.
+    pub(crate) fn named(name: &str) -> Option<Self> {
+        NAMED
+            .iter()
+            .find(|(known, _)| *known == name)
+            .map(|(_, format)| *format)
+    }
+
+    /// The name of the format in a schema.
+    pub(crate) fn name(self) -> &'static str {
+        NAMED
+            .iter()
+            .find(|(_, format)| *format == self)
+            .map_or("", |(name, _)| name)
+    }
+
+    /// Whether `text` is in the form of the format.
+    pub(crate) fn accepts(self, text: &str) -> bool {
+        match self {
+            Format::Date => is_date(text.as_bytes()),
+            Format::UtcDateTime => is_utc_date_time(text.as_bytes()),
+            Format::LanguageTag => is_language_tag(text),
+            Format::TrackerHandle => is_tracker_handle(text),
+            Format::Sequence(prefix) => text
+                .strip_prefix(prefix)
+                .and_then(|rest| rest.strip_prefix('-'))
+                .is_some_and(is_sequence),
+            Format::Milestone => text
+                .strip_prefix('M')
+                .is_some_and(|n| n == "0" || is_counter(n)),
+            Format::Handover => text
+                .strip_prefix("HANDOVER-")
+                .and_then(|rest| rest.split_once('-'))
+                .is_some_and(|(issue, k)| is_counter(issue) && is_counter(k)),
+            Format::Part(prefix) => text.strip_prefix(prefix).is_some_and(is_counter),
+        }
+    }
+
+    /// A corrected value for `text`, when one can be derived and the format accepts it.
+    pub(crate) fn fix(self, text: &str) -> Option<String> {
+        let candidate = match self {
+            Format::Date | Format::UtcDateTime => None,
+            Format::LanguageTag => Some(text.replace('_', "-")),
+            Format::TrackerHandle => (!text.starts_with('@')).then(|| format!("@{text}")),
+            Format::Sequence(prefix) => after_prefix(text, &[prefix])
+                .and_then(number)
+                .map(|n| format!("{prefix}-{n:0>4}")),
+            Format::Milestone => after_prefix(text, &["MILESTONE", "M"])
+                .and_then(number)
+                .map(|n| format!("M{n}")),
+            Format::Handover => after_prefix(text, &["HANDOVER"]).and_then(|rest| {
+                let (issue, k) = rest.split_once('-')?;
+                Some(format!("HANDOVER-{}-{}", number(issue)?, number(k)?))
+            }),
+            Format::Part(prefix) => after_prefix(text, &[prefix])
+                .and_then(number)
+                .map(|n| format!("{prefix}{n}")),
+        }?;
+        (candidate != text && self.accepts(&candidate)).then_some(candidate)
+    }
+}
+
+/// What follows the first of `prefixes` that starts `text`, ignoring ASCII case, and one
+/// optional separator (`-`, `_` or a space).
+fn after_prefix<'a>(text: &'a str, prefixes: &[&str]) -> Option<&'a str> {
+    let rest = prefixes.iter().find_map(|prefix| {
+        let head = text.get(..prefix.len())?;
+        head.eq_ignore_ascii_case(prefix)
+            .then(|| text.get(prefix.len()..))
+            .flatten()
+    })?;
+    Some(rest.strip_prefix(['-', '_', ' ']).unwrap_or(rest))
+}
+
+/// The digits of `text` without leading zeros (`0` for zeros only), when `text` is one or
+/// more ASCII digits.
+fn number(text: &str) -> Option<&str> {
+    if text.is_empty() || !text.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let trimmed = text.trim_start_matches('0');
+    Some(if trimmed.is_empty() { "0" } else { trimmed })
+}
+
+fn all_digits(text: &str) -> bool {
+    !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// `[1-9][0-9]*`.
+fn is_counter(text: &str) -> bool {
+    all_digits(text) && !text.starts_with('0')
+}
+
+/// `[0-9]{4}|[1-9][0-9]{4,}`.
+fn is_sequence(text: &str) -> bool {
+    all_digits(text) && text.len() >= 4 && (text.len() == 4 || !text.starts_with('0'))
+}
+
+/// The value of the ASCII digits of `bytes`; `None` when one is not a digit or the value
+/// does not fit.
+fn digits(bytes: &[u8]) -> Option<u32> {
+    bytes.iter().try_fold(0_u32, |value, &b| {
+        if b.is_ascii_digit() {
+            value.checked_mul(10)?.checked_add(u32::from(b - b'0'))
+        } else {
+            None
+        }
+    })
+}
+
+/// `YYYY-MM-DD`, a day of the Gregorian calendar.
+fn is_date(bytes: &[u8]) -> bool {
+    let [y0, y1, y2, y3, b'-', m0, m1, b'-', d0, d1] = bytes else {
+        return false;
+    };
+    let (Some(year), Some(month), Some(day)) = (
+        digits(&[*y0, *y1, *y2, *y3]),
+        digits(&[*m0, *m1]),
+        digits(&[*d0, *d1]),
+    ) else {
+        return false;
+    };
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let last = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=last).contains(&day)
+}
+
+/// `YYYY-MM-DDThh:mm:ss(.f{1,9})?Z`.
+fn is_utc_date_time(bytes: &[u8]) -> bool {
+    let Some((date, rest)) = bytes.split_at_checked(10) else {
+        return false;
+    };
+    let [b'T', h0, h1, b':', n0, n1, b':', s0, s1, tail @ ..] = rest else {
+        return false;
+    };
+    let (Some(hour), Some(minute), Some(second)) = (
+        digits(&[*h0, *h1]),
+        digits(&[*n0, *n1]),
+        digits(&[*s0, *s1]),
+    ) else {
+        return false;
+    };
+    let fraction_ok = match tail {
+        [b'Z'] => true,
+        [b'.', fraction @ .., b'Z'] => {
+            (1..=9).contains(&fraction.len()) && fraction.iter().all(u8::is_ascii_digit)
+        }
+        _ => false,
+    };
+    is_date(date) && hour < 24 && minute < 60 && second < 60 && fraction_ok
+}
+
+/// A BCP 47 tag limited to language, script, region and variants. Each subtag has one kind by
+/// its shape, so reading them in order is enough: 2 or 3 letters (language, first only),
+/// 4 letters (script, right after the language), 2 letters or 3 digits (region, after the
+/// language or the script), 5 to 8 letters or digits or a digit and 3 (variant, last).
+fn is_language_tag(text: &str) -> bool {
+    let mut subtags = text.split('-');
+    let language = subtags.next().unwrap_or_default();
+    if !((2..=3).contains(&language.len()) && language.bytes().all(|b| b.is_ascii_alphabetic())) {
+        return false;
+    }
+    // 1: after the language; 2: after the script; 3: after the region; 4: in the variants.
+    let mut stage = 1;
+    for subtag in subtags {
+        let alpha = subtag.bytes().all(|b| b.is_ascii_alphabetic());
+        let alnum = subtag.bytes().all(|b| b.is_ascii_alphanumeric());
+        let starts_with_digit = subtag.bytes().next().is_some_and(|b| b.is_ascii_digit());
+        stage = if stage == 1 && subtag.len() == 4 && alpha {
+            2
+        } else if stage <= 2
+            && ((subtag.len() == 2 && alpha) || (subtag.len() == 3 && all_digits(subtag)))
+        {
+            3
+        } else if alnum
+            && ((5..=8).contains(&subtag.len()) || (subtag.len() == 4 && starts_with_digit))
+        {
+            4
+        } else {
+            return false;
+        };
+    }
+    true
+}
+
+/// `@` then 1 to 39 letters, digits or single hyphens, not at either end.
+fn is_tracker_handle(text: &str) -> bool {
+    let Some(name) = text.strip_prefix('@') else {
+        return false;
+    };
+    (1..=39).contains(&name.len())
+        && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        && !name.starts_with('-')
+        && !name.ends_with('-')
+        && !name.contains("--")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Format, NAMED};
+
+    #[test]
+    fn names_and_formats_correspond_one_to_one() {
+        for (name, format) in NAMED {
+            assert_eq!(Format::named(name), Some(format));
+            assert_eq!(format.name(), name);
+        }
+        assert_eq!(Format::named("email"), None);
+        assert_eq!(Format::Sequence("NONE").name(), "");
+    }
+}
