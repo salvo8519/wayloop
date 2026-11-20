@@ -6,9 +6,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::{Map, Value};
 
 use super::check::is_safe;
-use super::format::Format;
 use super::{LoadError, MAX_DEPTH};
 use crate::Pointer;
+use wayloop_schemas::Format;
 
 /// The only dialect accepted in `$schema`.
 const DIALECT: &str = "https://json-schema.org/draft/2020-12/schema";
@@ -462,7 +462,7 @@ impl Loader {
         }
         ordered(rules.minimum, rules.maximum, &pointer.join("maximum"))?;
         if let Some(name) = map.get("format") {
-            rules.format = Some(name.as_str().and_then(Format::named).ok_or_else(|| {
+            rules.format = Some(name.as_str().and_then(Format::from_id).ok_or_else(|| {
                 invalid(
                     &pointer.join("format"),
                     "the format is not one of the named formats of the subset",
@@ -488,12 +488,6 @@ impl Loader {
             let Some(entries) = properties.as_object() else {
                 return Err(invalid(&at, "`properties` is an object of schemas"));
             };
-            if !rules.closed {
-                return Err(invalid(
-                    pointer,
-                    "`properties` needs `additionalProperties: false`",
-                ));
-            }
             for (name, schema) in entries {
                 let child = self.rules(schema, &at.join(name), next, false)?;
                 rules.properties.insert(name.clone(), child);

@@ -112,9 +112,20 @@ def test_the_allowlists_are_those_reviewed() -> None:
             "zmij",
         }
     )
+    # schemars, the derive of the contract schemas (ADR 0030 G4), with every crate it reaches.
+    schemars = frozenset(
+        {
+            "schemars",
+            "schemars_derive",
+            "serde_derive_internals",
+            "dyn-clone",
+            "ref-cast",
+            "ref-cast-impl",
+        }
+    )
     assert {
-        "wayloop-schemas": serde,
-        "wayloop-core": serde | {"wayloop-schemas"},
+        "wayloop-schemas": serde | schemars,
+        "wayloop-core": serde | schemars | {"wayloop-schemas"},
     } == core_io.PURE_CRATES
 
 

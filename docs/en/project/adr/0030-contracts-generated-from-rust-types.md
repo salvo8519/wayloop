@@ -210,6 +210,16 @@ with its tests and the architecture page.
    `schemas/commands/validate/v1.json`, `v1.output.json` are replaced by the generated ones
    before their first merge, so no hand-written snapshot is ever released.
 
+## Amendments
+
+- 2026-11-20, security review of #301 (G4): the crates reached by `schemars` are those
+  expected, confirmed by `cargo tree`. `ref-cast` has a build script that runs
+  `rustc --version` and writes into `OUT_DIR`; nothing runs at run time. `dyn-clone` and
+  `ref-cast` contain confined `unsafe` (the clone of a trait object, a cast between
+  `repr(transparent)` types), reviewed and accepted. The features of `schemars` are declared
+  explicitly (`default-features = false`, `derive` and `std`), so that a change of its
+  defaults upstream cannot widen them.
+
 ## Consequences
 
 Positive:

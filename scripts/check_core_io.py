@@ -58,9 +58,26 @@ SERDE = frozenset(
         "zmij",
     }
 )
+# schemars derives the JSON Schema of the contract types and performs no I/O (ADR 0030 G4),
+# without its preserve_order feature. The set lists every crate `cargo tree` reaches from it
+# beyond SERDE: its derive and the serde attribute parser it reads, and the two helpers of its
+# schema type (dyn-clone, ref-cast with its macro).
+# Reviewed on 2026-11-20 in #301: ref-cast has a build script that runs `rustc --version` and
+# writes into OUT_DIR, nothing runs at run time; dyn-clone and ref-cast contain confined
+# unsafe (the clone of a trait object, a cast between repr(transparent) types), accepted.
+SCHEMARS = frozenset(
+    {
+        "schemars",
+        "schemars_derive",
+        "serde_derive_internals",
+        "dyn-clone",
+        "ref-cast",
+        "ref-cast-impl",
+    }
+)
 PURE_CRATES: dict[str, frozenset[str]] = {
-    "wayloop-schemas": SERDE,
-    "wayloop-core": SERDE | {"wayloop-schemas"},
+    "wayloop-schemas": SERDE | SCHEMARS,
+    "wayloop-core": SERDE | SCHEMARS | {"wayloop-schemas"},
 }
 
 # Dependencies point one way: a crate may depend only on the crates before it (ADR 0006).

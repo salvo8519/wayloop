@@ -257,7 +257,7 @@ fn a_valid_document_gives_no_error() {
 fn required_maps_to_missing() {
     let errors = check(&brief(), &without(valid_brief(), "problem"));
     let error = only(&errors);
-    assert_eq!(error.code(), CODE);
+    assert_eq!(error.code(), &CODE);
     assert_eq!(error.pointer(), &at("/problem"));
     assert_eq!(error.reason(), Reason::Missing);
     assert_eq!(error.expected(), None);
@@ -1036,6 +1036,24 @@ fn a_ref_to_a_def_of_the_same_file_is_followed() {
 }
 
 #[test]
+fn an_open_object_checks_its_declared_members_and_accepts_the_others() {
+    // Output snapshots are open (ADR 0009 C5, amended on 2026-11-20; ADR 0030 G2).
+    let open = json!({
+        "type": "object",
+        "required": ["a"],
+        "properties": {"a": {"type": "string"}, "b": {"type": "integer"}}
+    });
+    assert_eq!(check(&open, &json!({"a": "x", "unknown": [1]})), []);
+    assert_eq!(
+        found(&check(&open, &json!({"b": "x", "unknown": 1}))),
+        [
+            ("/b".to_owned(), Reason::Type),
+            ("/a".to_owned(), Reason::Missing)
+        ]
+    );
+}
+
+#[test]
 fn an_object_without_properties_is_open_and_a_closed_empty_one_takes_no_key() {
     assert_eq!(check(&json!({"type": "object"}), &json!({"any": 1})), []);
     let closed = json!({"type": "object", "additionalProperties": false});
@@ -1153,7 +1171,6 @@ fn malformed_values_of_keywords_are_refused_with_their_place() {
             json!({"$id": "x", "type": "object", "properties": {"a": {"$id": "y"}}, "additionalProperties": false}),
             "/properties/a/$id",
         ),
-        (json!({"type": "object", "properties": {"a": {}}}), ""),
         (
             json!({"type": "object", "additionalProperties": true}),
             "/additionalProperties",
@@ -1380,7 +1397,7 @@ proptest! {
         let errors = check(&faults_schema(), &document);
         prop_assert_eq!(errors.len(), faults.iter().filter(|f| **f).count());
         prop_assert_eq!(found(&errors), expected);
-        prop_assert!(errors.iter().all(|e| e.code() == CODE));
+        prop_assert!(errors.iter().all(|e| *e.code() == CODE));
     }
 
     /// ADR 0009 C2: setting optional members to null never adds an error, wherever the

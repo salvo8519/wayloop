@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 2c1ef09c68e9
+source_hash: 03740cba802a
 ---
 # Architettura
 
@@ -12,7 +12,7 @@ nell'[ADR 0001](https://salvo8519.github.io/wayloop/project/adr/0001-rust-engine
 
 | Componente | Percorso | Cosa fa oggi |
 | --- | --- | --- |
-| Schemi | `crates/wayloop-schemas` | Libreria Rust senza I/O, sede dei tipi dei contratti che rispecchiano gli schemi JSON: il report degli errori ([sotto](#gli-errori-sono-valori)) e l'envelope con i suoi codici di uscita ([sotto](#lenvelope)). |
+| Schemi | `crates/wayloop-schemas` | Libreria Rust senza I/O, sede dei tipi dei contratti che rispecchiano gli schemi JSON: il report degli errori ([sotto](#gli-errori-sono-valori)) e l'envelope con i suoi codici di uscita ([sotto](#lenvelope)). Ognuno deriva il proprio JSON Schema dentro il sottoinsieme del core ([sotto](#schemi-derivati-dai-tipi-dei-contratti)). |
 | Core | `crates/wayloop-core` | Libreria Rust senza I/O. Fissa il vocabolario del ciclo di un'issue: i nove passi in ordine, i loro identificativi stabili e quale passo è uno stato di approvazione. Riesporta l'errore di ogni rifiuto e l'envelope, e calcola l'hash di un input dal suo JSON canonico ([sotto](#lenvelope)). Legge gli schemi JSON dei contratti con un proprio interprete ([sotto](#linterprete-degli-schemi)). |
 | Runtime | `crates/wayloop-runtime` | Libreria Rust che esegue il lavoro deciso dal core ([sotto](#core-sincrono-runtime-asincrono)). Non contiene ancora codice. |
 | Riga di comando | `crates/wayloop-cli` | Il binario `wayloop`, solo un adattatore: legge gli argomenti, chiama il core e stampa JSON. Comandi: `version` e `steps` ([riferimento](../reference/index.md)). |
@@ -55,7 +55,11 @@ wayloop-schemas    tipi dei contratti, niente I/O
 - **Dipendenze solo da un elenco approvato.** Ogni crate puro può dipendere solo dai crate
   della propria allowlist, approvata in revisione. Entrambi possono usare `serde` con le sue
   macro derive e `serde_json`, che non fanno I/O, con i crate che raggiungono (`serde_core`,
-  `serde_derive`, `proc-macro2`, `quote`, `syn`, `unicode-ident`, `itoa`, `zmij`, `memchr`);
+  `serde_derive`, `proc-macro2`, `quote`, `syn`, `unicode-ident`, `itoa`, `zmij`, `memchr`),
+  e `schemars`, che deriva il JSON Schema dei tipi dei contratti e non fa I/O, senza la sua
+  feature `preserve_order`, con i crate che raggiunge (`schemars_derive`,
+  `serde_derive_internals`, `dyn-clone`, `ref-cast`, `ref-cast-impl`)
+  ([ADR 0030](https://salvo8519.github.io/wayloop/project/adr/0030-contracts-generated-from-rust-types/));
   `wayloop-core` può usare anche `wayloop-schemas`, e `wayloop-schemas` nessun crate di
   Wayloop. `scripts/check_core_io.py` risolve ogni crate puro da solo con
   `cargo tree` (dipendenze normali, ogni target, tutte le sue feature, il lock file lasciato
@@ -199,10 +203,11 @@ esadecimale minuscolo, così lo stesso input dà lo stesso hash su ogni canale e
 
 ### L'interprete degli schemi
 
-Gli schemi dei contratti sono file JSON Schema (draft 2020-12) scritti a mano. Il core li legge
-con un piccolo interprete di un sottoinsieme documentato, `wayloop_core::schema`, così che ogni
-errore di un documento sia riportato in un solo passaggio con il suo puntatore e il suo
-motivo, e il core non abbia bisogno di un crate di validazione (piano della SPEC-0001, D5). Uno
+Gli schemi dei contratti sono JSON Schema (draft 2020-12), derivati dai tipi dei contratti
+(vedi la sezione seguente). Il core li legge con un piccolo interprete di un sottoinsieme
+documentato, `wayloop_core::schema`, così che ogni errore di un documento sia riportato in un
+solo passaggio con il suo puntatore e il suo motivo, e il core non abbia bisogno di un crate
+di validazione (piano della SPEC-0001, D5). Uno
 schema che usa una parola chiave fuori dal sottoinsieme, o una parola chiave fuori dal suo
 posto, è rifiutato quando viene caricato: nessuna regola di uno schema è ignorata in silenzio.
 
@@ -215,7 +220,7 @@ posto, è rifiutato quando viene caricato: nessuna regola di uno schema è ignor
 | `minimum`, `maximum` | Limiti interi inclusi, accanto a `type: integer` | `range` |
 | `format` | Un formato con nome del core, sulle stringhe | `syntax`, con un valore corretto in `fix` quando si può ricavare |
 | `items` | Schema di ogni elemento di un array | |
-| `properties` con `additionalProperties: false` | Schema di ogni membro dichiarato; ogni altro membro è rifiutato | `unknown_field`, con la chiave dichiarata più vicina in `fix` |
+| `properties` | Schema di ogni membro dichiarato; con `additionalProperties: false` ogni altro membro è rifiutato, senza l'oggetto è aperto e gli altri membri sono accettati senza controllo, come negli schemi di output (ADR 0009 C5, modificato il 2026-11-20) | `unknown_field`, con la chiave dichiarata più vicina in `fix` |
 | `required` | Membri dichiarati che devono essere presenti | `missing` |
 | `if` e `then`, `allOf` | Requisiti condizionali: quando il valore soddisfa la condizione di `if`, i membri del `required` di `then` devono essere presenti; `allOf` elenca coppie di questo tipo | `requires`, con i membri verificati dalla condizione in `pointers` |
 | `$ref`, `$defs` | Un riferimento a una definizione dello stesso file, il cui nome non contiene `/`, `~` o `%` | |
@@ -229,7 +234,9 @@ identificativi di ogni tipo di artefatto (`brief-id`, `council-id`, `gate-id`, `
 `story-id`, `spec-id`, `change-id`, `task-id`, `milestone-id`, `handover-id`) e gli
 identificativi delle parti (`requirement-id`, `criterion-id`, `decision-id`, `question-id`),
 con le forme canoniche della SPEC-0001. La documentazione del modulo elenca ogni forma e ogni
-correzione.
+correzione. L'elenco dei formati con nome è un solo enum, `wayloop_schemas::Format`, e il
+controllo dei formati del core lo esamina in modo esaustivo: un formato aggiunto all'enum non
+compila finché il core non lo controlla.
 
 - **Null.** Un membro di un oggetto impostato a `null` non è dato, esattamente come un membro
   assente (ADR 0009 C2): accettato se facoltativo, `missing` se obbligatorio, mai un campo
@@ -265,3 +272,55 @@ correzione.
   a null, e al suo verdetto si aggiunge il limite degli interi; il limite è controllato su ogni
   numero, il che coincide con l'interprete solo per i documenti che il loro schema descrive
   per intero, come i documenti dei test.
+
+### Schemi derivati dai tipi dei contratti
+
+Ogni tipo dei contratti di `wayloop-schemas` deriva il proprio JSON Schema con `schemars`, e i
+suoi commenti di documentazione diventano le descrizioni
+([ADR 0030](https://salvo8519.github.io/wayloop/project/adr/0030-contracts-generated-from-rust-types/)).
+`wayloop_schemas::contract::schema_for` restituisce lo schema di un tipo per una direzione,
+input o output, e non scrive alcun file; `contract::TYPES` elenca ogni tipo dei contratti il cui
+schema è derivato. Ogni tipo dei contratti rilegge anche ciò che scrive: un documento che il
+suo schema accetta si deserializza nel tipo, che riscrive lo stesso JSON
+(`contract::reread`). Un enum chiuso è scritto con la macro `closed_enum!` di
+`wayloop_schemas::ident`, con una sola grafia per valore, letta da `id()`, `from_id()` e
+`Display`; due valori con la stessa grafia non compilano. Un enum chiuso di un contratto
+(`Reason`, `NotDoneReason`) è scritto con `contract_enum!`, così che la sua forma serializzata
+e i valori del suo schema leggano la stessa grafia; `Format`, il cui valore è scritto da
+`contract::rules::formatted` tramite `id()`, e `IssueStep`, che non compare ancora in alcun
+contratto, usano `closed_enum!`; `ExitCode`, un numero per contratto (ADR 0009 C7), non ha
+grafia. Un identificativo statico (`Code`, `Check`, `DefaultReason`) è
+scritto con `static_id!`: le costanti del motore prendono in prestito il loro testo, un
+valore letto da un documento lo possiede. Ciò che la derive non scrive è scritto una sola
+volta, nel modulo `contract`:
+
+| Esigenza | Come è scritta |
+| --- | --- |
+| Un requisito condizionale | Una funzione del tipo, indicata in `#[schemars(transform = ...)]`, chiama `contract::rules::require_if_present` o `require_if_equals`, che aggiungono a `allOf` una coppia di `if` e `then` |
+| Un formato con nome | Una forma di valore implementa `JsonSchema` a mano con `contract::rules::formatted`, a partire da un valore di `Format` |
+| Assente, non null | Un membro facoltativo, fuori da `required`, perde il tipo `null` che la derive aggiunge a un `Option` |
+| Un valore di enum con il suo significato | Un `oneOf` di costanti documentate diventa un `enum`, e ogni valore è aggiunto alla descrizione come riga ``- `valore`: significato`` |
+| Un qualsiasi valore JSON | Lo schema booleano `true` diventa uno schema oggetto con una descrizione |
+| Formati degli interi | Un `format` come `uint32` è rimosso; il tipo e i limiti restano |
+| Input chiusi, output aperti | In un input ogni oggetto senza `additionalProperties` riceve `additionalProperties: false`; un output non ne ha |
+
+Le righe di un commento di documentazione sono unite in paragrafi, perché vanno a capo alla
+larghezza del codice. Il generatore poi verifica le regole dei contratti che non sono regole
+del sottoinsieme: una descrizione sulla radice, su ogni definizione e su ogni membro (una fatta
+solo di spazi non conta), il significato di ogni valore di enum nella sua descrizione, nessun
+`additionalProperties` in un output, e al massimo quattro livelli di oggetti (ADR 0009 C4). Il
+sottoinsieme ha una sola definizione, il caricatore dell'interprete (ADR 0030 G3):
+`wayloop_core::schema::contract_schema` esegue i controlli del generatore e poi
+`Schema::load` su un tipo registrato, e fallisce con `ContractFault::Rule` o
+`ContractFault::Subset`. Un tipo `null`, le parole chiave `pattern`, `default` e
+`uniqueItems`, un formato senza nome, uno schema booleano o una mappa in un input sono
+rifiutati lì, al loro posto.
+
+Un tipo la cui forma serializzata la derive non sa descrivere nel sottoinsieme ha un tipo di
+forma privato per il proprio schema e per la lettura: `Source`, le cui forme sono un solo
+oggetto con membri facoltativi e `file` e `line` dati insieme, che il tipo legge come
+esattamente una forma, ed `ErrorReport`, i membri del suo primo errore uniti a `errors`, letto
+solo quando `errors` comincia con quei membri. I test del core eseguono `contract_schema` su
+ogni tipo di `contract::TYPES` in entrambe le direzioni, verificano ogni schema con l'oracolo
+rispetto al meta-schema della draft 2020-12, e verificano che i valori serializzati dei tipi
+siano accettati e riletti nello stesso JSON.

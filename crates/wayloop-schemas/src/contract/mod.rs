@@ -1,0 +1,188 @@
+//! JSON Schemas of the contract types, derived with `schemars` inside the subset that the core
+//! interprets (ADR 0030 G1 to G4).
+//!
+//! Every contract type derives [`schemars::JsonSchema`]; its doc comments become the
+//! descriptions. [`schema_for`] generates the schema of a type for one direction of a contract
+//! and returns it, or the first place where it leaves the rules; it writes no file. What the
+//! derive does not produce is written once, here:
+//!
+//! - [`rules`]: helpers for the types, used in `#[schemars(transform = ...)]` attributes and in
+//!   hand-written implementations: conditional requirements and named formats.
+//! - The transform of the generator, applied to every schema it produces:
+//!   - an optional member, left out of `required`, gets no `null` type: absent means not
+//!     given (ADR 0009 C2);
+//!   - a `oneOf` of documented constants becomes an `enum`, with the meaning of each value
+//!     appended to the description (ADR 0024);
+//!   - the boolean schema `true`, any JSON value, becomes an object schema with a description;
+//!   - an integer `format` such as `uint32` is removed: the type and the bounds remain;
+//!   - in the input direction every object is closed with `additionalProperties: false`; in
+//!     the output direction objects stay open (ADR 0009 C5, as amended on 2026-11-20).
+//! - The checks of the generator, after the transform, for the rules that are not rules of the
+//!   subset: a description on the root, on every definition and on every member (one of
+//!   blanks only is none), the meaning of every enum value in its description, no
+//!   `additionalProperties` in an output, and at most four levels of objects (ADR 0009 C4).
+//!
+//! The subset has one definition, the loader of the core (`wayloop_core::schema::Schema::load`,
+//! ADR 0030 G3): `wayloop_core::schema::contract_schema` runs these checks and then the loader
+//! on a type of [`TYPES`].
+
+mod check;
+pub mod rules;
+mod transform;
+
+#[cfg(test)]
+mod tests;
+
+use core::fmt;
+
+use schemars::JsonSchema;
+use schemars::generate::SchemaSettings;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+use serde_json::Value;
+
+use crate::{
+    Check, Code, DefaultApplied, DefaultReason, Diagnostics, Error, ErrorReport, InputHash, Meta,
+    NotDone, NotDoneReason, Pointer, Reason, Source,
+};
+
+/// Deepest nesting of objects in a contract, the root object included (ADR 0009 C4).
+pub const MAX_OBJECT_LEVELS: usize = 4;
+
+/// Whether a schema describes what the engine reads or what it writes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Direction {
+    /// What a client sends: every object is closed, an unknown member is refused.
+    Input,
+    /// What the engine writes: objects are open, clients accept members they do not know.
+    Output,
+}
+
+/// Why a generated schema leaves the rules of the contracts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Problem {
+    /// The root, a definition or a member has no description.
+    MissingDescription,
+    /// An enum value whose meaning the description does not give.
+    UndocumentedValue(String),
+    /// `additionalProperties` in an output, written by the derive (for example
+    /// `deny_unknown_fields`) or by a map: an output is open (ADR 0009 C5).
+    ClosedOutput,
+    /// Objects nested deeper than [`MAX_OBJECT_LEVELS`].
+    TooDeep,
+}
+
+/// A generated schema that leaves the rules of the contracts, and where.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContractError {
+    /// Pointer into the generated schema.
+    pub pointer: Pointer,
+    /// What is wrong.
+    pub problem: Problem,
+}
+
+impl fmt::Display for ContractError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let place = if self.pointer.as_str().is_empty() {
+            "the root of the schema"
+        } else {
+            self.pointer.as_str()
+        };
+        match &self.problem {
+            Problem::MissingDescription => write!(f, "at {place}: no description"),
+            Problem::UndocumentedValue(value) => write!(
+                f,
+                "at {place}: the description gives no meaning for the value {value}"
+            ),
+            Problem::ClosedOutput => write!(
+                f,
+                "at {place}: `additionalProperties` in an output, which is open"
+            ),
+            Problem::TooDeep => write!(
+                f,
+                "at {place}: objects nested deeper than {MAX_OBJECT_LEVELS} levels"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ContractError {}
+
+/// The schema of `T` for `direction`, inside the rules of the contracts.
+///
+/// The schema describes the serialised form of `T` for an output and the form it reads for an
+/// input. Members are in the byte order of their keys; `required` keeps the order of
+/// declaration.
+///
+/// # Errors
+///
+/// A [`ContractError`] naming the first place found where the schema leaves the rules of this
+/// module.
+pub fn schema_for<T: JsonSchema>(direction: Direction) -> Result<Value, ContractError> {
+    let settings = SchemaSettings::draft2020_12();
+    let settings = match direction {
+        Direction::Input => settings.for_deserialize(),
+        Direction::Output => settings.for_serialize(),
+    };
+    let schema = settings
+        .with_transform(transform::Subset { direction })
+        .into_generator()
+        .into_root_schema_for::<T>()
+        .to_value();
+    check::check(&schema, direction)?;
+    Ok(schema)
+}
+
+/// A contract type, the function that generates its schema, and the one that reads a document
+/// into the type and writes it again (the round trip of ADR 0030 G1).
+#[derive(Debug, Clone, Copy)]
+pub struct Registered {
+    /// Name of the type, which is also the `title` of its schema.
+    pub name: &'static str,
+    /// [`schema_for`] the type.
+    pub schema: fn(Direction) -> Result<Value, ContractError>,
+    /// [`reread`] into the type.
+    pub reread: fn(&Value) -> Result<Value, serde_json::Error>,
+}
+
+/// `document` read into `T` and written again: a document the schema of `T` accepts must give
+/// itself back, members set to null and members `T` does not know left out.
+///
+/// # Errors
+///
+/// The error of `serde_json` when `document` is not a value of `T`.
+pub fn reread<T: Serialize + DeserializeOwned>(
+    document: &Value,
+) -> Result<Value, serde_json::Error> {
+    serde_json::to_value(T::deserialize(document)?)
+}
+
+/// The registration of a contract type, named as written.
+macro_rules! registered {
+    ($t:ty) => {
+        Registered {
+            name: stringify!($t),
+            schema: schema_for::<$t>,
+            reread: reread::<$t>,
+        }
+    };
+}
+
+/// Every contract type of this crate whose schema is derived. The envelope joins with its
+/// generic form (ADR 0030 G1).
+pub const TYPES: [Registered; 14] = [
+    registered!(Check),
+    registered!(Code),
+    registered!(DefaultApplied),
+    registered!(DefaultReason),
+    registered!(Diagnostics),
+    registered!(Error),
+    registered!(ErrorReport),
+    registered!(InputHash),
+    registered!(Meta),
+    registered!(NotDone),
+    registered!(NotDoneReason),
+    registered!(Pointer),
+    registered!(Reason),
+    registered!(Source),
+];

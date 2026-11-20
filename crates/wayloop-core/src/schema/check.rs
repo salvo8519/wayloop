@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use serde_json::{Map, Value};
 
 use super::closest::closest;
+use super::format;
 use super::load::{Compiled, Node, Rules, Type, Values};
 use crate::{Code, Error, Pointer, Reason};
 
@@ -90,7 +91,7 @@ pub(super) struct Checker<'s> {
 
 impl Checker<'_> {
     fn error(&self, message: String, pointer: &Pointer, reason: Reason) -> Error {
-        Error::new(self.code, message, pointer.clone(), reason)
+        Error::new(self.code.clone(), message, pointer.clone(), reason)
     }
 
     fn push(&mut self, message: String, pointer: &Pointer, reason: Reason) {
@@ -161,13 +162,13 @@ impl Checker<'_> {
             self.push(message, pointer, Reason::Length);
         }
         if let Some(format) = rules.format {
-            if !format.accepts(text) {
+            if !format::accepts(format, text) {
                 let message = format!(
                     "The text is not in the form of the format `{}`.",
-                    format.name()
+                    format.id()
                 );
                 let mut error = self.error(message, pointer, Reason::Syntax);
-                if let Some(fix) = format.fix(text) {
+                if let Some(fix) = format::fix(format, text) {
                     error = error.with_fix(fix);
                 }
                 self.errors.push(error);

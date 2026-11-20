@@ -14,11 +14,12 @@
 //! or an absolute path (SPEC-0004 R15), and the values the engine writes in it come from the
 //! input, the command and the engine version only.
 
-use core::fmt;
 use core::num::NonZeroU32;
 
+use schemars::JsonSchema;
+use serde::de::Error as _;
 use serde::ser::SerializeMap;
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use crate::{Error, ErrorReport, Pointer};
@@ -27,7 +28,8 @@ use crate::{Error, ErrorReport, Pointer};
 /// with a breaking change of the envelope itself (ADR 0009 C5).
 pub const ENVELOPE_VERSION: NonZeroU32 = NonZeroU32::MIN;
 
-/// Exit codes of the command line (ADR 0009 C7).
+/// Exit codes of the command line (ADR 0009 C7). An exit code is a number by contract, never
+/// spelt: [`ExitCode::code`] is the one source of each number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ExitCode {
     /// 0: the command succeeded.
@@ -71,9 +73,24 @@ impl ExitCode {
 
 /// The SHA-256 of the canonical JSON (RFC 8785) of the input, in lower-case hexadecimal:
 /// `meta.input_hash` (ADR 0009 C1). It serialises as its string.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, JsonSchema)]
 #[serde(transparent)]
-pub struct InputHash(String);
+pub struct InputHash(#[schemars(length(min = 64, max = 64))] String);
+
+/// Reads the text of a hash and refuses one that is not 64 lower-case hexadecimal digits.
+impl<'de> Deserialize<'de> for InputHash {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        let hexadecimal = |b: u8| b.is_ascii_digit() || (b'a'..=b'f').contains(&b);
+        if text.len() == 64 && text.bytes().all(hexadecimal) {
+            Ok(Self(text))
+        } else {
+            Err(D::Error::custom(
+                "an input hash is 64 lower-case hexadecimal digits",
+            ))
+        }
+    }
+}
 
 impl InputHash {
     /// The hash written from its 32 bytes.
@@ -96,55 +113,53 @@ impl InputHash {
     }
 }
 
-/// Why the engine applied a default: a stable `snake_case` identifier, the field `reason` of an
-/// entry of `meta.defaults_applied`. Each value is a constant of the core, documented with the
-/// command that applies it; it is not a reason of C3. It serialises as its identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-#[serde(transparent)]
-pub struct DefaultReason(&'static str);
-
-impl DefaultReason {
-    /// A reason with the given `snake_case` identifier.
-    #[must_use]
-    pub const fn new(id: &'static str) -> Self {
-        Self(id)
-    }
-
-    /// The identifier written in `reason`.
-    #[must_use]
-    pub const fn id(self) -> &'static str {
-        self.0
-    }
-}
-
-impl fmt::Display for DefaultReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.0)
-    }
+crate::static_id! {
+    /// Why the engine applied a default: a stable `snake_case` identifier, the field `reason` of an
+    /// entry of `meta.defaults_applied`. Each value is a constant of the core, documented with the
+    /// command that applies it; it is not a reason of C3. It serialises as its identifier.
+    pub struct DefaultReason;
 }
 
 /// A default the engine applied on behalf of the caller (ADR 0009 C2): an entry of
 /// `meta.defaults_applied`, `{pointer, value, reason, message}`. `message` is optional and left
-/// out of the serialised form when not given.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// out of the serialised form when not given. The value applied is never null: null means not
+/// given (C2).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DefaultApplied {
+    /// RFC 6901 pointer, from the root of the input, to where the default applies.
     pointer: Pointer,
+    /// The value applied.
+    #[serde(deserialize_with = "not_null")]
+    #[schemars(with = "Value")]
     value: Value,
+    /// Stable `snake_case` identifier of why the default applies, documented with the command
+    /// that applies it.
     reason: DefaultReason,
+    /// Why the default applies, for a person; absent when not given.
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
 }
 
+/// Reads a value and refuses null, which means not given (ADR 0009 C2).
+fn not_null<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Value, D::Error> {
+    match Value::deserialize(deserializer)? {
+        Value::Null => Err(D::Error::custom("the value applied is null")),
+        value => Ok(value),
+    }
+}
+
 impl DefaultApplied {
-    /// The default `value` applied at `pointer` of the input, for `reason`.
+    /// The default `value` applied at `pointer` of the input, for `reason`; `None` when `value`
+    /// is null, which means not given (ADR 0009 C2): a default is a value.
     #[must_use]
-    pub fn new(pointer: Pointer, value: impl Into<Value>, reason: DefaultReason) -> Self {
-        Self {
+    pub fn new(pointer: Pointer, value: impl Into<Value>, reason: DefaultReason) -> Option<Self> {
+        let value = value.into();
+        (!value.is_null()).then_some(Self {
             pointer,
-            value: value.into(),
+            value,
             reason,
             message: None,
-        }
+        })
     }
 
     /// The entry with a `message` for a person.
@@ -168,8 +183,8 @@ impl DefaultApplied {
 
     /// Why the default applies.
     #[must_use]
-    pub const fn reason(&self) -> DefaultReason {
-        self.reason
+    pub const fn reason(&self) -> &DefaultReason {
+        &self.reason
     }
 
     /// Why the default applies, for a person; `None` when not given.
@@ -179,70 +194,34 @@ impl DefaultApplied {
     }
 }
 
-/// A check of the engine: a stable `snake_case` identifier, written in `diagnostics.checks`
-/// and in `diagnostics.not_done`. Each value is a constant of the core, documented with the
-/// command that runs it. It serialises as its identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
-#[serde(transparent)]
-pub struct Check(&'static str);
-
-impl Check {
-    /// A check with the given `snake_case` identifier.
-    #[must_use]
-    pub const fn new(id: &'static str) -> Self {
-        Self(id)
-    }
-
-    /// The identifier written in the diagnostics.
-    #[must_use]
-    pub const fn id(self) -> &'static str {
-        self.0
-    }
+crate::static_id! {
+    /// A check of the engine: a stable `snake_case` identifier, written in `diagnostics.checks`
+    /// and in `diagnostics.not_done`. Each value is a constant of the core, documented with the
+    /// command that runs it. It serialises as its identifier.
+    pub struct Check;
 }
 
-impl fmt::Display for Check {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.0)
-    }
-}
-
-/// Why a check was not run: the field `reason` of an entry of `diagnostics.not_done`. It
-/// serialises as [`NotDoneReason::id`]; clients accept values they do not know (C5).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum NotDoneReason {
-    /// The part of the engine that runs the check is not built yet.
-    NotBuilt,
-    /// The input the check needs was not given, for example the base revision of a status
-    /// check.
-    InputAbsent,
-}
-
-impl NotDoneReason {
-    /// All reasons, in order.
-    pub const ALL: [NotDoneReason; 2] = [NotDoneReason::NotBuilt, NotDoneReason::InputAbsent];
-
-    /// Stable identifier, as it appears in `reason`.
-    #[must_use]
-    pub const fn id(self) -> &'static str {
-        match self {
-            NotDoneReason::NotBuilt => "not_built",
-            NotDoneReason::InputAbsent => "input_absent",
-        }
-    }
-}
-
-impl fmt::Display for NotDoneReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.id())
+crate::contract_enum! {
+    /// Why a check was not run: the field `reason` of an entry of `diagnostics.not_done`. It
+    /// serialises as its identifier; clients accept values they do not know (C5).
+    pub enum NotDoneReason {
+        /// The part of the engine that runs the check is not built yet.
+        NotBuilt = "not_built",
+        /// The input the check needs was not given, for example the base revision of a status
+        /// check.
+        InputAbsent = "input_absent",
     }
 }
 
 /// A check the engine did not run, and why: an entry of `diagnostics.not_done`,
 /// `{check, reason}`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
 pub struct NotDone {
+    /// Identifier of the check, documented with the command that runs it.
     check: Check,
+    /// Why the check was not run.
     reason: NotDoneReason,
 }
 
@@ -255,13 +234,13 @@ impl NotDone {
 
     /// The check not run.
     #[must_use]
-    pub const fn check(self) -> Check {
-        self.check
+    pub const fn check(&self) -> &Check {
+        &self.check
     }
 
     /// Why it was not run.
     #[must_use]
-    pub const fn reason(self) -> NotDoneReason {
+    pub const fn reason(&self) -> NotDoneReason {
         self.reason
     }
 }
@@ -278,11 +257,15 @@ pub enum Outcome {
     Failed(ErrorReport),
 }
 
-/// The field `diagnostics`: what the engine reports beside the result.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
+/// The field `diagnostics`: what the engine reports beside the result. All three lists are
+/// always written, `[]` when empty.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
 pub struct Diagnostics {
+    /// Warnings, in the shape of an error; the input is not refused for them.
     warnings: Vec<Error>,
+    /// Checks the engine did not run, each with its reason.
     not_done: Vec<NotDone>,
+    /// Identifiers of the checks the engine ran, documented with the command that runs them.
     checks: Vec<Check>,
 }
 
@@ -317,14 +300,21 @@ impl Diagnostics {
     }
 }
 
-/// The field `meta`: how the result was produced.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// The field `meta`: how the result was produced; nothing in it depends on the machine or the
+/// moment.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Meta {
+    /// Version of the engine that produced the result.
     engine_version: String,
+    /// Version of the shape of the envelope, from 1.
     envelope_version: NonZeroU32,
+    /// Version of the input and output schemas of the command, from 1.
     command_version: NonZeroU32,
+    /// SHA-256, in lower-case hexadecimal, of the canonical JSON (RFC 8785) of the input.
     input_hash: InputHash,
+    /// Whether the command only reported the changes it would make.
     dry_run: bool,
+    /// Every default the engine applied, in order (ADR 0009 C2); `[]` when none.
     defaults_applied: Vec<DefaultApplied>,
 }
 
@@ -617,12 +607,14 @@ mod tests {
             true,
             vec![
                 DefaultApplied::new(at("/language"), "en", PROJECT_LANGUAGE)
+                    .unwrap()
                     .with_message("The language of the project applies."),
                 DefaultApplied::new(
                     at("/policy"),
                     json!({}),
                     DefaultReason::new("default_policy"),
-                ),
+                )
+                .unwrap(),
             ],
         );
         assert_eq!(meta.envelope_version(), ENVELOPE_VERSION);
@@ -644,10 +636,10 @@ mod tests {
 
     #[test]
     fn a_default_reason_is_an_identifier_and_its_message_is_optional() {
-        let applied = DefaultApplied::new(at("/a"), 1, PROJECT_LANGUAGE);
+        let applied = DefaultApplied::new(at("/a"), 1, PROJECT_LANGUAGE).unwrap();
         assert_eq!(applied.pointer(), &at("/a"));
         assert_eq!(applied.value(), &json!(1));
-        assert_eq!(applied.reason(), PROJECT_LANGUAGE);
+        assert_eq!(applied.reason(), &PROJECT_LANGUAGE);
         assert_eq!(applied.reason().id(), "project_language");
         assert_eq!(PROJECT_LANGUAGE.to_string(), "project_language");
         assert_eq!(applied.message(), None);
@@ -673,10 +665,11 @@ mod tests {
         );
         let warning = Error::new(INVALID_INPUT, "Old ADR.", at("/related/0"), Reason::State);
         let skipped = NotDone::new(LINKS, NotDoneReason::InputAbsent);
-        let diagnostics = Diagnostics::new(vec![warning.clone()], vec![skipped], vec![SCHEMA]);
+        let diagnostics =
+            Diagnostics::new(vec![warning.clone()], vec![skipped.clone()], vec![SCHEMA]);
         assert_eq!(diagnostics.warnings(), core::slice::from_ref(&warning));
-        assert_eq!(diagnostics.not_done(), [skipped]);
-        assert_eq!(skipped.check(), LINKS);
+        assert_eq!(diagnostics.not_done(), core::slice::from_ref(&skipped));
+        assert_eq!(skipped.check(), &LINKS);
         assert_eq!(skipped.reason(), NotDoneReason::InputAbsent);
         assert_eq!(diagnostics.checks(), [SCHEMA]);
         assert_eq!(SCHEMA.id(), "schema");
@@ -698,10 +691,62 @@ mod tests {
         assert_eq!(meta.input_hash(), &hash());
         assert!(!meta.dry_run());
         assert_eq!(meta.defaults_applied(), []);
+        // Values other than the defaults, so that an accessor returning a constant fails.
+        let applied = DefaultApplied::new(at("/a"), 1, PROJECT_LANGUAGE).unwrap();
+        let other = Meta::new(
+            "0.0.0",
+            NonZeroU32::MIN,
+            hash(),
+            true,
+            vec![applied.clone()],
+        );
+        assert!(other.dry_run());
+        assert_eq!(other.defaults_applied(), [applied]);
         let envelope = envelope(Outcome::Refused(refusal()));
         assert_eq!(envelope.command(), "validate");
         assert_eq!(envelope.outcome(), &Outcome::Refused(refusal()));
         assert_eq!(envelope.diagnostics(), &Diagnostics::default());
         assert_eq!(envelope.meta(), &meta);
+    }
+
+    #[test]
+    fn a_default_is_a_value_never_null() {
+        // ADR 0009 C2: null means not given, and the schema of an entry refuses it.
+        assert_eq!(
+            DefaultApplied::new(at("/a"), serde_json::Value::Null, PROJECT_LANGUAGE),
+            None
+        );
+        let read = serde_json::from_value::<DefaultApplied>(
+            json!({"pointer": "/a", "value": null, "reason": "project_language"}),
+        );
+        assert!(read.unwrap_err().to_string().contains("null"));
+    }
+
+    #[test]
+    fn an_input_hash_is_read_only_in_its_form() {
+        let hash = hash();
+        let read: InputHash = serde_json::from_value(json!(hash.as_str())).unwrap();
+        assert_eq!(read, hash);
+        for wrong in [
+            "ab".to_owned(),
+            hash.as_str().to_uppercase(),
+            format!("{}0", hash.as_str()),
+            "g".repeat(64),
+        ] {
+            assert!(
+                serde_json::from_value::<InputHash>(json!(wrong)).is_err(),
+                "{wrong}"
+            );
+        }
+    }
+
+    #[test]
+    fn identifiers_read_from_a_document_own_their_text() {
+        let check: Check = serde_json::from_value(json!("links")).unwrap();
+        assert_eq!(check, LINKS);
+        assert_eq!(check.id(), "links");
+        let reason: NotDoneReason = serde_json::from_value(json!("not_built")).unwrap();
+        assert_eq!(reason, NotDoneReason::NotBuilt);
+        assert!(serde_json::from_value::<NotDoneReason>(json!("later")).is_err());
     }
 }
