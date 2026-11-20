@@ -1,12 +1,13 @@
 //! Closed enums and static identifiers of the contracts, each written once.
 //!
-//! A closed enum has one spelling per value, written once in [`closed_enum!`]: `id()`,
-//! `from_id()` and `Display` read it, and two values with the same spelling do not compile. A
-//! closed enum of a contract (a reason, a format) is written with [`contract_enum!`]: its
-//! serialised form and the values of its JSON Schema read the same spelling, and the doc
-//! comments of the enum and of each value are the descriptions of its schema. A static
-//! identifier (a code, a check, the reason of a default) is written once in [`static_id!`]:
-//! constants of the engine borrow their text, values read from a document own it.
+//! A closed enum has one spelling per value, written once in
+//! [`closed_enum!`](crate::closed_enum!): `id()`, `from_id()` and `Display` read it, and two
+//! values with the same spelling do not compile. A closed enum of a contract (a reason, a
+//! format) is written with [`contract_enum!`](crate::contract_enum!): its serialised form and
+//! the values of its JSON Schema read the same spelling, and the doc comments of the enum and
+//! of each value are the descriptions of its schema. A static identifier (a code, a check, the
+//! reason of a default) is written once in [`static_id!`](crate::static_id!): constants of the
+//! engine borrow their text, values read from a document own it.
 //!
 //! The macros write `Serialize`, `Deserialize` and `JsonSchema` by hand, through paths of this
 //! crate, so a crate that uses them needs neither `serde` nor `schemars` among its own
@@ -170,8 +171,8 @@ macro_rules! closed_enum {
     };
 }
 
-/// A closed enum of a contract: a [`closed_enum!`] whose spelling is also its serialised form
-/// and the values of its JSON Schema.
+/// A closed enum of a contract: a [`closed_enum!`](crate::closed_enum!) whose spelling is also
+/// its serialised form and the values of its JSON Schema.
 ///
 /// ```
 /// wayloop_schemas::contract_enum! {
@@ -188,11 +189,11 @@ macro_rules! closed_enum {
 /// assert!(serde_json::from_str::<Light>(r#""blue""#).is_err());
 /// ```
 ///
-/// On top of [`closed_enum!`] the enum gets `Serialize`, which writes `id()` as a string;
-/// `Deserialize`, which reads a spelling and refuses any other text; and `JsonSchema`, whose
-/// descriptions are the doc comments. The type reads documents of its own version of the
-/// contract: a client that reads a newer version treats the member as a string and accepts
-/// values it does not know (ADR 0009 C5).
+/// On top of [`closed_enum!`](crate::closed_enum!) the enum gets `Serialize`, which writes
+/// `id()` as a string; `Deserialize`, which reads a spelling and refuses any other text; and
+/// `JsonSchema`, whose descriptions are the doc comments. The type reads documents of its own
+/// version of the contract: a client that reads a newer version treats the member as a string
+/// and accepts values it does not know (ADR 0009 C5).
 #[macro_export]
 macro_rules! contract_enum {
     (
