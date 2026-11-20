@@ -69,23 +69,24 @@ wayloop-schemas    contract types, no I/O
   reviewed change to the script.
 - **No I/O in the source.** The compiler refuses it. Each pure crate forbids at its root the
   Clippy lints `print_stdout`, `print_stderr`, `dbg_macro`, `disallowed_methods` and
-  `disallowed_types`, and its `clippy.toml` lists the parts of the standard library that
-  perform I/O or read ambient state: files (`std::fs`), the network (`std::net`), processes
+  `disallowed_types`, and the `clippy.toml` of the workspace lists the parts of the standard
+  library that perform I/O or read ambient state: files (`std::fs`), the network (`std::net`), processes
   (`std::process`), the environment (`std::env`), the standard streams, threads, clock reads
   (`SystemTime::now`, `Instant::now`) and hash maps seeded at random (`HashMap`, `HashSet`;
   `BTreeMap` and `BTreeSet` are used instead). The lints follow name resolution, so an alias
   or a nested import does not escape them, and `forbid`, unlike `deny`, cannot be lifted by an
-  `allow` further in. `cargo clippy` applies them in `just check` and in CI;
-  `scripts/check_core_io.py` fails when the attribute or an entry of a `clippy.toml` is
-  removed.
+  `allow` further in. The workspace manifest allows the two `disallowed` lints, so the lists
+  do not bind the runtime and the command line; the `forbid` of a pure crate overrides that
+  level. `cargo clippy` applies them in `just check` and in CI; `scripts/check_core_io.py`
+  fails when the attribute or an entry of the `clippy.toml` read for a pure crate is removed.
 - **No panic.** Every crate of the workspace refuses the Clippy lints that let code panic or
   stop the process: `unwrap_used`, `expect_used`, `panic`, `todo`, `unimplemented`,
   `unreachable`, `indexing_slicing`, `string_slice`, `get_unwrap`, `panic_in_result_fn`, `exit`
   and `mem_forget`, on top of the `all` and `pedantic` groups. They are set in the workspace
   manifest and fail `cargo clippy -D warnings` in `just check` and in CI. Tests may unwrap,
-  expect, panic and index: each `clippy.toml` allows it in test code only, the root one for the
-  runtime and the command line, the one of each pure crate for that crate, because a crate's
-  file replaces the root one. A failure is an error value; the command line turns it into an
+  expect, panic and index: the `clippy.toml` of the workspace, the only one, allows it in test
+  code only. A crate has no `clippy.toml` of its own, because Clippy reads the file nearest to
+  the crate and would ignore the workspace one. A failure is an error value; the command line turns it into an
   exit code, even when it cannot write its output.
 
 ## Synchronous core, asynchronous runtime

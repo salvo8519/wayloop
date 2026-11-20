@@ -10,7 +10,7 @@
 //! The crate may depend only on the crates of its reviewed allowlist (`wayloop-schemas`, and
 //! `serde`, `serde_json` and `schemars` with the crates they reach), checked by
 //! `scripts/check_core_io.py`; I/O of the standard library in its source is refused by the
-//! Clippy lints forbidden below, with the paths listed in its `clippy.toml`.
+//! Clippy lints forbidden below, with the paths listed in the `clippy.toml` of the workspace.
 //!
 //! The crate fixes the vocabulary of the issue cycle, and holds the parts of the envelope of
 //! ADR 0009 that the entry point needs: the canonical JSON of RFC 8785 ([`canonical`]), a
@@ -18,8 +18,9 @@
 //! ([`envelope`]). The envelope types themselves are contract types of `wayloop-schemas`,
 //! re-exported here; [`Envelope`] is generic over the data of a command.
 
-// I/O is refused by the compiler: these lints read the clippy.toml of this crate, and forbid,
-// unlike deny, cannot be lifted by an inner allow. `scripts/check_core_io.py` keeps them here.
+// I/O is refused by the compiler: these lints read the clippy.toml of the workspace, forbid
+// overrides the level of the workspace lints, which allow them, and forbid, unlike deny,
+// cannot be lifted by an inner allow. `scripts/check_core_io.py` keeps them here.
 #![forbid(
     clippy::print_stdout,
     clippy::print_stderr,

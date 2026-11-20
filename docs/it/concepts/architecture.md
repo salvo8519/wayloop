@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 41c6ef4f488e
+source_hash: b1a5b6db906b
 ---
 # Architettura
 
@@ -16,7 +16,6 @@ nell'[ADR 0001](https://salvo8519.github.io/wayloop/project/adr/0001-rust-engine
 | Core | `crates/wayloop-core` | Libreria Rust senza I/O. Fissa il vocabolario del ciclo di un'issue: i nove passi in ordine, i loro identificativi stabili e quale passo è uno stato di approvazione. Riesporta l'errore di ogni rifiuto e l'envelope, e calcola l'hash di un input dal suo JSON canonico ([sotto](#lenvelope)). Legge gli schemi JSON dei contratti con un proprio interprete ([sotto](#linterprete-degli-schemi)). |
 | Runtime | `crates/wayloop-runtime` | Libreria Rust che esegue il lavoro deciso dal core ([sotto](#core-sincrono-runtime-asincrono)). Non contiene ancora codice. |
 | Riga di comando | `crates/wayloop-cli` | Il binario `wayloop`, solo un adattatore: legge gli argomenti, chiama il core e stampa JSON. Comandi: `version` e `steps` ([riferimento](../reference/index.md)). |
-| Generatore degli schemi | `crates/wayloop-schemagen` | Uno strumento del repository, non pubblicato: stampa gli snapshot dei contratti, che `uv run just generate` scrive in `schemas/` ([sotto](#snapshot-dei-contratti)). |
 | Contenuti per agenti | `.agents/` | Ruoli e skill nel formato aperto Agent Skills, con mirror generati per Claude Code. Servono a costruire Wayloop stesso. |
 | Processo | `roadmap/`, `specs/`, `sprints/`, `scripts/` | Il piano come codice, sincronizzato con le issue di GitHub; specifiche con requisiti numerati; corsie degli sprint con percorsi disgiunti; i controlli eseguiti dalla CI. |
 
@@ -26,8 +25,7 @@ costruiti, sono nella [roadmap](https://salvo8519.github.io/wayloop/project/road
 ## Struttura dei crate
 
 Il motore è un workspace Cargo di quattro crate. Ognuno ha un solo ruolo, e le dipendenze
-vanno in una sola direzione: verso i crate puri. Un quinto crate del workspace,
-`wayloop-schemagen`, è uno strumento al livello degli adattatori, mai pubblicato.
+vanno in una sola direzione: verso i crate puri.
 
 ```text
 wayloop-cli        adattatore: traduce un canale, non decide nulla
@@ -48,7 +46,6 @@ wayloop-schemas    tipi dei contratti, niente I/O
 | `wayloop-core` | Tutta la logica decisionale: modello degli artefatti, macchina a stati, regole del ledger | `wayloop-schemas` | No |
 | `wayloop-runtime` | Coda, worker in parallelo, chiamate al tracker, unico scrittore del ledger | `wayloop-core`, `wayloop-schemas` | Sì |
 | `wayloop-cli` e gli altri adattatori | Traduzione tra un canale e il motore | tutti i precedenti | Sì |
-| `wayloop-schemagen` | Stampa gli snapshot dei contratti; non pubblicato | `wayloop-core`, `wayloop-schemas` | Sì, solo lo standard output |
 
 - **Un solo punto di ingresso.** Il core espone una sola funzione a ogni canale: comando,
   input canonico e contesto in ingresso, envelope in uscita
@@ -76,23 +73,25 @@ wayloop-schemas    tipi dei contratti, niente I/O
   a revisione.
 - **Niente I/O nel sorgente.** Lo rifiuta il compilatore. Ogni crate puro vieta con `forbid`,
   alla propria radice, i lint di Clippy `print_stdout`, `print_stderr`, `dbg_macro`,
-  `disallowed_methods` e `disallowed_types`, e il suo `clippy.toml` elenca le parti della
-  libreria standard che fanno I/O o leggono lo stato dell'ambiente: file (`std::fs`), rete
+  `disallowed_methods` e `disallowed_types`, e il `clippy.toml` del workspace elenca le parti
+  della libreria standard che fanno I/O o leggono lo stato dell'ambiente: file (`std::fs`), rete
   (`std::net`), processi (`std::process`), ambiente (`std::env`), stream standard, thread,
   letture dell'orologio (`SystemTime::now`, `Instant::now`) e hash map con seme casuale
   (`HashMap`, `HashSet`; al loro posto si usano `BTreeMap` e `BTreeSet`). I lint seguono la
   risoluzione dei nomi, quindi un alias o un import annidato non li aggira, e `forbid`, a
-  differenza di `deny`, non può essere revocato da un `allow` più interno. `cargo clippy` li
+  differenza di `deny`, non può essere revocato da un `allow` più interno. Il manifest del
+  workspace consente i due lint `disallowed`, quindi gli elenchi non vincolano il runtime e la
+  riga di comando; il `forbid` di un crate puro prevale su quel livello. `cargo clippy` li
   applica in `just check` e nella CI; `scripts/check_core_io.py` fallisce se l'attributo o una
-  voce di un `clippy.toml` viene rimossa.
+  voce del `clippy.toml` letto per un crate puro viene rimossa.
 - **Niente panic.** Ogni crate del workspace rifiuta i lint di Clippy che permettono al codice
   di andare in panic o di fermare il processo: `unwrap_used`, `expect_used`, `panic`, `todo`,
   `unimplemented`, `unreachable`, `indexing_slicing`, `string_slice`, `get_unwrap`,
   `panic_in_result_fn`, `exit` e `mem_forget`, oltre ai gruppi `all` e `pedantic`. Sono fissati
   nel manifest del workspace e fanno fallire `cargo clippy -D warnings` in `just check` e nella
-  CI. I test possono usare unwrap, expect, panic e indici: ogni `clippy.toml` lo consente solo
-  nel codice di test, quello alla radice per il runtime e la riga di comando, quello di ogni
-  crate puro per il suo crate, perché il file di un crate sostituisce quello alla radice. Un
+  CI. I test possono usare unwrap, expect, panic e indici: il `clippy.toml` del workspace,
+  l'unico, lo consente solo nel codice di test. Un crate non ha un `clippy.toml` proprio,
+  perché Clippy legge il file più vicino al crate e ignorerebbe quello del workspace. Un
   fallimento è un valore di errore; la riga di comando lo traduce in un codice di uscita,
   anche quando non riesce a scrivere la propria uscita.
 
@@ -187,9 +186,9 @@ che il motore può costruire è quindi uno che il suo lettore accetta. Il lettor
 stessi casi, e un documento con sia `data` sia `error`, o con nessuno dei due. Lo schema
 richiede `error` quando `data` è assente; il sottoinsieme dell'interprete non ha negazione,
 quindi solo il tipo rifiuta la presenza di entrambi. Lo schema dell'envelope con dati qualsiasi
-è quello di `Envelope<Value>`, versionato come snapshot del contratto `envelope/result`; lo
-schema di output di un comando è l'envelope con il tipo dei dati di quel comando. I test del
-core caricano ogni snapshot con l'interprete e con l'oracolo.
+è quello di `Envelope<Value>`; lo schema di output di un comando è l'envelope con il tipo dei
+dati di quel comando. I test del core lo caricano, nel testo scritto da `contract::snapshot`,
+con l'interprete e con l'oracolo.
 
 `meta.input_hash` è lo SHA-256 dell'input serializzato come JSON canonico (RFC 8785), in
 esadecimale minuscolo, così lo stesso input dà lo stesso hash su ogni canale e piattaforma:
@@ -347,31 +346,3 @@ un a capo finale; non scrive alcun file. I test del core eseguono `contract_sche
 ogni tipo di `contract::TYPES` in entrambe le direzioni, verificano ogni schema con l'oracolo
 rispetto al meta-schema della draft 2020-12, e verificano che i valori serializzati dei tipi
 siano accettati e riletti nello stesso JSON.
-
-### Snapshot dei contratti
-
-Gli schemi dei contratti sono versionati in `schemas/` come snapshot, generati dai tipi
-([ADR 0030](https://salvo8519.github.io/wayloop/project/adr/0030-contracts-generated-from-rust-types/), G5 e G6). Un solo registro,
-`wayloop_schemas::contract::CONTRACTS`, elenca ogni contratto con la sua area (`artifacts`,
-`inputs`, `commands`, `envelope`), il suo nome, la sua versione corrente e il tipo e la
-direzione di ciascuno dei suoi file; oggi elenca l'envelope, `envelope/result`, alla versione di
-`meta.envelope_version`. Il binario `wayloop-schemagen` esegue `contract_schema` su ogni file di
-ogni versione corrente, ne scrive il testo con `contract::snapshot` e li stampa tutti come un
-solo documento JSON; non scrive alcun file. `scripts/schema_snapshots.py` scrive quei byte senza
-modificarli in `schemas/<area>/<name>/v<N>.json` (`v<N>.output.json` per l'output di un
-comando, `v<N>.input.json` per l'input di un passaggio di consegne), con la storia di ogni
-contratto in `schemas/<area>/<name>/index.json`.
-
-Una versione precedente a quella corrente non cambia mai, e la versione corrente, una volta
-rilasciata, cambia solo in modo additivo (ADR 0009 C5): le regole sono nelle
-[convenzioni](https://salvo8519.github.io/wayloop/project/conventions/#contract-snapshots). Una
-versione precedente si riproduce dal suo file versionato, non dai tipi, che descrivono solo
-quella corrente.
-
-`wayloop-schemas` incorpora il testo di ogni snapshot di ogni versione, `contract::EMBEDDED`.
-Poiché `cargo package` impacchetta solo la cartella di un crate, gli snapshot sono incorporati
-da copie identiche byte per byte al suo interno, in `crates/wayloop-schemas/snapshots/`,
-elencate nel file generato `src/contract/embedded.rs`; il controllo fallisce quando una copia
-differisce dalla sua fonte. I test di `wayloop-schemas` verificano che le versioni correnti
-incorporate siano gli snapshot dei tipi, e i test del core caricano ogni snapshot incorporato
-con l'interprete e con l'oracolo.
