@@ -11,7 +11,8 @@
 //! report of ADR 0009 C3 and the envelope of C1 with the exit codes of C7; the types of the
 //! command schemas come with the first command. Every contract type derives its JSON Schema;
 //! [`contract`] generates it inside the subset that the core interprets, with the named formats
-//! of [`Format`] (ADR 0030).
+//! of [`Format`] (ADR 0030). Closed enums and static identifiers are written once with the
+//! macros of [`ident`].
 
 // I/O is refused by the compiler: these lints read the clippy.toml of this crate, and forbid,
 // unlike deny, cannot be lifted by an inner allow. `scripts/check_core_io.py` keeps them here.
@@ -29,6 +30,7 @@ pub mod contract;
 mod envelope;
 mod error;
 mod format;
+pub mod ident;
 
 pub use envelope::{
     Check, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope, ExitCode,

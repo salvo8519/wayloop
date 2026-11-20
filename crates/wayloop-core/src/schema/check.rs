@@ -165,7 +165,7 @@ impl Checker<'_> {
             if !format::accepts(format, text) {
                 let message = format!(
                     "The text is not in the form of the format `{}`.",
-                    format.name()
+                    format.id()
                 );
                 let mut error = self.error(message, pointer, Reason::Syntax);
                 if let Some(fix) = format::fix(format, text) {

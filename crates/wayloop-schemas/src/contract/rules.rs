@@ -32,7 +32,7 @@ pub fn formatted(format: Format, description: &str) -> Schema {
     let mut schema = Map::new();
     schema.insert("description".to_owned(), description.into());
     schema.insert("type".to_owned(), "string".into());
-    schema.insert("format".to_owned(), format.name().into());
+    schema.insert("format".to_owned(), format.id().into());
     Schema::from(schema)
 }
 

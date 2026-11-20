@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: abdbb5ca9034
+source_hash: ef9515f76068
 ---
 # Architettura
 
@@ -280,8 +280,11 @@ suoi commenti di documentazione diventano le descrizioni
 ([ADR 0030](../project/adr/0030-contracts-generated-from-rust-types.md)).
 `wayloop_schemas::contract::schema_for` restituisce lo schema di un tipo per una direzione,
 input o output, e non scrive alcun file; `contract::TYPES` elenca ogni tipo dei contratti il cui
-schema è derivato. Ciò che la derive non scrive è scritto una sola volta, nel modulo
-`contract`:
+schema è derivato. Un enum chiuso del contratto (`Reason`, `NotDoneReason`, `ExitCode`,
+`Format`, `IssueStep`) è scritto con la macro `contract_enum!` di `wayloop_schemas::ident`, con
+una sola grafia per valore, letta da `id()`, dalla sua forma serializzata e dal suo schema; un
+identificativo statico (`Code`, `Check`, `DefaultReason`) con `static_id!`. Ciò che la derive
+non scrive è scritto una sola volta, nel modulo `contract`:
 
 | Esigenza | Come è scritta |
 | --- | --- |

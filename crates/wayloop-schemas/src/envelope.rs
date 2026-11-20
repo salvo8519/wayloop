@@ -14,7 +14,6 @@
 //! or an absolute path (SPEC-0004 R15), and the values the engine writes in it come from the
 //! input, the command and the engine version only.
 
-use core::fmt;
 use core::num::NonZeroU32;
 
 use schemars::JsonSchema;
@@ -28,34 +27,25 @@ use crate::{Error, ErrorReport, Pointer};
 /// with a breaking change of the envelope itself (ADR 0009 C5).
 pub const ENVELOPE_VERSION: NonZeroU32 = NonZeroU32::MIN;
 
-/// Exit codes of the command line (ADR 0009 C7).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum ExitCode {
-    /// 0: the command succeeded.
-    Success,
-    /// 1: the input was refused.
-    InputError,
-    /// 2: the command line was not understood.
-    UsageError,
-    /// 3: the environment failed: a file, the network or an output stream.
-    EnvironmentError,
-    /// 4: the loop stopped at a gate and waits for a person.
-    StoppedAtGate,
-    /// 5: a computation or internal error of the engine.
-    InternalError,
+crate::contract_enum! {
+    /// Exit codes of the command line (ADR 0009 C7).
+    pub enum ExitCode {
+        /// 0: the command succeeded.
+        Success = "success",
+        /// 1: the input was refused.
+        InputError = "input_error",
+        /// 2: the command line was not understood.
+        UsageError = "usage_error",
+        /// 3: the environment failed: a file, the network or an output stream.
+        EnvironmentError = "environment_error",
+        /// 4: the loop stopped at a gate and waits for a person.
+        StoppedAtGate = "stopped_at_gate",
+        /// 5: a computation or internal error of the engine.
+        InternalError = "internal_error",
+    }
 }
 
 impl ExitCode {
-    /// All exit codes, in the order of C7.
-    pub const ALL: [ExitCode; 6] = [
-        ExitCode::Success,
-        ExitCode::InputError,
-        ExitCode::UsageError,
-        ExitCode::EnvironmentError,
-        ExitCode::StoppedAtGate,
-        ExitCode::InternalError,
-    ];
-
     /// The number the process exits with.
     #[must_use]
     pub const fn code(self) -> u8 {
@@ -97,31 +87,11 @@ impl InputHash {
     }
 }
 
-/// Why the engine applied a default: a stable `snake_case` identifier, the field `reason` of an
-/// entry of `meta.defaults_applied`. Each value is a constant of the core, documented with the
-/// command that applies it; it is not a reason of C3. It serialises as its identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, JsonSchema)]
-#[serde(transparent)]
-pub struct DefaultReason(&'static str);
-
-impl DefaultReason {
-    /// A reason with the given `snake_case` identifier.
-    #[must_use]
-    pub const fn new(id: &'static str) -> Self {
-        Self(id)
-    }
-
-    /// The identifier written in `reason`.
-    #[must_use]
-    pub const fn id(self) -> &'static str {
-        self.0
-    }
-}
-
-impl fmt::Display for DefaultReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.0)
-    }
+crate::static_id! {
+    /// Why the engine applied a default: a stable `snake_case` identifier, the field `reason` of an
+    /// entry of `meta.defaults_applied`. Each value is a constant of the core, documented with the
+    /// command that applies it; it is not a reason of C3. It serialises as its identifier.
+    pub struct DefaultReason;
 }
 
 /// A default the engine applied on behalf of the caller (ADR 0009 C2): an entry of
@@ -185,62 +155,22 @@ impl DefaultApplied {
     }
 }
 
-/// A check of the engine: a stable `snake_case` identifier, written in `diagnostics.checks`
-/// and in `diagnostics.not_done`. Each value is a constant of the core, documented with the
-/// command that runs it. It serialises as its identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, JsonSchema)]
-#[serde(transparent)]
-pub struct Check(&'static str);
-
-impl Check {
-    /// A check with the given `snake_case` identifier.
-    #[must_use]
-    pub const fn new(id: &'static str) -> Self {
-        Self(id)
-    }
-
-    /// The identifier written in the diagnostics.
-    #[must_use]
-    pub const fn id(self) -> &'static str {
-        self.0
-    }
+crate::static_id! {
+    /// A check of the engine: a stable `snake_case` identifier, written in `diagnostics.checks`
+    /// and in `diagnostics.not_done`. Each value is a constant of the core, documented with the
+    /// command that runs it. It serialises as its identifier.
+    pub struct Check;
 }
 
-impl fmt::Display for Check {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.0)
-    }
-}
-
-/// Why a check was not run: the field `reason` of an entry of `diagnostics.not_done`. It
-/// serialises as its identifier; clients accept values they do not know (C5).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum NotDoneReason {
-    /// The part of the engine that runs the check is not built yet.
-    NotBuilt,
-    /// The input the check needs was not given, for example the base revision of a status
-    /// check.
-    InputAbsent,
-}
-
-impl NotDoneReason {
-    /// All reasons, in order.
-    pub const ALL: [NotDoneReason; 2] = [NotDoneReason::NotBuilt, NotDoneReason::InputAbsent];
-
-    /// Stable identifier, as it appears in `reason`.
-    #[must_use]
-    pub const fn id(self) -> &'static str {
-        match self {
-            NotDoneReason::NotBuilt => "not_built",
-            NotDoneReason::InputAbsent => "input_absent",
-        }
-    }
-}
-
-impl fmt::Display for NotDoneReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.id())
+crate::contract_enum! {
+    /// Why a check was not run: the field `reason` of an entry of `diagnostics.not_done`. It
+    /// serialises as its identifier; clients accept values they do not know (C5).
+    pub enum NotDoneReason {
+        /// The part of the engine that runs the check is not built yet.
+        NotBuilt = "not_built",
+        /// The input the check needs was not given, for example the base revision of a status
+        /// check.
+        InputAbsent = "input_absent",
     }
 }
 

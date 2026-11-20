@@ -462,7 +462,7 @@ impl Loader {
         }
         ordered(rules.minimum, rules.maximum, &pointer.join("maximum"))?;
         if let Some(name) = map.get("format") {
-            rules.format = Some(name.as_str().and_then(Format::named).ok_or_else(|| {
+            rules.format = Some(name.as_str().and_then(Format::from_id).ok_or_else(|| {
                 invalid(
                     &pointer.join("format"),
                     "the format is not one of the named formats of the subset",

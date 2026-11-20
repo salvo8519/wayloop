@@ -42,64 +42,36 @@ pub use wayloop_schemas::{
 /// Version of the engine, taken from the workspace manifest.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Steps of the issue cycle, in order. The full state machine, with its transitions,
-/// guards and approval states, is specified in milestone M1.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum IssueStep {
-    /// The issue is assigned to one agent session and labelled as in progress.
-    Claim,
-    /// The agent re-reads the issue, its story, its specification and the code involved.
-    Reanalysis,
-    /// A second agent looks for gaps, edge cases and contradictions.
-    CounterReview,
-    /// The task checklist is generated from the specification and published on the issue.
-    Checklist,
-    /// Tests where they pay, then the code.
-    Build,
-    /// Deterministic checks decide whether the step succeeded.
-    Verify,
-    /// Review proportional to risk.
-    Review,
-    /// The pull request is open and linked to the issue.
-    PullRequest,
-    /// Approval state: only a person merges.
-    Merge,
+wayloop_schemas::contract_enum! {
+    /// Steps of the issue cycle, in order. The full state machine, with its transitions,
+    /// guards and approval states, is specified in milestone M1. The identifier of a step is
+    /// its spelling in the contract: in the ledger, in hand-overs and in the JSON output of
+    /// every channel, a `snake_case` value as every enum value of the contract (ADR 0009 C4,
+    /// SPEC-0001), with one spelling everywhere. Other spellings, such as the kebab-case labels
+    /// of a tracker, are produced by the adapters from it; the core never spells them.
+    pub enum IssueStep {
+        /// The issue is assigned to one agent session and labelled as in progress.
+        Claim = "claim",
+        /// The agent re-reads the issue, its story, its specification and the code involved.
+        Reanalysis = "reanalysis",
+        /// A second agent looks for gaps, edge cases and contradictions.
+        CounterReview = "counter_review",
+        /// The task checklist is generated from the specification and published on the issue.
+        Checklist = "checklist",
+        /// Tests where they pay, then the code.
+        Build = "build",
+        /// Deterministic checks decide whether the step succeeded.
+        Verify = "verify",
+        /// Review proportional to risk.
+        Review = "review",
+        /// The pull request is open and linked to the issue.
+        PullRequest = "pull_request",
+        /// Approval state: only a person merges.
+        Merge = "merge",
+    }
 }
 
 impl IssueStep {
-    /// All steps in their order.
-    pub const ALL: [IssueStep; 9] = [
-        IssueStep::Claim,
-        IssueStep::Reanalysis,
-        IssueStep::CounterReview,
-        IssueStep::Checklist,
-        IssueStep::Build,
-        IssueStep::Verify,
-        IssueStep::Review,
-        IssueStep::PullRequest,
-        IssueStep::Merge,
-    ];
-
-    /// Identifier of the step in the contract: in the ledger, in hand-overs and in the JSON
-    /// output of every channel. It is a `snake_case` value, as every enum value of the
-    /// contract (ADR 0009 C4, SPEC-0001), and has one spelling everywhere. Other spellings,
-    /// such as the kebab-case labels of a tracker, are produced by the adapters from this
-    /// value; the core never spells them.
-    #[must_use]
-    pub const fn id(self) -> &'static str {
-        match self {
-            IssueStep::Claim => "claim",
-            IssueStep::Reanalysis => "reanalysis",
-            IssueStep::CounterReview => "counter_review",
-            IssueStep::Checklist => "checklist",
-            IssueStep::Build => "build",
-            IssueStep::Verify => "verify",
-            IssueStep::Review => "review",
-            IssueStep::PullRequest => "pull_request",
-            IssueStep::Merge => "merge",
-        }
-    }
-
     /// Whether the loop must stop and wait for a person at this step.
     #[must_use]
     pub const fn is_approval(self) -> bool {

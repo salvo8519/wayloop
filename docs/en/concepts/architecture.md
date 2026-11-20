@@ -259,7 +259,11 @@ comments become the descriptions
 ([ADR 0030](../project/adr/0030-contracts-generated-from-rust-types.md)).
 `wayloop_schemas::contract::schema_for` returns the schema of a type for one direction, input
 or output, and writes no file; `contract::TYPES` lists every contract type whose schema is
-derived. What the derive does not write is written once, in the module `contract`:
+derived. A closed enum of the contract (`Reason`, `NotDoneReason`, `ExitCode`, `Format`,
+`IssueStep`) is written with the macro `contract_enum!` of `wayloop_schemas::ident`, one
+spelling per value read by `id()`, by its serialised form and by its schema; a static
+identifier (`Code`, `Check`, `DefaultReason`) with `static_id!`. What the derive does not write
+is written once, in the module `contract`:
 
 | Need | How it is written |
 | --- | --- |

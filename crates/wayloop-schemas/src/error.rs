@@ -19,111 +19,46 @@ use serde_json::Value;
 
 use crate::contract::rules;
 
-/// Why the engine refused an input, or `internal` when it failed to compute the result: the
-/// documented enum of ADR 0009 C3 and its amendment of 2026-11-20. It serialises as its
-/// identifier; clients accept values they do not know (C5).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum Reason {
-    /// The input is not well-formed.
-    Syntax,
-    /// A required field is absent.
-    Missing,
-    /// A field is not part of the schema.
-    UnknownField,
-    /// A value that must be unique appears more than once.
-    Duplicate,
-    /// A value has the wrong type.
-    Type,
-    /// A value is not one of the accepted values.
-    Enum,
-    /// Two values contradict each other.
-    Conflict,
-    /// A field is given without another field it requires.
-    Requires,
-    /// A number is outside its accepted range.
-    Range,
-    /// A string or a list is too short or too long.
-    Length,
-    /// The current state does not allow the command.
-    State,
-    /// The expected revision is older than the state (ADR 0009 C6).
-    Stale,
-    /// The engine could not compute the result: the input may be valid (ADR 0009 C3, amended
-    /// on 2026-11-20). The command exits with code 5, not 1 (C7).
-    Internal,
-}
-
-impl Reason {
-    /// All reasons, in the order of ADR 0009 C3 and its amendments.
-    pub const ALL: [Reason; 13] = [
-        Reason::Syntax,
-        Reason::Missing,
-        Reason::UnknownField,
-        Reason::Duplicate,
-        Reason::Type,
-        Reason::Enum,
-        Reason::Conflict,
-        Reason::Requires,
-        Reason::Range,
-        Reason::Length,
-        Reason::State,
-        Reason::Stale,
-        Reason::Internal,
-    ];
-
-    /// Stable identifier, as it appears in the `reason` field of a refusal.
-    #[must_use]
-    pub const fn id(self) -> &'static str {
-        match self {
-            Reason::Syntax => "syntax",
-            Reason::Missing => "missing",
-            Reason::UnknownField => "unknown_field",
-            Reason::Duplicate => "duplicate",
-            Reason::Type => "type",
-            Reason::Enum => "enum",
-            Reason::Conflict => "conflict",
-            Reason::Requires => "requires",
-            Reason::Range => "range",
-            Reason::Length => "length",
-            Reason::State => "state",
-            Reason::Stale => "stale",
-            Reason::Internal => "internal",
-        }
+crate::contract_enum! {
+    /// Why the engine refused an input, or `internal` when it failed to compute the result: the
+    /// documented enum of ADR 0009 C3 and its amendment of 2026-11-20. It serialises as its
+    /// identifier; clients accept values they do not know (C5).
+    pub enum Reason {
+        /// The input is not well-formed.
+        Syntax = "syntax",
+        /// A required field is absent.
+        Missing = "missing",
+        /// A field is not part of the schema.
+        UnknownField = "unknown_field",
+        /// A value that must be unique appears more than once.
+        Duplicate = "duplicate",
+        /// A value has the wrong type.
+        Type = "type",
+        /// A value is not one of the accepted values.
+        Enum = "enum",
+        /// Two values contradict each other.
+        Conflict = "conflict",
+        /// A field is given without another field it requires.
+        Requires = "requires",
+        /// A number is outside its accepted range.
+        Range = "range",
+        /// A string or a list is too short or too long.
+        Length = "length",
+        /// The current state does not allow the command.
+        State = "state",
+        /// The expected revision is older than the state (ADR 0009 C6).
+        Stale = "stale",
+        /// The engine could not compute the result: the input may be valid (ADR 0009 C3, amended
+        /// on 2026-11-20). The command exits with code 5, not 1 (C7).
+        Internal = "internal",
     }
 }
 
-impl fmt::Display for Reason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.id())
-    }
-}
-
-/// A stable error code, a `snake_case` identifier. Codes are never renamed or reused (ADR 0009
-/// C8); every code of the engine is a constant of this type, so that one place lists them all.
-/// It serialises as its identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, JsonSchema)]
-#[serde(transparent)]
-pub struct Code(&'static str);
-
-impl Code {
-    /// A code with the given `snake_case` identifier.
-    #[must_use]
-    pub const fn new(id: &'static str) -> Self {
-        Self(id)
-    }
-
-    /// The identifier written in the error report.
-    #[must_use]
-    pub const fn id(self) -> &'static str {
-        self.0
-    }
-}
-
-impl fmt::Display for Code {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.0)
-    }
+crate::static_id! {
+    /// A stable error code, a `snake_case` identifier. Codes are never renamed or reused (ADR 0009
+    /// C8); every code of the engine is a constant of this type, so that one place lists them all.
+    /// It serialises as its identifier.
+    pub struct Code;
 }
 
 /// An RFC 6901 JSON pointer from the root of the input sent: empty for the whole input, or a

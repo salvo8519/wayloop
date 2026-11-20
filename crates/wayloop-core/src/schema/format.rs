@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn every_identifier_format_checks_its_own_prefix() {
         for format in Format::ALL {
-            let name = format.name();
+            let name = format.id();
             if let Shape::Sequence(prefix) = shape(format) {
                 assert_eq!(name, format!("{}-id", prefix.to_ascii_lowercase()));
                 assert!(accepts(format, &format!("{prefix}-0001")), "{name}");

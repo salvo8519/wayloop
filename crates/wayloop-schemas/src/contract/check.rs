@@ -129,7 +129,7 @@ fn own_keywords(
         return Err(refuse(&pointer.join(keyword), Problem::Refused(keyword)));
     }
     if let Some(format) = schema.get("format") {
-        if format.as_str().and_then(Format::named).is_none() {
+        if format.as_str().and_then(Format::from_id).is_none() {
             let name = value_text(format);
             return Err(refuse(
                 &pointer.join("format"),

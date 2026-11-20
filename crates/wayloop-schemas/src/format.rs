@@ -6,99 +6,46 @@
 //! be written in a schema. The accepted forms are documented with the interpreter
 //! (`wayloop_core::schema`).
 
-/// A named format of the subset of JSON Schema that the core interprets.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Format {
-    /// `date`: an RFC 3339 `full-date`.
-    Date,
-    /// `utc-date-time`: an RFC 3339 date-time in UTC, written with `Z`.
-    UtcDateTime,
-    /// `language-tag`: a BCP 47 language tag of language, script, region and variants.
-    LanguageTag,
-    /// `tracker-handle`: `@` and a user name of the tracker.
-    TrackerHandle,
-    /// `brief-id`: `BRIEF-` and a sequence.
-    BriefId,
-    /// `council-id`: `COUNCIL-` and a sequence.
-    CouncilId,
-    /// `gate-id`: `GATE-` and a sequence.
-    GateId,
-    /// `epic-id`: `EPIC-` and a sequence.
-    EpicId,
-    /// `story-id`: `STORY-` and a sequence.
-    StoryId,
-    /// `spec-id`: `SPEC-` and a sequence.
-    SpecId,
-    /// `change-id`: `CHANGE-` and a sequence.
-    ChangeId,
-    /// `task-id`: `TASK-` and a sequence.
-    TaskId,
-    /// `milestone-id`: `M` and a number from 0.
-    MilestoneId,
-    /// `handover-id`: `HANDOVER-<issue>-<k>`, both numbers from 1.
-    HandoverId,
-    /// `requirement-id`: `R` and a number from 1.
-    RequirementId,
-    /// `criterion-id`: `AC` and a number from 1.
-    CriterionId,
-    /// `decision-id`: `D` and a number from 1.
-    DecisionId,
-    /// `question-id`: `Q` and a number from 1.
-    QuestionId,
-}
-
-impl Format {
-    /// Every named format, in the order of the table of the interpreter.
-    pub const ALL: [Format; 18] = [
-        Format::Date,
-        Format::UtcDateTime,
-        Format::LanguageTag,
-        Format::TrackerHandle,
-        Format::BriefId,
-        Format::CouncilId,
-        Format::GateId,
-        Format::EpicId,
-        Format::StoryId,
-        Format::SpecId,
-        Format::ChangeId,
-        Format::TaskId,
-        Format::MilestoneId,
-        Format::HandoverId,
-        Format::RequirementId,
-        Format::CriterionId,
-        Format::DecisionId,
-        Format::QuestionId,
-    ];
-
-    /// The name of the format, as written in the `format` keyword of a schema.
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        match self {
-            Format::Date => "date",
-            Format::UtcDateTime => "utc-date-time",
-            Format::LanguageTag => "language-tag",
-            Format::TrackerHandle => "tracker-handle",
-            Format::BriefId => "brief-id",
-            Format::CouncilId => "council-id",
-            Format::GateId => "gate-id",
-            Format::EpicId => "epic-id",
-            Format::StoryId => "story-id",
-            Format::SpecId => "spec-id",
-            Format::ChangeId => "change-id",
-            Format::TaskId => "task-id",
-            Format::MilestoneId => "milestone-id",
-            Format::HandoverId => "handover-id",
-            Format::RequirementId => "requirement-id",
-            Format::CriterionId => "criterion-id",
-            Format::DecisionId => "decision-id",
-            Format::QuestionId => "question-id",
-        }
-    }
-
-    /// The format called `name`; `None` when no named format has that name.
-    #[must_use]
-    pub fn named(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|format| format.name() == name)
+crate::contract_enum! {
+    /// A named format of the subset of JSON Schema that the core interprets; its identifier is
+    /// the value of the `format` keyword.
+    pub enum Format {
+        /// An RFC 3339 `full-date`.
+        Date = "date",
+        /// An RFC 3339 date-time in UTC, written with `Z`.
+        UtcDateTime = "utc-date-time",
+        /// A BCP 47 language tag of language, script, region and variants.
+        LanguageTag = "language-tag",
+        /// `@` and a user name of the tracker.
+        TrackerHandle = "tracker-handle",
+        /// `BRIEF-` and a sequence.
+        BriefId = "brief-id",
+        /// `COUNCIL-` and a sequence.
+        CouncilId = "council-id",
+        /// `GATE-` and a sequence.
+        GateId = "gate-id",
+        /// `EPIC-` and a sequence.
+        EpicId = "epic-id",
+        /// `STORY-` and a sequence.
+        StoryId = "story-id",
+        /// `SPEC-` and a sequence.
+        SpecId = "spec-id",
+        /// `CHANGE-` and a sequence.
+        ChangeId = "change-id",
+        /// `TASK-` and a sequence.
+        TaskId = "task-id",
+        /// `M` and a number from 0.
+        MilestoneId = "milestone-id",
+        /// `HANDOVER-<issue>-<k>`, both numbers from 1.
+        HandoverId = "handover-id",
+        /// `R` and a number from 1.
+        RequirementId = "requirement-id",
+        /// `AC` and a number from 1.
+        CriterionId = "criterion-id",
+        /// `D` and a number from 1.
+        DecisionId = "decision-id",
+        /// `Q` and a number from 1.
+        QuestionId = "question-id",
     }
 }
 
@@ -141,9 +88,9 @@ mod tests {
     #[test]
     fn names_and_formats_correspond_one_to_one() {
         for format in Format::ALL {
-            assert_eq!(Format::named(format.name()), Some(format));
+            assert_eq!(Format::from_id(format.id()), Some(format));
         }
-        let names: Vec<&str> = Format::ALL.iter().map(|f| f.name()).collect();
+        let names: Vec<&str> = Format::ALL.iter().map(|f| f.id()).collect();
         assert_eq!(
             names,
             [
@@ -168,7 +115,7 @@ mod tests {
             ]
         );
         for unknown in ["email", "uint32", "", "Date"] {
-            assert_eq!(Format::named(unknown), None, "{unknown}");
+            assert_eq!(Format::from_id(unknown), None, "{unknown}");
         }
     }
 }
