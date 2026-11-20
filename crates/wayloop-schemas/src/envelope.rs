@@ -515,8 +515,7 @@ impl<D> Envelope<D> {
         &self.meta
     }
 
-    /// The exit code of the outcome (ADR 0009 C7): 0 for a success, 1 for a refused input, 5
-    /// for an internal error. The command line exits with it and never maps outcomes itself.
+    /// The exit code of its outcome: [`Outcome::exit_code`].
     #[must_use]
     pub const fn exit_code(&self) -> ExitCode {
         self.outcome.exit_code()
@@ -620,7 +619,7 @@ mod tests {
         Check, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope,
         EnvelopeForm, ExitCode, InputHash, Meta, NotDone, NotDoneReason, Outcome,
     };
-    use crate::fixtures::{INVALID_INPUT, at, unknown_then_missing};
+    use crate::fixtures::{Counted, INVALID_INPUT, at, unknown_then_missing};
     use crate::{Code, Error, ErrorReport, Pointer, Reason};
     use core::num::NonZeroU32;
     use schemars::JsonSchema;
@@ -905,16 +904,10 @@ mod tests {
         assert_eq!(reason, NotDoneReason::NotBuilt);
         assert!(serde_json::from_value::<NotDoneReason>(json!("later")).is_err());
     }
-    /// The data of a command in the tests: a type of its own, not a JSON value.
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-    struct Counted {
-        /// Number of documents, from 0.
-        documents: u32,
-    }
 
     #[test]
     fn the_envelope_of_each_data_type_has_its_own_schema_id_and_one_name() {
-        // Two envelopes in one generator stay two definitions, both named `Envelope`.
+        // Two envelopes have two schema ids and one schema name.
         assert_eq!(
             Envelope::<Counted>::schema_id(),
             EnvelopeForm::<Counted>::schema_id()

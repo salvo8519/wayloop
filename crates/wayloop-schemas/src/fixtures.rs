@@ -2,7 +2,17 @@
 
 use core::num::NonZeroU64;
 
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
 use crate::{Code, Error, Pointer, Reason};
+
+/// The data of a command in the tests: a type of its own, not a JSON value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub(crate) struct Counted {
+    /// Number of documents, from 0.
+    pub(crate) documents: u32,
+}
 
 /// The code of the refusals of the tests.
 pub(crate) const INVALID_INPUT: Code = Code::new("invalid_input");

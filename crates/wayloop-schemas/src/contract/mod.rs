@@ -138,14 +138,15 @@ pub fn schema_for<T: JsonSchema>(direction: Direction) -> Result<Value, Contract
 
 /// Where the snapshots under `schemas/` are published: the documentation site, the `homepage`
 /// of the workspace manifest, then `schemas/`. The `$id` of a snapshot is this URL followed by
-/// its path under `schemas/` (ADR 0030 G5).
+/// its path under `schemas/` (ADR 0030 G5), written only by [`snapshot`].
 pub const PUBLISHED_AT: &str = concat!(env!("CARGO_PKG_HOMEPAGE"), "schemas/");
 
 /// The text of the snapshot of `schema` at `path` under `schemas/`, for example
 /// `envelope/v1.json`: the schema with its `$id`, keys in byte order, two-space indentation,
 /// UTF-8 without escapes and a final newline (ADR 0030 G6). The same schema and path always
 /// give the same bytes. A schema that is not an object gets no `$id`; the loader of the core
-/// refuses it.
+/// refuses it. This function is the only source of the snapshot text, written unchanged by
+/// `just generate` (#294).
 ///
 /// # Errors
 ///

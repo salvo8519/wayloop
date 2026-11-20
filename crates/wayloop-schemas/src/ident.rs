@@ -102,7 +102,7 @@ pub fn string_schema(description: &str) -> Schema {
 ///
 /// Two values with the same spelling do not compile:
 ///
-/// ```compile_fail
+/// ```compile_fail,E0080
 /// wayloop_schemas::closed_enum! {
 ///     /// Colour of a light.
 ///     pub enum Light {

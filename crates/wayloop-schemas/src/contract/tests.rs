@@ -13,7 +13,7 @@ use super::transform::{ANY_VALUE, unwrapped};
 use super::{
     ContractError, Direction, MAX_OBJECT_LEVELS, PUBLISHED_AT, Problem, TYPES, schema_for, snapshot,
 };
-use crate::fixtures::at;
+use crate::fixtures::{Counted, at};
 use crate::{Format, Pointer};
 
 fn refused<T: JsonSchema>(direction: Direction) -> ContractError {
@@ -597,13 +597,6 @@ fn the_envelope_requires_its_error_when_its_data_is_absent() {
         schema["properties"]["data"],
         json!({"description": "The result of the command; absent when the command did not succeed."})
     );
-}
-
-/// The data of a command in the tests.
-#[derive(JsonSchema)]
-struct Counted {
-    /// Number of documents, from 0.
-    documents: u32,
 }
 
 #[test]
