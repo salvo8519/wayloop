@@ -8,6 +8,8 @@ environment, and import this file from `scripts/` (see `.claude/hooks/quality_ga
     _git.changed("origin/main")                # files changed on the branch
     _git.changed(staged=True)                  # files in the index
     _git.changed(untracked=True)               # the working tree against HEAD, new files too
+    _git.tags("v*")                            # tags matching a pattern
+    _git.holds("v0.1.0", "schemas/x.json")     # whether a revision holds a path
 """
 
 from __future__ import annotations
@@ -97,3 +99,15 @@ def changed(
     if untracked:
         names += _names("ls-files", "--others", "--exclude-standard", cwd=cwd)
     return sorted(set(names))
+
+
+def tags(pattern: str, cwd: Path | str = ROOT) -> list[str]:
+    """The tags matching the glob `pattern`, sorted; a failure raises CalledProcessError."""
+    return sorted(lines("tag", "--list", "--", pattern, cwd=cwd))
+
+
+def holds(name: str, path: str, cwd: Path | str = ROOT) -> bool:
+    """Whether the tree of the revision `name` holds `path`; a `name` that git would read as an
+    option raises ValueError."""
+    revision(name)
+    return run("cat-file", "-e", f"{name}:{path}", cwd=cwd).returncode == 0

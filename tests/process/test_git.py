@@ -76,3 +76,15 @@ def test_a_base_read_as_an_option_is_refused(repo: Path, base: str) -> None:
     with pytest.raises(ValueError, match="not a revision"):
         _git.changed(base, cwd=repo)
     assert not (repo / "written-by-git").exists()
+
+
+def test_tags_and_the_paths_a_revision_holds(repo: Path) -> None:
+    git(repo, "tag", "v0.2.0", "main")
+    git(repo, "tag", "v0.1.0", "main")
+    git(repo, "tag", "other")
+    assert _git.tags("v*", cwd=repo) == ["v0.1.0", "v0.2.0"]
+    assert _git.holds("v0.1.0", "b.md", cwd=repo)
+    assert not _git.holds("v0.1.0", "c.md", cwd=repo)
+    assert not _git.holds("nowhere", "b.md", cwd=repo)
+    with pytest.raises(ValueError, match="not a revision"):
+        _git.holds("--output=written-by-git", "b.md", cwd=repo)

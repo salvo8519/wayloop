@@ -242,9 +242,19 @@ with its tests and the architecture page.
   object, a document whose schema is another one (the documents of `validate`, checked by the
   schema of their kind, and the map of their lines, checked by the core), written by hand with
   `value::free_object_schema` and left open. A map derived by `schemars` keeps its schema of
-  values and is still refused by the loader of the core. Version 2 of `envelope/result` follows
-  the first breaking change of the envelope under rule (B): the line of a `source` is written
-  only when it is known (SPEC-0004 R2).
+  values and is still refused by the loader of the core. The line of a `source` is written only
+  when it is known (SPEC-0004 R2): a breaking change of `envelope/result` v1, which no release
+  holds, made under the amendment below.
+- 2026-11-20, decision of the maintainer (G5, G6): a version that no release holds may change
+  incompatibly until the first release that holds it; from that release it is immutable, and
+  rule (B) applies in full. This replaces the last sentence of G5, "Before a version reaches
+  `main`, it may change freely". No release holds a version when its record on the base says
+  `introduced_in: unreleased` and no release tag `v<semver>` holds its file.
+  `schema_snapshots.py --diff-against` allows a breaking change of such a current version and
+  still reports it as breaking, so that the pull request shows it; an earlier version never
+  changes, released or not. Residual risk: the documentation site publishes `main`, so the
+  `$id` of an unreleased version is public, and the schema at that URL may change before the
+  first release. A reader that depends on it before a release accepts that risk.
 
 ## Consequences
 

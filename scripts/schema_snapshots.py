@@ -52,7 +52,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import _git
 
@@ -489,13 +489,43 @@ def _record_kept(record: dict[str, Any], current: bool) -> dict[str, Any]:
     }
 
 
-def diff_against(root: Path, base: str, contracts: list[Contract]) -> tuple[list[str], list[str]]:
-    """(history rewritten, breaking changes of a current version) against `base`."""
+class Diff(NamedTuple):
+    """The changes of the snapshots against a base branch."""
+
+    rewritten: list[str]
+    """History rewritten: an earlier version, a record or a contract changed or removed."""
+    breaking: list[str]
+    """Breaking changes of a current version that a release holds: refused."""
+    unreleased: list[str]
+    """Breaking changes of a current version that no release holds: allowed until the first
+    release, and reported (ADR 0030, amendment of 2026-11-20)."""
+
+
+def in_a_release(root: Path, path: str) -> bool:
+    """Whether a release tag `v<semver>` holds `path`."""
+    from roadmap import SEMVER  # the project environment only: the hook never calls this
+
+    return any(
+        SEMVER.match(tag.removeprefix("v")) and _git.holds(tag, path, cwd=root)
+        for tag in _git.tags("v*", cwd=root)
+    )
+
+
+def diff_against(root: Path, base: str, contracts: list[Contract]) -> Diff:
+    """The history rewritten and the breaking changes of a current version against `base`.
+
+    A breaking change of a current version is refused once a release holds it: its record on
+    the base names a release, or a release tag holds its file. Before, it is allowed and
+    reported in `unreleased`.
+    """
     from roadmap import SEMVER  # the project environment only: the hook never calls this
 
     entries = released(root, base)
     rewritten: list[str] = []
     found: list[str] = []
+    unreleased: list[str] = []
+    # The introduced_in of every version recorded on the base.
+    introduced: dict[tuple[str, int], Any] = {}
     currents: dict[str, tuple[int, int]] = {}
     # Every file a history of the base records, with its contract and version: released
     # whatever its name, so that a part the pattern misses is protected too.
@@ -519,6 +549,7 @@ def diff_against(root: Path, base: str, contracts: list[Contract]) -> tuple[list
                 rewritten.append(f"{folder}: v{version} removed from its history")
                 continue
             recorded |= {f"{SCHEMAS}/{p}": (folder, int(version)) for p, _ in files_of(record)}
+            introduced[folder, int(version)] = record.get("introduced_in")
             before, after = record.get("introduced_in"), now.get("introduced_in")
             if after != before and not (before == UNRELEASED and SEMVER.match(str(after))):
                 rewritten.append(f"{folder}: introduced_in of v{version} changed to {after}")
@@ -555,7 +586,7 @@ def diff_against(root: Path, base: str, contracts: list[Contract]) -> tuple[list
         if currents.get(folder) != (version, version) or path not in directions:
             rewritten.append(f"{path}: released on {base} as an earlier version, and changed")
             continue
-        found += [
+        problems = [
             f"{path}#{problem}"
             for problem in breaking(
                 "",
@@ -564,7 +595,15 @@ def diff_against(root: Path, base: str, contracts: list[Contract]) -> tuple[list
                 output=directions[path] == "output",
             )
         ]
-    return rewritten, found
+        if (
+            problems
+            and introduced.get((folder, version)) == UNRELEASED
+            and not in_a_release(root, path)
+        ):
+            unreleased += problems
+        else:
+            found += problems
+    return Diff(rewritten, found, unreleased)
 
 
 def schema_history(root: Path = ROOT) -> dict[str, Any]:
@@ -590,7 +629,15 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> None:
     args = parser.parse_args(argv)
     contracts = generated(root)
     if args.diff_against:
-        rewritten, found = diff_against(root, args.diff_against, contracts)
+        rewritten, found, unreleased = diff_against(root, args.diff_against, contracts)
+        if unreleased:
+            print(
+                _report(
+                    "Breaking changes of a version no release holds: allowed until the first "
+                    "release (ADR 0030, amendment of 2026-11-20)",
+                    unreleased,
+                )
+            )
         problems = []
         if rewritten:
             problems.append(
@@ -609,7 +656,8 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> None:
             )
         if problems:
             sys.exit("\n".join(problems))
-        print(f"Schema snapshots: changes against {args.diff_against} are additive or none.")
+        others = "the other changes" if unreleased else "changes"
+        print(f"Schema snapshots: {others} against {args.diff_against} are additive or none.")
         return
     if args.check:
         found = check(root, contracts)
