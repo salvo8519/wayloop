@@ -4,7 +4,7 @@ A tag such as `v7` can be moved to other code by whoever controls the action; a 
 cannot. Dependabot keeps pinned actions current and updates the comment with the version.
 zizmor fails CI on any unpinned action, so run this after adding or changing one:
 
-    python scripts/pin_actions.py            # rewrite .github/workflows/*.yml
+    python scripts/pin_actions.py            # rewrite the workflows and the composite actions
     python scripts/pin_actions.py --check    # exit 1 if any action is not pinned
 
 `dtolnay/rust-toolchain` and `taiki-e/install-action` select what they install from the ref
@@ -23,7 +23,13 @@ from pathlib import Path
 import _git
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+# Workflows and the local composite actions they use: both pin the actions they call.
+WORKFLOWS = sorted(
+    [
+        *(ROOT / ".github" / "workflows").glob("*.yml"),
+        *(ROOT / ".github" / "actions").glob("*/action.yml"),
+    ]
+)
 USES = re.compile(
     r"^(?P<indent>\s*)(?P<dash>-\s+)?uses:\s+(?P<action>[^@\s]+)@(?P<ref>[^\s#]+)\s*(?:#.*)?$"
 )

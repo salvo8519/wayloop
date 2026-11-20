@@ -1,0 +1,8 @@
+# Configuration of zizmor, the security audit of the workflows (ci.yml, job Quality).
+rules:
+  # This help-level audit prefers the newer `$/` self-repository syntax to `./` for the local
+  # composite actions of .github/actions. The workflows keep `./`, the syntax that the other
+  # checks of the workflows (actionlint, scripts/pin_actions.py) read; revisit this rule when
+  # they read `$/`.
+  self-repository:
+    disable: true

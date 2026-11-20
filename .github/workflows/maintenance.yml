@@ -26,12 +26,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - name: Rust toolchain pinned in rust-toolchain.toml
-        id: toolchain
-        run: python3 -c 'import tomllib; print("channel=" + tomllib.load(open("rust-toolchain.toml", "rb"))["toolchain"]["channel"])' >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
-        with:
-          toolchain: ${{ steps.toolchain.outputs.channel }}
+      - uses: ./.github/actions/rust-toolchain
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - name: Upgrade lock files (not committed)
         run: |
@@ -150,12 +145,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - name: Rust toolchain pinned in rust-toolchain.toml
-        id: toolchain
-        run: python3 -c 'import tomllib; print("channel=" + tomllib.load(open("rust-toolchain.toml", "rb"))["toolchain"]["channel"])' >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
-        with:
-          toolchain: ${{ steps.toolchain.outputs.channel }}
+      - uses: ./.github/actions/rust-toolchain
       - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         id: mutants-install
         continue-on-error: true
@@ -166,11 +156,14 @@ jobs:
       - name: Build cargo-mutants from crates.io (download failed)
         if: steps.mutants-install.outcome == 'failure'
         run: cargo install --locked cargo-mutants@27.1.0
-      - name: cargo mutants on the pure crates (same command as just mutants)
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - name: cargo mutants on the pure crates (just mutants)
         id: run
         run: |
           status=0
-          cargo mutants --package wayloop-core --package wayloop-schemas --no-shuffle --output target/mutants || status=$?
+          uv run --frozen --only-group dev just mutants || status=$?
           echo "status=$status" >> "$GITHUB_OUTPUT"
       - name: Surviving mutants in the summary and in the job output
         id: result

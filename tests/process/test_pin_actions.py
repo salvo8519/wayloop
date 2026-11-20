@@ -41,3 +41,7 @@ def test_check_exits_with_an_error(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr("sys.argv", ["pin_actions.py", "--check"])
     with pytest.raises(SystemExit):
         pins.main()
+
+
+def test_the_composite_actions_are_checked_too() -> None:
+    assert any(p.name == "action.yml" for p in pins.WORKFLOWS)
