@@ -24,6 +24,13 @@ standard library or an installed dependency do it. Looks for:
 - dead code, unused parameters, commented-out code, wrappers that only forward;
 - nested conditions and long functions that a flat early return or a match makes clear;
 - a decision taken in an adapter, which belongs in `wayloop-core` (ADR 0001).
+- a second definition of one rule or value (AGENTS.md, One source): a constant, a limit, a
+  regular expression, a label name or a list of paths written again instead of imported;
+- a helper of the scripts written again although `scripts/_*.py` has it (`_github.py`,
+  `_git.py`, `_labels.py`), or a test helper that `tests/process/conftest.py` has;
+- a closed enum or a static identifier in the pure crates that does not use the macros of
+  `wayloop_schemas::ident` (ADR 0030);
+- a deliberate copy without a comment that gives its reason and a test that keeps it equal.
 Weighs each finding against readability: fewer lines is not a goal by itself.
 
 ## Never

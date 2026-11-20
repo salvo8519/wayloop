@@ -87,7 +87,7 @@ milestones:
           - { issue: 286, title: "Every dependency of every kind is checked against one licence allow-list", status: done }
           - { issue: 289, title: "A documentation waiver covers only a branch whose every commit carries it", status: done }
           - { issue: 297, title: "Branch names and closing keywords have one definition used by every script", status: done }
-          - { issue: 298, title: "Every rule and value has one source and duplicated code fails the build", status: open }
+          - { issue: 298, title: "Every rule and value has one source and duplicated code fails the build", status: done }
           - { issue: 299, title: "The pure crates keep no duplicated helper after the contract generator", status: open }
       - title: "Artifact model"
         issue: 18
