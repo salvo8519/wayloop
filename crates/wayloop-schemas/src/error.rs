@@ -489,18 +489,9 @@ impl std::error::Error for ErrorReport {}
 #[cfg(test)]
 mod tests {
     use super::{Code, Error, ErrorReport, Pointer, Reason, Source};
-    use core::num::NonZeroU64;
+    use crate::fixtures::{INVALID_INPUT, at, number, unknown_then_missing};
     use serde_json::json;
 
-    fn at(pointer: &str) -> Pointer {
-        Pointer::parse(pointer).unwrap()
-    }
-
-    fn number(n: u64) -> NonZeroU64 {
-        NonZeroU64::new(n).unwrap()
-    }
-
-    const INVALID_INPUT: Code = Code::new("invalid_input");
     const STALE_REVISION: Code = Code::new("stale_revision");
     const DELTA_CONFLICT: Code = Code::new("delta_conflict");
     const TRANSITION_REFUSED: Code = Code::new("transition_refused");
@@ -772,24 +763,6 @@ mod tests {
     #[test]
     fn a_report_needs_at_least_one_error() {
         assert!(ErrorReport::from_errors([]).is_none());
-    }
-
-    fn unknown_then_missing() -> (Error, Error) {
-        (
-            Error::new(
-                INVALID_INPUT,
-                "Unknown field.",
-                at("/problema"),
-                Reason::UnknownField,
-            )
-            .with_fix("problem"),
-            Error::new(
-                INVALID_INPUT,
-                "No problem.",
-                at("/problem"),
-                Reason::Missing,
-            ),
-        )
     }
 
     #[test]

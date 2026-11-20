@@ -4,7 +4,8 @@
 //! - every registered type passes `contract_schema` in both directions, and the oracle accepts
 //!   its schema as a valid draft 2020-12 schema;
 //! - the serialised value of every contract type is accepted by its schema, by the interpreter
-//!   and by the oracle, and reads back into its type, giving the same JSON;
+//!   and by the oracle, and reads back into its type, giving the same JSON; the envelope in
+//!   each of its outcomes, with diagnostics and defaults;
 //! - what the subset refuses (`null`, `pattern`, `default`, `uniqueItems`, an unknown format, a
 //!   boolean schema, a map) is refused by the loader, at its place.
 // A test stops at the line that failed: the restriction lints of the shipped code do not apply.
@@ -17,10 +18,12 @@ use schemars::{JsonSchema, Schema as Derived, SchemaGenerator};
 use serde_json::{Value, json};
 use wayloop_core::schema::{ContractFault, LoadError, Schema, contract_schema};
 use wayloop_core::{
-    Check, Code, DefaultApplied, DefaultReason, Diagnostics, Error, ErrorReport, InputHash, Meta,
-    NotDone, NotDoneReason, Pointer, Reason, Source,
+    Check, Code, DefaultApplied, DefaultReason, Diagnostics, Envelope, Error, ErrorReport,
+    InputHash, Meta, NotDone, NotDoneReason, Outcome, Pointer, Reason, Source,
 };
-use wayloop_schemas::contract::{ContractError, Direction, Registered, TYPES, reread, schema_for};
+use wayloop_schemas::contract::{
+    ContractError, Direction, Registered, TYPES, reread, schema_for, snapshot,
+};
 
 const DIRECTIONS: [Direction; 2] = [Direction::Input, Direction::Output];
 
@@ -187,17 +190,140 @@ fn every_serialised_value_is_accepted_and_reads_back_into_its_type() {
 }
 
 #[test]
+fn every_outcome_of_the_envelope_is_accepted_and_reads_back() {
+    // SPEC-0004 R18: a success has data and no error; a refusal or a failure has error and no
+    // data. The hand-written serialiser writes what the generated schema accepts.
+    let applied = DefaultApplied::new(at("/language"), "en", DefaultReason::new("project"))
+        .unwrap()
+        .with_message("The language of the project applies.");
+    let diagnostics = Diagnostics::new(
+        vec![full_error()],
+        vec![NotDone::new(Check::new("links"), NotDoneReason::NotBuilt)],
+        vec![Check::new("schema")],
+    );
+    let meta = Meta::new(
+        "0.0.0",
+        NonZeroU32::MIN,
+        InputHash::from_digest(&[7; 32]),
+        false,
+        vec![applied],
+    );
+    let failure = Error::new(
+        Code::new("internal_error"),
+        "The engine could not compute the result.",
+        Pointer::root(),
+        Reason::Internal,
+    );
+    for outcome in [
+        Outcome::success(json!({"documents": [{"kind": "brief"}]})),
+        Outcome::success(json!([])),
+        Outcome::refused(ErrorReport::from_errors([minimal_error(), full_error()]).unwrap()),
+        Outcome::failed(ErrorReport::from_errors([failure]).unwrap()),
+    ] {
+        accept!(
+            "Envelope",
+            Envelope::new(
+                "validate",
+                outcome.unwrap(),
+                diagnostics.clone(),
+                meta.clone()
+            )
+        );
+    }
+    accept!(
+        "Envelope",
+        Envelope::new(
+            "validate",
+            Outcome::success(json!(1)).unwrap(),
+            Diagnostics::default(),
+            meta
+        )
+    );
+}
+
+/// The serialised envelope of a success with empty data, diagnostics and defaults.
+fn empty_success() -> Value {
+    serde_json::to_value(Envelope::new(
+        "validate",
+        Outcome::success(json!({})).unwrap(),
+        Diagnostics::default(),
+        Meta::new(
+            "0.0.0",
+            NonZeroU32::MIN,
+            InputHash::from_digest(&[0; 32]),
+            false,
+            vec![],
+        ),
+    ))
+    .unwrap()
+}
+
+#[test]
+fn the_text_of_the_envelope_snapshot_loads_in_the_core_and_the_oracle() {
+    // ADR 0030 G3, G6: the snapshot written with `contract::snapshot`, generated in memory, is a
+    // schema the interpreter loads and a valid draft 2020-12 schema. Writing it under
+    // `schemas/` and embedding it belong to the registry of #294.
+    let schema = contract_schema(named("Envelope"), Direction::Output).unwrap();
+    let text = snapshot(schema.clone(), "envelope/v1.json").unwrap();
+    let read: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(
+        read["$id"],
+        "https://salvo8519.github.io/wayloop/schemas/envelope/v1.json"
+    );
+    let mut without_id = read.clone();
+    without_id.as_object_mut().unwrap().remove("$id");
+    assert_eq!(without_id, schema);
+    Schema::load(&read).unwrap();
+    assert!(jsonschema::meta::is_valid(&read));
+    let oracle = jsonschema::draft202012::new(&read).unwrap();
+    assert!(oracle.is_valid(&empty_success()));
+}
+
+/// The pointer and the reason of every error of `document` against the schema of the contract
+/// type `name`, for `direction`, as the interpreter reports them.
+fn errors_of(name: &str, direction: Direction, document: &Value) -> Vec<(String, Reason)> {
+    let schema = contract_schema(named(name), direction).unwrap();
+    let found = Schema::load(&schema)
+        .unwrap()
+        .validate(document, Code::new("contract"));
+    let oracle = jsonschema::draft202012::new(&schema).unwrap();
+    assert_eq!(
+        oracle.is_valid(document),
+        found.is_empty(),
+        "{name}: {document}"
+    );
+    found
+        .iter()
+        .map(|e| (e.pointer().to_string(), e.reason()))
+        .collect()
+}
+
+#[test]
+fn the_envelope_schema_requires_the_error_when_the_data_is_absent() {
+    let success = empty_success();
+    let mut neither = success.clone();
+    neither.as_object_mut().unwrap().remove("data");
+    // Null means not given (ADR 0009 C2), for the interpreter and for the oracle alike.
+    let mut null = success.clone();
+    null["data"] = Value::Null;
+    for document in [neither, null] {
+        assert_eq!(
+            errors_of("Envelope", Direction::Output, &document),
+            [("/error".to_owned(), Reason::Requires)]
+        );
+        assert!((named("Envelope").reread)(&document).is_err(), "{document}");
+    }
+    // Both members: the subset has no negation, so only the type refuses it.
+    let mut both = success;
+    both["error"] = serde_json::to_value(ErrorReport::from_errors([minimal_error()])).unwrap();
+    assert_eq!(errors_of("Envelope", Direction::Output, &both), []);
+    assert!((named("Envelope").reread)(&both).is_err());
+}
+
+#[test]
 fn the_schemas_refuse_what_the_types_never_write() {
-    let check = |name: &str, direction: Direction, document: Value| {
-        let schema = contract_schema(named(name), direction).unwrap();
-        let found = Schema::load(&schema)
-            .unwrap()
-            .validate(&document, Code::new("contract"));
-        found
-            .iter()
-            .map(|e| (e.pointer().to_string(), e.reason()))
-            .collect::<Vec<_>>()
-    };
+    let check =
+        |name: &str, direction: Direction, document: Value| errors_of(name, direction, &document);
     let output = Direction::Output;
     assert_eq!(
         check("Source", output, json!({"file": "a.md"})),

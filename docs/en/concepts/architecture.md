@@ -141,7 +141,9 @@ specification of each command.
 ### The envelope
 
 Every command returns one envelope (ADR 0009, C1), a contract type of `wayloop-schemas`
-re-exported as `wayloop_core::Envelope`:
+re-exported as `wayloop_core::Envelope<D>`, generic over `D`, the data type of the command; the
+diagnostics, the meta and the error report inside it are defined once for every command
+([ADR 0030](../project/adr/0030-contracts-generated-from-rust-types.md), G1):
 
 | Field | Meaning |
 | --- | --- |
@@ -156,10 +158,21 @@ value, documented with the command that writes it; clients accept values they do
 (ADR 0009, C5).
 
 `Envelope::exit_code()` gives the exit code of ADR 0009 C7: 0 for a result with `data`, 1 for a
-refused input, 5 for an internal error of the engine; it is the one place where an outcome is
-mapped to an exit code. An internal error is written in `error` as a refusal is; its errors have
+refused input, 5 for an internal error of the engine; it returns `Outcome::exit_code()`, the one
+place where an outcome is mapped to an exit code. An internal error is written in `error` as a refusal is; its errors have
 the reason `internal`, which tells the two apart in the JSON. The envelope holds nothing that depends on the machine or the
 moment: no clock time, host name or absolute path.
+
+An outcome is built only through constructors that refuse, by returning `None`, what the
+contract does not define: `Outcome::success` refuses data written as null (null means not
+given, ADR 0009 C2) or with no JSON form, `Outcome::refused` a report with an error of reason
+`internal`, and `Outcome::failed` a report with an error of any other reason. Every envelope the
+engine can build is therefore one its reader accepts. The reader refuses the same cases, and a
+document with both `data` and `error`, or with neither. The schema requires `error` when
+`data` is absent; the subset of the interpreter has no negation, so only the type refuses both.
+The schema of the envelope of any data is that of `Envelope<Value>`; the output schema of a
+command is the envelope with the data type of that command. The tests of the core load it, in
+the text that `contract::snapshot` writes, with the interpreter and the oracle.
 
 `meta.input_hash` is the SHA-256 of the input serialised as canonical JSON (RFC 8785), in
 lower-case hexadecimal, so the same input gives the same hash on every channel and platform:
@@ -274,7 +287,7 @@ module `contract`:
 
 | Need | How it is written |
 | --- | --- |
-| A conditional requirement | A function of the type, named in `#[schemars(transform = ...)]`, calls `contract::rules::require_if_present` or `require_if_equals`, which append an `if` and `then` pair to `allOf` |
+| A conditional requirement | A function of the type, named in `#[schemars(transform = ...)]`, calls `contract::rules::require_if_present`, `require_if_absent` or `require_if_equals`, which append an `if` and `then` pair to `allOf`; `require_if_absent` tests the member against `const: null`, which holds when it is absent or null, in the interpreter and in draft 2020-12 alike |
 | A named format | A value form implements `JsonSchema` by hand with `contract::rules::formatted`, from a value of `Format` |
 | Absent, not null | An optional member, out of `required`, loses the `null` type the derive adds to an `Option` |
 | An enum value with its meaning | A `oneOf` of documented constants becomes an `enum`, and each value is appended to the description as a line ``- `value`: meaning`` |
@@ -297,7 +310,12 @@ A type whose serialised form the derive cannot describe in the subset has a priv
 for its schema and for reading: `Source`, whose forms are one object with optional members
 and `file` and `line` given together, which the type reads as exactly one form, and
 `ErrorReport`, the members of its first error merged with `errors`, read only when `errors`
-starts with those members. The tests of the core run `contract_schema` on every type of
+starts with those members, and `Envelope<D>`, with `data` and `error` both optional in its
+schema, read as exactly one of them. A generic type has no schema until its parameter is
+given, so `contract::TYPES` registers the envelope as `Envelope<Value>`, under the name of its
+schema, `Envelope`. `contract::snapshot` writes the text of a snapshot: the schema with its
+`$id`, keys in byte order, two-space indentation and a final newline; it writes no file. The
+tests of the core run `contract_schema` on every type of
 `contract::TYPES` in both directions, check each schema against the meta-schema of draft
 2020-12 with the oracle, and check that the serialised values of the types are accepted and
 read back into the same JSON.

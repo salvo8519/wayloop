@@ -22,6 +22,9 @@
 //!   blanks only is none), the meaning of every enum value in its description, no
 //!   `additionalProperties` in an output, and at most four levels of objects (ADR 0009 C4).
 //!
+//! [`snapshot`] writes the text of a snapshot under `schemas/`, with its published `$id`; it
+//! writes no file either.
+//!
 //! The subset has one definition, the loader of the core (`wayloop_core::schema::Schema::load`,
 //! ADR 0030 G3): `wayloop_core::schema::contract_schema` runs these checks and then the loader
 //! on a type of [`TYPES`].
@@ -42,8 +45,8 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::{
-    Check, Code, DefaultApplied, DefaultReason, Diagnostics, Error, ErrorReport, InputHash, Meta,
-    NotDone, NotDoneReason, Pointer, Reason, Source,
+    Check, Code, DefaultApplied, DefaultReason, Diagnostics, Envelope, Error, ErrorReport,
+    InputHash, Meta, NotDone, NotDoneReason, Pointer, Reason, Source,
 };
 
 /// Deepest nesting of objects in a contract, the root object included (ADR 0009 C4).
@@ -133,6 +136,30 @@ pub fn schema_for<T: JsonSchema>(direction: Direction) -> Result<Value, Contract
     Ok(schema)
 }
 
+/// Where the snapshots under `schemas/` are published: the documentation site, the `homepage`
+/// of the workspace manifest, then `schemas/`. The `$id` of a snapshot is this URL followed by
+/// its path under `schemas/` (ADR 0030 G5), written only by [`snapshot`].
+pub const PUBLISHED_AT: &str = concat!(env!("CARGO_PKG_HOMEPAGE"), "schemas/");
+
+/// The text of the snapshot of `schema` at `path` under `schemas/`, for example
+/// `envelope/v1.json`: the schema with its `$id`, keys in byte order, two-space indentation,
+/// UTF-8 without escapes and a final newline (ADR 0030 G6). The same schema and path always
+/// give the same bytes. A schema that is not an object gets no `$id`; the loader of the core
+/// refuses it. This function is the only source of the snapshot text, written unchanged by
+/// `just generate` (#294).
+///
+/// # Errors
+///
+/// The error of `serde_json` when the schema cannot be written, which a JSON value never gives.
+pub fn snapshot(mut schema: Value, path: &str) -> Result<String, serde_json::Error> {
+    if let Some(object) = schema.as_object_mut() {
+        object.insert("$id".to_owned(), format!("{PUBLISHED_AT}{path}").into());
+    }
+    let mut text = serde_json::to_string_pretty(&schema)?;
+    text.push('\n');
+    Ok(text)
+}
+
 /// A contract type, the function that generates its schema, and the one that reads a document
 /// into the type and writes it again (the round trip of ADR 0030 G1).
 #[derive(Debug, Clone, Copy)]
@@ -157,25 +184,34 @@ pub fn reread<T: Serialize + DeserializeOwned>(
     serde_json::to_value(T::deserialize(document)?)
 }
 
-/// The registration of a contract type, named as written.
+/// The registration of a contract type, named as written, or by the name of its schema for a
+/// generic type with its parameters given.
 macro_rules! registered {
     ($t:ty) => {
+        registered!($t as stringify!($t))
+    };
+    ($t:ty as $name:expr) => {
         Registered {
-            name: stringify!($t),
+            name: $name,
             schema: schema_for::<$t>,
             reread: reread::<$t>,
         }
     };
 }
 
-/// Every contract type of this crate whose schema is derived. The envelope joins with its
-/// generic form (ADR 0030 G1).
-pub const TYPES: [Registered; 14] = [
+/// Every contract type of this crate whose schema is derived, in the byte order of their names.
+///
+/// The envelope is generic over the data of a command (ADR 0030 G1); a generic type has no
+/// schema until its parameter is given, so it is registered as `Envelope<Value>`, the envelope
+/// of any data, under the name of its schema, `Envelope`. The output schema of a command is
+/// the envelope with the data type of that command.
+pub const TYPES: [Registered; 15] = [
     registered!(Check),
     registered!(Code),
     registered!(DefaultApplied),
     registered!(DefaultReason),
     registered!(Diagnostics),
+    registered!(Envelope<Value> as "Envelope"),
     registered!(Error),
     registered!(ErrorReport),
     registered!(InputHash),

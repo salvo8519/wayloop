@@ -66,11 +66,15 @@ style:
 i18n:
     python scripts/i18n.py check
 
-# Rust: format, lints, tests.
-rust:
+# Rust: format, lints, tests, API documentation.
+rust: && rustdoc
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
     cargo test --workspace
+
+# API documentation of the Rust crates; a warning, such as a broken link, fails (CI runs it too).
+rustdoc:
+    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 
 # Line coverage: Rust tests instrumented (cargo-llvm-cov, needs the llvm-tools-preview component),
 # the floor of the pure crates, and the process scripts (pytest-cov). `just coverage 100` tries a floor.

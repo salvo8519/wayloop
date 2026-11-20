@@ -17,6 +17,14 @@ pub fn require_if_present(schema: &mut Schema, when: &str, then: &[&str]) {
     push(schema, json!({"required": [when]}), then);
 }
 
+/// Requires the members `then` whenever the member `when` is absent. A member set to null is
+/// absent (ADR 0009 C2), and the condition `{"properties": {when: {"const": null}}}` holds for
+/// exactly these two cases, in the core and in draft 2020-12: a member that is absent leaves
+/// `properties` nothing to check, and no other value equals null. The subset has no `not`.
+pub fn require_if_absent(schema: &mut Schema, when: &str, then: &[&str]) {
+    push(schema, json!({"properties": {when: {"const": null}}}), then);
+}
+
 /// Requires the members `then` whenever the member `when` equals `value`, for example
 /// `superseded_by` when `status` is `superseded`.
 pub fn require_if_equals(schema: &mut Schema, when: &str, value: impl Into<Value>, then: &[&str]) {

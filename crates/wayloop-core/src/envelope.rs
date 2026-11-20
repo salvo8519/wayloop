@@ -2,8 +2,9 @@
 //! input and the meta of a result.
 //!
 //! The envelope types are contract types of `wayloop-schemas`, re-exported at the root of the
-//! crate. The entry point of ADR 0028 (#221) fills them with these functions; no channel
-//! computes the hash or the versions itself.
+//! crate; `Envelope<D>` is generic over the data of one command (ADR 0030 G1). The entry point
+//! of ADR 0028 (#221) fills them with these functions; no channel computes the hash or the
+//! versions itself.
 
 use core::num::NonZeroU32;
 

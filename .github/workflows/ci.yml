@@ -116,6 +116,8 @@ jobs:
         run: cargo llvm-cov --workspace --no-report
       - name: Rust documentation tests (not instrumented on stable)
         run: cargo test --workspace --doc
+      - name: Rust API documentation, broken links refused (justfile)
+        run: uv run just rustdoc
       - name: Rust line coverage in the summary
         run: |
           {

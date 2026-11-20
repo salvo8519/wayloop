@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 03740cba802a
+source_hash: 12142720f728
 ---
 # Architettura
 
@@ -153,7 +153,10 @@ i codici del motore; i codici arrivano con la specifica di ogni comando.
 ### L'envelope
 
 Ogni comando restituisce un solo envelope (ADR 0009, C1), un tipo del contratto di
-`wayloop-schemas` riesportato come `wayloop_core::Envelope`:
+`wayloop-schemas` riesportato come `wayloop_core::Envelope<D>`, generico su `D`, il tipo dei dati
+del comando; i diagnostics, il meta e il report degli errori al suo interno sono definiti una
+sola volta per tutti i comandi
+([ADR 0030](https://salvo8519.github.io/wayloop/project/adr/0030-contracts-generated-from-rust-types/), G1):
 
 | Campo | Significato |
 | --- | --- |
@@ -168,10 +171,22 @@ Ogni identificativo nell'envelope (un controllo, una reason, un codice di errore
 non conoscono (ADR 0009, C5).
 
 `Envelope::exit_code()` dà il codice di uscita dell'ADR 0009 C7: 0 per un risultato con `data`,
-1 per un input rifiutato, 5 per un errore interno del motore; è l'unico punto in cui un esito
-diventa un codice di uscita. Un errore interno è scritto in `error` come un rifiuto; i suoi
+1 per un input rifiutato, 5 per un errore interno del motore; restituisce
+`Outcome::exit_code()`, l'unico punto in cui un esito diventa un codice di uscita. Un errore interno è scritto in `error` come un rifiuto; i suoi
 errori hanno la reason `internal`, che distingue i due casi nel JSON. L'envelope non contiene nulla che dipenda dalla macchina o
 dal momento: nessun orario, nome host o percorso assoluto.
+
+Un esito si costruisce solo con costruttori che rifiutano, restituendo `None`, ciò che il
+contratto non definisce: `Outcome::success` rifiuta dati scritti come null (null significa non
+fornito, ADR 0009 C2) o senza forma JSON, `Outcome::refused` un report con un errore di reason
+`internal`, e `Outcome::failed` un report con un errore di qualsiasi altra reason. Ogni envelope
+che il motore può costruire è quindi uno che il suo lettore accetta. Il lettore rifiuta gli
+stessi casi, e un documento con sia `data` sia `error`, o con nessuno dei due. Lo schema
+richiede `error` quando `data` è assente; il sottoinsieme dell'interprete non ha negazione,
+quindi solo il tipo rifiuta la presenza di entrambi. Lo schema dell'envelope con dati qualsiasi
+è quello di `Envelope<Value>`; lo schema di output di un comando è l'envelope con il tipo dei
+dati di quel comando. I test del core lo caricano, nel testo scritto da `contract::snapshot`,
+con l'interprete e con l'oracolo.
 
 `meta.input_hash` è lo SHA-256 dell'input serializzato come JSON canonico (RFC 8785), in
 esadecimale minuscolo, così lo stesso input dà lo stesso hash su ogni canale e piattaforma:
@@ -296,7 +311,7 @@ volta, nel modulo `contract`:
 
 | Esigenza | Come è scritta |
 | --- | --- |
-| Un requisito condizionale | Una funzione del tipo, indicata in `#[schemars(transform = ...)]`, chiama `contract::rules::require_if_present` o `require_if_equals`, che aggiungono a `allOf` una coppia di `if` e `then` |
+| Un requisito condizionale | Una funzione del tipo, indicata in `#[schemars(transform = ...)]`, chiama `contract::rules::require_if_present`, `require_if_absent` o `require_if_equals`, che aggiungono a `allOf` una coppia di `if` e `then`; `require_if_absent` confronta il membro con `const: null`, condizione vera quando è assente o null, sia nell'interprete sia nella draft 2020-12 |
 | Un formato con nome | Una forma di valore implementa `JsonSchema` a mano con `contract::rules::formatted`, a partire da un valore di `Format` |
 | Assente, non null | Un membro facoltativo, fuori da `required`, perde il tipo `null` che la derive aggiunge a un `Option` |
 | Un valore di enum con il suo significato | Un `oneOf` di costanti documentate diventa un `enum`, e ogni valore è aggiunto alla descrizione come riga ``- `valore`: significato`` |
@@ -319,8 +334,13 @@ rifiutati lì, al loro posto.
 Un tipo la cui forma serializzata la derive non sa descrivere nel sottoinsieme ha un tipo di
 forma privato per il proprio schema e per la lettura: `Source`, le cui forme sono un solo
 oggetto con membri facoltativi e `file` e `line` dati insieme, che il tipo legge come
-esattamente una forma, ed `ErrorReport`, i membri del suo primo errore uniti a `errors`, letto
-solo quando `errors` comincia con quei membri. I test del core eseguono `contract_schema` su
+esattamente una forma, `ErrorReport`, i membri del suo primo errore uniti a `errors`, letto
+solo quando `errors` comincia con quei membri, ed `Envelope<D>`, con `data` ed `error` entrambi
+facoltativi nel suo schema, letto come esattamente uno dei due. Un tipo generico non ha uno
+schema finché il suo parametro non è dato, quindi `contract::TYPES` registra l'envelope come
+`Envelope<Value>`, con il nome del suo schema, `Envelope`. `contract::snapshot` scrive il testo
+di uno snapshot: lo schema con il suo `$id`, le chiavi in ordine di byte, rientro di due spazi e
+un a capo finale; non scrive alcun file. I test del core eseguono `contract_schema` su
 ogni tipo di `contract::TYPES` in entrambe le direzioni, verificano ogni schema con l'oracolo
 rispetto al meta-schema della draft 2020-12, e verificano che i valori serializzati dei tipi
 siano accettati e riletti nello stesso JSON.
