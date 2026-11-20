@@ -1,0 +1,30 @@
+# Scenario: an issue of tier small merged under the merge waiver of the policy (SPEC-0002 R17,
+# R39, AC17, AC43; ADR 0029). A trace, not an event fixture.
+scenario: issue_cycle_small_tier_waiver
+configuration:
+  approvers: [maintainer]
+  limits: {turns_per_issue: 20, attempts: 3, same_failure: 2, executor_retries: 2, lease_minutes: 120}
+  policy:
+    policy_revision: P2
+    approved_by: maintainer
+    areas: [{name: docs, paths: ["docs/"], tier: small}]
+    path_tiers: [{pattern: "crates/**", tier: substantial}]
+    skips: [{tier: small, steps: [counter_review, review]}]
+    merge_waived_tiers: [small]
+    required_checks: [docs]
+initial:
+  issues:
+    - {issue: 21, issue_state: pull_request, checkout: {holder: agent-a}, pull_request: {number: 44, head_sha: H1, checks: {}}, holds: []}
+steps:
+  - input: {name: branch_changes_observed, class: observation, external_id: "branch:docs/21-fix-guide:H1", head_sha: H1, paths: ["docs/en/guide.md"], at: "2026-11-17T14:00:00Z"}
+    expect: {tier: small, record: [branch_changes_observed]}
+  - input: {name: pull_request_checks_completed, class: observation, external_id: "check_suite:7101", head_sha: H1, checks: [{name: docs, conclusion: success}], at: "2026-11-17T14:05:00Z"}
+    expect:
+      issue_state: merge
+      checkout: null
+      record: [pull_request_checks_completed, gate_waived, checkout_released]
+      gate_waived: {kind: merge, tier: small, policy_revision: P2, policy_approved_by: maintainer}
+  - next_steps: {now: "2026-11-17T14:05:05Z", free_workers: 0}
+    expect: {actions: [{kind: merge, issue: 21}]}
+  - input: {name: pull_request_merged, class: observation, external_id: "pull_request:44:merged", actor: wayloop-bot, at: "2026-11-17T14:06:00Z"}
+    expect: {issue_state: done, record: [pull_request_merged, issue_done, artifact_status_changed]}
