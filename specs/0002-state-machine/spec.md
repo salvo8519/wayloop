@@ -5,7 +5,7 @@
 | Status | Draft |
 | Milestone | M1 · Engine core |
 | Owner | @salvo8519 |
-| Related | #11, #48, #49, #58, #228; ADR 0002, 0003, 0006, 0007, 0008, 0009, 0010, 0011, 0012, 0013, 0026, 0028, 0029; SPEC-0001, SPEC-0003, SPEC-0004, SPEC-0005, SPEC-0006, SPEC-0007, SPEC-0008, SPEC-0009, SPEC-0013, SPEC-0021 |
+| Related | #11, #48, #49, #58, #228, #309; ADR 0002, 0003, 0006, 0007, 0008, 0009, 0010, 0011, 0012, 0013, 0026, 0028, 0029, 0030; SPEC-0001, SPEC-0003, SPEC-0004, SPEC-0005, SPEC-0006, SPEC-0007, SPEC-0008, SPEC-0009, SPEC-0013, SPEC-0021 |
 | Commit scope | state |
 
 ## Problem
@@ -24,17 +24,26 @@ The engine decides every step of the loop. Without an explicit state machine the
 - As a runtime, I want the list of ready work in a fixed order, so that parallel workers never take the same issue or the same lane.
 
 ## Requirements (EARS)
+Requirement numbers are identities, not an order (SPEC-0001 R20). R8 to R11 and AC4 to AC7 were
+merged on `main` by #309 and are cited by SPEC-0006 R11, so they keep their numbers; the
+requirements and criteria of this draft that held the same numbers took the next free ones:
+
+| Earlier draft of this pull request | Now |
+| --- | --- |
+| R8, R9, R10, R11 (configuration gate, account of the runtime, project phase, council and plan) | R45, R46, R47, R48 |
+| AC4, AC5, AC6, AC7 (one-pass refusal, input class, recorded limits, replay and causes) | AC44, AC45, AC46, AC47 |
+
 - **R1**: THE ENGINE SHALL decide every input with a function `decide(state, input, at)` that returns either the events to record or a refusal, and SHALL change the state only with a function `apply(state, event)` of one recorded event; neither function SHALL read a clock, a file, the network, the environment or a random source.
 - **R2**: THE ENGINE SHALL rebuild the state only by applying the recorded events in ledger order to the initial state, and SHALL never call `decide` during a replay.
 - **R3**: THE ENGINE SHALL record in every event it emits for an input the cause of that input: `input_hash` for a command, `dispatch` for a result, `external_id` for an observation.
-- **R4**: THE ENGINE SHALL accept each input only in the input class given by the table Inputs, and refuse a command without `expected_revision`, a result without `dispatch` or an observation without `external_id` with the code `input_class` and the reason `missing`.
+- **R4**: THE ENGINE SHALL accept each input only in the input class given by the table Inputs, and refuse a result without `dispatch` or an observation without `external_id` with the code `input_class` and the reason `missing`; a command without `expected_revision` is refused by the input schema of its command at the entry point (SPEC-0004 R14, code `command_input`).
 - **R5**: THE ENGINE SHALL return the events due by time only from a function `due_events(state, now)`, and the next steps (actions, ready work and stop reasons) only from a function `next_steps(state, now, free_workers)`, both pure, with the outputs in the total order of section Ready work and lanes.
 - **R6**: IF an input fails one or more guards of its transition, THEN THE ENGINE SHALL refuse it, report every unmet guard in one pass with its code from section Errors, and record nothing, except the cost of a stale result under R21.
 - **R7**: THE ENGINE SHALL apply the approvers, limits, budgets and policy recorded by the latest `limits_set` and `policy_set` events, never the configuration file read at the time of a decision.
-- **R8**: WHEN `run_start_requested` carries an effective configuration that differs from the recorded one, THE ENGINE SHALL record at once the changes that only remove approvers, lower limits or budgets, or tighten the policy, and SHALL open a gate of kind `configuration` for every change that adds an approver, raises a limit or a budget, or loosens the policy.
-- **R9**: THE ENGINE SHALL record `run_started` with the account of the runtime and, WHILE that account is a recorded approver, propose no action and report the stop reason `engine_account_is_approver`.
-- **R10**: THE ENGINE SHALL derive the phase of the project from the statuses of its artifacts with the function of section Project phase, and record `phase_changed` whenever an event changes the derived phase.
-- **R11**: WHILE an open brief has no council report in `draft`, or an approved council report has no pending plan proposal, THE ENGINE SHALL propose the action `run_council` or `generate_plan` for that subject within the budget of the phase, and dispatch it through `project_step_requested`.
+- **R8**: WHERE the risk tier of an issue is high, THE ENGINE SHALL run the review step as a panel of three verifiers, one per lens (SPEC-0003, Coverage and verification), none of which wrote or counter-reviewed the change, each instructed that a coverage unit is `uncovered` unless it can cite the code and the test that cover it, and SHALL allow one repetition of the panel.
+- **R9**: THE ENGINE SHALL compute the outcome of a panel from the votes alone: `covered` only when every lens votes `covered`; `needs_validation` when no lens votes `uncovered` and at least one votes `needs_validation`; `uncovered` otherwise. No model computes or reports the outcome.
+- **R10**: IF a verifier returns a vote without a citation for each claim, THEN THE ENGINE SHALL count it as `uncovered` and record the reason `uncited`.
+- **R11**: WHERE the risk tier of an issue is medium, THE ENGINE SHALL run the review step with one verifier on the `proof` lens under R9 and R10; WHERE it is low, THE ENGINE SHALL rely on the deterministic checks of the verify step alone.
 - **R12**: WHEN a gate of kind `council_report` or `roadmap` is rejected, THE ENGINE SHALL move its subject to `superseded`, propose no new `run_council` or `generate_plan` for that brief, and report the stop reason `rejected_awaiting_input` until an approver requests a new run or the brief is superseded.
 - **R13**: WHEN a subject reaches one of the approval states of section Gates and approval states, THE ENGINE SHALL open a gate, record `gate_opened`, and propose no action that passes the gate while it is pending.
 - **R14**: THE ENGINE SHALL resolve a gate only with an `approval_recorded` or `question_answered` whose actor is a recorded approver; IF the actor is not a recorded approver, THEN THE ENGINE SHALL record `input_ignored` with the code `actor_not_authorised` and keep the gate pending.
@@ -45,10 +54,10 @@ The engine decides every step of the loop. Without an explicit state machine the
 - **R19**: THE ENGINE SHALL consider an issue ready only when every condition of the table Readiness holds, and SHALL report, for an issue that is not ready, every unmet condition with its code.
 - **R20**: WHEN a claim of a ready issue is accepted, THE ENGINE SHALL record `checkout_acquired` with the holder, session, executor, branch and worktree, move an issue in state `open` to `claim`, keep the state of an issue that was claimed before, and record the artifact transitions of section Artifact transitions taken by the engine.
 - **R21**: WHEN a step of a checked-out issue is requested, THE ENGINE SHALL record `step_started` as the dispatch of the step and count one turn if an executor runs the step; IF a result cites a dispatch that is not the open dispatch of its subject, THEN THE ENGINE SHALL refuse it with the code `dispatch_stale` and record only the `executor_call_recorded` the result carries.
-- **R22**: THE ENGINE SHALL extend the lease of a session with every event of that session, including `lease_renewed` sent by its holder; WHEN `due_events` finds a session whose lease has ended, THE ENGINE SHALL record `checkout_released` with the reason `lease_expired` for each of its checkouts and `session_ended` with the outcome `abandoned`, keep the issue-cycle state and holds, and close the open dispatch.
+- **R22**: WHEN `due_events` finds a session whose lease has ended under the rule of SPEC-0003 R46, THE ENGINE SHALL return the events of SPEC-0003 R11 and R43 for that session, keep the issue-cycle state and holds of each of its issues, close their open dispatches, and move each of their tasks in `implementing` back to `approved`.
 - **R23**: IF a result does not validate against the schema of its step or fails a guard of its transition, or an executor fails or times out, THEN THE ENGINE SHALL record `result_rejected` or `step_retried`, close the dispatch and count one retry; WHEN a failure finds the retries of the step at their limit, THE ENGINE SHALL record `step_failed` and hold the issue with the reason `executor_failure`.
-- **R24**: THE ENGINE SHALL complete the step `counter_review` only when every objection has a ruling or a question, the step `checklist` only when the checklist names every requirement cited by the task, and the step `review` only when every finding is verified or rejected with a reason.
-- **R25**: THE ENGINE SHALL compute the risk tier of an issue from the recorded policy, its area and the paths of the latest `branch_changes_observed` at its recorded head, and WHERE that tier skips `counter_review` or `review` under the policy, SHALL skip the step and record the skip in `step_completed`.
+- **R24**: THE ENGINE SHALL complete the step `counter_review` only when every objection has a ruling or a question, the step `checklist` only when the checklist names every requirement cited by the task, and a dispatch of the step `review` only when it carries one vote of its lens for every coverage unit of the task (R49).
+- **R25**: THE ENGINE SHALL compute the risk tier of an issue from the recorded policy, its area and the paths of the latest `branch_changes_observed` at its recorded head; WHERE that tier skips `counter_review` under the policy, or the tier is `small` (R11), SHALL skip `counter_review` or `review` and record the skip in `step_completed`.
 - **R26**: WHEN a verification or a required check of the pull request fails and neither limit of R27 is reached, THE ENGINE SHALL record `attempt_failed` with the failure note and the failing checks, increase the attempt number by one, and move the issue to `build`.
 - **R27**: WHEN a failure leaves one check failed on `limits.same_failure` consecutive attempts, or the failed attempt is attempt number `limits.attempts`, THE ENGINE SHALL record `attempt_failed`, open a question of category `repeated_failure` with the options `retry` and `stop`, and hold the issue instead of starting another attempt.
 - **R28**: WHEN an executor step of an issue is requested and the turns of the issue are at least `limits.turns_per_issue`, THE ENGINE SHALL hold the issue with the reason `turn_limit` instead of starting the step; WHEN a `limits_set` sets the limit above the turns, THE ENGINE SHALL remove that hold.
@@ -68,19 +77,25 @@ The engine decides every step of the loop. Without an explicit state machine the
 - **R42**: THE ENGINE SHALL report, for the project and for every issue that cannot progress without a person or a new budget, its stop reasons from the enum `stop_reason`, with the gate, question, issue or scope each one names, and WHILE the ledger is broken or regressed (SPEC-0003 R4, R49) SHALL propose no action and report `ledger_broken`.
 - **R43**: THE ENGINE SHALL take the engine transitions of artifact statuses of SPEC-0001 only on the triggers listed in section Artifact transitions taken by the engine, and record each as `artifact_status_changed`.
 - **R44**: THE ENGINE SHALL take the approvers only from the explicit list recorded by `wayloop init` and by later `limits_set` events, and SHALL never treat an agent, a bot or the account of the runtime as an approver.
+- **R45**: WHEN `run_start_requested` carries an effective configuration that differs from the recorded one, THE ENGINE SHALL record at once the changes that only remove approvers, lower limits or budgets, or tighten the policy, and SHALL open a gate of kind `configuration` for every change that adds an approver, raises a limit or a budget, or loosens the policy.
+- **R46**: THE ENGINE SHALL record `run_started` with the account of the runtime and, WHILE that account is a recorded approver, propose no action and report the stop reason `engine_account_is_approver`.
+- **R47**: THE ENGINE SHALL derive the phase of the project from the statuses of its artifacts with the function of section Project phase, and record `phase_changed` whenever an event changes the derived phase.
+- **R48**: WHILE an open brief has no council report in `draft`, or an approved council report has no pending plan proposal, THE ENGINE SHALL propose the action `run_council` or `generate_plan` for that subject within the budget of the phase, and dispatch it through `project_step_requested`.
+- **R49**: WHEN the review step of an issue starts, THE ENGINE SHALL dispatch it once per lens that R8 or R11 requires for the tier of the issue, one lens at a time in the order `presence`, `behaviour`, `proof`, each to a verifier that ran neither `build` nor `counter_review` of the issue, over the coverage units of the requirements cited by its task; WHEN the last lens has voted, THE ENGINE SHALL tally each unit under R9 and R10 and move the issue to `pull_request` when every unit is `covered`, to `build` when a unit is `uncovered`, and otherwise hold it with a question of category `needs_validation` (SPEC-0009 R10).
+- **R50**: THE ENGINE SHALL list in `ready` of `next_steps`, after the ready issues, every coverage unit in state `stale` (SPEC-0003 R16), by unit identifier.
 
 ## Acceptance criteria
 - **AC1** (R1, R18, R32): Given every pair of issue-cycle state and input of the table Issue transitions, generated with random guards, when decided and applied, then the next state, the holds and the recorded events match the table, and every pair absent from the table is refused with `transition_not_allowed` or `step_mismatch` or, for an observation, recorded as the table says for an inconsistent observation. Verification: property test.
 - **AC2** (R1, R5): Given a random state and a random input, when `decide`, `apply`, `due_events` and `next_steps` run twice, then both outputs are byte-identical in canonical JSON; and the core crate passes `cargo clippy -- -D clippy::disallowed_methods -D clippy::disallowed_types` with a `clippy.toml` that disallows reading the system clock, the environment, the file system and random sources, and the hash maps and sets whose iteration order is random. Verification: property test.
 - **AC3** (R5, R19): Given a random set of issues, lanes and free workers, when the next steps are computed for the same state with the issues stored in different orders, then the output is identical and ordered as section Ready work and lanes says. Verification: property test.
-- **AC4** (R6, R19): Given an issue with one dependency not done, a hold and a checkout held by another session, when a claim is requested, then it is refused with `dependency_not_done`, `issue_on_hold` and `checkout_held` in one pass, each with its pointer, and the ledger is unchanged. Verification: TDD.
-- **AC5** (R4): Given a `claim_requested` without an expected revision, a `step_result` without a dispatch and a `pull_request_merged` without an external identifier, when submitted, then each is refused with `input_class` and the reason `missing` at the missing field. Verification: TDD.
-- **AC6** (R7): Given a ledger whose latest `limits_set` sets 20 turns and a configuration file changed to 30 turns after it, when the ledger is replayed and the next steps are computed, then the limit applied is 20. Verification: TDD.
-- **AC7** (R1, R2, R3): Given a random sequence of inputs decided one after the other by a writer, when the recorded events are applied again from the initial state, then the state is byte-identical to the state the writer held after each event, and no call of `decide` happens during the replay; and given any state and input, when `decide` runs, then every emitted event carries the `input_hash`, the `dispatch` or the `external_id` of the input, according to its class. Verification: property test.
-- **AC8** (R8, R44): Given a recorded configuration with approvers `maintainer`, 20 turns and a sprint budget of 100,000 tokens, when a run starts with the approver `other` added, 30 turns and a sprint budget of 50,000, then `limits_set` records the budget of 50,000 at once, a gate of kind `configuration` holds the new approver and the 30 turns, the limit stays 20 while it is pending, an approval by `other` is ignored with `actor_not_authorised`, and an approval by `maintainer` records `limits_set` with both changes. Verification: TDD.
-- **AC9** (R9): Given recorded approvers `maintainer` and `wayloop-bot`, when a run starts with the account `wayloop-bot`, then `run_started` is recorded, no action is proposed and the stop reason is `engine_account_is_approver`. Verification: TDD.
-- **AC10** (R10): Given the fixture states of the table Project phase, when the phase is derived, then each gives its phase; given a project with an approved milestone and no brief, then the phase is `delivery`; given a `complete` project and a new brief approved, then the phase is `council`. Verification: TDD.
-- **AC11** (R11, R29): Given a project in phase `council` with an approved brief and no council report, when the next steps are computed, then `run_council` is proposed; given the budget `budgets.council` exhausted, then it is not proposed and the stop reason is `budget_exhausted` with the scope. Verification: TDD.
+- **AC4** (R8): Given a high-risk issue, when the review step starts, then three verifiers are dispatched with distinct lenses and none of them is the implementer or the counter-reviewer. Verification: TDD.
+- **AC5** (R9): Given every combination of three votes, when tallied, then the outcome matches the rule of R9. Verification: property test.
+- **AC6** (R10): Given a `covered` vote with no citation, when tallied, then it counts as `uncovered` with reason `uncited`. Verification: TDD.
+- **AC7** (R11): Given a medium-risk issue, when the review step starts, then exactly one verifier is dispatched with the `proof` lens; given a low-risk issue, then none is. Verification: TDD.
+- **AC8** (R45, R44): Given a recorded configuration with approvers `maintainer`, 20 turns and a sprint budget of 100,000 tokens, when a run starts with the approver `other` added, 30 turns and a sprint budget of 50,000, then `limits_set` records the budget of 50,000 at once, a gate of kind `configuration` holds the new approver and the 30 turns, the limit stays 20 while it is pending, an approval by `other` is ignored with `actor_not_authorised`, and an approval by `maintainer` records `limits_set` with both changes. Verification: TDD.
+- **AC9** (R46): Given recorded approvers `maintainer` and `wayloop-bot`, when a run starts with the account `wayloop-bot`, then `run_started` is recorded, no action is proposed and the stop reason is `engine_account_is_approver`. Verification: TDD.
+- **AC10** (R47): Given the fixture states of the table Project phase, when the phase is derived, then each gives its phase; given a project with an approved milestone and no brief, then the phase is `delivery`; given a `complete` project and a new brief approved, then the phase is `council`. Verification: TDD.
+- **AC11** (R48, R29): Given a project in phase `council` with an approved brief and no council report, when the next steps are computed, then `run_council` is proposed; given the budget `budgets.council` exhausted, then it is not proposed and the stop reason is `budget_exhausted` with the scope. Verification: TDD.
 - **AC12** (R12): Given a draft council report at its gate, when an approver rejects it, then the report is `superseded`, no `run_council` is proposed and the stop reason is `rejected_awaiting_input`; given `unblock_requested` by an approver on the brief, then `run_council` is proposed again. Verification: TDD.
 - **AC13** (R13, R14, R44): Given any sequence of random inputs in which no recorded approver acts, when decided and applied, then no gate is resolved as `approved`, no `limits_set` or `policy_set` widens the configuration, no issue reaches `done` except through a merge observation with `gate_bypassed` or a recorded `gate_waived`, and no artifact passes a person transition of SPEC-0001. Verification: property test.
 - **AC14** (R14): Given an issue at `merge` and an approval from an agent account, when processed, then `input_ignored` with `actor_not_authorised` is recorded and the gate stays pending. Verification: TDD.
@@ -95,8 +110,8 @@ The engine decides every step of the loop. Without an explicit state machine the
 - **AC23** (R21): Given an issue at `build` with dispatch D2 after a retry of dispatch D1, when a result citing D1 arrives with an executor call record, then it is refused with `dispatch_stale` and only `executor_call_recorded` is recorded; given a result citing D2, then it is accepted. Verification: TDD.
 - **AC24** (R22): Given a lease of 120 minutes and a session whose latest event was recorded at 10:00, when `due_events` runs at 11:59, then it returns nothing; when it runs at 12:00, then it returns `checkout_released` with `lease_expired` and `session_ended` with `abandoned`, the issue keeps its state and its task moves to `approved`; given `lease_renewed` at 11:30, then nothing is due at 12:00. Verification: TDD.
 - **AC25** (R23): Given `limits.executor_retries` set to 2, when the executor of a step times out three times, then two `step_retried`, one `step_failed` and one `issue_blocked` with `executor_failure` are recorded; given a result that does not validate, then `result_rejected` is recorded and counts as one retry. Verification: TDD.
-- **AC26** (R24): Given a checklist result that omits requirement R2 cited by the task, a counter-review result with an objection without a ruling and a review result with a finding neither verified nor rejected, when each is submitted, then each is recorded as `result_rejected` with `checklist_incomplete`, `objection_unruled` or `finding_unverified`. Verification: TDD.
-- **AC27** (R25): Given a policy in which the tier `small` skips `counter_review` and `review`, when an issue of area tier `small` completes `reanalysis` and `verify`, then it moves to `checklist` and `pull_request`, and each `step_completed` lists the skipped step; given a changed path of tier `substantial` observed before `verify` completes, then `review` is not skipped. Verification: TDD.
+- **AC26** (R24): Given a checklist result that omits requirement R2 cited by the task, a counter-review result with an objection without a ruling and a review result of the lens `proof` without a vote for one coverage unit of the task, when each is submitted, then each is recorded as `result_rejected` with `checklist_incomplete`, `objection_unruled` or `vote_missing`. Verification: TDD.
+- **AC27** (R25, R11): Given a policy in which the tier `small` skips `counter_review`, when an issue of area tier `small` completes `reanalysis` and `verify`, then it moves to `checklist` and `pull_request`, and each `step_completed` lists the skipped step; given a changed path of tier `substantial` observed before `verify` completes, then `review` is not skipped. Verification: TDD.
 - **AC28** (R26): Given an issue at `verify` at attempt 1 of 3, when the verification fails on check `unit`, then `attempt_failed` names `unit` and carries a failure note, the attempt number is 2 and the issue is at `build`. Verification: TDD.
 - **AC29** (R27): Given `limits.attempts` 3 and `limits.same_failure` 5, when attempts 1, 2 and 3 fail on different checks, then the failures of attempts 1 and 2 move the issue to `build` and the failure of attempt 3 opens the question `repeated_failure`; no attempt 4 is started. Verification: TDD.
 - **AC30** (R27, R31): Given `limits.same_failure` 2, when check `unit` fails on two consecutive attempts, then a question of category `repeated_failure` with the options `retry` and `stop` is opened and the issue is held; when an approver answers `retry`, then the attempt number is 1, the failure counts are reset and the issue resumes at `build`; when an approver answers `stop` instead, then the hold becomes `stopped_by_person`. Verification: TDD.
@@ -113,6 +128,12 @@ The engine decides every step of the loop. Without an explicit state machine the
 - **AC41** (R42): Given a project with a pending council report gate, an issue held with `turn_limit` and a sprint budget exhausted, when the status is computed, then the stop reasons are `approval_required`, `turn_limit` and `budget_exhausted`, each naming its gate, issue or scope, and every value matches `^[a-z][a-z0-9_]*$`; given a state loaded from a broken ledger, then the only stop reason is `ledger_broken` and no action is proposed. Verification: contract test.
 - **AC42** (R43): Given the last task of a story merged while another task of the story is superseded, when processed, then the story moves to `done`; given an epic whose only task is superseded, then the epic does not move. Verification: TDD.
 - **AC43** (R1, R5, R18, R20, R26, R34): Given the scenarios of `examples/`, when each is applied input by input to its initial state, then every expected state, hold, refusal and recorded event matches. Verification: end-to-end.
+- **AC44** (R6, R19): Given an issue with one dependency not done, a hold and a checkout held by another session, when a claim is requested, then it is refused with `dependency_not_done`, `issue_on_hold` and `checkout_held` in one pass, each with its pointer, and the ledger is unchanged. Verification: TDD.
+- **AC45** (R4): Given a `step_result` without a dispatch and a `pull_request_merged` without an external identifier, when submitted, then each is refused with `input_class` and the reason `missing` at the missing field; given a `claim` command without an expected revision through the entry point, then it is refused with `command_input` and the reason `missing`, and `decide` is not called. Verification: TDD.
+- **AC46** (R7): Given a ledger whose latest `limits_set` sets 20 turns and a configuration file changed to 30 turns after it, when the ledger is replayed and the next steps are computed, then the limit applied is 20. Verification: TDD.
+- **AC47** (R1, R2, R3): Given a random sequence of inputs decided one after the other by a writer, when the recorded events are applied again from the initial state, then the state is byte-identical to the state the writer held after each event, and no call of `decide` happens during the replay; and given any state and input, when `decide` runs, then every emitted event carries the `input_hash`, the `dispatch` or the `external_id` of the input, according to its class. Verification: property test.
+- **AC48** (R49, R8, R11): Given an issue of tier `contract` whose task cites one requirement with two acceptance criteria, when the review step starts, then three dispatches follow one another with the lenses `presence`, `behaviour` and `proof`; given a verifier that ran `build` of the issue, then its dispatch is refused with `verifier_not_independent`; given the votes `covered` from every lens, then the issue moves to `pull_request`; given one `uncovered` vote, then it moves to `build`; given one `needs_validation` vote and no `uncovered` one, then it is held with a question of category `needs_validation`. Verification: TDD.
+- **AC49** (R50): Given two units `0002/R8/AC4` and `0002/R9/AC5` in state `stale` and one ready issue, when the next steps are computed, then `ready` lists the issue first and then the two units in that order. Verification: TDD.
 
 ## Model
 
@@ -159,9 +180,8 @@ Time enters the core only as data.
 - `due_events(state, now)` is the only function that compares a recorded time with the current
   time. The runtime calls it, and appends what it returns under the lock, before it decides any
   command (SPEC-0003 R28); a read never calls it.
-- The lease of a session ends at the `recorded_at` of the latest event of that session plus
-  `limits.lease_minutes`. `lease_renewed` is that event when nothing else happens: the runtime of
-  the holder sends `lease_renewal_requested` every quarter of the lease while a step runs.
+- The lease of a session, its end and its renewal are defined once, in SPEC-0003 section Clock
+  times (R46); its length is `limits.lease_minutes` of section Limits and budgets.
 
 ### Inputs
 
@@ -188,14 +208,16 @@ commands: they are not exposed through the MCP server, the SDKs or tool definiti
 ### The four functions
 
 ```text
-decide(state, input, at)              -> Ok { events: [event] } | Refused { errors }
+decide(state, input, at)              -> Ok { events: [event] } | Refused { error_report }
 apply(state, event)                   -> state
 due_events(state, now)                -> [event]
 next_steps(state, now, free_workers)  -> { actions, ready, stops }
 ```
 
 - `decide` validates the input, evaluates the guards and returns the events in the order they
-  are recorded. It is total: every pair of state and input gives events or a refusal, never a
+  are recorded. A refusal is the `ErrorReport` of `wayloop-schemas` (ADR 0009 C3, ADR 0030 G1);
+  for a command it reaches the caller as the refused outcome of its envelope (`Outcome::refused`,
+  SPEC-0004 R18), and no type of the core repeats its shape. It is total: every pair of state and input gives events or a refusal, never a
   panic. Each event it returns is applied before the next one is computed, so that
   `apply(apply(s, e1), e2)` is the state after the input.
 - `apply` is the only way the state changes (R1). It is total over the kinds of the catalogue of
@@ -220,7 +242,7 @@ on the configuration of the machine that replays.
   person as `approved_by` (R44). Agents, bots and the account of the runtime are never
   approvers; `wayloop init` refuses an empty list.
 - `run_start_requested` carries the effective configuration (ADR 0010) and the account of the
-  runtime. `decide` compares it with the recorded one (R8). Removing an approver, lowering a
+  runtime. `decide` compares it with the recorded one (R45). Removing an approver, lowering a
   limit or a budget, and tightening the policy are recorded at once in `limits_set` or
   `policy_set`. Adding an approver, raising a limit or a budget, and loosening the policy open
   one gate of kind `configuration` that holds the proposed values; only an already recorded
@@ -230,7 +252,7 @@ on the configuration of the machine that replays.
 - Loosening the policy means: widening the tier `small` (a lower tier for an area or a path),
   adding a skipped step or a merge waiver, or removing a required check. Every other policy
   change tightens it.
-- `run_started` records the account of the runtime (R9). While that account is an approver, the
+- `run_started` records the account of the runtime (R46). While that account is an approver, the
   engine proposes nothing: the runtime would otherwise approve its own work.
 - The plan enters the state through `plan_observed`, which the plan adapter emits from the
   tracker and the repository: items with their type, status, links, area and dependencies, and
@@ -246,7 +268,7 @@ on the configuration of the machine that replays.
 ### Project phase
 
 The phase is a function of artifact statuses, evaluated in this order; the first row that
-holds gives the phase (R10). Deriving it, instead of storing it, keeps it consistent with the
+holds gives the phase (R47). Deriving it, instead of storing it, keeps it consistent with the
 artifacts by construction, and lets a project adopt Wayloop with an existing roadmap: it starts
 in `delivery`.
 
@@ -271,13 +293,13 @@ Project transitions (each records `phase_changed` when the derived phase changes
 | --- | --- | --- | --- | --- | --- | --- |
 | P1 | Any | `brief_submitted` (observation) | Brief valid (SPEC-0001), in `draft` | Person | Same | `gate_opened` (kind `brief`) |
 | P2 | Any | `approval` approving the brief gate | G2 | Person | Derived: `council` unless `delivery` holds | `approval_recorded`, `gate_resolved`, `artifact_status_changed` (brief `approved`, gate issue `done`), `phase_changed` |
-| P3 | Any | `project_step_requested` (command), step `council` or `plan` | R11 applies to the subject; budget of the phase not exhausted; no open project dispatch for the subject | Engine | Same | `step_started` (project dispatch) |
+| P3 | Any | `project_step_requested` (command), step `council` or `plan` | R48 applies to the subject; budget of the phase not exhausted; no open project dispatch for the subject | Engine | Same | `step_started` (project dispatch) |
 | P4 | `council` | `council_report` (result) | Dispatch current; report valid, its brief open | Agent | `council` | `step_completed`, `gate_opened` (kind `council_report`) |
 | P5 | Any | `approval` approving the council report gate | G2; every question answered (SPEC-0001) | Person | Derived: `planning` | `approval_recorded`, `gate_resolved`, `artifact_status_changed`, `phase_changed` |
 | P6 | `planning` | `plan_proposal` (result) | Dispatch current; every item valid (SPEC-0001), at least one milestone, from the approved report | Agent | `planning` | `step_completed`, `gate_opened` (kind `roadmap`) |
 | P7 | Any | `approval` approving a `roadmap` or `roadmap_change` gate that approves a milestone | G2 | Person | Derived: `delivery` | `approval_recorded`, `gate_resolved`, `artifact_status_changed` for each item, `phase_changed` |
 | P8 | Any | `approval` rejecting a `council_report` or `roadmap` gate | G3 | Person | Derived | `approval_recorded`, `gate_resolved` (`rejected`), `artifact_status_changed` (report or plan items to `superseded`); stop `rejected_awaiting_input` (R12) |
-| P9 | Any | `unblock_requested` on a brief with a rejected report or plan | Actor is an approver | Person | Same | `issue_unblocked` naming the brief; R11 applies again |
+| P9 | Any | `unblock_requested` on a brief with a rejected report or plan | Actor is an approver | Person | Same | `issue_unblocked` naming the brief; R48 applies again |
 | P10 | `delivery` | `status_change_requested`: milestone to `done` (gate met) | SPEC-0001 transition allowed; actor is an approver | Person | Derived: `complete` when no milestone remains `approved` or `implementing` | `artifact_status_changed`, `phase_changed` |
 | P11 | Any | `status_change_requested`: a brief or council report to `superseded` | SPEC-0001 transition allowed; actor is an approver | Person | Derived | `artifact_status_changed`, `gate_withdrawn` for its gates, `phase_changed` |
 | P12 | Any | `project_step_requested`, step `reconcile`, then `roadmap_change_proposal` (result) | Dispatch current; change valid against the current plan | Agent | Same | `step_started`; then `step_completed`, `gate_opened` (kind `roadmap_change`) |
@@ -302,9 +324,9 @@ Approval states:
 | `council_report` | A report is returned (P4) | Every question answered (`question_unanswered`) | Report `approved` (P5) | Report `superseded`; stop `rejected_awaiting_input` (P8) |
 | `roadmap` | A plan proposal is returned (P6) | Every item valid | Items `approved` (P7) | Items `superseded`; stop `rejected_awaiting_input` (P8) |
 | `roadmap_change` | A reconciliation proposal is returned (P12) | Change applies to the current plan (`plan_changed`) | Change applied (SPEC-0007 R4) | Nothing changes |
-| `specification` | `specification_submitted` for a specification in `draft` or `surveyed` | Specification valid | Specification `approved` | Stays as it was |
+| `specification` | `specification_submitted` for a specification in `draft` or `surveyed` | Specification valid | Specification `approved`; `coverage_planned` with the coverage units of its active requirements (SPEC-0003 R14) | Stays as it was |
 | `merge` | An issue reaches `merge` and the policy does not waive it (I16) | Every required check `success` at the recorded head (`checks_not_green`) | The merge may happen; `done` follows the merge (I18) | Issue to `build` (I19) |
-| `configuration` | A run starts with a wider configuration (R8) | The proposal still differs from the recorded configuration | `limits_set` or `policy_set` with the proposal | Recorded configuration kept |
+| `configuration` | A run starts with a wider configuration (R45) | The proposal still differs from the recorded configuration | `limits_set` or `policy_set` with the proposal | Recorded configuration kept |
 | `question` | An agent or the engine raises a question (table Questions) | For `repeated_failure`: answer `retry` or `stop` (`option_unknown`) | Not applicable: resolution `answered` | Not applicable |
 
 Gate transitions:
@@ -328,7 +350,7 @@ The merge waiver (G7) follows ADR 0029: for the tier `small`, merge is not an ap
 when the recorded policy waives it. The person accountable is the approver of the policy
 revision that holds the waiver, and `gate_waived` names both. A waiver is never recorded as
 `gate_resolved` by a person, and a policy change that widens `small` or adds a waiver passes the
-`configuration` gate (R8).
+`configuration` gate (R45).
 
 ### Issue cycle
 
@@ -344,14 +366,15 @@ it counts a turn (R21).
 | `checklist` | The checklist is generated from the specification and published | Agent, validated by the engine | Yes |
 | `build` | Tests where they pay, then the code | Agent | Yes |
 | `verify` | Deterministic checks decide | Engine | No |
-| `review` | Review proportional to risk, by an agent other than the implementer (SPEC-0008 R14) | Agent | Yes |
+| `review` | Verifiers by risk tier, one dispatch per lens, none of them the implementer or the counter-reviewer (R8, R11, R49) | Agent | Yes |
 | `pull_request` | The pull request is opened or updated, then its required checks run | Engine | No |
 | `merge` | Approval state: the merge gate is pending, approved or waived; the merge is awaited | Person | No |
 | `done` | Closing pull request merged; terminal | None | No |
 | `superseded` | Task superseded; terminal | None | No |
 
-The values from `claim` to `merge` are the `step` values of the hand-over (SPEC-0001) and the
-identifiers of `IssueStep` in `crates/wayloop-core`, in `snake_case` after #228.
+The values from `claim` to `merge` are the identifiers of `IssueStep` in `crates/wayloop-core`,
+the `step` values of the hand-over (SPEC-0001). `issue_state` is built from `IssueStep` plus
+`open`, `done` and `superseded`; it does not list the steps a second time.
 
 Issue transitions. `X` is any state from `claim` to `pull_request`; `N` is any non-terminal
 state. A row without a checkout guard applies whether or not the issue is checked out. Row I0 is
@@ -362,7 +385,7 @@ evaluated before every other row (R33).
 | I0 | Any | Any observation whose `external_id` is recorded | None | None | Unchanged | Nothing |
 | I1 | `open` | `claim_requested` (command) | Ready (R19); the session is open | Engine | `claim`, checked out | `checkout_acquired`, artifact transitions (R43) |
 | I2 | `N` except `open` and `merge`, not checked out | `claim_requested` (command) | Ready (R19); the session is open | Engine | Same state, checked out | `checkout_acquired`, task to `implementing` if `approved` |
-| I3 | `X`, checked out, no dispatch, no hold | `step_requested` (command) | Sender is the holder (`checkout_not_held`); the step is the current state (`step_mismatch`); turns below the limit for an executor step; no budget scope of the issue exhausted | Engine | Same state, dispatch open | `step_started` |
+| I3 | `X`, checked out, no dispatch, no hold | `step_requested` (command) | Sender is the holder (`checkout_not_held`); the step is the current state (`step_mismatch`); for `review`, the verifier ran neither `build` nor `counter_review` of the issue (`verifier_not_independent`, R49); turns below the limit for an executor step; no budget scope of the issue exhausted | Engine | Same state, dispatch open | `step_started` |
 | I4 | `X`, executor step, as I3 | `step_requested` (command) | Turns at least the limit | Engine | Same state, hold `turn_limit` | `issue_blocked` |
 | I5 | `claim` | `step_result` (result) | Dispatch current; branch and worktree reported | Engine | `reanalysis` | `step_completed` |
 | I6 | `reanalysis` | `step_result`, outcome `completed` | Dispatch current; result valid | Agent | `counter_review`, or `checklist` when the tier skips it (R25) | `step_completed` |
@@ -372,8 +395,8 @@ evaluated before every other row (R33).
 | I10 | `verify` | `verification_result` (result), every check passed | Dispatch current | Engine | `review`, or `pull_request` when the tier skips it (R25) | `step_completed`; passing checks reset in `failures` |
 | I11 | `verify` | `verification_result`, a check failed | Limits of R27 not reached | Engine | `build`, attempt plus one | `attempt_failed` |
 | I12 | `verify`, `pull_request` | `verification_result` or `pull_request_checks_completed` with a required check failed | Limits of R27 reached | Engine | `build`, hold `question` | `attempt_failed`, `gate_opened` (question `repeated_failure`), `issue_blocked` |
-| I13 | `review` | `step_result`, outcome `completed` | As I6; every finding verified or rejected (R24) | Agent | `pull_request` | `step_completed` |
-| I14 | `review` | `step_result`, outcome `changes_requested` | As I13; at least one verified finding | Agent | `build` | `step_completed` |
+| I13 | `review` | `step_result` of a lens dispatch, outcome `completed` | As I6; one vote of the lens per coverage unit (R24); the evidence is valid (SPEC-0003 R17) | Agent | `review` while a lens of R49 has not voted; otherwise `pull_request` when the tally of R9 gives `covered` for every unit | `coverage_verdict` for each vote, `step_completed` |
+| I14 | `review` | As I13, the last lens | The tally gives a unit `uncovered` | Agent | `build` | `coverage_verdict` for each vote, `step_completed` (`changes_requested`) |
 | I15 | `pull_request`, dispatch open, no pull request | `pull_request_opened` (observation) | Branch of the issue; body closes the issue (SPEC-0001 R10) | Engine | Same state, pull request recorded, dispatch closed | `pull_request_opened`, `step_completed` |
 | I16 | `pull_request`, pull request recorded, no dispatch | `pull_request_checks_completed` (observation): every required check `success` at the recorded head | Tier not waived (G7) | Engine | `merge`, not checked out | `pull_request_checks_completed`, `gate_opened` (kind `merge`), `checkout_released` (`awaiting_merge`) if checked out |
 | I17 | As I16 | As I16 | Tier `small` and the policy waives the merge gate | Engine | `merge`, not checked out | `pull_request_checks_completed`, `gate_waived`, `checkout_released` (`awaiting_merge`) if checked out |
@@ -397,6 +420,7 @@ evaluated before every other row (R33).
 | I35 | `N` | `issue_closed` (observation) not caused by the closing pull request | None | Any (fact) | Same state, hold `reconciliation_required` | `reconciliation_required`, `issue_blocked` |
 | I36 | `done`, `superseded` | Any observation of the issue not consistent with it, `issue_reopened` included | None | Any (fact) | Unchanged | `reconciliation_required` |
 | I37 | `N` | `tracker_block_invalid` (observation) naming the issue | None | Engine | Same state, hold `question` | `gate_opened` (question `invalid_tracker_block`), `issue_blocked` |
+| I38 | `review` | As I13, the last lens | The tally gives no unit `uncovered` and a unit `needs_validation` | Agent | Same state, hold `question` | `coverage_verdict` for each vote, `step_completed`, `gate_opened` (question `needs_validation`), `issue_blocked` |
 
 Notes on the table:
 
@@ -425,7 +449,7 @@ ready, whoever holds its checkout.
 
 | Reason | Entered by | Removed by | Resumes at |
 | --- | --- | --- | --- |
-| `question` | I12, I27, I37 | `answer` on its question gate by an approver (G4); for `invalid_tracker_block`, also a later valid `plan_observed` of the item, which withdraws the gate | The same state; for `repeated_failure`: answer `retry` sets `attempt` to 1, resets `failures` and resumes at `build`; answer `stop` replaces the hold with `stopped_by_person` |
+| `question` | I12, I27, I37, I38 | `answer` on its question gate by an approver (G4); for `invalid_tracker_block`, also a later valid `plan_observed` of the item, which withdraws the gate | The same state; for `repeated_failure`: answer `retry` sets `attempt` to 1, resets `failures` and resumes at `build`; answer `stop` replaces the hold with `stopped_by_person`; for `needs_validation`: `review` again, from its first lens |
 | `turn_limit` | I4 | `limits_set` with `limits.turns_per_issue` above `turns` (R28) | The same state |
 | `executor_failure` | I29 | `unblock_requested` by an approver | The same state, retries reset |
 | `pull_request_closed` | I25 | `pull_request_reopened` (I26); or `unblock_requested` by an approver | `pull_request` after a reopen; `build` after an unblock |
@@ -438,6 +462,7 @@ Questions (`question_category`):
 | --- | --- | --- | --- |
 | `decision`, `irreversible_action`, `security_sensitive_action`, `outside_worktree`, `broken_plan`, `methodology_choice` | Agent, with context, options with cost and a recommendation (SPEC-0007 R1) | Free text; it may name an option | None on the state; the answer reaches the next brief |
 | `repeated_failure` | Engine (R27) | One of the fixed options `retry` and `stop` | As the table Holds says |
+| `needs_validation` | Engine (R49), naming the missing fact, the evidence gathered and who can answer (SPEC-0009 R10) | Free text | As the table Holds says; the answer reaches the brief of the next verifier |
 | `invalid_tracker_block` | Engine, on a structured block of the tracker that does not validate (SPEC-0005 R3), for the issue it names, or for the project when it names no issue | Free text | None on the state; the gate is also withdrawn by a later valid `plan_observed` of the item |
 
 The engine knows the effect of an answer only for `repeated_failure`, which is why only that
@@ -488,7 +513,9 @@ actions in this order, and stops when `free_workers` actions that need a worker 
    lanes in the order of the sprint, or of the areas of the policy without a sprint, issues in
    the order of the lane, then by issue number.
 
-Issues that are ready but get no `claim` are listed in `ready` in the same order.
+Issues that are ready but get no `claim` are listed in `ready` in the same order, followed by the
+coverage units in state `stale`, by unit identifier (R50). This machine does not dispatch their
+verification: the convergence run of SPEC-0009 R11 does.
 
 ### Limits and budgets
 
@@ -519,7 +546,39 @@ latest `branch_changes_observed` at the recorded head of its branch, as the reco
 them (SPEC-0021). Before any change is observed, the tier is the tier of the area. Tiers are
 `small`, `substantial` and `contract`, as in the table of AGENTS.md. The engine computes the tier
 at every decision that uses it (R25); it is never reported by an agent. The tier decides which
-steps are skipped (R25) and whether the merge gate is waived (R17). A tier that rises after
+steps are skipped (R25), the verifiers of `review` (R8, R11, R49) and whether the merge gate is
+waived (R17).
+
+The risk levels of R8, R11 and SPEC-0006 R11 are these tiers (Q10): high is `contract`, medium
+is `substantial`, low is `small`. This sentence is the one place that maps them.
+
+### Review by risk tier
+
+| Tier | `counter_review` | `review` | Dispatches of `review` |
+| --- | --- | --- | --- |
+| `small` | As the policy says (R25) | Skipped: the deterministic checks of `verify` decide alone (R11) | None |
+| `substantial` | As the policy says (R25) | One verifier (R11) | `proof` |
+| `contract` | As the policy says (R25) | A panel of three verifiers (R8) | `presence`, then `behaviour`, then `proof` |
+
+The lenses, the coverage units, the votes (verdicts) and their evidence are defined once, in
+SPEC-0003 section Coverage and verification. Each dispatch of `review` names its lens and its
+verifier in `step_started`; the verifier is not an agent that ran `build` or `counter_review` of
+the issue (R49). Its result carries one vote per coverage unit of the requirements cited by the
+task, each with its citations (R24). The engine records each vote as `coverage_verdict` (SPEC-0003
+R14, R15); a vote without a citation for each claim counts as `uncovered` with the reason
+`uncited` (R10). After the last lens, the engine tallies each unit under R9; no model computes
+or reports the outcome. A verdict produced on a commit other than the head of the branch as
+last observed (`branch_changes_observed`), or on a
+dirty working tree, is a result that fails a guard (SPEC-0003 R17): `result_rejected`, one retry
+(R23).
+
+The repetition of the panel that R8 allows is, pending Q12, one more dispatch of one lens of the
+same review step when its verifier fails or its result is rejected; it replaces
+`limits.executor_retries` for the dispatches of `review` of the tier `contract`, so that the
+panel costs at most four invocations, the reserve of SPEC-0006 R11.
+
+The policy may skip `counter_review` for any tier, but never `review` of `substantial` or
+`contract`, and never keeps `review` for `small` (Q11). A tier that rises after
 `counter_review` does not repeat it; it raises the review required at `review`. A merge waiver
 needs a `branch_changes_observed` at the recorded head: without one, the merge gate is opened.
 
@@ -539,8 +598,9 @@ A command whose `input_hash` is already recorded in its session is a retry: it i
 the recorded events before its revision is evaluated (SPEC-0003 R52). A stale command is refused
 with the current revision in `expected` and nothing is recorded (R41); the sender reads the state again and decides again. Staleness and every guard are
 evaluated by the writer under its lock on the latest state, so that two commands that both read
-the same revision cannot both pass a guard that only one of them may pass. ADR 0009 C6 is
-amended to this scoped rule.
+the same revision cannot both pass a guard that only one of them may pass. This is the rule of
+ADR 0009 C6 as amended by #233; this section adds only the list of events that touch the
+project.
 
 Results use their dispatch instead of a revision (R21): a worker in one lane must not be refused
 because another lane recorded an event. Observations carry no revision: they report facts that
@@ -557,15 +617,15 @@ Inputs:
 
 | Input | Class | Sent by | Used by |
 | --- | --- | --- | --- |
-| `run_start_requested` | Command | Runtime: account, mode, effective configuration | R8, R9 |
+| `run_start_requested` | Command | Runtime: account, mode, effective configuration | R45, R46 |
 | `session_start_requested` | Command | Runtime or agent: holder, executor, mode | `session_started` (SPEC-0003) |
 | `claim_requested` | Command | Runtime or agent | I1, I2 |
-| `step_requested` | Command | Runtime or agent, the holder | I3, I4 |
+| `step_requested` | Command | Runtime or agent, the holder; for `review`, the lens and the verifier | I3, I4 |
 | `project_step_requested` | Command | Runtime: step `council`, `plan` or `reconcile`, subject | P3, P12 |
 | `lease_renewal_requested` | Command | Runtime of the holder, every quarter of the lease | R22 |
 | `session_end_requested` | Command | Agent, the holder, with its hand-over input (SPEC-0001) | I30 |
 | `specification_submitted` | Command | Agent: the normalised specification (SPEC-0001 R12) | Gate `specification` |
-| `step_result` | Result | Runtime: validated executor output, outcome `completed`, `changes_requested` or `question_raised`, with the executor call record | I5 to I9, I13, I14, I27 to I29 |
+| `step_result` | Result | Runtime: validated executor output, outcome `completed`, `changes_requested` or `question_raised`, with the executor call record; for `review`, the votes with their evidence (SPEC-0003, Coverage and verification) | I5 to I9, I13, I14, I27 to I29, I38 |
 | `verification_result` | Result | Runtime: check names and outcomes, the failure note | I10 to I12 |
 | `executor_failure` | Result | Runtime: `error` or `timeout`, with the executor call record when one exists | I28, I29 |
 | `council_report`, `plan_proposal`, `roadmap_change_proposal` | Result | Runtime, for a project dispatch | P4, P6, P12 |
@@ -585,11 +645,20 @@ Payloads of the kinds owned by this specification, version 1. The header fields 
 cited by the hash of its `gate_opened` event; a dispatch by the hash of its `step_started`
 event.
 
+Every payload below is a Rust type of `wayloop-schemas`, and its schema is generated from it
+(ADR 0030); this table gives the members and their meaning, and no JSON schema is written by
+hand. Each kind is one contract of the registry `contract::CONTRACTS`, in the area and under the
+name that SPEC-0003 section Contracts of the ledger defines for every event kind, with the
+reading direction, the version rule and the value forms (hashes, handles, issue numbers, paths,
+times) stated there once. The same section gives the area and the name of the inputs that cross
+the entry point: each command of the table Inputs is a contract of the area `commands` under the
+name of its command in SPEC-0004.
+
 | Kind | Fields |
 | --- | --- |
 | `run_started` | `account` (tracker handle of the runtime), `engine_version`, `mode` (`in_session` or `unattended`), `configuration_sha256` (of the effective configuration, canonical JSON) |
 | `limits_set` | `approvers` (handles, sorted by code point, at least one), `limits` (`{turns_per_issue, attempts, same_failure, executor_retries, lease_minutes}`), `budgets` (`{intake, council, planning, sprint, milestone}`), `ledger_budgets` (`{handover, session, issue, milestone}`, SPEC-0003), `approved_by` (handle), `gate` (optional, the configuration gate) |
-| `policy_set` | `policy_revision` (SHA-256 of the canonical policy), `areas` (list of `{name, paths, tier}`), `path_tiers` (list of `{pattern, tier}`), `skips` (list of `{tier, steps}`), `merge_waived_tiers` (list of tiers), `required_checks` (names, sorted), `approved_by`, `gate` (optional) |
+| `policy_set` | `policy_revision` (SHA-256 of the canonical policy), `areas` (list of `{name, paths, tier}`), `path_tiers` (list of `{pattern, tier}`), `skips` (list of `{tier, steps}`; the only step a policy may skip is `counter_review`, R25, Q11), `merge_waived_tiers` (list of tiers), `required_checks` (names, sorted), `approved_by`, `gate` (optional) |
 | `plan_observed` | `plan_sha256` (of the whole observed plan), `part`, `parts`, `items` (list of `{id, type, status, issue, epic, milestone, story, specifications, depends_on, area}`, optional fields left out), `sprint` (optional `{id, lanes: [{name, paths, issues}]}`); a plan larger than the line limit is split into parts |
 | `branch_changes_observed` | `branch`, `head_sha`, `paths` (relative, NFC, sorted by code point, without duplicates) |
 | `phase_changed` | `from`, `to` |
@@ -601,7 +670,7 @@ event.
 | `approval_recorded` | `gate`, `decision` (`approve` or `reject`), `by` |
 | `question_answered` | `gate`, `text`, `option` (optional), `by` |
 | `input_ignored` | `input` (input name), `code`, `pointer` (optional) |
-| `step_started` | `step`, `subject` (for a project step, the brief or report), `executor` (optional), `turn` (boolean), `attempt` |
+| `step_started` | `step`, `subject` (for a project step, the brief or report), `executor` (optional), `turn` (boolean), `attempt`, `lens` (for `review`), `verifier` (for `review`, the agent that runs the lens) |
 | `step_completed` | `step`, `outcome` (`completed`, `changes_requested`, `question_raised`), `skipped` (steps skipped after it), `output` (optional `{file, sha256}`) |
 | `step_retried` | `step`, `error` (`error` or `timeout`), `retries` |
 | `step_failed` | `step`, `cause` (`result_rejected`, `error` or `timeout`), `retries` |
@@ -645,29 +714,36 @@ scope. `wayloop next` and `wayloop status` return them (SPEC-0004).
 
 ### Errors
 
-Refusals use the report of ADR 0009 C3. Pointers follow RFC 6901 from the root of the input
-sent; the field that names the subject (`/issue`, `/dispatch`, `/expected_revision`) carries the
-error. A new meaning gets a new code (ADR 0009 C8).
+Refusals use the error report of ADR 0009 C3 as amended, built from the types of
+`wayloop-schemas`: every code is a constant of `Code`, every reason a value of `Reason`, and no
+code or reason is spelt anywhere else (ADR 0030 G1). Pointers follow RFC 6901 from the root of
+the input sent, or of the document given by `document` when the input holds a list `documents`
+(SPEC-0004 R2); the field that names the subject (`/issue`, `/dispatch`, `/expected_revision`)
+carries the error. A new meaning gets a new code (ADR 0009 C8). A code used here and defined by
+SPEC-0003 is listed with a reference, not defined again.
 
 | Requirement | Code | Reason | `expected` |
 | --- | --- | --- | --- |
-| R4 | `input_class` | `missing` | The field the class requires |
-| R8 | `approvers_empty` | `missing` | None |
+| R4 | `input_class` | `missing` | The field the class requires (`dispatch` or `external_id`); a command without `expected_revision` gets `command_input` of SPEC-0004 |
+| R45 | `approvers_empty` | `missing` | None |
 | R18 | `transition_not_allowed` | `state` | The states from which the transition is allowed |
 | R18 | `step_mismatch` | `state` | The current state |
 | R19 | `task_not_approved`, `plan_not_approved`, `specification_not_approved` | `state` | The accepted statuses |
 | R19 | `dependency_not_done` | `state` | `done` |
 | R19 | `issue_on_hold` | `state` | None |
-| R19 | `checkout_held`, `lane_busy` | `conflict` | None |
+| R19 | `lane_busy` | `conflict` | None |
+| R19 | `checkout_held` | Defined by SPEC-0003 (R10) | |
 | R19 | `not_in_lane` | `missing` | None |
 | R19 | `awaiting_external` | `state` | None |
 | R19 | `area_paths_overlap` | `conflict` | None; the overlapping areas in `pointers` |
 | R19, R29 | `budget_exhausted` | `range` | None |
 | R21 | `dispatch_stale` | `stale` | The open dispatch, when one exists |
-| I3, I30 | `checkout_not_held` | `state` | None; the holder in `message` |
+| I3, I30 | `checkout_not_held` | Defined by SPEC-0003 (R48) | |
+| I3, R49 | `verifier_not_independent` | `conflict` | None; the step that the verifier ran in `pointers` |
 | R14 | `actor_not_authorised` | `requires` | None; carried by `input_ignored` |
 | R15 | `question_unanswered`, `checks_not_green`, `plan_changed` | `requires` | None; carried by `input_ignored` |
-| R23, R24 | `checklist_incomplete`, `objection_unruled`, `finding_unverified` | `missing` | The missing requirements, objections or findings; carried by `result_rejected` |
+| R23, R24 | `checklist_incomplete`, `objection_unruled`, `vote_missing` | `missing` | The missing requirements, objections or coverage units; carried by `result_rejected` |
+| R23, I13 | `verdict_commit_stale`, `verdict_tree_dirty` | Defined by SPEC-0003 (R17) | |
 | G4 | `option_unknown` | `enum` | `retry`, `stop`; carried by `input_ignored` |
 | R37 | `head_stale` | `stale` | The recorded head; carried by `input_ignored` |
 | Inputs | `no_effect` | `state` | None; carried by `input_ignored` |
@@ -688,19 +764,22 @@ come from it, so the files are traces, not fixtures of an event schema.
 - `issue-cycle.small-tier-waiver.yaml`: an issue of tier `small` merged under the policy waiver.
 
 ## Interfaces
-- Core: `decide`, `apply`, `due_events` and `next_steps` of section The four functions, in `crates/wayloop-core`; enums `issue_state`, `gate_kind`, `gate_state`, `resolution`, `hold_reason`, `question_category`, `stop_reason`, `action_kind`, `phase`, `tier`. All new.
-- `wayloop next` returns `actions`, `ready` and `stops`; `wayloop status` returns the phase, the gates, and the state, holds and stop reasons of every issue (SPEC-0004). Both report `meta.revision`. New output fields: additive.
+- Core: `decide`, `apply`, `due_events` and `next_steps` of section The four functions, in `crates/wayloop-core`; enums `issue_state` (from `IssueStep`), `gate_kind`, `gate_state`, `resolution`, `hold_reason`, `question_category`, `stop_reason`, `action_kind`, `phase`. The tier and the lens are the enums of the policy (SPEC-0021) and of SPEC-0003, imported, not defined here. Enums that reach a contract are types of `wayloop-schemas` (ADR 0030 G1). All new.
+- `wayloop next` returns `actions`, `ready` (issues, then stale coverage units) and `stops`; `wayloop status` returns the phase, the gates, and the state, holds and stop reasons of every issue (SPEC-0004). Both report `meta.revision`. Their data types are output contracts of the area `commands`, generated, in the envelope `Envelope<D>` (ADR 0030 G1, G5); new output members are additive.
 - Commands that change state (`claim`, step requests, lease renewal, session end, run start) take `expected_revision` (SPEC-0004 R5) and refuse with `revision_stale`.
-- Events: the payloads of section Events for the kinds owned here, with schemas `schemas/events/<kind>/v1.json` and the catalogue in SPEC-0003. New.
-- Configuration: the keys of section Limits and budgets and the list `approvers`, in the project file of ADR 0010, written by `wayloop init`; changes reach the state only under R8. New.
-- Error codes of section Errors. New.
+- Events: the payloads of section Events for the kinds owned here, as types of `wayloop-schemas` registered in `contract::CONTRACTS` with the area, names and rules of SPEC-0003 section Contracts of the ledger; snapshots and their history are generated (ADR 0030 G5, G6). New.
+- Configuration: the keys of section Limits and budgets and the list `approvers`, in the project file of ADR 0010, written by `wayloop init`; changes reach the state only under R45. New.
+- Error codes of section Errors, as constants of `Code`; reasons from `Reason` (`wayloop-schemas`). New.
 
 ## Dependencies
 - SPEC-0001 (Approved): statuses, allowed transitions, hand-over `step` values.
 - SPEC-0003: the event catalogue, the envelope of events, the payloads of checkout, session, hand-over, cost, rejected results and pull request events, and `due_events` timing.
-- ADR 0029 (Proposed) amends constitution IV for the merge waiver of the tier `small` (R17).
-- ADR 0009 C6 is amended to the scoped staleness rule of section Revisions (R41).
-- #228 aligns the `IssueStep` identifiers with the `snake_case` values used here.
+- ADR 0029 (Accepted) amends constitution IV for the merge waiver of the tier `small` (R17).
+- ADR 0009 C6, as amended by #233, is the scoped staleness rule applied by section Revisions (R41).
+- ADR 0030 (Accepted): payloads, inputs and outputs are generated contracts.
+- SPEC-0004 R2, R14 and R18 as amended: error report with `document`, entry point, `error` without `data`.
+- #228 is done: the `IssueStep` identifiers are the `snake_case` values used here.
+- SPEC-0003 section Coverage and verification (#309): lenses, coverage units, votes and their events; SPEC-0006 R11 sizes the reserve of the verifiers of R8 and R11; SPEC-0009 R10 and R11 own the question of a `needs_validation` verdict and the convergence run.
 - ADR 0011, ADR 0012 and ADR 0013 are Proposed; executors, gates on the tracker and lanes depend on them.
 - Follow-up changes in other specifications are listed in the report of the pull request that proposes this specification for approval.
 
@@ -711,11 +790,14 @@ ready work) and #58 (dry run on local fixtures) implement it.
 
 ## Open questions
 - [x] **Q1. Which steps does the tier `small` skip?** Decided by the maintainer on 2026-11-17: (b), `small` skips both `counter_review` and `review`, set per tier in the policy, with the tier computed by the engine from the area and the observed diff (R25, section Risk tier).
-- [x] **Q2. May the loop merge an issue of tier `small` without a person at the gate?** Decided by the maintainer on 2026-11-17: the project policy may waive the merge gate for `small`; ADR 0029 amends constitution IV. The engine records `gate_waived` with the policy revision and the person who approved it, never `gate_resolved`; a policy change that widens `small` or adds a waiver passes the `configuration` gate (R8, R17).
+- [x] **Q2. May the loop merge an issue of tier `small` without a person at the gate?** Decided by the maintainer on 2026-11-17: the project policy may waive the merge gate for `small`; ADR 0029 amends constitution IV. The engine records `gate_waived` with the policy revision and the person who approved it, never `gate_resolved`; a policy change that widens `small` or adds a waiver passes the `configuration` gate (R45, R17).
 - [x] **Q3. When is an expected revision stale?** Decided by the maintainer on 2026-11-17: (b), scoped to the issue of the command, or to the phase, gates and plan for a project command; guards are evaluated again under the writer lock; ADR 0009 C6 is amended (R41, section Revisions).
 - [x] **Q4. Where does a new claim resume after a release?** Decided by the maintainer on 2026-11-17: (a), at the state reached.
 - [x] **Q5. Which issues are ready without an active sprint?** Decided by the maintainer on 2026-11-17: (b), each area of the policy is a lane; a policy with overlapping area paths is refused, and an issue without area is not in a lane (`not_in_lane`).
 - [x] **Q6. Default limits.** Decided by the maintainer on 2026-11-17: (a), turns 20, attempts 3, same failure 2, executor retries 2, lease 120 minutes under the single key `limits.lease_minutes`, recorded in `limits_set`, with a heartbeat every quarter of the lease (R22).
 - [x] **Q7. What happens when the pull request of an issue is closed without merge?** Decided by the maintainer on 2026-11-17: (a), hold with `pull_request_closed`; the pull request is cleared, and `pull_request_reopened` restores it (R36).
 - [x] **Q8. What is a budget scope?** Decided by the maintainer on 2026-11-17: phase budgets for `intake`, `council` and `planning`, a budget per sprint, and a budget per milestone in `delivery` (section Limits and budgets).
-- [x] **Q9. Who is an authorised approver?** Decided by the maintainer on 2026-11-17: an explicit list written by `wayloop init`, run by a person. Adding an approver or raising a limit or a budget opens a gate of kind `configuration` that only an already recorded approver resolves; decreases apply at once. The runtime reports its account in `run_started`, and the engine proposes nothing while that account is an approver (R8, R9, R44).
+- [x] **Q9. Who is an authorised approver?** Decided by the maintainer on 2026-11-17: an explicit list written by `wayloop init`, run by a person. Adding an approver or raising a limit or a budget opens a gate of kind `configuration` that only an already recorded approver resolves; decreases apply at once. The runtime reports its account in `run_started`, and the engine proposes nothing while that account is an approver (R45, R46, R44).
+- [ ] **Q10. Which tier is each risk level of R8, R11 and SPEC-0006 R11?** #309 names the levels high, medium and low; the policy, AGENTS.md and this specification name the tiers `contract`, `substantial` and `small`. Options: (a) high is `contract`, medium is `substantial`, low is `small`, stated once in section Risk tier, and SPEC-0006 R11 later rewritten with the tier names; (b) three levels of their own in the policy, mapped from the tiers per project. Recommendation: (a), because one set of names keeps one meaning (constitution IX) and the gates of AGENTS.md already match the three review depths.
+- [ ] **Q11. May the policy keep `review` for `small`, or skip it for another tier?** Q1 put both skips in the policy; R11 of #309, decided later, fixes the review by tier. Options: (a) R11 decides `review` for every tier, and the policy skips only `counter_review`; (b) the policy decides both, and R11 is the default. Recommendation: (a), the newer decision, which the text now follows; with (b) a policy could approve a contract change without any verifier.
+- [ ] **Q12. What is the one repetition of the panel that R8 allows?** Options: (a) one more dispatch of one lens of the same review step, when its verifier fails or its result is rejected, in place of `limits.executor_retries` for the review of `contract`, so the panel costs at most four invocations as SPEC-0006 R11 reserves; (b) the whole panel once more when its outcome is `uncovered`, six invocations, which needs SPEC-0006 R11 changed; (c) one more dispatch of a lens whose vote is `needs_validation`. Recommendation: (a), the only reading consistent with the reserve of four invocations; the text follows it pending this answer.

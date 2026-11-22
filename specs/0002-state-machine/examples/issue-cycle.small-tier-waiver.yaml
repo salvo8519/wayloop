@@ -9,7 +9,7 @@ configuration:
     approved_by: maintainer
     areas: [{name: docs, paths: ["docs/"], tier: small}]
     path_tiers: [{pattern: "crates/**", tier: substantial}]
-    skips: [{tier: small, steps: [counter_review, review]}]
+    skips: [{tier: small, steps: [counter_review]}]
     merge_waived_tiers: [small]
     required_checks: [docs]
 initial:
