@@ -15,6 +15,9 @@ so the published roadmap page is generated offline, deterministically, from a re
     python scripts/roadmap.py new --milestone M2 --epic "Analysis" --title "..." \\
         [--labels area:core,parallel] [--spec 0008] [--body FILE]
         # create the issue on GitHub with its milestone and labels, and add it to the file
+    python scripts/roadmap.py edit 42 [--title "..."] [--body FILE]
+        # change the title or body of a planned issue: the body keeps its parent line and the
+        # file takes the new title in the same run (the only way to change a planned issue)
 
 Rules checked by `check`: the file is in canonical form; issue numbers are unique; every task
 has an issue; statuses are `open` or `done`; every spec folder in `specs/` is referenced by a
@@ -31,6 +34,7 @@ import copy
 import json
 import re
 import sys
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -60,6 +64,8 @@ EPIC_KEYS = {"title", "issue", "labels", "tasks"}
 MILESTONE_KEYS = {"title", "gate", "release", "epics"}
 SEMVER = re.compile(r"^\d+\.\d+\.\d+\Z")
 TYPE_PREFIX = re.compile(r"^\[[^\]]*\]|^[a-z]+(\([^)]*\))?!?:\s")
+# The first line of the body of a task names its epic (parent_line); a stale one is replaced.
+PARENT = re.compile(r"\APart of #\d+\.[ \t]*\n*")
 HEADER = """\
 # Source of truth for the plan: milestones, epics (parent issues) and tasks (sub-issues).
 # The state of each issue lives on GitHub; `python scripts/roadmap.py sync --write` copies it
@@ -81,6 +87,20 @@ def load(path: Path | None = None) -> dict[str, Any]:
     if not isinstance(data, dict):
         sys.exit(f"{path.name}: not a mapping")
     return data
+
+
+def parent_line(epic: int) -> str:
+    """The line that starts the body of every task of the epic `epic` (checked by `links`)."""
+    return f"Part of #{epic}."
+
+
+def with_parent(body: str, epic: int | None) -> str:
+    """`body` starting with the parent line of `epic`: kept when present, restored when missing,
+    replaced when it names another epic. An epic (`epic` None) has no parent line."""
+    text = body.strip()
+    if epic is None:
+        return text
+    return f"{parent_line(epic)}\n\n{PARENT.sub('', text)}".strip()
 
 
 def epics(data: dict[str, Any]) -> list[tuple[dict[str, Any], dict[str, Any]]]:
@@ -212,19 +232,7 @@ def problems_of(data: dict[str, Any], pr_body: str | None = None) -> list[str]:
                 if n in seen:
                     problems.append(f"issue #{n} appears twice ({seen[n]} and {e['title']})")
                 seen[n] = e["title"]
-    titles: dict[str, str] = {}
-    for m, e in epics(data):
-        for kind, item in [("epic", e)] + [("task", t) for t in e["tasks"]]:
-            title = str(item.get("title", ""))
-            where = f"{m['title']} / {kind} '{title}'"
-            if TYPE_PREFIX.match(title) or title.endswith("."):
-                problems.append(
-                    f"{where}: the title states the outcome, without a type prefix or a full stop"
-                )
-            key = title.casefold()
-            if key in titles:
-                problems.append(f"{where} has the same title as {titles[key]}")
-            titles.setdefault(key, where)
+    problems += title_problems(data)
     for spec in sorted(spec_ids - referenced):
         problems.append(f"spec {spec} is not referenced by any roadmap task")
     if ROADMAP.read_text(encoding="utf-8") != dump(data):
@@ -239,6 +247,25 @@ def problems_of(data: dict[str, Any], pr_body: str | None = None) -> list[str]:
                 # Merging closes the issue: the file must say so in the same change, or the
                 # roadmap and GitHub differ until another pull request.
                 problems.append(f"the pull request closes #{n}: mark its task done here")
+    return problems
+
+
+def title_problems(data: dict[str, Any]) -> list[str]:
+    """Titles of epics and tasks: the outcome, no type prefix, no full stop, unique."""
+    problems: list[str] = []
+    titles: dict[str, str] = {}
+    for m, e in epics(data):
+        for kind, item in [("epic", e)] + [("task", t) for t in e["tasks"]]:
+            title = str(item.get("title", ""))
+            where = f"{m['title']} / {kind} '{title}'"
+            if TYPE_PREFIX.match(title) or title.endswith("."):
+                problems.append(
+                    f"{where}: the title states the outcome, without a type prefix or a full stop"
+                )
+            key = title.casefold()
+            if key in titles:
+                problems.append(f"{where} has the same title as {titles[key]}")
+            titles.setdefault(key, where)
     return problems
 
 
@@ -268,12 +295,9 @@ def github_milestones() -> dict[str, int]:
     return {m["title"]: m["number"] for m in _github.pages(f"repos/{REPO}/milestones?state=all")}
 
 
-AUTOMATION = "github-actions[bot]"
-
-
 def automation_report(issue: dict[str, Any]) -> bool:
     """An issue opened by the workflows to report a failure, not planned work."""
-    automated = (issue.get("user") or {}).get("login") == AUTOMATION
+    automated = (issue.get("user") or {}).get("login") == _github.ACTIONS_LOGIN
     return automated and bool(label_names(issue) & set(REPORT_LABELS))
 
 
@@ -494,8 +518,8 @@ def link_problems(
             if kind == "task":
                 if item["issue"] not in children.get(n, set()):
                     problems.append(f"{where}: not a sub-issue of its epic #{n}")
-                if not (issue.get("body") or "").startswith(f"Part of #{n}."):
-                    problems.append(f"{where}: the body must start with 'Part of #{n}.'")
+                if not (issue.get("body") or "").startswith(parent_line(n)):
+                    problems.append(f"{where}: the body must start with '{parent_line(n)}'")
                 missing = set(depends_on(issue.get("body") or "")) - blockers.get(
                     item["issue"], set()
                 )
@@ -555,9 +579,9 @@ def new_issue(args: argparse.Namespace) -> int:
     numbers = github_milestones()
     if milestone["title"] not in numbers:
         sys.exit(f"milestone '{milestone['title']}' does not exist on GitHub")
-    body = args.body.read_text(encoding="utf-8") if args.body else ""
-    if epic.get("issue"):
-        body = f"Part of #{epic['issue']}.\n\n{body}".strip()
+    body = with_parent(
+        args.body.read_text(encoding="utf-8") if args.body else "", epic.get("issue")
+    )
     created = _github.api(
         f"repos/{REPO}/issues",
         method="POST",
@@ -586,6 +610,61 @@ def new_issue(args: argparse.Namespace) -> int:
     return 0
 
 
+def planned_item(data: dict[str, Any], number: int) -> tuple[dict[str, Any], int | None] | None:
+    """The roadmap entry (epic or task) of issue `number` and the epic of a task, or None."""
+    for _m, e in epics(data):
+        if e.get("issue") == number:
+            return e, None
+        for t in e["tasks"]:
+            if t.get("issue") == number:
+                return t, e.get("issue")
+    return None
+
+
+def edit_issue(
+    number: int,
+    title: str | None,
+    body_file: Path | None,
+    api: Callable[..., Any] = _github.api,
+) -> int:
+    """Change the title or body of a planned issue on GitHub, and its title in the file.
+
+    The body of a task always starts with its parent line: kept, restored when the new body (or,
+    with `--title` alone, the current one) lacks it. Nothing is written when a rule would break.
+    """
+    if title is None and body_file is None:
+        sys.exit("nothing to change: give --title, --body or both")
+    data = load()
+    found = planned_item(data, number)
+    if found is None:
+        sys.exit(
+            f"#{number} is not in the roadmap: only planned issues are edited here; plan it with "
+            "the roadmap-update skill first"
+        )
+    item, epic = found
+    if title is not None and title != item["title"]:
+        item["title"] = title
+        problems = [p for p in title_problems(data) if f"'{title}'" in p]
+        if problems:
+            sys.exit("title refused:\n  " + "\n  ".join(problems))
+    path = f"repos/{REPO}/issues/{number}"
+    current = api(path) or {}
+    old_body = current.get("body") or ""
+    new = with_parent(body_file.read_text(encoding="utf-8") if body_file else old_body, epic)
+    payload: dict[str, Any] = {}
+    if item["title"] != current.get("title"):
+        payload["title"] = item["title"]
+    if new != old_body:
+        payload["body"] = new
+    if payload:
+        api(path, method="PATCH", payload=payload)
+    if ROADMAP.read_text(encoding="utf-8") != dump(data):
+        render(data)
+    changed = ", ".join(sorted(payload)) or "nothing"
+    print(f"#{number}: {changed} changed on GitHub; the roadmap file agrees.")
+    return 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -607,6 +686,10 @@ def main() -> None:
     n.add_argument("--labels")
     n.add_argument("--spec")
     n.add_argument("--body", type=Path)
+    ed = sub.add_parser("edit", help="change the title or body of a planned issue")
+    ed.add_argument("issue", type=int)
+    ed.add_argument("--title")
+    ed.add_argument("--body", type=Path, help="file with the new body; the parent line is kept")
     args = parser.parse_args()
     if args.cmd == "check":
         sys.exit(check(args.pr_body))
@@ -622,6 +705,8 @@ def main() -> None:
         return
     if args.cmd == "sync":
         sys.exit(sync(args.write, args.apply_milestones))
+    if args.cmd == "edit":
+        sys.exit(edit_issue(args.issue, args.title, args.body))
     sys.exit(new_issue(args))
 
 

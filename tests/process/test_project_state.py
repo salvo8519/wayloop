@@ -132,3 +132,30 @@ def test_briefing_shows_bugs_and_maintenance_before_everything_else() -> None:
     assert text.index("## Bugs and maintenance first") < text.index("## Recent commits")
     assert "- #5 CI passes again on main (bug)" in text
     assert "## Bugs and maintenance first\n- none" in ps.render(briefing(None))
+
+
+def _report(number: int, login: str, *labels: str) -> dict[str, Any]:
+    return {
+        "number": number,
+        "title": f"Workflow {number} passes again on main",
+        "user": {"login": login},
+        "labels": [{"name": n} for n in labels],
+    }
+
+
+def test_red_main_lists_the_failure_issues_of_the_automation_only() -> None:
+    pool = [
+        _report(296, "github-actions[bot]", "bug"),
+        _report(9, "github-actions[bot]", "maintenance"),
+        _report(5, "someone", "bug"),
+    ]
+    assert ps.red_main(pool) == ["#296 Workflow 296 passes again on main"]
+
+
+def test_briefing_starts_with_stop_while_main_is_red() -> None:
+    data = {**briefing(None), "red_main": ["#296 Roadmap sync passes again on main"]}
+    first = ps.render(data).splitlines()[0]
+    assert first.startswith("stop: main is red")
+    assert "#296 Roadmap sync passes again on main" in first
+    assert "merge nothing but its fix" in first
+    assert not ps.render(briefing(None)).startswith("stop:")

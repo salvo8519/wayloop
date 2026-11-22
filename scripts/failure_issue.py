@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any
 
 import _github
-from _labels import BUG
+from _labels import BUG, label_names
 
 FAILED = {"failure", "timed_out", "startup_failure"}
 EVENTS = {"push", "schedule"}
@@ -41,6 +41,14 @@ MAX_BODY = 60_000  # GitHub refuses an issue body longer than 65536 characters
 AUTHOR = "app/github-actions"
 
 Gh = Callable[[list[str], str | None], str]
+
+
+def reports_red_main(issue: dict[str, Any]) -> bool:
+    """An open failure issue of `main` (REST form of an issue): opened by the workflows with the
+    label `bug` when CI on `main` or a scheduled workflow fails. While one is open, nothing is
+    merged except its fix (docs/en/project/conventions.md, Pull requests)."""
+    opened_by_workflows = (issue.get("user") or {}).get("login") == _github.ACTIONS_LOGIN
+    return opened_by_workflows and BUG in label_names(issue)
 
 
 def marker(workflow: str) -> str:

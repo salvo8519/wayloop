@@ -3,7 +3,8 @@
 Reads git and GitHub (REST, through the GitHub CLI) and prints a Markdown briefing:
 current branch and its issue, uncommitted work, recent session journal, open pull requests
 with CI and review state, the active sprint, issues in progress and issues ready to start. Open
-issues labelled `bug` or `maintenance` (failures on main, weekly maintenance) come first.
+issues labelled `bug` or `maintenance` (failures on main, weekly maintenance) come first; while
+a failure issue of `main` is open, the first line says to stop and merge nothing but its fix.
 
     uv run python scripts/project_state.py            # briefing in Markdown
     uv run python scripts/project_state.py --json     # the same data, for agents
@@ -30,6 +31,7 @@ from _labels import (
     label_names,
 )
 from conventions import branch_issue
+from failure_issue import reports_red_main
 from sprint import state_files
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -109,6 +111,15 @@ def attention_issues(issues: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def red_main(issues: list[dict[str, Any]]) -> list[str]:
+    """Open failure issues of `main`, by number: while one is open, main is red."""
+    return [
+        f"#{i['number']} {i['title']}"
+        for i in sorted(issues, key=lambda i: int(i["number"]))
+        if reports_red_main(i)
+    ]
+
+
 def checks_summary(r: str, sha: str) -> str:
     data = gh(f"repos/{r}/commits/{sha}/check-runs?per_page=100") or {}
     runs = data.get("check_runs", [])
@@ -161,6 +172,7 @@ def collect() -> dict[str, Any]:
         i for i in _github.pages(f"repos/{r}/issues?state=open", gh) if "pull_request" not in i
     ]
 
+    state["red_main"] = red_main(issues)
     state["attention"] = attention_issues(issues)
     state["in_progress"] = [
         f"#{i['number']} {i['title']}" for i in issues if IN_PROGRESS in label_names(i)
@@ -193,7 +205,18 @@ def collect() -> dict[str, Any]:
 
 
 def render(s: dict[str, Any]) -> str:
+    red = s.get("red_main") or []
+    stop = (
+        [
+            f"stop: main is red ({'; '.join(red)}); merge nothing but its fix "
+            "(docs/en/project/conventions.md, Pull requests).",
+            "",
+        ]
+        if red
+        else []
+    )
     out = [
+        *stop,
         f"# Session briefing — {s['repository']}",
         "",
         f"Branch `{s['branch']}`"

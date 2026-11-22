@@ -38,8 +38,8 @@ A gate run, a journal hand-over, a commit and a pull request, a hand-over commen
 10. **Merge.** Follow AGENTS.md, Merging: when the pull request is small and its gate holds,
     merge it with its title and delete the branch; when it changes `crates/`, `schemas/` or an
     SDK, ask the maintainer to confirm first. Merge stacked pull requests bottom up, each
-    rebased onto `main`. Never merge past a failing required check, a review finding or an
-    open question.
+    rebased onto `main`. Never merge past a failing required check, a review finding, an open
+    question or an open failure issue of `main` (except the pull request that fixes it).
 11. **Report** to the maintainer: pull request and merge status, checks, what remains, next
     step.
 

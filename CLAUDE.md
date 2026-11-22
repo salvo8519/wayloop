@@ -59,6 +59,8 @@ never edit `.claude/agents` or `.claude/skills` directly.
 - Every request: a reminder to propose roadmap changes first (`/roadmap-update`).
 - Before an edit: released contract snapshots under `schemas/` cannot be changed; write the next
   version.
+- Before a shell command: direct edits of issue titles and bodies (`gh issue edit`, `gh api` on
+  an issue) are refused; use `uv run python scripts/roadmap.py edit`.
 - After an edit: `.rs` and `.py` files are formatted.
 - Before the session or a subagent ends: the fast checks on the changed files (rustfmt, clippy
   on the touched crates, ruff, mypy); findings go back to the agent, never twice the same and at

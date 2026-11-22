@@ -23,6 +23,8 @@ from typing import Any
 import _git
 
 DEFAULT_REPO = "salvo8519/wayloop"
+# Login of the GitHub Actions app in the REST API: the author of the issues the workflows open.
+ACTIONS_LOGIN = "github-actions[bot]"
 # `https://github.com/owner/name(.git)` or `git@github.com:owner/name(.git)`.
 REMOTE = re.compile(r"github\.com[:/](?P<repo>[^/\s]+/[^/\s]+?)(?:\.git)?/?$")
 # A page of a list endpoint holds at most this many items, and a list is read in at most
