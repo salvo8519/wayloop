@@ -13,6 +13,7 @@ use wayloop_schemas::value::ProjectPath;
 
 use super::{Content, LoadError, discover, entry, list, load, load_within, segments};
 use crate::test_support::TempProject;
+use wayloop_core::artifacts::locations::Refused;
 
 /// The root of the repository.
 fn repository() -> PathBuf {
@@ -195,7 +196,10 @@ fn a_named_file_reached_through_a_link_outside_the_project_is_refused() {
             stored: Stored::Yaml,
         }];
         match load(project.root(), files) {
-            Err(LoadError::Outside(path)) => assert_eq!(path.as_str(), named),
+            Err(LoadError::Refused {
+                path: Some(path),
+                refused: Refused::OutsideTheProject,
+            }) => assert_eq!(path.as_str(), named),
             other => panic!("{named}: {other:?}"),
         }
     }
@@ -211,6 +215,25 @@ fn a_named_file_reached_through_a_link_outside_the_project_is_refused() {
     }];
     let input = load(project.root(), inside).unwrap();
     assert_eq!(input.documents[0].format, EntryFormat::Document);
+    // A link inside the project to a file of another extension is refused, as a named path
+    // of that extension is.
+    fs::write(project.root().join(".env"), b"SECRET=x\n").unwrap();
+    symlink(
+        project.root().join(".env"),
+        project.root().join("plan/briefs/e.yaml"),
+    )
+    .unwrap();
+    let disguised = vec![StoredFile {
+        path: ProjectPath::new("plan/briefs/e.yaml"),
+        stored: Stored::Yaml,
+    }];
+    match load(project.root(), disguised) {
+        Err(LoadError::Refused {
+            path: Some(path),
+            refused: Refused::NotAnArtifactFile,
+        }) => assert_eq!(path.as_str(), "plan/briefs/e.yaml"),
+        other => panic!("{other:?}"),
+    }
 }
 
 #[cfg(unix)]
@@ -241,7 +264,9 @@ fn a_special_file_is_an_error_of_the_environment_not_a_blocking_read() {
 #[test]
 fn a_location_below_a_file_is_an_error_of_the_environment() {
     let project = Project::new("plan-is-a-file", &[("plan", b"a file")]);
-    let error = discover(project.root()).unwrap_err();
+    let Err(LoadError::Read(error)) = discover(project.root()) else {
+        panic!("a read error");
+    };
     assert!(error.path().ends_with("plan/briefs"), "{error}");
 }
 
@@ -249,7 +274,9 @@ fn a_location_below_a_file_is_an_error_of_the_environment() {
 #[test]
 fn a_location_that_cannot_be_listed_is_an_error_of_the_environment() {
     let project = Project::new("not-a-folder", &[("plan/briefs", b"a file")]);
-    let error = discover(project.root()).unwrap_err();
+    let Err(LoadError::Read(error)) = discover(project.root()) else {
+        panic!("a read error");
+    };
     assert!(error.path().ends_with("plan/briefs"), "{error}");
     assert!(error.to_string().contains("plan/briefs"), "{error}");
     assert!(std::error::Error::source(&error).is_some());
@@ -375,7 +402,7 @@ fn an_alias_bomb_is_refused_not_loaded() {
 
 #[test]
 fn an_oversized_file_is_refused_not_loaded() {
-    let size = usize::try_from(MAX_FILE_BYTES).unwrap();
+    let size = MAX_FILE_BYTES;
     let at_bound = format!("kind: brief\nnote: {}\n", "x".repeat(size - 19));
     assert_eq!(at_bound.len(), size);
     let beyond = format!("{at_bound} ");
@@ -421,7 +448,6 @@ fn a_file_that_is_not_utf8_is_unreadable_at_the_line_of_the_first_bad_byte() {
         file,
         Content::Bytes(b"a: 1\nb: 2\nc: \xff\n".to_vec()),
         usize::MAX,
-        u64::MAX,
     );
     assert_eq!(built, 0);
     assert_eq!(read.format, EntryFormat::Unreadable);
@@ -468,7 +494,7 @@ fn the_set_is_bounded_by_the_bytes_read_and_built() {
     let built = crate::yaml::parse(VALID_BRIEF, MAX_DOCUMENT_BYTES)
         .unwrap()
         .bytes;
-    let budget = u64::try_from(brief.len() + built).unwrap();
+    let budget = brief.len() + built;
     let bounded = load_within(project.root(), files.clone(), budget).unwrap();
     let formats: Vec<EntryFormat> = bounded.documents.iter().map(|d| d.format).collect();
     assert_eq!(formats, [EntryFormat::Document, EntryFormat::Unreadable]);
@@ -480,10 +506,10 @@ fn the_set_is_bounded_by_the_bytes_read_and_built() {
     let short = load_within(project.root(), files.clone(), budget - 1).unwrap();
     assert_eq!(short.documents[0].format, EntryFormat::Unreadable);
     // A file of exactly the bytes left is read; it is its document that does not fit.
-    let exact = u64::try_from(brief.len()).unwrap();
+    let exact = brief.len();
     let read_only = load_within(project.root(), files, exact).unwrap();
     let message = &read_only.documents[0].error.as_ref().unwrap().message;
-    assert!(message.contains("in memory"), "{message}");
+    assert!(message.contains("the document would take"), "{message}");
 }
 
 #[cfg(unix)]

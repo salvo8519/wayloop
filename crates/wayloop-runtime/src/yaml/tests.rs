@@ -3,7 +3,7 @@
 use core::fmt::Write as _;
 
 use serde_json::{Value, json};
-use wayloop_core::artifacts::locations::{MAX_NESTING, MAX_VALUES};
+use wayloop_core::artifacts::locations::MAX_NESTING;
 
 use wayloop_core::artifacts::locations::MAX_DOCUMENT_BYTES;
 use wayloop_schemas::validate::ParseError;
@@ -270,33 +270,66 @@ fn an_alias_bomb_is_refused_before_it_is_expanded() {
     let text = alias_bomb();
     assert!(text.len() < 1000);
     let (line, message) = refused(&text);
-    assert!(message.contains(&MAX_VALUES.to_string()), "{message}");
+    assert!(
+        message.contains(&MAX_DOCUMENT_BYTES.to_string()),
+        "{message}"
+    );
     assert!((6..=10).contains(&line), "{line}");
 }
 
 #[test]
-fn values_count_towards_the_bound_with_and_without_aliases() {
-    // Exactly at the bound: the root, the key `a`, the sequence and its elements.
-    let elements = MAX_VALUES - 3;
-    let at_bound = format!("a: [{}]\n", vec!["1"; elements].join(","));
+fn a_document_fits_a_room_of_exactly_its_counted_bytes() {
+    for text in [
+        "a: [1, 2, 3]\nb: {c: text}\n",
+        "s: &s [1, 2, 3]\nt: *s\nu: *s\n",
+        "k: &k {x: &x [1]}\nl: *x\n",
+    ] {
+        let bytes = parse(text).unwrap().bytes;
+        assert_eq!(super::parse(text, bytes).unwrap().bytes, bytes, "{text}");
+        let (_, message) = super::parse(text, bytes - 1)
+            .map(|p| p.document)
+            .map_err(|e| (e.line, e.message))
+            .unwrap_err();
+        assert!(
+            message.contains(&(bytes - 1).to_string()),
+            "{text}: {message}"
+        );
+    }
+}
+
+#[test]
+fn every_value_and_line_counts_its_fixed_cost() {
+    use wayloop_core::artifacts::locations::VALUE_COST_BYTES;
+    // The root, the key `a` and its value: three values; the lines of the root and of `/a`,
+    // with pointers of no and two bytes; the text of the key and of the value: two bytes.
+    let parsed = parse("a: b\n").unwrap();
     assert_eq!(
-        parsed(&at_bound).document["a"].as_array().unwrap().len(),
-        elements
+        parsed.bytes,
+        3 * VALUE_COST_BYTES + 2 * VALUE_COST_BYTES + 2 + 2
     );
-    let beyond = format!("a: [{}]\n", vec!["1"; elements + 1].join(","));
-    assert!(refused(&beyond).1.contains("values"));
-    // An alias counts every value it repeats: the root; `s`, its sequence and its elements;
-    // `t` and the sequence repeated; `u`, its sequence and its element.
-    let with_alias = |n: usize| {
-        let elements = vec!["1"; n].join(",");
-        format!("s: &s [{elements}]\nt: *s\nu: [1]\n")
-    };
-    let n = (MAX_VALUES - 8) / 2;
-    assert_eq!(1 + (n + 2) + (n + 2) + 3, MAX_VALUES);
-    assert!(parse(&with_alias(n)).is_ok());
-    let (line, message) = refused(&with_alias(n + 1));
-    assert_eq!(line, 3);
-    assert!(message.contains("aliases"), "{message}");
+    // An alias repeats the values and the bytes of its anchor, and a copy is kept once.
+    let one = parse("a: &x [1]\n").unwrap().bytes;
+    let two = parse("a: &x [1]\nb: *x\n").unwrap().bytes;
+    let anchored = VALUE_COST_BYTES * 2 + "/a/0".len() + VALUE_COST_BYTES + 1;
+    assert_eq!(
+        two - one,
+        "/b".len() + VALUE_COST_BYTES + 1 + VALUE_COST_BYTES + anchored
+    );
+}
+
+#[test]
+fn nested_anchors_add_up_and_do_not_double() {
+    // Ten anchors nested around a value of 10,000 bytes: the copies add to about ten times
+    // the value, well within a document; doubling at each level would pass 8 MiB.
+    let mut text = String::from("a: ");
+    for level in 0..10 {
+        write!(text, "&a{level} [").unwrap();
+    }
+    text.push_str(&"x".repeat(10_000));
+    text.push_str(&"]".repeat(10));
+    text.push('\n');
+    let bytes = parse(&text).unwrap().bytes;
+    assert!(bytes < 12 * 10_000 + 100 * 128, "{bytes}");
 }
 
 #[test]

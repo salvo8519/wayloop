@@ -94,19 +94,27 @@ fn main() -> ExitCode {
     code
 }
 
-/// `text` with its control characters escaped as Rust writes them (a line break as `\n`, an
-/// escape as `\u{1b}`), so that a path or a name read from the project cannot move the cursor
-/// or rewrite the terminal.
+/// `text` with its control characters and its invisible format characters (zero-width
+/// spaces and joiners, marks and overrides of direction) escaped as Rust writes them (a line
+/// break as `\n`, an escape as `\u{1b}`), so that a path or a name read from the project can
+/// neither move the cursor nor show other text than it holds.
 fn printable(text: &str) -> String {
     text.chars()
         .map(|c| {
-            if c.is_control() {
+            if c.is_control() || is_invisible_format(c) {
                 c.escape_default().to_string()
             } else {
                 c.to_string()
             }
         })
         .collect()
+}
+
+/// Whether `c` changes how text is shown without showing itself: zero-width characters and
+/// marks of direction (U+200B to U+200F), embeddings and overrides of direction (U+202A to
+/// U+202E) and isolates (U+2066 to U+2069).
+fn is_invisible_format(c: char) -> bool {
+    matches!(c, '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
 }
 
 /// Runs one command, reading standard input from `stdin`, and writes its JSON result to `out`.
@@ -221,46 +229,48 @@ fn from_project(
 ) -> Result<Ran, Failure> {
     let root = Path::new(".");
     let files = if paths.is_empty() {
-        project::discover(root).map_err(LoadError::Read)
+        project::discover(root)
     } else {
         let named = paths.iter().map(|p| project::segments(Path::new(p)));
         match locations::given(named) {
             Ok(files) => Ok(files),
             Err((index, refused)) => {
-                let path = paths.get(index).copied().unwrap_or_default();
+                let path = index.and_then(|i| paths.get(i)).copied();
                 return refuse(command, path, refused, out);
             }
         }
     };
     let input = match files.and_then(|files| project::load(root, files)) {
         Ok(input) => input,
-        Err(LoadError::Outside(path)) => {
-            return refuse(command, path.as_str(), Refused::OutsideTheProject, out);
+        Err(LoadError::Refused { path, refused }) => {
+            let path = path.map(|p| p.as_str().to_owned());
+            return refuse(command, path.as_deref(), refused, out);
         }
         Err(LoadError::Read(error)) => {
             let message = format!("cannot read {error}");
             return unreadable(command, error.error(), message, out);
         }
     };
-    let input = serde_json::to_value(&input).map_err(|e| Failure::Input(e.to_string()))?;
+    // By value: the typed input is freed before the command runs.
+    let input = serde_json::to_value(input).map_err(|e| Failure::Input(e.to_string()))?;
     let envelope = wayloop_core::run(command, &input, &context);
     print(&envelope, out, None)
 }
 
-/// Prints the usage envelope of a path a person named that is `refused`, with the path on
-/// standard error only (SPEC-0004 R15).
+/// Prints the usage envelope of a set of paths that is `refused`, at the path `path` when one
+/// is refused, with the path on standard error only (SPEC-0004 R15).
 fn refuse(
     command: Command,
-    path: &str,
+    path: Option<&str>,
     refused: Refused,
     out: &mut impl Write,
 ) -> Result<Ran, Failure> {
-    let envelope = usage_error(command.id(), refused.message());
-    print(
-        &envelope,
-        out,
-        Some(format!("{path}: {refused} {USAGE_LINE}")),
-    )
+    let envelope = usage_error(command.id(), &refused.message());
+    let message = match path {
+        Some(path) => format!("{path}: {refused} {USAGE_LINE}"),
+        None => format!("{refused} {USAGE_LINE}"),
+    };
+    print(&envelope, out, Some(message))
 }
 
 /// Prints the envelope of an input or a file that cannot be read, with `message` for a
@@ -375,6 +385,8 @@ mod tests {
             (&["validate", "/etc/a.yaml"][..], "validate"),
             (&["validate", "../a.yaml"][..], "validate"),
             (&["validate", "plan/a.txt"][..], "validate"),
+            // An unknown option is refused as an option, even when it reads as a file.
+            (&["validate", "--strict.yaml"][..], "validate"),
             (&["validate", "--file", "-"][..], "validate"),
             (&["validate", "--input", "-", "extra"][..], "validate"),
             (
@@ -466,6 +478,27 @@ mod tests {
             super::printable("plan/\u{1b}[2Jx\n.yaml: é"),
             "plan/\\u{1b}[2Jx\\n.yaml: é"
         );
+    }
+
+    #[test]
+    fn invisible_format_characters_are_escaped_for_standard_error() {
+        for (c, written) in [
+            ('\u{200b}', "\\u{200b}"),
+            ('\u{200f}', "\\u{200f}"),
+            ('\u{202a}', "\\u{202a}"),
+            ('\u{202e}', "\\u{202e}"),
+            ('\u{2066}', "\\u{2066}"),
+            ('\u{2069}', "\\u{2069}"),
+        ] {
+            assert_eq!(super::printable(&format!("a{c}b")), format!("a{written}b"));
+        }
+        // Their neighbours are shown as they are.
+        for c in [
+            '\u{200a}', '\u{2010}', '\u{2029}', '\u{202f}', '\u{2065}', '\u{206a}',
+        ] {
+            let text = format!("a{c}b");
+            assert_eq!(super::printable(&text), text, "{c:?}");
+        }
     }
 
     #[test]

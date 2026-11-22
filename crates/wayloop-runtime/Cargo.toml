@@ -24,6 +24,10 @@ serde_json.workspace = true
 # dependency: vendor the parser without the buffered input, or replace it.
 saphyr-parser = "0.3.4"
 
+[dev-dependencies]
+# The crate itself with its test support, for the integration tests under tests/.
+wayloop-runtime = { path = ".", features = ["test-support"] }
+
 [features]
 # Temporary projects for the tests of the runtime and of the adapters; never in a release.
 test-support = []

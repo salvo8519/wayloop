@@ -133,30 +133,33 @@ files is I/O, so the runtime does it (plan of SPEC-0001, D1).
   artifacts among those it is given, and sorts them by bytes, with `/` separators and relative
   to the root of the project, so that the canonical input is the same on every platform. It
   also checks the paths a person names: relative, without `..` or `\`, `.yaml` or `.md`. It
-  holds the bounds, each defined once: 1 MiB for a file; 64 levels of nesting, 100,000 values
-  and 8 MiB of memory for a parsed document; 64 MiB for the whole set, bytes read and documents
-  built.
+  holds the bounds, each defined once: 10,000 files for a set; 1 MiB for a file; 64 levels of
+  nesting and 8 MiB of counted bytes for a parsed document; 32 MiB of counted bytes for the
+  whole set, bytes read and documents built. Counted bytes are an estimate of memory: the text,
+  the pointers of the lines, a fixed cost of 128 bytes for each value and each line, and what
+  aliases and anchors repeat. A test of the runtime checks on Linux that the resident memory
+  a loaded set adds stays within them.
 - **The runtime reads and parses, inside the project only.** `wayloop_runtime::project` lists
   the folders of each location down to its depth. A location whose folder, or a parent of it,
   is a symbolic link is treated as absent; inside a location, links, special files and names
   that are not UTF-8 are skipped. Before it reads a file, it resolves the root and the file
-  through their links and refuses a file outside the root, as the command line refuses a path
-  outside the project, and refuses what is not a regular file, so that a read never blocks on
-  a pipe. It reads each file up to the bound and builds one entry of `documents` per file: a
+  through their links and refuses a file outside the root or whose resolved name has another
+  extension, as the command line refuses such a path, and refuses what is not a regular file,
+  so that a read never blocks on a pipe. It reads each file up to the bound and builds one entry of `documents` per file: a
   YAML file as a JSON document with the line of each value, a `spec.md` as Markdown text, which
-  the core normalises. A file that is larger than a bound, would exceed the memory of a
+  the core normalises. A file that is larger than a bound, would exceed the counted bytes of a
   document or of the set, is not UTF-8 or does not parse becomes an `unreadable` entry with its
   line, which the core reports as a `syntax` error of the file; the envelope is always written.
 - **YAML follows the plan, not the parser.** The runtime uses the event parser of
   `saphyr-parser`, which gives the position of every node, and builds the JSON value itself:
   scalars follow the YAML 1.2 core schema, so `no`, `on` and `2026-11-17` stay strings; a key
-  given twice in one mapping is refused; every value counts towards the bounds by its count and
-  its bytes, the pointers of its lines and the copies kept for anchors included, and an alias
-  counts the values and bytes it repeats before it is copied, so an alias bomb or a large value
-  repeated by aliases is refused before it reaches memory; a file holds one document, a
-  mapping; a number JSON cannot hold and a tag outside the core schema are refused. A message
-  quotes at most 80 characters of a key or a value, and the command line escapes control
-  characters on standard error. The parser stays out of the pure crates, whose allowlists are
+  given twice in one mapping is refused; every value and line is counted, and an alias counts
+  the values and bytes it repeats before it is copied, so an alias bomb or a large value
+  repeated by aliases is refused before it is built; the copies kept for anchors are counted
+  apart, so nested anchors add up instead of doubling; a file holds one document, a mapping; a
+  number JSON cannot hold and a tag outside the core schema are refused. A message quotes at
+  most 80 characters of a key or a value, and the command line escapes control characters and
+  invisible format characters (zero-width and direction marks) on standard error. The parser stays out of the pure crates, whose allowlists are
   unchanged.
 
 ## Contracts

@@ -919,6 +919,7 @@ dependencies = [
  "saphyr-parser",
  "serde_json",
  "wayloop-core",
+ "wayloop-runtime",
  "wayloop-schemas",
 ]
 

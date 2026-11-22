@@ -12,14 +12,16 @@
 //!   matches it), `!!seq` and `!!map` on their collections; any other tag is refused.
 //! - A key is a scalar written in place, used as written; a key given twice in one mapping
 //!   is refused with its line.
-//! - An alias repeats the value of its anchor once that value is complete. Every value counts
-//!   towards [`MAX_VALUES`], those an alias repeats included, and nesting is bounded by
-//!   [`MAX_NESTING`]. The bytes of the document are counted against a room the caller gives,
-//!   at most [`MAX_DOCUMENT_BYTES`](wayloop_core::artifacts::locations::MAX_DOCUMENT_BYTES):
-//!   the text of every scalar and key, the pointer of every value given a line, the bytes of
-//!   every value an alias repeats, and every copy kept for an anchor. A document beyond a
-//!   bound is refused before the value that crosses it is copied: an alias bomb, a large value
-//!   repeated by aliases and nested anchors never reach memory.
+//! - An alias repeats the value of its anchor once that value is complete. Nesting is bounded
+//!   by [`MAX_NESTING`], an alias adding the depth of its value. The document is counted in bytes, an estimate of its memory, against a
+//!   room the caller gives, at most
+//!   [`MAX_DOCUMENT_BYTES`](wayloop_core::artifacts::locations::MAX_DOCUMENT_BYTES): the text
+//!   of every scalar and key, the pointer of every value given a line, [`VALUE_COST_BYTES`] for
+//!   every value and every line, the values and bytes every alias repeats, and every copy kept
+//!   for an anchor. The copies are counted apart: they count towards the room but not into
+//!   the size of the collections that hold them, so nested anchors add up instead of doubling
+//!   at each level. A document beyond a bound is refused before the value that crosses it is
+//!   copied: an alias bomb, a large value repeated by aliases and nested anchors are not built.
 //! - The file holds one document, a mapping. A number JSON cannot hold (`.inf`, `.nan`, a
 //!   value beyond a double) is refused. A message quotes user text, a key or a value, cut to
 //!   80 characters.
@@ -40,7 +42,7 @@ use std::collections::BTreeMap;
 use saphyr_parser::{Event, Parser, ScalarStyle, Tag};
 use serde_json::{Map, Number, Value};
 use wayloop_core::Pointer;
-use wayloop_core::artifacts::locations::{MAX_NESTING, MAX_VALUES};
+use wayloop_core::artifacts::locations::{MAX_NESTING, VALUE_COST_BYTES};
 use wayloop_schemas::validate::{Lines, ParseError};
 use wayloop_schemas::value::Line;
 
@@ -149,8 +151,13 @@ struct Builder {
     root: Option<(Value, usize)>,
     lines: BTreeMap<String, Line>,
     anchors: BTreeMap<usize, Anchored>,
-    /// Every value and byte counted so far, those repeated by aliases included.
+    /// Every value and byte counted so far, those repeated by aliases included; the fixed
+    /// cost of the values is added when the room is checked.
     counted: Cost,
+    /// The bytes of the copies kept for anchors, values included: counted towards the room
+    /// apart from `counted`, so that a copy does not enter the size of the collections that
+    /// hold it.
+    copies: usize,
     /// The bytes the document may take.
     room: usize,
     documents: usize,
@@ -168,26 +175,28 @@ impl Builder {
         )
     }
 
-    /// Counts `cost` at line `at`, refusing more than [`MAX_VALUES`] values or more bytes than
-    /// the room.
+    /// Counts `cost` at line `at`, refusing more counted bytes than the room.
     fn count(&mut self, cost: Cost, at: usize) -> Result<(), ParseError> {
         self.counted.values = self.counted.values.saturating_add(cost.values);
         self.counted.bytes = self.counted.bytes.saturating_add(cost.bytes);
-        if self.counted.values > MAX_VALUES {
+        self.within_room(at)
+    }
+
+    /// The counted bytes of the document: what was counted, the fixed cost of its values and
+    /// the copies kept for anchors.
+    fn bytes(&self) -> usize {
+        memory(self.counted).saturating_add(self.copies)
+    }
+
+    /// Refuses, at line `at`, more counted bytes than the room.
+    fn within_room(&self, at: usize) -> Result<(), ParseError> {
+        if self.bytes() > self.room {
             return Err(fault(
                 at,
                 format!(
-                    "the file holds more than {MAX_VALUES} values, counting those its aliases \
-                     repeat"
-                ),
-            ));
-        }
-        if self.counted.bytes > self.room {
-            return Err(fault(
-                at,
-                format!(
-                    "the document would take more than {} bytes in memory, counting its text, \
-                     the pointers of its lines and the values its aliases and anchors repeat",
+                    "the document would take more than {} counted bytes, an estimate of its \
+                     memory: its text, the pointers of its lines, {VALUE_COST_BYTES} bytes for \
+                     each value and line, and the values its aliases and anchors repeat",
                     self.room
                 ),
             ));
@@ -225,7 +234,8 @@ impl Builder {
                 }
             },
         };
-        let bytes = pointer.as_str().len();
+        // An entry of the lines: its pointer and its fixed cost, as a value has.
+        let bytes = pointer.as_str().len().saturating_add(VALUE_COST_BYTES);
         self.count(Cost { values: 0, bytes }, at)?;
         self.lines
             .insert(pointer.as_str().to_owned(), line(line_of));
@@ -250,7 +260,7 @@ impl Builder {
     }
 
     /// Keeps a copy of `value`, which counted `cost`, for the aliases of `anchor` when it has
-    /// one; the copy counts its bytes again, before it is made.
+    /// one; the copy counts its bytes, values included, among the copies, before it is made.
     fn keep(
         &mut self,
         anchor: usize,
@@ -262,11 +272,8 @@ impl Builder {
         if anchor == 0 {
             return Ok(());
         }
-        let copy = Cost {
-            values: 0,
-            bytes: cost.bytes,
-        };
-        self.count(copy, at)?;
+        self.copies = self.copies.saturating_add(memory(cost));
+        self.within_room(at)?;
         let anchored = Anchored {
             value: value.clone(),
             cost,
@@ -302,7 +309,8 @@ impl Builder {
             }) if map.contains_key(&text) => Some(
                 self.lines
                     .get(pointer.join(&text).as_str())
-                    .map_or(0, |l| l.get().get()),
+                    .copied()
+                    .unwrap_or_else(|| line(0)),
             ),
             _ => None,
         };
@@ -310,8 +318,9 @@ impl Builder {
             return Err(fault(
                 at,
                 format!(
-                    "the key `{}` is given twice; it was first given at line {first}",
-                    quoted(&text)
+                    "the key `{}` is given twice; it was first given at line {}",
+                    quoted(&text),
+                    first.get()
                 ),
             ));
         }
@@ -408,11 +417,12 @@ impl Builder {
 
     /// The document: the root, a mapping.
     fn finish(self) -> Result<Parsed, ParseError> {
+        let bytes = self.bytes();
         match self.root {
             Some((Value::Object(document), _)) => Ok(Parsed {
                 document,
                 lines: Lines(self.lines),
-                bytes: self.counted.bytes,
+                bytes,
             }),
             Some((other, at)) => Err(fault(
                 at,
@@ -421,6 +431,12 @@ impl Builder {
             None => Err(fault(1, "the file holds no YAML document")),
         }
     }
+}
+
+/// The counted bytes of `cost`: its bytes and the fixed cost of its values.
+fn memory(cost: Cost) -> usize {
+    cost.bytes
+        .saturating_add(cost.values.saturating_mul(VALUE_COST_BYTES))
 }
 
 /// The type of a JSON value, for a message.

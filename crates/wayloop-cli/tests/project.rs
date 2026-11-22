@@ -151,3 +151,20 @@ fn a_named_link_out_of_the_project_is_a_usage_error_and_stderr_is_escaped() {
     assert!(stderr.contains("plan/briefs/x\\u{1b}.yaml"), "{stderr}");
     assert!(!stderr.contains('\u{1b}'), "{stderr}");
 }
+
+#[test]
+fn a_project_of_more_than_max_files_is_a_usage_error() {
+    use wayloop_core::artifacts::locations::MAX_FILES;
+    let project = Project::new("many", &[]);
+    let items = project.0.root().join("plan/items");
+    fs::create_dir_all(&items).unwrap();
+    for n in 0..=MAX_FILES {
+        fs::write(items.join(format!("i{n:05}.yaml")), b"").unwrap();
+    }
+    let (text, value, stderr, code) = project.validate(&[]);
+    assert_eq!(code, 2, "{text}");
+    assert_eq!(value["error"]["code"], "usage");
+    let message = value["error"]["message"].as_str().unwrap();
+    assert!(message.contains(&MAX_FILES.to_string()), "{message}");
+    assert!(stderr.contains(&MAX_FILES.to_string()), "{stderr}");
+}

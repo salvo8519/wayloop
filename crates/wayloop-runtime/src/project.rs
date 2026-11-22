@@ -6,17 +6,20 @@
 //! reads the files and changes their syntax. Its guarantees:
 //!
 //! - [`discover`] lists the files below each location of the core, down to its depth, and
-//!   passes their paths, relative to the root with `/` separators, to the core. A location
-//!   whose folder, or a parent of it below the root, is a symbolic link is treated as absent,
-//!   as is a missing one; below a location, a link, a special file and a name that is not
-//!   UTF-8 are skipped. Discovery therefore lists no folder and no file outside the project.
+//!   passes their paths, relative to the root with `/` separators, to the core, which refuses
+//!   more than [`MAX_FILES`](locations::MAX_FILES) of them. A location whose folder, or a
+//!   parent of it below the root, is a symbolic link is treated as absent, as is a missing
+//!   one; below a location, a link, a special file and a name that is not UTF-8 are skipped.
+//!   Discovery therefore lists no folder and no file outside the project.
 //! - [`load`] resolves the root and every file through their links and refuses, with
-//!   [`LoadError::Outside`], a file whose resolved path is not inside the resolved root; it
-//!   refuses a path that is not a regular file (a folder, a pipe, a device) as an error of the
-//!   environment before opening it, so that a read never blocks. It reads at most
-//!   [`MAX_FILE_BYTES`] of a file and at most [`MAX_PROJECT_BYTES`] for the whole set, counting
-//!   the bytes read and the bytes of every document built, and builds one entry of `documents`
-//!   per file, in the order given: a YAML file as a `document` with the line of each value, a
+//!   [`LoadError::Refused`], a file whose resolved path is not inside the resolved root or does
+//!   not have the extension of its path, so that a link cannot turn another file into an
+//!   artifact. It refuses a path that is not a regular file (a folder, a pipe, a device) as an
+//!   error of the environment before opening it, so that a read never blocks. It reads at most
+//!   [`MAX_FILE_BYTES`] of a file and counts at most [`MAX_PROJECT_BYTES`] for the whole set:
+//!   the bytes read and the counted bytes of every document built, an estimate of their
+//!   memory (see [`locations::VALUE_COST_BYTES`]). It builds one entry of `documents` per
+//!   file, in the order given: a YAML file as a `document` with the line of each value, a
 //!   Markdown file as `markdown` text. A file that is larger than its bound, would exceed the
 //!   bound of the set or of a document, is not UTF-8 or does not parse becomes an `unreadable`
 //!   entry with the line of the fault and a message, which the core reports as a `syntax`
@@ -34,7 +37,8 @@ use std::io::{self, Read as _};
 use std::path::{Component, Path, PathBuf};
 
 use wayloop_core::artifacts::locations::{
-    self, LOCATIONS, MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, MAX_PROJECT_BYTES, Stored, StoredFile,
+    self, LOCATIONS, MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, MAX_PROJECT_BYTES, Refused, Stored,
+    StoredFile,
 };
 use wayloop_schemas::validate::{
     DocumentEntry, EntryFormat, FreeDocument, Origin, ParseError, ValidateInput,
@@ -88,11 +92,16 @@ impl std::error::Error for ReadError {
 /// Why the files of a set were not loaded.
 #[derive(Debug)]
 pub enum LoadError {
-    /// A file or the root could not be read: an error of the environment.
+    /// A file, a folder or the root could not be read: an error of the environment.
     Read(ReadError),
-    /// The file at this path resolves, through a symbolic link, outside the root of the
-    /// project: the refusal [`locations::Refused::OutsideTheProject`].
-    Outside(ProjectPath),
+    /// The core refused the set, or the file at `path` once its links are resolved: outside
+    /// the root, or not an artifact file by its extension.
+    Refused {
+        /// The file refused; `None` when the whole set is (too many files).
+        path: Option<ProjectPath>,
+        /// Why.
+        refused: Refused,
+    },
 }
 
 impl From<ReadError> for LoadError {
@@ -105,13 +114,18 @@ impl From<ReadError> for LoadError {
 ///
 /// # Errors
 ///
-/// [`ReadError`] when a folder of a location exists but cannot be listed.
-pub fn discover(root: &Path) -> Result<Vec<StoredFile>, ReadError> {
+/// [`LoadError::Read`] when a folder of a location exists but cannot be listed;
+/// [`LoadError::Refused`] when the project holds more than
+/// [`MAX_FILES`](locations::MAX_FILES) artifacts.
+pub fn discover(root: &Path) -> Result<Vec<StoredFile>, LoadError> {
     let mut found = Vec::new();
     for location in &LOCATIONS {
         list(root, location.folder(), location.depth(), &mut found)?;
     }
-    Ok(locations::discovered(found))
+    locations::discovered(found).map_err(|refused| LoadError::Refused {
+        path: None,
+        refused,
+    })
 }
 
 /// Whether `folder`, a path below `root` with `/` separators, is a folder reached without a
@@ -182,34 +196,43 @@ pub fn segments(path: &Path) -> Vec<String> {
 ///
 /// # Errors
 ///
-/// [`LoadError::Outside`] for the first file that resolves outside the root;
-/// [`LoadError::Read`] for the root or the first file that cannot be read or is not a regular
-/// file.
+/// [`LoadError::Refused`] for the first file that, once its links are resolved, is outside
+/// the root or has another extension than its path; [`LoadError::Read`] for the root or the
+/// first file that cannot be read or is not a regular file.
 pub fn load(root: &Path, files: Vec<StoredFile>) -> Result<ValidateInput, LoadError> {
     load_within(root, files, MAX_PROJECT_BYTES)
 }
 
-/// [`load`] with `budget` bytes for the whole set.
+/// [`load`] with `budget` counted bytes for the whole set.
 pub(crate) fn load_within(
     root: &Path,
     files: Vec<StoredFile>,
-    budget: u64,
+    budget: usize,
 ) -> Result<ValidateInput, LoadError> {
     let real_root = fs::canonicalize(root).map_err(|e| ReadError::new(root, e))?;
-    let mut used: u64 = 0;
+    let mut used: usize = 0;
     let mut documents = Vec::with_capacity(files.len());
     for file in files {
         let path = root.join(file.path.as_str());
-        let real = fs::canonicalize(&path).map_err(|e| ReadError::new(&path, e))?;
-        if !real.starts_with(&real_root) {
-            return Err(LoadError::Outside(file.path));
+        let resolved = fs::canonicalize(&path).map_err(|e| ReadError::new(&path, e))?;
+        let refused = if !resolved.starts_with(&real_root) {
+            Some(Refused::OutsideTheProject)
+        } else if locations::stored_by_extension(&resolved.to_string_lossy()) != Some(file.stored) {
+            Some(Refused::NotAnArtifactFile)
+        } else {
+            None
+        };
+        if let Some(refused) = refused {
+            return Err(LoadError::Refused {
+                path: Some(file.path),
+                refused,
+            });
         }
-        let content =
-            read(&real, budget.saturating_sub(used)).map_err(|e| ReadError::new(&path, e))?;
+        let content = read(&resolved, budget.saturating_sub(used), budget)
+            .map_err(|e| ReadError::new(&path, e))?;
         used = used.saturating_add(content.bytes());
-        let left = usize::try_from(budget.saturating_sub(used)).unwrap_or(usize::MAX);
-        let (entry, built) = entry(file, content, left, budget);
-        used = used.saturating_add(u64::try_from(built).unwrap_or(u64::MAX));
+        let (entry, built) = entry(file, content, budget.saturating_sub(used));
+        used = used.saturating_add(built);
         documents.push(entry);
     }
     Ok(ValidateInput {
@@ -228,52 +251,53 @@ pub(crate) enum Content {
     Bytes(Vec<u8>),
     /// More than [`MAX_FILE_BYTES`]: not kept.
     TooLarge,
-    /// More than the bytes left for the set: not kept.
-    BeyondTheSet,
+    /// More than the bytes left of a set of this many counted bytes: not kept.
+    BeyondTheSet(usize),
 }
 
 impl Content {
     /// The bytes kept.
-    fn bytes(&self) -> u64 {
+    fn bytes(&self) -> usize {
         match self {
-            Content::Bytes(bytes) => u64::try_from(bytes.len()).unwrap_or(u64::MAX),
-            Content::TooLarge | Content::BeyondTheSet => 0,
+            Content::Bytes(bytes) => bytes.len(),
+            Content::TooLarge | Content::BeyondTheSet(_) => 0,
         }
     }
 }
 
 /// The content of the regular file at `path`, reading at most one byte beyond the smaller of
-/// [`MAX_FILE_BYTES`] and `room`; a path that is not a regular file is refused before it is
-/// opened.
-fn read(path: &Path, room: u64) -> io::Result<Content> {
+/// [`MAX_FILE_BYTES`] and `room`, the bytes left of a set of `budget`; a path that is not a
+/// regular file is refused before it is opened.
+fn read(path: &Path, room: usize, budget: usize) -> io::Result<Content> {
     if !fs::metadata(path)?.is_file() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "not a regular file",
         ));
     }
+    let limit = MAX_FILE_BYTES.min(room);
+    let mut file = fs::File::open(path)?;
     let mut bytes = Vec::new();
-    fs::File::open(path)?
-        .take(MAX_FILE_BYTES.min(room).saturating_add(1))
-        .read_to_end(&mut bytes)?;
-    let size = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
-    Ok(if size > MAX_FILE_BYTES {
+    let mut chunk = [0_u8; 8192];
+    while bytes.len() <= limit {
+        let n = file.read(&mut chunk)?;
+        if n == 0 {
+            break;
+        }
+        bytes.extend_from_slice(chunk.get(..n).unwrap_or_default());
+    }
+    Ok(if bytes.len() > MAX_FILE_BYTES {
         Content::TooLarge
-    } else if size > room {
-        Content::BeyondTheSet
+    } else if bytes.len() > room {
+        Content::BeyondTheSet(budget)
     } else {
         Content::Bytes(bytes)
     })
 }
 
-/// The entry of `file` with its `content`, whose document may take `room` bytes (and at most
-/// [`MAX_DOCUMENT_BYTES`]) of a set of `budget` bytes; and the bytes the document took.
-pub(crate) fn entry(
-    file: StoredFile,
-    content: Content,
-    room: usize,
-    budget: u64,
-) -> (DocumentEntry, usize) {
+/// The entry of `file` with its `content`, whose document may take `room` counted bytes (and
+/// at most [`MAX_DOCUMENT_BYTES`]); and the counted bytes the document took.
+pub(crate) fn entry(file: StoredFile, content: Content, room: usize) -> (DocumentEntry, usize) {
     let origin = Some(Origin {
         file: Some(file.path),
         issue: None,
@@ -289,7 +313,7 @@ pub(crate) fn entry(
         error: None,
         input_kind: None,
     };
-    let text = match text(content, budget) {
+    let text = match text(content) {
         Ok(text) => text,
         Err(error) => return (unreadable(empty, error), 0),
     };
@@ -325,9 +349,9 @@ fn unreadable(entry: DocumentEntry, error: ParseError) -> DocumentEntry {
     }
 }
 
-/// The text of `content`; a refusal at line 1 when it is beyond the bound of a file or of a set
-/// of `budget` bytes, or when it is not UTF-8, at the line of the first byte that is not.
-fn text(content: Content, budget: u64) -> Result<String, ParseError> {
+/// The text of `content`; a refusal at line 1 when it is beyond the bound of a file or of its
+/// set, or when it is not UTF-8, at the line of the first byte that is not.
+fn text(content: Content) -> Result<String, ParseError> {
     let bytes = match content {
         Content::Bytes(bytes) => bytes,
         Content::TooLarge => {
@@ -335,9 +359,10 @@ fn text(content: Content, budget: u64) -> Result<String, ParseError> {
                 format!("the file is larger than {MAX_FILE_BYTES} bytes and was not loaded");
             return Err(fault(1, message));
         }
-        Content::BeyondTheSet => {
+        Content::BeyondTheSet(budget) => {
             let message = format!(
-                "the files of the set take more than {budget} bytes; this one was not loaded"
+                "the files of the set take more than {budget} counted bytes, an estimate of \
+                 their memory; this one was not loaded"
             );
             return Err(fault(1, message));
         }
