@@ -292,17 +292,21 @@ impl Builder {
             bytes: text.len(),
         };
         self.count(cost, at)?;
-        if let Some(Frame {
-            content: Content::Mapping { map, .. },
-            pointer,
-            ..
-        }) = self.frames.last()
-            && map.contains_key(&text)
-        {
-            let first = self
-                .lines
-                .get(pointer.join(&text).as_str())
-                .map_or(0, |l| l.get().get());
+        // The line of the first, when the key is given already; no let chain, for the minimum
+        // supported Rust version.
+        let given = match self.frames.last() {
+            Some(Frame {
+                content: Content::Mapping { map, .. },
+                pointer,
+                ..
+            }) if map.contains_key(&text) => Some(
+                self.lines
+                    .get(pointer.join(&text).as_str())
+                    .map_or(0, |l| l.get().get()),
+            ),
+            _ => None,
+        };
+        if let Some(first) = given {
             return Err(fault(
                 at,
                 format!(
