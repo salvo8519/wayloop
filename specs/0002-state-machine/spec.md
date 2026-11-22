@@ -25,7 +25,8 @@ The engine decides every step of the loop. Without an explicit state machine the
 
 ## Requirements (EARS)
 Requirement numbers are identities, not an order (SPEC-0001 R20). R8 to R11 and AC4 to AC7 were
-merged on `main` by #309 and are cited by SPEC-0006 R11, so they keep their numbers; the
+merged on `main` by #309 and are cited by SPEC-0006 R11, so they keep their numbers; their
+risk levels high, medium and low are written with the names of the tiers (Q10). The
 requirements and criteria of this draft that held the same numbers took the next free ones:
 
 | Earlier draft of this pull request | Now |
@@ -40,10 +41,10 @@ requirements and criteria of this draft that held the same numbers took the next
 - **R5**: THE ENGINE SHALL return the events due by time only from a function `due_events(state, now)`, and the next steps (actions, ready work and stop reasons) only from a function `next_steps(state, now, free_workers)`, both pure, with the outputs in the total order of section Ready work and lanes.
 - **R6**: IF an input fails one or more guards of its transition, THEN THE ENGINE SHALL refuse it, report every unmet guard in one pass with its code from section Errors, and record nothing, except the cost of a stale result under R21.
 - **R7**: THE ENGINE SHALL apply the approvers, limits, budgets and policy recorded by the latest `limits_set` and `policy_set` events, never the configuration file read at the time of a decision.
-- **R8**: WHERE the risk tier of an issue is high, THE ENGINE SHALL run the review step as a panel of three verifiers, one per lens (SPEC-0003, Coverage and verification), none of which wrote or counter-reviewed the change, each instructed that a coverage unit is `uncovered` unless it can cite the code and the test that cover it, and SHALL allow one repetition of the panel.
+- **R8**: WHERE the risk tier of an issue is `contract`, THE ENGINE SHALL run the review step as a panel of three verifiers, one per lens (SPEC-0003, Coverage and verification), none of which wrote or counter-reviewed the change, each instructed that a coverage unit is `uncovered` unless it can cite the code and the test that cover it, and SHALL allow one repetition of the panel: one more dispatch of one lens when its verifier fails or its result is rejected, so that the panel costs at most four invocations.
 - **R9**: THE ENGINE SHALL compute the outcome of a panel from the votes alone: `covered` only when every lens votes `covered`; `needs_validation` when no lens votes `uncovered` and at least one votes `needs_validation`; `uncovered` otherwise. No model computes or reports the outcome.
 - **R10**: IF a verifier returns a vote without a citation for each claim, THEN THE ENGINE SHALL count it as `uncovered` and record the reason `uncited`.
-- **R11**: WHERE the risk tier of an issue is medium, THE ENGINE SHALL run the review step with one verifier on the `proof` lens under R9 and R10; WHERE it is low, THE ENGINE SHALL rely on the deterministic checks of the verify step alone.
+- **R11**: WHERE the risk tier of an issue is `substantial`, THE ENGINE SHALL run the review step with one verifier on the `proof` lens under R9 and R10; WHERE it is `small`, THE ENGINE SHALL rely on the deterministic checks of the verify step alone, whatever the policy says.
 - **R12**: WHEN a gate of kind `council_report` or `roadmap` is rejected, THE ENGINE SHALL move its subject to `superseded`, propose no new `run_council` or `generate_plan` for that brief, and report the stop reason `rejected_awaiting_input` until an approver requests a new run or the brief is superseded.
 - **R13**: WHEN a subject reaches one of the approval states of section Gates and approval states, THE ENGINE SHALL open a gate, record `gate_opened`, and propose no action that passes the gate while it is pending.
 - **R14**: THE ENGINE SHALL resolve a gate only with an `approval_recorded` or `question_answered` whose actor is a recorded approver; IF the actor is not a recorded approver, THEN THE ENGINE SHALL record `input_ignored` with the code `actor_not_authorised` and keep the gate pending.
@@ -88,10 +89,10 @@ requirements and criteria of this draft that held the same numbers took the next
 - **AC1** (R1, R18, R32): Given every pair of issue-cycle state and input of the table Issue transitions, generated with random guards, when decided and applied, then the next state, the holds and the recorded events match the table, and every pair absent from the table is refused with `transition_not_allowed` or `step_mismatch` or, for an observation, recorded as the table says for an inconsistent observation. Verification: property test.
 - **AC2** (R1, R5): Given a random state and a random input, when `decide`, `apply`, `due_events` and `next_steps` run twice, then both outputs are byte-identical in canonical JSON; and the core crate passes `cargo clippy -- -D clippy::disallowed_methods -D clippy::disallowed_types` with a `clippy.toml` that disallows reading the system clock, the environment, the file system and random sources, and the hash maps and sets whose iteration order is random. Verification: property test.
 - **AC3** (R5, R19): Given a random set of issues, lanes and free workers, when the next steps are computed for the same state with the issues stored in different orders, then the output is identical and ordered as section Ready work and lanes says. Verification: property test.
-- **AC4** (R8): Given a high-risk issue, when the review step starts, then three verifiers are dispatched with distinct lenses and none of them is the implementer or the counter-reviewer. Verification: TDD.
+- **AC4** (R8): Given an issue of tier `contract`, when the review step starts, then three verifiers are dispatched with distinct lenses and none of them is the implementer or the counter-reviewer; given the verifier of one lens that times out, then one more dispatch of that lens is started and a second failure of any lens holds the issue with `executor_failure`, so that at most four dispatches of `review` are started. Verification: TDD.
 - **AC5** (R9): Given every combination of three votes, when tallied, then the outcome matches the rule of R9. Verification: property test.
 - **AC6** (R10): Given a `covered` vote with no citation, when tallied, then it counts as `uncovered` with reason `uncited`. Verification: TDD.
-- **AC7** (R11): Given a medium-risk issue, when the review step starts, then exactly one verifier is dispatched with the `proof` lens; given a low-risk issue, then none is. Verification: TDD.
+- **AC7** (R11): Given an issue of tier `substantial`, when the review step starts, then exactly one verifier is dispatched with the `proof` lens; given an issue of tier `small`, then none is, even under a policy that lists no skip. Verification: TDD.
 - **AC8** (R45, R44): Given a recorded configuration with approvers `maintainer`, 20 turns and a sprint budget of 100,000 tokens, when a run starts with the approver `other` added, 30 turns and a sprint budget of 50,000, then `limits_set` records the budget of 50,000 at once, a gate of kind `configuration` holds the new approver and the 30 turns, the limit stays 20 while it is pending, an approval by `other` is ignored with `actor_not_authorised`, and an approval by `maintainer` records `limits_set` with both changes. Verification: TDD.
 - **AC9** (R46): Given recorded approvers `maintainer` and `wayloop-bot`, when a run starts with the account `wayloop-bot`, then `run_started` is recorded, no action is proposed and the stop reason is `engine_account_is_approver`. Verification: TDD.
 - **AC10** (R47): Given the fixture states of the table Project phase, when the phase is derived, then each gives its phase; given a project with an approved milestone and no brief, then the phase is `delivery`; given a `complete` project and a new brief approved, then the phase is `council`. Verification: TDD.
@@ -549,8 +550,10 @@ at every decision that uses it (R25); it is never reported by an agent. The tier
 steps are skipped (R25), the verifiers of `review` (R8, R11, R49) and whether the merge gate is
 waived (R17).
 
-The risk levels of R8, R11 and SPEC-0006 R11 are these tiers (Q10): high is `contract`, medium
-is `substantial`, low is `small`. This sentence is the one place that maps them.
+These three tiers are the only names of risk in the specifications (Q10). The levels high,
+medium and low that #309 first used are `contract`, `substantial` and `small`; R8, R11 and
+SPEC-0006 R11 are written with the tier names, and this section is the one place that defines
+them.
 
 ### Review by risk tier
 
@@ -572,13 +575,14 @@ last observed (`branch_changes_observed`), or on a
 dirty working tree, is a result that fails a guard (SPEC-0003 R17): `result_rejected`, one retry
 (R23).
 
-The repetition of the panel that R8 allows is, pending Q12, one more dispatch of one lens of the
-same review step when its verifier fails or its result is rejected; it replaces
+The repetition of the panel that R8 allows is one more dispatch of one lens of the same review
+step when its verifier fails or its result is rejected (Q12); it replaces
 `limits.executor_retries` for the dispatches of `review` of the tier `contract`, so that the
-panel costs at most four invocations, the reserve of SPEC-0006 R11.
+panel costs at most four invocations, the reserve of SPEC-0006 R11. A second failure of any lens
+holds the issue with `executor_failure` (I29).
 
-The policy may skip `counter_review` for any tier, but never `review` of `substantial` or
-`contract`, and never keeps `review` for `small` (Q11). A tier that rises after
+`review` follows the tier for every tier (Q11): the policy may skip `counter_review` for any
+tier, but never `review` of `substantial` or `contract`, and never keeps `review` for `small`. A tier that rises after
 `counter_review` does not repeat it; it raises the review required at `review`. A merge waiver
 needs a `branch_changes_observed` at the recorded head: without one, the merge gate is opened.
 
@@ -789,7 +793,7 @@ come from it, so the files are traces, not fixtures of an event schema.
 ready work) and #58 (dry run on local fixtures) implement it.
 
 ## Open questions
-- [x] **Q1. Which steps does the tier `small` skip?** Decided by the maintainer on 2026-11-17: (b), `small` skips both `counter_review` and `review`, set per tier in the policy, with the tier computed by the engine from the area and the observed diff (R25, section Risk tier).
+- [x] **Q1. Which steps does the tier `small` skip?** Decided by the maintainer on 2026-11-17: (b), `small` skips both `counter_review` and `review`, set per tier in the policy, with the tier computed by the engine from the area and the observed diff (R25, section Risk tier). The skip of `review` by the policy was replaced on 2026-11-22 by Q11: `review` follows the tier.
 - [x] **Q2. May the loop merge an issue of tier `small` without a person at the gate?** Decided by the maintainer on 2026-11-17: the project policy may waive the merge gate for `small`; ADR 0029 amends constitution IV. The engine records `gate_waived` with the policy revision and the person who approved it, never `gate_resolved`; a policy change that widens `small` or adds a waiver passes the `configuration` gate (R45, R17).
 - [x] **Q3. When is an expected revision stale?** Decided by the maintainer on 2026-11-17: (b), scoped to the issue of the command, or to the phase, gates and plan for a project command; guards are evaluated again under the writer lock; ADR 0009 C6 is amended (R41, section Revisions).
 - [x] **Q4. Where does a new claim resume after a release?** Decided by the maintainer on 2026-11-17: (a), at the state reached.
@@ -798,6 +802,6 @@ ready work) and #58 (dry run on local fixtures) implement it.
 - [x] **Q7. What happens when the pull request of an issue is closed without merge?** Decided by the maintainer on 2026-11-17: (a), hold with `pull_request_closed`; the pull request is cleared, and `pull_request_reopened` restores it (R36).
 - [x] **Q8. What is a budget scope?** Decided by the maintainer on 2026-11-17: phase budgets for `intake`, `council` and `planning`, a budget per sprint, and a budget per milestone in `delivery` (section Limits and budgets).
 - [x] **Q9. Who is an authorised approver?** Decided by the maintainer on 2026-11-17: an explicit list written by `wayloop init`, run by a person. Adding an approver or raising a limit or a budget opens a gate of kind `configuration` that only an already recorded approver resolves; decreases apply at once. The runtime reports its account in `run_started`, and the engine proposes nothing while that account is an approver (R45, R46, R44).
-- [ ] **Q10. Which tier is each risk level of R8, R11 and SPEC-0006 R11?** #309 names the levels high, medium and low; the policy, AGENTS.md and this specification name the tiers `contract`, `substantial` and `small`. Options: (a) high is `contract`, medium is `substantial`, low is `small`, stated once in section Risk tier, and SPEC-0006 R11 later rewritten with the tier names; (b) three levels of their own in the policy, mapped from the tiers per project. Recommendation: (a), because one set of names keeps one meaning (constitution IX) and the gates of AGENTS.md already match the three review depths.
-- [ ] **Q11. May the policy keep `review` for `small`, or skip it for another tier?** Q1 put both skips in the policy; R11 of #309, decided later, fixes the review by tier. Options: (a) R11 decides `review` for every tier, and the policy skips only `counter_review`; (b) the policy decides both, and R11 is the default. Recommendation: (a), the newer decision, which the text now follows; with (b) a policy could approve a contract change without any verifier.
-- [ ] **Q12. What is the one repetition of the panel that R8 allows?** Options: (a) one more dispatch of one lens of the same review step, when its verifier fails or its result is rejected, in place of `limits.executor_retries` for the review of `contract`, so the panel costs at most four invocations as SPEC-0006 R11 reserves; (b) the whole panel once more when its outcome is `uncovered`, six invocations, which needs SPEC-0006 R11 changed; (c) one more dispatch of a lens whose vote is `needs_validation`. Recommendation: (a), the only reading consistent with the reserve of four invocations; the text follows it pending this answer.
+- [x] **Q10. Which tier is each risk level of R8, R11 and SPEC-0006 R11?** Decided by the maintainer on 2026-11-22: (a), one set of names: high is `contract`, medium is `substantial`, low is `small`, defined once in section Risk tier. R8, R11, AC4 and AC7 are written with the tier names, and SPEC-0006 R11 is amended in this pull request to use them.
+- [x] **Q11. May the policy keep `review` for `small`, or skip it for another tier?** Decided by the maintainer on 2026-11-22: (a), `review` follows the risk tier for every tier (R8, R11); the policy may skip only `counter_review` (R25, section Review by risk tier). This replaces the part of Q1 that let the policy skip `review`.
+- [x] **Q12. What is the one repetition of the panel that R8 allows?** Decided by the maintainer on 2026-11-22: (a), one more dispatch of one lens of the same review step when its verifier fails or its result is rejected, in place of `limits.executor_retries` for the review of `contract`, so that the panel costs at most four invocations, as SPEC-0006 R11 reserves (R8, AC4).

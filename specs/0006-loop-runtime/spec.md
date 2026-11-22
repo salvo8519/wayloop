@@ -5,7 +5,7 @@
 | Status | Draft |
 | Milestone | M2 · Tracker and loop |
 | Owner | @salvo8519 |
-| Related | ADR 0013, #61, #66, #67, #68, #76, #178, #309 |
+| Related | ADR 0013, #11, #61, #66, #67, #68, #76, #178, #309 |
 | Commit scope | runtime |
 
 ## Problem
@@ -31,7 +31,7 @@ Independent work should run in parallel to save time, without making the state n
 - **R8**: WHEN an attempt fails verification, THE ENGINE SHALL record a failure note (what was tried, what failed, the first error, what to try next), discard the branch and worktree, start the next attempt from the notes, and open a question after the configured number of attempts.
 - **R9**: WHEN a phase or a sprint starts, THE ENGINE SHALL reserve from its budget the cost of verifying the work it plans, and SHALL NOT spend the reserve on any other step.
 - **R10**: IF the budget left cannot fund the reserve of the next step, THEN THE ENGINE SHALL start no new build step, verify the work already built, and stop with reason `budget`.
-- **R11**: THE ENGINE SHALL count budgets and reserves in agent invocations, and SHALL size the verification reserve of an issue from its risk tier: high, four invocations (three verifiers and one repetition, SPEC-0002 R8); medium, one; low, none.
+- **R11**: THE ENGINE SHALL count budgets and reserves in agent invocations, and SHALL size the verification reserve of an issue from its risk tier (SPEC-0002, Risk tier): `contract`, four invocations (three verifiers and one repetition, SPEC-0002 R8); `substantial`, one; `small`, none.
 - **R12**: THE ENGINE SHALL record the tokens and the cost of every invocation for the cost report (SPEC-0004), without using them to stop the loop.
 
 ## Acceptance criteria
@@ -41,7 +41,7 @@ Independent work should run in parallel to save time, without making the state n
 - **AC4**: Given a failed attempt, when the next attempt starts, then its brief contains the note and the previous branch no longer exists. Verification: TDD.
 - **AC5** (R9): Given a budget and a plan of several issues, when the build steps exhaust their share, then the verification of every built issue still runs. Verification: TDD.
 - **AC6** (R10): Given a budget that cannot fund the next reserve, when the next step is computed, then no build step starts and the stop reason is `budget`. Verification: TDD.
-- **AC7** (R11): Given a plan of one high, one medium and one low issue, when the phase starts, then the reserve is five invocations. Verification: TDD.
+- **AC7** (R11): Given a plan of one issue of each tier, `contract`, `substantial` and `small`, when the phase starts, then the reserve is five invocations. Verification: TDD.
 - **AC8** (R12): Given a run whose tokens exceed an expected count, when the next step is computed, then the loop does not stop for that reason and the tokens appear in the cost report. Verification: TDD.
 
 ## Interfaces

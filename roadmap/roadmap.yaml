@@ -162,7 +162,7 @@ milestones:
         issue: 21
         labels: ["area:core"]
         tasks:
-          - { issue: 11, title: "Approved specification of the state machine", spec: "0002", status: open }
+          - { issue: 11, title: "Approved specification of the state machine", spec: "0002", status: done }
           - { issue: 48, title: "Implement the transition table and guards", spec: "0002", status: open }
           - { issue: 49, title: "Next step and ready work", spec: "0002", status: open }
           - { issue: 58, title: "Dry run of the issue cycle on local fixtures", spec: "0002", status: open }
