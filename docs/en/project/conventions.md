@@ -133,6 +133,9 @@ Signed-off-by: Name Surname <email>
 - **Merge**: the agent that opened the pull request merges it when the gate of its tier holds;
   changes to `crates/`, `schemas/` or an SDK wait for the maintainer's confirmation
   ([AGENTS.md](https://github.com/salvo8519/wayloop/blob/main/AGENTS.md#merging)).
+- **Main is red**: while a failure issue of `main` is open (label `bug`, opened by the
+  workflows through `scripts/failure_issue.py`), no pull request is merged except the one that
+  fixes it. The session briefing then starts with `stop: main is red` and the issue.
 - **Stacked pull requests**: a pull request built on another one targets that branch; before
   it is merged it is rebased onto `main` with its own commits only, and retargeted to `main`.
 - **Failures of external analyses**: CodeQL, dependency review and the other external analyses

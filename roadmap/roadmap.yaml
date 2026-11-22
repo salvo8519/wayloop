@@ -89,7 +89,7 @@ milestones:
           - { issue: 297, title: "Branch names and closing keywords have one definition used by every script", status: done }
           - { issue: 298, title: "Every rule and value has one source and duplicated code fails the build", status: done }
           - { issue: 299, title: "The pure crates keep no duplicated helper after the contract generator", status: done }
-          - { issue: 312, title: "Roadmap issues are changed only through the roadmap script", status: open }
+          - { issue: 312, title: "Roadmap issues are changed only through the roadmap script", status: done }
       - title: "Artifact model"
         issue: 18
         labels: ["area:core"]

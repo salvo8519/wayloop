@@ -250,3 +250,12 @@ def test_an_empty_job_list_is_explicit(monkeypatch: pytest.MonkeyPatch) -> None:
     argv += ["--conclusion=success", "--event=push", "--branch=main", "--jobs="]
     assert failure_issue.main(argv) == 0
     assert not any(call[0] == "api" for call in gh.calls)
+
+
+def test_a_failure_issue_of_main_is_a_bug_opened_by_the_workflows() -> None:
+    def issue(login: str, label: str) -> dict[str, Any]:
+        return {"user": {"login": login}, "labels": [{"name": label}]}
+
+    assert failure_issue.reports_red_main(issue("github-actions[bot]", "bug"))
+    assert not failure_issue.reports_red_main(issue("github-actions[bot]", "maintenance"))
+    assert not failure_issue.reports_red_main(issue("someone", "bug"))

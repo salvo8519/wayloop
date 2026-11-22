@@ -58,7 +58,8 @@ maintainer in merge order.
    suggestions marked as such. Do not repeat what a failing job already reports; cite the job.
 6. **Merge** (AGENTS.md, Merging), only when every condition holds: required checks green or
    a failure recorded as external in step 3; `roadmap.py check --pr-body` passes; no open
-   review finding; no open question.
+   review finding; no open question; no open failure issue of `main`, unless this pull request
+   fixes it (the briefing starts with `stop: main is red`).
    - Small pull requests: `gh pr merge <n> --squash --subject "<title> (#<n>)" --delete-branch`.
    - Dependabot pull requests are small: merge them once the required checks are green, except
      cargo updates and ruff updates (pinned to a minor range), which wait for review.
