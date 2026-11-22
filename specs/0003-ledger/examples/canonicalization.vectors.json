@@ -1,20 +1,15 @@
 {
-  "description": "Canonical JSON (RFC 8785) vectors of SPEC-0003 AC49. Each input is a JSON text; canonical is its canonical form and sha256 the SHA-256 of its UTF-8 bytes. Refused inputs carry the reason of the error; input_base16 gives bytes that are not UTF-8.",
+  "description": "Canonical JSON (RFC 8785) vectors of SPEC-0003 AC49. Each input is a JSON text; canonical is its canonical form and sha256 the SHA-256 of its UTF-8 bytes. Numbers are read by value (plan of SPEC-0001, Numbers): an integer written with a fraction or an exponent is accepted as an input and written in its canonical form, while a stored ledger line that holds it is not canonical (SPEC-0003 R59). Refused inputs carry the reason of the error; input_base16 gives bytes that are not UTF-8.",
   "refused": [
     {
-      "name": "integer_with_fraction",
-      "input": "{\"n\":1.0}",
-      "reason": "type"
-    },
-    {
-      "name": "integer_with_exponent",
-      "input": "{\"n\":1e3}",
+      "name": "number_with_fraction",
+      "input": "{\"n\":1.5}",
       "reason": "type"
     },
     {
       "name": "integer_out_of_range",
       "input": "{\"n\":9007199254740992}",
-      "reason": "type"
+      "reason": "range"
     },
     {
       "name": "lone_surrogate",
@@ -51,6 +46,18 @@
       "input": "{\"b\":[],\"a\":{}}",
       "canonical": "{\"a\":{},\"b\":[]}",
       "sha256": "aeeba1e56a144077f89e26c930dad7cf933e9383cfb8e33ddff618233b29be76"
+    },
+    {
+      "name": "integer_written_with_fraction",
+      "input": "{\"n\":1.0}",
+      "canonical": "{\"n\":1}",
+      "sha256": "2bfd14f43d17fc7cea24e0917a8879b4b2f880b8baeec1b9d90fbaad655e71bd"
+    },
+    {
+      "name": "integer_written_with_exponent",
+      "input": "{\"n\":1e3}",
+      "canonical": "{\"n\":1000}",
+      "sha256": "fe1c788f83a7b21b9bb68ea3d588468319662e1ba670dceb5a83fc7d05a183a8"
     }
   ]
 }
