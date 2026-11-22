@@ -546,7 +546,29 @@ no default: every phase has a token budget (constitution VI), so `wayloop init` 
 the person gives and refuses a missing one with `budget_missing` (R53). Tokens are the
 sum of `tokens_in` and `tokens_out` of `executor_call_recorded` (SPEC-0003). The scope of an
 issue step is its milestone and, when the issue is in the active sprint, the sprint; the scope of
-a project step is the phase. Usage and rate limits of a provider are not failures: the runtime
+a project step is the phase.
+
+Units. Two separate limits bound the work, and this section is the one place that states their
+units (Q13). The token budgets of the table above count tokens, per budget scope: before a step
+starts, the engine checks the budget of every scope of the step, and an exhausted scope stops
+the new steps of that scope only, with the stop reason `budget_exhausted` naming it (R29);
+other scopes go on. The verification reserve of SPEC-0006 R9 to R11 counts agent invocations:
+one complete review pass of an issue with its retries, derived from the recorded limits and never
+written as a number of its own:
+
+```text
+reserve(small)       = 0
+reserve(substantial) = lenses(substantial) x (1 + limits.executor_retries)
+reserve(contract)    = lenses(contract) + 1
+```
+
+`lenses(tier)` is the number of dispatches of `review` of the tier in the table of section Review
+by risk tier: one for `substantial`, each with its retries (R11, I28); three for `contract`, plus
+the one repetition of the panel, which replaces the retries (R8, Q12). With the default
+`limits.executor_retries` of 2, the reserve is 3 for `substantial` and 4 for `contract`. Neither
+limit is converted into the other.
+
+Usage and rate limits of a provider are not failures: the runtime
 waits or asks (SPEC-0008 R16) and the dispatch stays open.
 
 ### Risk tier
@@ -588,7 +610,9 @@ latest `build` (I3, `head_not_observed`), so that this comparison always has a h
 The repetition of the panel that R8 allows is one more dispatch of one lens of the same review
 step when its verifier fails or its result is rejected (Q12); it replaces
 `limits.executor_retries` for the dispatches of `review` of the tier `contract`, so that the
-panel costs at most four invocations, the reserve of SPEC-0006 R11. A second failure of any lens
+panel costs at most four invocations. The review of `substantial` costs at most one dispatch
+plus `limits.executor_retries` retries. The reserve of SPEC-0006 R11 covers both, with the
+formula of section Limits and budgets, Units. A second failure of any lens
 holds the issue with `executor_failure` (I29).
 
 `review` follows the tier for every tier (Q11): the policy may skip `counter_review` for any
@@ -609,7 +633,8 @@ chain, or when an event recorded after it touched the subject of the command:
   (`phase_changed`, `gate_opened`, `gate_resolved`, `gate_withdrawn`, `gate_waived`,
   `plan_observed`, `artifact_status_changed`, `limits_set`, `policy_set`).
 
-A command whose `input_hash` is already recorded in its session is a retry: it is answered from
+A command whose `input_hash` is already recorded in its session, or anywhere in the ledger for a
+command without a session, is a retry: it is answered from
 the recorded events before its revision is evaluated (SPEC-0003 R52). A stale command is refused
 with the current revision in `expected` and nothing is recorded (R41); the sender reads the state again and decides again. Staleness and every guard are
 evaluated by the writer under its lock on the latest state, so that two commands that both read
@@ -823,4 +848,4 @@ ready work) and #58 (dry run on local fixtures) implement it.
 - [x] **Q10. Which tier is each risk level of R8, R11 and SPEC-0006 R11?** Decided by the maintainer on 2026-11-22: (a), one set of names: high is `contract`, medium is `substantial`, low is `small`, defined once in section Risk tier. R8, R11, AC4 and AC7 are written with the tier names, and SPEC-0006 R11 is amended in this pull request to use them.
 - [x] **Q11. May the policy keep `review` for `small`, or skip it for another tier?** Decided by the maintainer on 2026-11-22: (a), `review` follows the risk tier for every tier (R8, R11); the policy may skip only `counter_review` (R25, section Review by risk tier). This replaces the part of Q1 that let the policy skip `review`.
 - [x] **Q12. What is the one repetition of the panel that R8 allows?** Decided by the maintainer on 2026-11-22: (a), one more dispatch of one lens of the same review step when its verifier fails or its result is rejected, in place of `limits.executor_retries` for the review of `contract`, so that the panel costs at most four invocations, as SPEC-0006 R11 reserves (R8, AC4).
-- [ ] **Q13. Does the review budget match the reserve of SPEC-0006 R11?** For `substantial`, R11 and I28 allow one verifier plus `limits.executor_retries` (default 2), up to three invocations, while SPEC-0006 R11 reserves one; for `contract`, four match. SPEC-0006 counts budgets and reserves in invocations, while section Limits and budgets counts tokens. Options: (a) the reserve of `substantial` becomes one plus `limits.executor_retries`, three by default, and the reserve is converted to tokens with a recorded size per invocation; (b) `substantial` gets the rule of the panel, one repetition in place of the retries, so its reserve is two, and SPEC-0006 counts tokens; (c) keep one and charge the retries of `review` to the budget of the scope, outside the reserve. Recommendation: (b), because one rule for every review keeps R8, I28 and SPEC-0006 R11 in step and leaves one unit of budget, tokens, in both specifications.
+- [x] **Q13. Does the review budget match the reserve of SPEC-0006 R11?** Decided by the maintainer on 2026-11-22: the reserve covers one complete review pass with its retries: three invocations for `substantial` (one verifier and two retries) and four for `contract` (three verifiers and one repetition), none for `small`, with the default limits; the reserve is derived from the recorded `limits.executor_retries` by the formula of section Limits and budgets, Units, and SPEC-0006 R9 to R11, AC5 to AC7 refer to it. The reserve counts invocations and the token budgets are a separate limit, both stated once in section Limits and budgets; SPEC-0006 R12 is aligned with R29: an exhausted token budget stops the steps of its scope, not the whole loop.
