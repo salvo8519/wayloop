@@ -42,6 +42,12 @@ identifier and issue number. Nothing else cites it, so the two schemes cannot dr
   structure: each task names its issue and, where one exists, its specification. Create issues
   with `python scripts/roadmap.py new --milestone M2 --epic "<epic>" --title "<title>"`, which
   sets the milestone and labels on GitHub, links the task to its epic and adds it to the file.
+  Change the title or body of a planned issue only with
+  `python scripts/roadmap.py edit <issue> [--title "<title>"] [--body <file>]`: it keeps or
+  restores the parent line, checks the title and updates the file in the same run. A Claude Code
+  hook (`.claude/hooks/protect_issues.py`) refuses `gh issue edit` with a title or body and
+  `gh api` calls that set the title or body of an issue; comments, labels and closing stay
+  allowed.
 - **Body**: it starts with `Part of #<epic>.`, then the outcome and the advantage it brings,
   the scope as a checklist, acceptance criteria, the verification technique, references to
   specifications and ADRs, `## Depends on` with one `- #<n>` line per blocking issue, and the

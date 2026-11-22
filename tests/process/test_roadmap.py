@@ -426,3 +426,139 @@ def test_reports_of_the_automation_are_not_untriaged() -> None:
     issues[99992] = _open_issue(99992, "someone", ["bug"])
     _, untriaged = roadmap.differences(copy.deepcopy(d), issues)
     assert [u.split()[0] for u in untriaged] == ["#99992"]
+
+
+# ------------------------------------------------------------------------------------------
+# edit: the only way the title or body of a planned issue changes (#312)
+
+
+class FakeApi:
+    """GitHub for `roadmap.edit_issue`: one issue to read, every write recorded."""
+
+    def __init__(self, issue: dict[str, Any]) -> None:
+        self.issue = issue
+        self.writes: list[tuple[str, str, dict[str, Any] | None]] = []
+
+    def __call__(
+        self, path: str, *, method: str = "GET", payload: dict[str, Any] | None = None
+    ) -> Any:
+        if method == "GET":
+            return self.issue
+        self.writes.append((path, method, payload))
+        return {**self.issue, **(payload or {})}
+
+
+@pytest.fixture
+def planned(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, Any]:
+    """A roadmap file of its own, with an epic issue, and the first task of that epic."""
+    d = linked_data()
+    target = tmp_path / "roadmap.yaml"
+    target.write_text(roadmap.dump(d), encoding="utf-8")
+    monkeypatch.setattr(roadmap, "ROADMAP", target)
+    monkeypatch.setattr(roadmap, "GENERATED_PAGE", tmp_path / ".generated" / "ROADMAP.md")
+    epic = d["milestones"][0]["epics"][0]
+    return {"epic": epic["issue"], "task": epic["tasks"][0]}
+
+
+def body_file(tmp_path: Path, text: str) -> Path:
+    path = tmp_path / "body.md"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_parent_line_has_one_source() -> None:
+    assert roadmap.parent_line(18) == "Part of #18."
+    assert roadmap.with_parent("## Outcome\nX.\n", 18) == "Part of #18.\n\n## Outcome\nX."
+    assert (
+        roadmap.with_parent("Part of #18.\n\n## Outcome\nX.", 18)
+        == "Part of #18.\n\n## Outcome\nX."
+    )
+    # A parent line of another epic (the task moved) is replaced, never doubled.
+    assert roadmap.with_parent("Part of #7.\n\nX.", 18) == "Part of #18.\n\nX."
+    assert roadmap.with_parent("Epic body.", None) == "Epic body."
+
+
+def test_edit_restores_the_parent_line_dropped_from_a_new_body(
+    planned: dict[str, Any], tmp_path: Path
+) -> None:
+    number, epic = planned["task"]["issue"], planned["epic"]
+    api = FakeApi({"number": number, "title": planned["task"]["title"], "body": "Old."})
+    # The exact mistake of 2026-11-20: a new body written without its parent line.
+    assert roadmap.edit_issue(number, None, body_file(tmp_path, "## Outcome\nNew.\n"), api) == 0
+    assert api.writes == [
+        (
+            f"repos/{roadmap.REPO}/issues/{number}",
+            "PATCH",
+            {"body": f"Part of #{epic}.\n\n## Outcome\nNew."},
+        )
+    ]
+
+
+def test_edit_of_the_title_alone_repairs_a_missing_parent_line(planned: dict[str, Any]) -> None:
+    task = planned["task"]
+    api = FakeApi({"number": task["issue"], "title": task["title"], "body": "No parent."})
+    assert roadmap.edit_issue(task["issue"], "A clearer outcome", None, api) == 0
+    payload = api.writes[0][2] or {}
+    assert payload == {
+        "title": "A clearer outcome",
+        "body": f"Part of #{planned['epic']}.\n\nNo parent.",
+    }
+    # The roadmap entry follows the title in the same run.
+    saved = roadmap.load()
+    assert any(t["title"] == "A clearer outcome" for _m, _e, t in roadmap.tasks(saved))
+    assert roadmap.ROADMAP.read_text(encoding="utf-8") == roadmap.dump(saved)
+
+
+def test_edit_writes_nothing_when_nothing_changes(planned: dict[str, Any]) -> None:
+    task = planned["task"]
+    body = f"Part of #{planned['epic']}.\n\nSame."
+    api = FakeApi({"number": task["issue"], "title": task["title"], "body": body})
+    before = roadmap.ROADMAP.read_text(encoding="utf-8")
+    assert roadmap.edit_issue(task["issue"], task["title"], None, api) == 0
+    assert api.writes == []
+    assert roadmap.ROADMAP.read_text(encoding="utf-8") == before
+
+
+def test_edit_of_an_epic_keeps_its_body_without_a_parent_line(
+    planned: dict[str, Any], tmp_path: Path
+) -> None:
+    epic = planned["epic"]
+    title = roadmap.load()["milestones"][0]["epics"][0]["title"]
+    api = FakeApi({"number": epic, "title": title, "body": "Old."})
+    assert roadmap.edit_issue(epic, None, body_file(tmp_path, "New epic body.\n"), api) == 0
+    assert api.writes[0][2] == {"body": "New epic body."}
+    # A title changed on GitHub by hand goes back to the one of the plan.
+    api = FakeApi({"number": epic, "title": "Renamed by hand", "body": "New epic body."})
+    assert roadmap.edit_issue(epic, None, body_file(tmp_path, "New epic body.\n"), api) == 0
+    assert api.writes[0][2] == {"title": title}
+
+
+@pytest.mark.parametrize(
+    ("number", "title", "message"),
+    [
+        (99999, "Anything", "#99999 is not in the roadmap"),
+        (None, "feat: a type prefix", "without a type prefix"),
+        (None, "A full stop.", "without a type prefix or a full stop"),
+        (None, None, "nothing to change"),
+    ],
+)
+def test_edit_refuses_before_writing(
+    planned: dict[str, Any], number: int | None, title: str | None, message: str
+) -> None:
+    task = planned["task"]
+    api = FakeApi({"number": task["issue"], "title": task["title"], "body": ""})
+    before = roadmap.ROADMAP.read_text(encoding="utf-8")
+    with pytest.raises(SystemExit, match=message):
+        roadmap.edit_issue(number or task["issue"], title, None, api)
+    assert api.writes == []
+    assert roadmap.ROADMAP.read_text(encoding="utf-8") == before
+
+
+def test_edit_refuses_a_title_another_task_already_has(planned: dict[str, Any]) -> None:
+    d = roadmap.load()
+    other = roadmap.tasks(d)[1][2]["title"]
+    task = planned["task"]
+    api = FakeApi({"number": task["issue"], "title": task["title"], "body": ""})
+    with pytest.raises(SystemExit, match="same title"):
+        roadmap.edit_issue(task["issue"], other, None, api)
+    assert api.writes == []

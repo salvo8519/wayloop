@@ -47,8 +47,10 @@ the file, `roadmap.py check` and `roadmap.py links` passing.
      --labels <labels> [--spec NNNN] --body <file>`. This is the only way issues are created;
    - moved or changed scope: edit the task in `roadmap/roadmap.yaml`, run
      `uv run python scripts/roadmap.py render`, then
-     `uv run python scripts/roadmap.py sync --apply-milestones`; update the issue title or
-     body on GitHub with `gh issue edit` when it changed;
+     `uv run python scripts/roadmap.py sync --apply-milestones`; change the issue title or
+     body only with `uv run python scripts/roadmap.py edit <n> [--title "<title>"]
+     [--body <file>]`, which keeps the parent line and the file in step (never `gh issue edit`
+     or `gh api`);
    - dropped: close the issue as not planned with a comment that says why
      (`gh issue close <n> --reason "not planned" --comment "<reason>"`), then
      `uv run python scripts/roadmap.py sync --write`. The task stays in the file with status
