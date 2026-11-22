@@ -340,7 +340,8 @@ fn usage_and_unreadable_input_print_an_envelope_with_exit_codes_2_and_3() {
     // M7: the binary always prints an envelope; the message for a person is on stderr.
     let [open, strict] = schemas();
     for (args, code, error) in [
-        (&["validate"][..], 2, "usage"),
+        (&["validate", "--input"][..], 2, "usage"),
+        (&["validate", "/nonexistent/wayloop.yaml"][..], 2, "usage"),
         (
             &["validate", "--input", "-", "--command-version", "0"][..],
             2,

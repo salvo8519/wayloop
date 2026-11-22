@@ -9,5 +9,16 @@ repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
 
+[dependencies]
+# The version follows the workspace version; crates.io requires it on a path dependency.
+wayloop-core = { path = "../wayloop-core", version = "0.0.0" }
+wayloop-schemas = { path = "../wayloop-schemas", version = "0.0.0" }
+serde_json.workspace = true
+# YAML 1.2 event parser with the line of every node (SPEC-0001 plan, D1; reviewed in #257). The
+# runtime builds the JSON value from its events itself, so that duplicate keys, aliases,
+# nesting and tags follow the rules of the plan. No unsafe code; it reaches arraydeque and
+# thiserror only.
+saphyr-parser = "0.3.4"
+
 [lints]
 workspace = true

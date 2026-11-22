@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 31fadd43a3e4
+source_hash: 0aef1255df05
 ---
 # Architettura
 
@@ -14,8 +14,8 @@ nell'[ADR 0001](https://salvo8519.github.io/wayloop/project/adr/0001-rust-engine
 | --- | --- | --- |
 | Schemi | `crates/wayloop-schemas` | Libreria Rust senza I/O, sede dei tipi dei contratti che rispecchiano gli schemi JSON: il report degli errori ([sotto](#gli-errori-sono-valori)), l'envelope con i suoi codici di uscita ([sotto](#lenvelope)), il brief e l'input e i dati di `validate`, con un tipo per ogni forma di valore (identificativi, percorsi del progetto, tag di lingua, numeri da 1). Ognuno deriva il proprio JSON Schema dentro il sottoinsieme del core ([sotto](#schemi-derivati-dai-tipi-dei-contratti)). |
 | Core | `crates/wayloop-core` | Libreria Rust senza I/O. Fissa il vocabolario del ciclo di un'issue: i nove passi in ordine, i loro identificativi stabili e quale passo è uno stato di approvazione. Riesporta l'errore di ogni rifiuto e l'envelope, e calcola l'hash di un input dal suo JSON canonico ([sotto](#lenvelope)). Legge gli schemi JSON dei contratti con un proprio interprete ([sotto](#linterprete-degli-schemi)). Il suo punto di ingresso esegue il comando `validate`, che controlla i brief rispetto al loro schema ([riferimento](../reference/validate.md)). |
-| Runtime | `crates/wayloop-runtime` | Libreria Rust che esegue il lavoro deciso dal core ([sotto](#core-sincrono-runtime-asincrono)). Non contiene ancora codice. |
-| Riga di comando | `crates/wayloop-cli` | Il binario `wayloop`, solo un adattatore: legge gli argomenti, chiama il core e stampa JSON. Comandi: `version` e `steps` ([riferimento](../reference/index.md)), e `validate`, che stampa l'envelope del punto di ingresso ([riferimento](../reference/validate.md)). |
+| Runtime | `crates/wayloop-runtime` | Libreria Rust che esegue il lavoro deciso dal core ([sotto](#core-sincrono-runtime-asincrono)). Oggi legge gli artefatti salvati di un progetto nell'input canonico di `validate` ([sotto](#lettura-degli-artefatti-salvati)). |
+| Riga di comando | `crates/wayloop-cli` | Il binario `wayloop`, solo un adattatore: legge gli argomenti, chiama il core e stampa JSON. Comandi: `version` e `steps` ([riferimento](../reference/index.md)), e `validate`, che legge gli artefatti del progetto con il runtime, oppure un input canonico in JSON, e stampa l'envelope del punto di ingresso ([riferimento](../reference/validate.md)). |
 | Generatore degli schemi | `crates/wayloop-schemagen` | Uno strumento del repository, non pubblicato: stampa gli snapshot dei contratti, che `uv run just generate` scrive in `schemas/` ([sotto](#snapshot-dei-contratti)). |
 | Contenuti per agenti | `.agents/` | Ruoli e skill nel formato aperto Agent Skills, con mirror generati per Claude Code. Servono a costruire Wayloop stesso. |
 | Processo | `roadmap/`, `specs/`, `sprints/`, `scripts/` | Il piano come codice, sincronizzato con le issue di GitHub; specifiche con requisiti numerati; corsie degli sprint con percorsi disgiunti; i controlli eseguiti dalla CI. |
@@ -133,6 +133,33 @@ fare. Tutta la concorrenza vive nel runtime.
 
 Questo repository lavora già così, a mano: le corsie degli sprint dichiarano percorsi
 disgiunti, verificati da `scripts/sprint.py`, e ogni issue si lavora nel proprio worktree git.
+
+### Lettura degli artefatti salvati
+
+Dove sono salvati gli artefatti è una regola della specifica, quindi la decide il core; leggere
+i file è I/O, quindi lo fa il runtime (piano di SPEC-0001, D1).
+
+- **Il core decide quali file.** `wayloop_core::artifacts::locations` elenca le posizioni
+  (`plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` e
+  `specs/<NNNN>-<capability>/spec.md`, quindi mai `specs/_templates/`), tiene i percorsi degli
+  artefatti tra quelli che riceve e li ordina per byte, con separatori `/` e relativi alla
+  radice del progetto, così l'input canonico è lo stesso su ogni piattaforma. Controlla anche i
+  percorsi indicati da una persona: relativi, dentro il progetto, `.yaml` o `.md`. Contiene i
+  limiti di un file salvato: 1 MiB, 64 livelli di annidamento e 100.000 valori.
+- **Il runtime legge e analizza.** `wayloop_runtime::project` elenca le cartelle di ogni
+  posizione fino alla sua profondità, senza seguire i link simbolici, legge ogni file fino al
+  limite e costruisce una voce di `documents` per file: un file YAML come documento JSON con la
+  riga di ogni valore, uno `spec.md` come testo Markdown, che il core normalizza. Un file più
+  grande del limite, non UTF-8 o che non si analizza diventa una voce `unreadable` con la sua
+  riga, che il core riporta come errore `syntax` del file.
+- **Lo YAML segue il piano, non il parser.** Il runtime usa il parser a eventi di
+  `saphyr-parser`, che dà la posizione di ogni nodo, e costruisce da sé il valore JSON: gli
+  scalari seguono lo schema core di YAML 1.2, quindi `no`, `on` e `2026-11-17` restano
+  stringhe; una chiave data due volte nella stessa mappa è rifiutata; un alias conta verso il
+  limite ogni valore che ripete e aggiunge il suo annidamento, quindi una alias bomb è
+  rifiutata prima di essere espansa; un file contiene un solo documento, una mappa; un numero
+  che JSON non può contenere e un tag fuori dallo schema core sono rifiutati. Il parser resta
+  fuori dai crate puri, le cui allowlist non cambiano.
 
 ## Contratti
 

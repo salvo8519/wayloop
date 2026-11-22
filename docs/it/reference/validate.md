@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 1f31e6bc8937
+source_hash: 8e7f2a32762c
 ---
 # wayloop validate
 
@@ -22,16 +22,37 @@ coppia di snapshot di schema `schemas/commands/validate/v1.json` (input) e
 ## Uso
 
 ```console
+$ wayloop validate [<path>...] [--command-version <n>]
 $ wayloop validate --input <file> [--command-version <n>]
 $ wayloop validate --input - [--command-version <n>]
 ```
 
+Senza `--input`, il comando legge il progetto nella cartella corrente. Senza percorsi legge
+ogni artefatto salvato: `plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` e
+`specs/<NNNN>-<capability>/spec.md` (quindi non `specs/_templates/`). I link simbolici non
+vengono seguiti. Con dei percorsi legge solo quei file, come un unico insieme: ogni percorso è
+relativo alla cartella corrente, resta al suo interno e indica un file YAML (`.yaml`) o un file
+Markdown (`.md`). In entrambi i casi i file sono letti nell'ordine per byte dei loro percorsi,
+ognuno in una voce di `documents` con il suo percorso come origine `file` e, per lo YAML, la
+riga di ogni valore in `lines`; così ogni errore indica in `source` il file e la riga del
+valore errato.
+
+I file YAML sono letti con lo schema core di YAML 1.2: `no`, `on`, `yes` e le date come
+`2026-11-17` sono stringhe, e un valore tra virgolette è sempre una stringa. Un file è
+rifiutato, come voce `unreadable` con la riga del difetto (codice `artifact_schema`, motivo
+`syntax`), quando non si analizza, dà una chiave due volte nella stessa mappa, contiene più di
+un documento o un documento che non è una mappa, contiene un numero che JSON non può contenere
+(`.inf`, `.nan`, `1e400`) o un tag fuori dallo schema core, non è UTF-8, supera 1 MiB, annida
+valori oltre 64 livelli, o contiene più di 100.000 valori contando quelli ripetuti dai suoi
+alias. Un file così non viene caricato, quindi una alias bomb non può esaurire la memoria.
+
 `--input` indica un file che contiene l'input canonico in JSON, oppure `-` per lo standard
-input. `--command-version` richiede una versione del comando; senza, viene eseguita la versione
-corrente, e `meta.defaults_applied` lo dice. Il comando stampa un envelope su una riga dello
-standard output, esattamente come il motore l'ha scritto, ed esce con il codice di uscita
-dell'envelope. Stampa un envelope anche quando la riga di comando non è compresa e quando il
-file di input non può essere letto; il messaggio per una persona va sullo standard error.
+input; non accetta percorsi. `--command-version` richiede una versione del comando; senza, viene
+eseguita la versione corrente, e `meta.defaults_applied` lo dice. Il comando stampa un envelope
+su una riga dello standard output, esattamente come il motore l'ha scritto, ed esce con il
+codice di uscita dell'envelope. Stampa un envelope anche quando la riga di comando non è
+compresa, compreso un percorso fuori dal progetto, e quando l'input o un file non può essere
+letto; il messaggio per una persona, con il percorso, va sullo standard error.
 
 ## Cosa viene controllato
 
@@ -166,7 +187,7 @@ dice dove è memorizzato:
 | `schema_version_unknown` | `enum` | 1 | Lo `schema_version` non è una versione del tipo; `expected` elenca le versioni note |
 | `identifier_format` | `syntax` | 1 | L'`id` non è nella forma canonica del suo tipo; `fix` dà l'identificativo corretto quando è possibile ricavarlo |
 | `usage` | `syntax` | 2 | La riga di comando non è compresa; `command` è il comando indicato, vuoto quando nessuno |
-| `input_unreadable` | `missing`, `state` | 3 | Il file di input non esiste (`missing`) o non può essere letto (`state`); l'envelope non contiene percorsi |
+| `input_unreadable` | `missing`, `state` | 3 | Il file di input, un file indicato o una cartella del progetto non esiste (`missing`) o non può essere letto (`state`); l'envelope non contiene percorsi |
 | `internal_error` | `internal` | 5 | Il motore non ha potuto calcolare il risultato; l'input può essere valido |
 
 Un membro sconosciuto riceve in `fix` il membro più vicino dello schema, per esempio `problem`
@@ -178,8 +199,8 @@ per `problema`.
 | --- | --- |
 | 0 | L'insieme è accettato: l'envelope ha `data` |
 | 1 | L'input o un documento è rifiutato: l'envelope ha `error` |
-| 2 | La riga di comando non è compresa, per esempio `--input` senza valore: l'envelope ha `error` con il codice `usage` |
-| 3 | Il file di input non può essere letto (l'envelope ha `error` con il codice `input_unreadable`), o lo standard output non può essere scritto (nessun envelope può essere stampato) |
+| 2 | La riga di comando non è compresa, per esempio `--input` senza valore, o un percorso fuori dal progetto: l'envelope ha `error` con il codice `usage` |
+| 3 | Il file di input, un file indicato o una cartella del progetto non può essere letto (l'envelope ha `error` con il codice `input_unreadable`), o lo standard output non può essere scritto (nessun envelope può essere stampato) |
 | 5 | Il motore ha fallito: l'envelope ha `error` con il motivo `internal` |
 
 ## Esempio

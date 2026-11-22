@@ -18,6 +18,8 @@ path = "src/main.rs"
 wayloop-core = { path = "../wayloop-core", version = "0.0.0" }
 # The data of an envelope is a JSON value (`Envelope<Value>`).
 serde_json.workspace = true
+# Reads the stored artifacts of a project into the canonical input of `validate`.
+wayloop-runtime = { path = "../wayloop-runtime", version = "0.0.0" }
 
 # Tests only: the contract cases are JSON files; the hash of their inputs is recomputed with a
 # hashing crate, independently of the core.

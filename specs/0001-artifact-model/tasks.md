@@ -61,7 +61,7 @@ Prerequisites outside this specification:
   - Depends on: T2, T3, T4, D6, Q3.
   - Size: M. Maintainer (crates, contract change).
 
-- [ ] **T6 Load repository files into the canonical input of validate**
+- [x] **T6 Load repository files into the canonical input of validate**
   - Covers: R12 (`source` with file and line); D1. Issue: #257.
   - Files: `crates/wayloop-runtime/src/project.rs`, `crates/wayloop-runtime/Cargo.toml` (YAML parser), `crates/wayloop-core/src/artifacts/locations.rs`, `crates/wayloop-cli/src/main.rs` (`validate [<path>...]`), `Cargo.lock`, `docs/en/concepts/architecture.md` and its Italian edition.
   - Tests first: discovery of the locations of the core, sorted, with relative `/` paths; `source` carries the file and the line of the faulty value; `no`, `on` and a date stay strings; a duplicate key and a malformed file become `unreadable` entries reported with `syntax` and their line; an alias bomb and an oversized file are refused, not loaded; the examples load into the committed golden inputs.

@@ -1,0 +1,141 @@
+{
+  "description": "The valid and the invalid brief of the examples, read from plan/briefs/ by wayloop validate: the errors of the invalid brief carry its file and the line of the faulty value, the line of the mapping for a missing key; the valid brief gives no error.",
+  "covers": [
+    "SPEC-0001 R1",
+    "SPEC-0001 R6",
+    "SPEC-0001 R12",
+    "SPEC-0001 AC1",
+    "SPEC-0001 AC9"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        },
+        "origin": {
+          "file": "plan/briefs/BRIEF-0001.yaml"
+        },
+        "lines": {
+          "": 2,
+          "/kind": 2,
+          "/schema_version": 3,
+          "/id": 4,
+          "/title": 5,
+          "/status": 6,
+          "/origin": 7,
+          "/owner": 8,
+          "/problem": 9,
+          "/goals": 10,
+          "/goals/0": 11,
+          "/goals/1": 12,
+          "/users": 13,
+          "/users/0": 14,
+          "/scope_in": 15,
+          "/scope_in/0": 16,
+          "/scope_out": 17,
+          "/scope_out/0": 18,
+          "/constraints": 19,
+          "/constraints/0": 20
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0003",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "draft",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problema": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries"
+          ]
+        },
+        "origin": {
+          "file": "plan/briefs/BRIEF-0003.yaml"
+        },
+        "lines": {
+          "": 4,
+          "/kind": 4,
+          "/schema_version": 5,
+          "/id": 6,
+          "/title": 7,
+          "/status": 8,
+          "/origin": 9,
+          "/owner": 10,
+          "/problema": 11,
+          "/goals": 12,
+          "/goals/0": 13,
+          "/users": 14,
+          "/users/0": 15,
+          "/scope_in": 16,
+          "/scope_in/0": 17
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "artifact_schema",
+      "/error/pointer": "/problema",
+      "/error/reason": "unknown_field",
+      "/error/fix": "problem",
+      "/error/document": 1,
+      "/error/source": {
+        "file": "plan/briefs/BRIEF-0003.yaml",
+        "line": 11
+      },
+      "/error/errors/1/document": 1,
+      "/error/errors/1/code": "artifact_schema",
+      "/error/errors/1/pointer": "/problem",
+      "/error/errors/1/reason": "missing",
+      "/error/errors/1/source": {
+        "file": "plan/briefs/BRIEF-0003.yaml",
+        "line": 4
+      },
+      "/meta/input_hash": "9d7ac6df29084a0a3f16206c5bb49efbfc570eec88f7efc57be0bed03beae223"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 2
+    }
+  }
+}
