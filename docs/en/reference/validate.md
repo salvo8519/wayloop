@@ -19,16 +19,47 @@ page explains them.
 ## Usage
 
 ```console
+$ wayloop validate [<path>...] [--command-version <n>]
 $ wayloop validate --input <file> [--command-version <n>]
 $ wayloop validate --input - [--command-version <n>]
 ```
 
-`--input` names a file holding the canonical input as JSON, or `-` for standard input.
-`--command-version` requests a version of the command; without it the current version runs,
-and `meta.defaults_applied` says so. The command prints one envelope on one line of standard
-output, exactly as the engine wrote it, and exits with the exit code of the envelope. It
-prints an envelope also when the command line is not understood and when the input file
-cannot be read; the message for a person goes to standard error.
+Without `--input`, the command reads the project in the current folder, which must be the root
+of the project: run from a subfolder, it finds no location and validates an empty set, with
+exit code 0 (issue #320). With no path it reads every stored artifact: `plan/briefs/*.yaml`,
+`plan/council/*.yaml`, `plan/items/*.yaml` and `specs/<NNNN>-<capability>/spec.md` (so not
+`specs/_templates/`). A location reached through a symbolic link is treated as absent, and
+links, special files and names that are not UTF-8 inside a location are skipped. With paths it
+reads those files only, as one set: each path is relative to the current folder, has no `..`
+segment and no `\`, and names a YAML file (`.yaml`) or a Markdown file (`.md`); a path whose
+file, once its links are resolved, is outside the project or has another extension is refused
+as a usage error, and a path that is not a regular file (a folder, a pipe, a device) cannot be
+read (exit code 3). A set of more than 10,000 files, discovered or named, is refused as a usage
+error. Either way the files are read in the byte order of their paths, each into one entry of
+`documents` with its path as its `file` origin and, for YAML, the line of each value in
+`lines`; so every error gives the file and the line of the faulty value in `source`.
+
+YAML files are read with the YAML 1.2 core schema: `no`, `on`, `yes` and dates such as
+`2026-11-17` are strings, and a quoted value is always a string. A file is refused, as an
+`unreadable` entry with the line of the fault (code `artifact_schema`, reason `syntax`), when it
+does not parse, gives a key twice in one mapping, holds more than one document or a document
+that is not a mapping, holds a number JSON cannot hold (`.inf`, `.nan`, `1e400`) or a tag
+outside the core schema, is not UTF-8, is larger than 1 MiB, nests values deeper than 64
+levels, or would take more than 8 MiB of counted bytes once parsed. Counted bytes are an
+estimate of memory: the text of the file, the pointers of its lines, a fixed 128 bytes for
+each value and each line, every value its aliases repeat and every copy kept for an anchor. All
+the files of one set may take at most 32 MiB of counted bytes, the bytes read and the
+documents built; a file beyond that is refused the same way. Such a file is not loaded, so an
+alias bomb or a large value repeated by aliases is refused before it is built, and the envelope
+is always printed. A message quotes at most 80 characters of a key or a value.
+
+`--input` names a file holding the canonical input as JSON, or `-` for standard input; it takes
+no path. `--command-version` requests a version of the command; without it the current version
+runs, and `meta.defaults_applied` says so. The command prints one envelope on one line of
+standard output, exactly as the engine wrote it, and exits with the exit code of the envelope.
+It prints an envelope also when the command line is not understood, a path outside the project
+included, and when the input or a file cannot be read; the message for a person, with the
+path, goes to standard error.
 
 ## What is checked
 
@@ -159,7 +190,7 @@ example `/problem`; `document` gives the index, from 0, of that document in `doc
 | `schema_version_unknown` | `enum` | 1 | The `schema_version` is not a version of the type; `expected` lists the known versions |
 | `identifier_format` | `syntax` | 1 | The `id` is not in the canonical form of its type; `fix` gives the corrected identifier when one can be derived |
 | `usage` | `syntax` | 2 | The command line is not understood; `command` is the command named, empty when none |
-| `input_unreadable` | `missing`, `state` | 3 | The input file does not exist (`missing`) or cannot be read (`state`); the envelope holds no path |
+| `input_unreadable` | `missing`, `state` | 3 | The input file, a file named or a folder of the project does not exist (`missing`) or cannot be read (`state`); the envelope holds no path |
 | `internal_error` | `internal` | 5 | The engine could not compute the result; the input may be valid |
 
 An unknown member gets the closest member of the schema in `fix`, for example `problem` for
@@ -171,8 +202,8 @@ An unknown member gets the closest member of the schema in `fix`, for example `p
 | --- | --- |
 | 0 | The set is accepted: the envelope has `data` |
 | 1 | The input or a document is refused: the envelope has `error` |
-| 2 | The command line is not understood, for example `--input` without a value: the envelope has `error` with the code `usage` |
-| 3 | The input file cannot be read (the envelope has `error` with the code `input_unreadable`), or standard output cannot be written (no envelope can be printed) |
+| 2 | The command line is not understood, for example `--input` without a value, or a path outside the project: the envelope has `error` with the code `usage` |
+| 3 | The input file, a file named or a folder of the project cannot be read (the envelope has `error` with the code `input_unreadable`), or standard output cannot be written (no envelope can be printed) |
 | 5 | The engine failed: the envelope has `error` with the reason `internal` |
 
 ## Example

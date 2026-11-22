@@ -95,7 +95,7 @@ use crate::{Code, Error, Pointer};
 
 mod check;
 mod closest;
-mod format;
+pub(crate) mod format;
 mod load;
 
 #[cfg(test)]

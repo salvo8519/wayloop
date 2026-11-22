@@ -9,5 +9,28 @@ repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
 
+[dependencies]
+# The version follows the workspace version; crates.io requires it on a path dependency.
+wayloop-core = { path = "../wayloop-core", version = "0.0.0" }
+wayloop-schemas = { path = "../wayloop-schemas", version = "0.0.0" }
+serde_json.workspace = true
+# YAML 1.2 event parser with the line of every node (SPEC-0001 plan, D1; reviewed in #257). The
+# runtime builds the JSON value from its events itself, so that duplicate keys, aliases,
+# nesting, tags and the bounds of memory follow the rules of the plan. It has no unsafe code
+# and reaches thiserror and arraydeque 0.5.1. arraydeque has 73 unsafe blocks and no release
+# since February 2023, short of the twelve months of docs/en/project/dependencies.md; it is
+# used only by the buffered input behind `Parser::new_from_iter`, which the runtime does not
+# call (it uses `Parser::new_from_str`). Fallback if saphyr-parser is abandoned or keeps the
+# dependency: vendor the parser without the buffered input, or replace it.
+saphyr-parser = "0.3.4"
+
+[dev-dependencies]
+# The crate itself with its test support, for the integration tests under tests/.
+wayloop-runtime = { path = ".", features = ["test-support"] }
+
+[features]
+# Temporary projects for the tests of the runtime and of the adapters; never in a release.
+test-support = []
+
 [lints]
 workspace = true

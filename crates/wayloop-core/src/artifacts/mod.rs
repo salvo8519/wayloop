@@ -11,6 +11,7 @@ pub mod checks;
 pub mod codes;
 mod input;
 pub mod kinds;
+pub mod locations;
 mod validate;
 
 #[cfg(test)]

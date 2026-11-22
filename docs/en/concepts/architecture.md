@@ -10,8 +10,8 @@ write the state by hand. The rule is recorded in
 | --- | --- | --- |
 | Schemas | `crates/wayloop-schemas` | Rust library with no I/O, home of the contract types that mirror the JSON schemas: the error report ([below](#errors-are-values)), the envelope with its exit codes ([below](#the-envelope)), the brief and the input and data of `validate`, with one type per value form (identifiers, project paths, language tags, numbers from 1). Each derives its JSON Schema inside the subset of the core ([below](#schemas-derived-from-the-contract-types)). |
 | Core | `crates/wayloop-core` | Rust library with no I/O. It fixes the vocabulary of the issue cycle: the nine steps in order, their stable identifiers, and which step is an approval state. It re-exports the error of every refusal and the envelope, and computes the hash of an input from its canonical JSON ([below](#the-envelope)). It reads the JSON schemas of the contracts with its own interpreter ([below](#the-schema-interpreter)). Its entry point runs the command `validate`, which checks briefs against their schema ([reference](../reference/validate.md)). |
-| Runtime | `crates/wayloop-runtime` | Rust library that runs the work the core decides ([below](#synchronous-core-asynchronous-runtime)). It holds no code yet. |
-| Command line | `crates/wayloop-cli` | The `wayloop` binary, an adapter only: it parses arguments, calls the core and prints JSON. Commands: `version` and `steps` ([reference](../reference/index.md)), and `validate`, which prints the envelope of the entry point ([reference](../reference/validate.md)). |
+| Runtime | `crates/wayloop-runtime` | Rust library that runs the work the core decides ([below](#synchronous-core-asynchronous-runtime)). Today it reads the stored artifacts of a project into the canonical input of `validate` ([below](#reading-stored-artifacts)). |
+| Command line | `crates/wayloop-cli` | The `wayloop` binary, an adapter only: it parses arguments, calls the core and prints JSON. Commands: `version` and `steps` ([reference](../reference/index.md)), and `validate`, which reads the artifacts of the project with the runtime, or a canonical input as JSON, and prints the envelope of the entry point ([reference](../reference/validate.md)). |
 | Schema generator | `crates/wayloop-schemagen` | A tool of the repository, not published: it prints the snapshots of the contracts, which `uv run just generate` writes under `schemas/` ([below](#snapshots-of-the-contracts)). |
 | Agent content | `.agents/` | Roles and skills in the open Agent Skills format, with generated mirrors for Claude Code. They are used to build Wayloop itself. |
 | Process | `roadmap/`, `specs/`, `sprints/`, `scripts/` | The plan as code, synchronised with the GitHub issues; specifications with numbered requirements; sprint lanes of disjoint paths; the checks run by CI. |
@@ -121,6 +121,46 @@ do. All concurrency lives in the runtime.
 
 This repository already works this way by hand: sprint lanes declare disjoint paths, checked by
 `scripts/sprint.py`, and every issue is worked in its own git worktree.
+
+### Reading stored artifacts
+
+Where artifacts are stored is a rule of the specification, so the core decides it; reading
+files is I/O, so the runtime does it (plan of SPEC-0001, D1).
+
+- **The core decides which files.** `wayloop_core::artifacts::locations` lists the locations
+  (`plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` and
+  `specs/<NNNN>-<capability>/spec.md`, so never `specs/_templates/`), keeps the paths of
+  artifacts among those it is given, and sorts them by bytes, with `/` separators and relative
+  to the root of the project, so that the canonical input is the same on every platform. It
+  also checks the paths a person names: relative, without `..` or `\`, `.yaml` or `.md`. It
+  holds the bounds, each defined once: 10,000 files for a set; 1 MiB for a file; 64 levels of
+  nesting and 8 MiB of counted bytes for a parsed document; 32 MiB of counted bytes for the
+  whole set, bytes read and documents built. Counted bytes are an estimate of memory: the text,
+  the pointers of the lines, a fixed cost of 128 bytes for each value and each line, and what
+  aliases and anchors repeat. A test of the runtime checks on Linux that the resident memory
+  a loaded set adds stays within them.
+- **The runtime reads and parses, inside the project only.** `wayloop_runtime::project` lists
+  the folders of each location down to its depth. A location whose folder, or a parent of it,
+  is a symbolic link is treated as absent; inside a location, links, special files and names
+  that are not UTF-8 are skipped. Before it reads a file, it resolves the root and the file
+  through their links and refuses a file outside the root or whose resolved name has another
+  extension, as the command line refuses such a path, and refuses what is not a regular file,
+  so that a read never blocks on a pipe. It reads each file up to the bound and builds one entry of `documents` per file: a
+  YAML file as a JSON document with the line of each value, a `spec.md` as Markdown text, which
+  the core normalises. A file that is larger than a bound, would exceed the counted bytes of a
+  document or of the set, is not UTF-8 or does not parse becomes an `unreadable` entry with its
+  line, which the core reports as a `syntax` error of the file; the envelope is always written.
+- **YAML follows the plan, not the parser.** The runtime uses the event parser of
+  `saphyr-parser`, which gives the position of every node, and builds the JSON value itself:
+  scalars follow the YAML 1.2 core schema, so `no`, `on` and `2026-11-17` stay strings; a key
+  given twice in one mapping is refused; every value and line is counted, and an alias counts
+  the values and bytes it repeats before it is copied, so an alias bomb or a large value
+  repeated by aliases is refused before it is built; the copies kept for anchors are counted
+  apart, so nested anchors add up instead of doubling; a file holds one document, a mapping; a
+  number JSON cannot hold and a tag outside the core schema are refused. A message quotes at
+  most 80 characters of a key or a value, and the command line escapes control characters and
+  invisible format characters (zero-width and direction marks) on standard error. The parser stays out of the pure crates, whose allowlists are
+  unchanged.
 
 ## Contracts
 
