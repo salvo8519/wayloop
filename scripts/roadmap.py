@@ -539,6 +539,8 @@ def links() -> int:
     children: dict[int, set[int]] = {}
     blockers: dict[int, set[int]] = {}
     for _m, e, t in tasks(data):
+        if not e.get("issue"):
+            continue  # reported by link_problems: the epic has no issue on GitHub
         if e["issue"] not in children:
             subs = _github.pages(f"repos/{REPO}/issues/{e['issue']}/sub_issues")
             children[e["issue"]] = {s["number"] for s in subs}
@@ -572,9 +574,12 @@ def new_issue(args: argparse.Namespace) -> int:
     if milestone is None:
         sys.exit(f"no milestone starts with '{args.milestone}'")
     epic = next((e for e in milestone["epics"] if e["title"] == args.epic), None)
-    if epic is None:
-        epic = {"title": args.epic, "labels": [], "tasks": []}
-        milestone["epics"].append(epic)
+    if epic is None or not epic.get("issue"):
+        known = ", ".join(e["title"] for e in milestone["epics"] if e.get("issue"))
+        sys.exit(
+            f"no epic '{args.epic}' with an issue in {milestone['title']}; "
+            f"epics: {known}. A new epic is planned with the roadmap-update skill."
+        )
     labels = [x for x in (args.labels or "").split(",") if x]
     numbers = github_milestones()
     if milestone["title"] not in numbers:

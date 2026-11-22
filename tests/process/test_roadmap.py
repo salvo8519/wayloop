@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import _github
 import pytest
 import yaml
 
@@ -241,7 +242,20 @@ def test_new_issue_needs_a_known_milestone_on_both_sides(monkeypatch: pytest.Mon
         roadmap.new_issue(args)
     monkeypatch.setattr(roadmap, "github_milestones", dict)
     args.milestone = "M0"
+    args.epic = next(e["title"] for e in roadmap.load()["milestones"][0]["epics"] if e.get("issue"))
     with pytest.raises(SystemExit, match="does not exist on GitHub"):
+        roadmap.new_issue(args)
+
+
+def test_new_issue_refuses_an_unknown_epic() -> None:
+    # 2026-11-22: an unknown epic used to be created silently without an issue, and
+    # `links` then failed on main (#318). A new epic is planned with roadmap-update.
+    import argparse
+
+    args = argparse.Namespace(
+        milestone="M6", epic="Performance", title="T", labels="", spec=None, body=None
+    )
+    with pytest.raises(SystemExit, match="no epic 'Performance' with an issue in M6"):
         roadmap.new_issue(args)
 
 
@@ -562,3 +576,17 @@ def test_edit_refuses_a_title_another_task_already_has(planned: dict[str, Any]) 
     with pytest.raises(SystemExit, match="same title"):
         roadmap.edit_issue(task["issue"], other, None, api)
     assert api.writes == []
+
+
+def test_links_reports_an_epic_without_an_issue_instead_of_failing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    d = data()
+    epic = d["milestones"][0]["epics"][0]
+    del epic["issue"]
+    issues, _children, _blockers, _labels = github_mirror(data())
+    monkeypatch.setattr(roadmap, "load", lambda: d)
+    monkeypatch.setattr(roadmap, "github_issues", lambda: issues)
+    monkeypatch.setattr(_github, "pages", lambda path, **_k: [])
+    assert roadmap.links() == 1
+    assert f"epic '{epic['title']}' has no issue on GitHub" in capsys.readouterr().out

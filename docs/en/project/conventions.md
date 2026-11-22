@@ -41,7 +41,9 @@ identifier and issue number. Nothing else cites it, so the two schemes cannot dr
   carries the label `epic`. The roadmap file `roadmap/roadmap.yaml` is the source of this
   structure: each task names its issue and, where one exists, its specification. Create issues
   with `python scripts/roadmap.py new --milestone M2 --epic "<epic>" --title "<title>"`, which
-  sets the milestone and labels on GitHub, links the task to its epic and adds it to the file.
+  sets the milestone and labels on GitHub, links the task to its epic and adds it to the file;
+  the epic must already exist with its issue (a new epic is planned with the `roadmap-update`
+  skill), otherwise the command refuses and lists the epics of the milestone.
   Change the title or body of a planned issue only with
   `python scripts/roadmap.py edit <issue> [--title "<title>"] [--body <file>]`: it keeps or
   restores the parent line, checks the title and updates the file in the same run. A Claude Code
