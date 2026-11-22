@@ -5,7 +5,15 @@ use core::fmt::Write as _;
 use serde_json::{Value, json};
 use wayloop_core::artifacts::locations::{MAX_NESTING, MAX_VALUES};
 
-use super::{Parsed, parse};
+use wayloop_core::artifacts::locations::MAX_DOCUMENT_BYTES;
+use wayloop_schemas::validate::ParseError;
+
+use super::Parsed;
+
+/// `text` parsed with the room of a document.
+fn parse(text: &str) -> Result<Parsed, ParseError> {
+    super::parse(text, MAX_DOCUMENT_BYTES)
+}
 
 fn parsed(text: &str) -> Parsed {
     parse(text).unwrap_or_else(|e| panic!("{text:?}: {e:?}"))
@@ -203,7 +211,8 @@ fn a_file_holds_one_document_and_it_is_a_mapping() {
     for (text, at, what) in [
         ("- a\n- b\n", 1, "a sequence"),
         ("\n\njust text\n", 3, "a string"),
-        ("~\n", 1, "null"),
+        ("~\n", 1, "empty"),
+        ("---\n", 2, "empty"),
         ("42\n", 1, "a number"),
         ("true\n", 1, "a boolean"),
     ] {
@@ -322,4 +331,84 @@ fn nesting_is_bounded_with_and_without_aliases() {
     let (line, message) = refused(&deep);
     assert_eq!(line, 2);
     assert!(message.contains("nested"), "{message}");
+}
+
+/// The refusal of `text` for the memory its document would take.
+fn refused_for_memory(text: &str) -> String {
+    let (_, message) = refused(text);
+    assert!(
+        message.contains(&MAX_DOCUMENT_BYTES.to_string()),
+        "{message}"
+    );
+    message
+}
+
+#[test]
+fn an_alias_of_a_large_scalar_is_counted_by_its_bytes() {
+    let big = "x".repeat(500_000);
+    let aliases = vec!["*a"; 80_000].join(",");
+    let text = format!("a: &a {big}\nb: [{aliases}]\n");
+    assert!(text.len() < 1 << 20);
+    refused_for_memory(&text);
+}
+
+#[test]
+fn a_mapping_anchor_repeated_by_many_aliases_is_counted_by_its_bytes() {
+    let key = "k".repeat(400);
+    let aliases = vec!["*a"; 30_000].join(",");
+    let text = format!("a: &a {{{key}: x}}\nb: [{aliases}]\n");
+    refused_for_memory(&text);
+}
+
+#[test]
+fn the_pointers_of_lines_are_counted_by_their_bytes() {
+    let key = "k".repeat(800_000);
+    let children = vec!["1"; 99_000].join(",");
+    let text = format!("? {key}\n: [{children}]\n");
+    assert!(text.len() < 1 << 20);
+    refused_for_memory(&text);
+}
+
+#[test]
+fn the_copies_kept_for_nested_anchors_are_counted_by_their_bytes() {
+    let mut text = String::from("a: ");
+    for level in 0..58 {
+        write!(text, "&a{level} [").unwrap();
+    }
+    text.push_str(&"x".repeat(290_000));
+    text.push_str(&"]".repeat(58));
+    text.push('\n');
+    assert!(text.len() < 1 << 20);
+    refused_for_memory(&text);
+}
+
+#[test]
+fn a_float_tag_accepts_a_decimal_integer_and_messages_write_tags_as_yaml() {
+    assert_eq!(
+        document("a: !!float 1\nb: !!float -2e1\n"),
+        json!({"a": 1.0, "b": -20.0})
+    );
+    let (_, message) = refused("a: !!float 0x1\n");
+    assert!(message.contains("`!!float`"), "{message}");
+    let (_, message) = refused("a: !local x\n");
+    assert!(message.contains("`!local`"), "{message}");
+    let (_, message) = refused("%TAG !e! tag:example.com,2026:\n---\na: !e!thing x\n");
+    assert!(
+        message.contains("`!<tag:example.com,2026:thing>`"),
+        "{message}"
+    );
+}
+
+#[test]
+fn messages_quote_user_text_cut_to_80_characters() {
+    let key = "k".repeat(200);
+    let (_, message) = refused(&format!("{key}: 1\n{key}: 2\n"));
+    assert!(
+        message.contains(&format!("`{}...`", "k".repeat(80))),
+        "{message}"
+    );
+    assert!(!message.contains(&"k".repeat(81)), "{message}");
+    let number = format!("1e{}", "9".repeat(200));
+    let (_, message) = refused(&format!("a: {number}\n"));
+    assert!(message.len() < 200, "{message}");
 }

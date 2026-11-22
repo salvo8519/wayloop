@@ -8,9 +8,21 @@
 //! or it passes the paths a person named to [`given`]. Either way the set has one order on
 //! every platform, so that the canonical input of `validate` does too (SPEC-0004 R15).
 //!
-//! The bounds ([`MAX_FILE_BYTES`], [`MAX_NESTING`], [`MAX_VALUES`]) are those of a file the
-//! runtime parses: a larger file, deeper nesting or more values, aliases of YAML included, are
-//! refused before they are loaded, so that an alias bomb or a huge file cannot exhaust memory.
+//! The bounds are those of the files the runtime reads and of the documents it builds from
+//! them, each defined here once:
+//!
+//! - [`MAX_FILE_BYTES`]: a larger file is not read beyond the bound and not loaded.
+//! - [`MAX_NESTING`] and [`MAX_VALUES`]: the depth and the count of the values of one parsed
+//!   document, those its aliases repeat included.
+//! - [`MAX_DOCUMENT_BYTES`]: the bytes one parsed document may take: the text of its scalars
+//!   and keys, the pointers of its lines, the values its aliases repeat and the copies kept
+//!   for its anchors. A small file whose aliases or anchors would expand into a large value is
+//!   refused before the value is built.
+//! - [`MAX_PROJECT_BYTES`]: the bytes of every file read and every document built for one
+//!   set; a file beyond it is not read.
+//!
+//! A file refused for a bound becomes an `unreadable` entry of the input, never an abort, so
+//! the envelope is always written.
 
 use core::fmt;
 
@@ -29,6 +41,18 @@ pub const MAX_NESTING: usize = 64;
 /// Most values one parsed document may hold, counting every value an alias repeats: a
 /// scalar, a sequence and a mapping count one each.
 pub const MAX_VALUES: usize = 100_000;
+
+/// Most bytes one parsed document may take (8 MiB): the text of every scalar and key, the
+/// pointer of every value given a line, every value an alias repeats and every copy kept for
+/// an anchor.
+pub const MAX_DOCUMENT_BYTES: usize = 8 << 20;
+
+/// Most bytes one set may take (64 MiB): every file read, and every document built from them
+/// counted as for [`MAX_DOCUMENT_BYTES`]. A file read beyond it is not loaded.
+pub const MAX_PROJECT_BYTES: u64 = 64 << 20;
+
+// The set holds at least one file of the largest size and its document.
+const _: () = assert!(MAX_PROJECT_BYTES >= MAX_FILE_BYTES + MAX_DOCUMENT_BYTES as u64);
 
 /// How a stored file is read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -183,7 +207,8 @@ fn set(files: impl IntoIterator<Item = StoredFile>) -> Vec<StoredFile> {
 /// Why a path a person named is not read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Refused {
-    /// The path is absolute, or leaves the root of the project with `..`.
+    /// The path is absolute, has a `..` segment or a `\`, or reaches a file outside the root
+    /// of the project through a symbolic link.
     OutsideTheProject,
     /// The file is neither YAML (`.yaml`) nor Markdown (`.md`).
     NotAnArtifactFile,
@@ -196,8 +221,9 @@ impl Refused {
     pub const fn message(self) -> &'static str {
         match self {
             Refused::OutsideTheProject => {
-                "A path must be relative to the root of the project, the current folder, and \
-                 stay inside it."
+                "A path must be relative to the root of the project, the current folder, \
+                 without `..` segments or `\\` characters, and reach a file inside it, not \
+                 through a link that leaves it."
             }
             Refused::NotAnArtifactFile => {
                 "A path must name a YAML file (.yaml) or a Markdown file (.md)."
@@ -254,8 +280,8 @@ pub fn given<S: AsRef<str>>(
 #[cfg(test)]
 mod tests {
     use super::{
-        LOCATIONS, MAX_FILE_BYTES, MAX_NESTING, MAX_VALUES, Refused, Stored, StoredFile,
-        discovered, given,
+        LOCATIONS, MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, MAX_NESTING, MAX_PROJECT_BYTES, MAX_VALUES,
+        Refused, Stored, StoredFile, discovered, given,
     };
     use wayloop_schemas::value::ProjectPath;
 
@@ -375,6 +401,8 @@ mod tests {
             (vec!["..", "a.yaml"], outside),
             (vec!["plan", "..", "..", "a.yaml"], outside),
             (vec!["C:", "a.yaml"], outside),
+            (vec!["plan", "..", "plan", "a.yaml"], outside),
+            (vec!["plan", "a\\b.yaml"], outside),
             (vec!["."], outside),
             (vec![], outside),
             (vec!["plan", "a.yml"], Refused::NotAnArtifactFile),
@@ -387,6 +415,11 @@ mod tests {
             assert_eq!(refused.to_string(), refused.message());
             assert!(refused.message().starts_with("A path must"), "{refused:?}");
         }
+        // The message states the rule a refused path breaks.
+        let rule = Refused::OutsideTheProject.message();
+        for part in ["relative", "`..`", "`\\`", "link"] {
+            assert!(rule.contains(part), "{part}: {rule}");
+        }
     }
 
     #[test]
@@ -394,5 +427,7 @@ mod tests {
         assert_eq!(MAX_FILE_BYTES, 1_048_576);
         assert_eq!(MAX_NESTING, 64);
         assert_eq!(MAX_VALUES, 100_000);
+        assert_eq!(MAX_DOCUMENT_BYTES, 8_388_608);
+        assert_eq!(MAX_PROJECT_BYTES, 67_108_864);
     }
 }

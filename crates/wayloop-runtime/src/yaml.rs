@@ -8,15 +8,21 @@
 //!   or `0x` hexadecimal integers and decimal floats. Everything else, `no`, `on`, `yes` and
 //!   dates such as `2026-11-17` included, is a string, and a quoted or block scalar is always
 //!   a string. The tags `!!str`, `!!null`, `!!bool`, `!!int` and `!!float` are accepted when
-//!   the scalar has that type, `!!seq` and `!!map` on their collections; any other tag is
-//!   refused.
+//!   the scalar has that type (`!!float 1` is the float 1, as the float of the core schema
+//!   matches it), `!!seq` and `!!map` on their collections; any other tag is refused.
 //! - A key is a scalar written in place, used as written; a key given twice in one mapping
 //!   is refused with its line.
 //! - An alias repeats the value of its anchor once that value is complete. Every value counts
 //!   towards [`MAX_VALUES`], those an alias repeats included, and nesting is bounded by
-//!   [`MAX_NESTING`]: an alias bomb is refused before it is expanded.
+//!   [`MAX_NESTING`]. The bytes of the document are counted against a room the caller gives,
+//!   at most [`MAX_DOCUMENT_BYTES`](wayloop_core::artifacts::locations::MAX_DOCUMENT_BYTES):
+//!   the text of every scalar and key, the pointer of every value given a line, the bytes of
+//!   every value an alias repeats, and every copy kept for an anchor. A document beyond a
+//!   bound is refused before the value that crosses it is copied: an alias bomb, a large value
+//!   repeated by aliases and nested anchors never reach memory.
 //! - The file holds one document, a mapping. A number JSON cannot hold (`.inf`, `.nan`, a
-//!   value beyond a double) is refused.
+//!   value beyond a double) is refused. A message quotes user text, a key or a value, cut to
+//!   80 characters.
 //!
 //! Integers are written as JSON writes them: within the range of a 64-bit integer as such,
 //! beyond it as the nearest double, as a JSON parser reads them; the core applies the integer
@@ -25,8 +31,10 @@
 //! The line of a member of a mapping is the line of its key; of an element of a sequence and
 //! of the root, the line where the value starts. A refusal gives the line of the fault and a
 //! message for a person, which the core reports as a `syntax` error of the file.
+//!
+//! The parser is built with [`Parser::new_from_str`], which reads the text in place; its
+//! buffered input for iterators, the only user of the `arraydeque` crate, is not used.
 
-use core::num::NonZeroU64;
 use std::collections::BTreeMap;
 
 use saphyr_parser::{Event, Parser, ScalarStyle, Tag};
@@ -36,31 +44,24 @@ use wayloop_core::artifacts::locations::{MAX_NESTING, MAX_VALUES};
 use wayloop_schemas::validate::{Lines, ParseError};
 use wayloop_schemas::value::Line;
 
-/// A parsed YAML file: its document and the line of each of its values.
+use crate::refusal::{fault, line, quoted};
+
+/// A parsed YAML file: its document, the line of each of its values, and its bytes as counted.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Parsed {
     pub(crate) document: Map<String, Value>,
     pub(crate) lines: Lines,
+    /// The bytes the document took, as counted against the room.
+    pub(crate) bytes: usize,
 }
 
-/// The line `n`, counted from 1; line 1 for 0, which a parser gives for no position.
-pub(crate) fn line(n: usize) -> Line {
-    let n = u64::try_from(n).unwrap_or(u64::MAX);
-    Line::new(NonZeroU64::new(n).unwrap_or(NonZeroU64::MIN))
-}
-
-/// A refusal at line `at`, with `message` for a person.
-pub(crate) fn fault(at: usize, message: impl Into<String>) -> ParseError {
-    ParseError {
-        line: line(at),
-        message: message.into(),
-    }
-}
-
-/// The document of the YAML `text`, with the line of each value; or the line and the reason
-/// it is refused.
-pub(crate) fn parse(text: &str) -> Result<Parsed, ParseError> {
-    let mut builder = Builder::default();
+/// The document of the YAML `text`, with the line of each value, taking at most `room` bytes
+/// as counted; or the line and the reason it is refused.
+pub(crate) fn parse(text: &str, room: usize) -> Result<Parsed, ParseError> {
+    let mut builder = Builder {
+        room,
+        ..Builder::default()
+    };
     let mut parser = Parser::new_from_str(text);
     while let Some(next) = parser.next_event() {
         let (event, span) = next.map_err(|e| fault(e.marker().line(), e.info()))?;
@@ -77,7 +78,7 @@ pub(crate) fn parse(text: &str) -> Result<Parsed, ParseError> {
                     builder.key(text.into_owned(), at, anchor, tag.as_deref())?;
                 } else {
                     let value = scalar(&text, style, tag.as_deref(), at)?;
-                    builder.value(value, at, anchor)?;
+                    builder.value(value, text.len(), at, anchor)?;
                 }
             }
             Event::SequenceStart(anchor, tag) => {
@@ -89,11 +90,10 @@ pub(crate) fn parse(text: &str) -> Result<Parsed, ParseError> {
                 let mapping = Content::Mapping {
                     map: Map::new(),
                     key: None,
-                    keys: BTreeMap::new(),
                 };
                 builder.open(mapping, at, anchor)?;
             }
-            Event::SequenceEnd | Event::MappingEnd => builder.close(),
+            Event::SequenceEnd | Event::MappingEnd => builder.close()?,
             Event::Alias(anchor) => builder.alias(anchor, at)?,
             Event::Nothing | Event::StreamStart | Event::StreamEnd | Event::DocumentEnd => {}
         }
@@ -101,12 +101,19 @@ pub(crate) fn parse(text: &str) -> Result<Parsed, ParseError> {
     builder.finish()
 }
 
+/// What a value counts towards the bounds: values and bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct Cost {
+    values: usize,
+    bytes: usize,
+}
+
 /// A complete value with an anchor, which an alias repeats.
 #[derive(Debug)]
 struct Anchored {
     value: Value,
-    /// How many values it holds, itself included.
-    values: usize,
+    /// What it counted when it was built: its values, itself included, and its bytes.
+    cost: Cost,
     /// How many levels deep it is, itself included.
     nesting: usize,
 }
@@ -119,8 +126,6 @@ enum Content {
         map: Map<String, Value>,
         /// The key whose value comes next, with its line.
         key: Option<(String, usize)>,
-        /// The line of each key given, to refuse a key given twice.
-        keys: BTreeMap<String, usize>,
     },
 }
 
@@ -132,8 +137,8 @@ struct Frame {
     anchor: usize,
     /// The line where it starts.
     at: usize,
-    /// The count of values before it opened.
-    before: usize,
+    /// What was counted before it opened.
+    before: Cost,
     /// The deepest nesting of the values it holds so far.
     nesting: usize,
 }
@@ -144,8 +149,10 @@ struct Builder {
     root: Option<(Value, usize)>,
     lines: BTreeMap<String, Line>,
     anchors: BTreeMap<usize, Anchored>,
-    /// Every value so far, those repeated by aliases included.
-    values: usize,
+    /// Every value and byte counted so far, those repeated by aliases included.
+    counted: Cost,
+    /// The bytes the document may take.
+    room: usize,
     documents: usize,
 }
 
@@ -161,15 +168,27 @@ impl Builder {
         )
     }
 
-    /// Counts `values` more values, refusing more than [`MAX_VALUES`].
-    fn count(&mut self, values: usize, at: usize) -> Result<(), ParseError> {
-        self.values = self.values.saturating_add(values);
-        if self.values > MAX_VALUES {
+    /// Counts `cost` at line `at`, refusing more than [`MAX_VALUES`] values or more bytes than
+    /// the room.
+    fn count(&mut self, cost: Cost, at: usize) -> Result<(), ParseError> {
+        self.counted.values = self.counted.values.saturating_add(cost.values);
+        self.counted.bytes = self.counted.bytes.saturating_add(cost.bytes);
+        if self.counted.values > MAX_VALUES {
             return Err(fault(
                 at,
                 format!(
                     "the file holds more than {MAX_VALUES} values, counting those its aliases \
                      repeat"
+                ),
+            ));
+        }
+        if self.counted.bytes > self.room {
+            return Err(fault(
+                at,
+                format!(
+                    "the document would take more than {} bytes in memory, counting its text, \
+                     the pointers of its lines and the values its aliases and anchors repeat",
+                    self.room
                 ),
             ));
         }
@@ -187,8 +206,8 @@ impl Builder {
         Ok(())
     }
 
-    /// The pointer of the next value, its line recorded: the line of its key in a mapping,
-    /// `at` otherwise. A key cannot be a collection or an alias.
+    /// The pointer of the next value, its bytes counted and its line recorded: the line of its
+    /// key in a mapping, `at` otherwise. A key cannot be a collection or an alias.
     fn next_pointer(&mut self, at: usize) -> Result<Pointer, ParseError> {
         let (pointer, line_of) = match self.frames.last() {
             None => (Pointer::root(), at),
@@ -206,6 +225,8 @@ impl Builder {
                 }
             },
         };
+        let bytes = pointer.as_str().len();
+        self.count(Cost { values: 0, bytes }, at)?;
         self.lines
             .insert(pointer.as_str().to_owned(), line(line_of));
         Ok(pointer)
@@ -220,7 +241,7 @@ impl Builder {
         frame.nesting = frame.nesting.max(nesting);
         match &mut frame.content {
             Content::Sequence(items) => items.push(value),
-            Content::Mapping { map, key, .. } => {
+            Content::Mapping { map, key } => {
                 if let Some((key, _)) = key.take() {
                     map.insert(key, value);
                 }
@@ -228,19 +249,31 @@ impl Builder {
         }
     }
 
-    /// Keeps `value` for the aliases of `anchor`, when it has one.
-    fn keep(&mut self, anchor: usize, value: &Value, values: usize, nesting: usize) {
-        if anchor != 0 {
-            let value = value.clone();
-            self.anchors.insert(
-                anchor,
-                Anchored {
-                    value,
-                    values,
-                    nesting,
-                },
-            );
+    /// Keeps a copy of `value`, which counted `cost`, for the aliases of `anchor` when it has
+    /// one; the copy counts its bytes again, before it is made.
+    fn keep(
+        &mut self,
+        anchor: usize,
+        value: &Value,
+        cost: Cost,
+        nesting: usize,
+        at: usize,
+    ) -> Result<(), ParseError> {
+        if anchor == 0 {
+            return Ok(());
         }
+        let copy = Cost {
+            values: 0,
+            bytes: cost.bytes,
+        };
+        self.count(copy, at)?;
+        let anchored = Anchored {
+            value: value.clone(),
+            cost,
+            nesting,
+        };
+        self.anchors.insert(anchor, anchored);
+        Ok(())
     }
 
     /// The key `text` of the innermost mapping, at line `at`.
@@ -254,31 +287,54 @@ impl Builder {
         if tag.is_some_and(|t| !is_core(t, "str")) {
             return Err(unsupported(tag, at));
         }
-        self.count(1, at)?;
-        self.keep(anchor, &Value::String(text.clone()), 1, 1);
+        let cost = Cost {
+            values: 1,
+            bytes: text.len(),
+        };
+        self.count(cost, at)?;
         if let Some(Frame {
-            content: Content::Mapping { key, keys, .. },
+            content: Content::Mapping { map, .. },
+            pointer,
+            ..
+        }) = self.frames.last()
+            && map.contains_key(&text)
+        {
+            let first = self
+                .lines
+                .get(pointer.join(&text).as_str())
+                .map_or(0, |l| l.get().get());
+            return Err(fault(
+                at,
+                format!(
+                    "the key `{}` is given twice; it was first given at line {first}",
+                    quoted(&text)
+                ),
+            ));
+        }
+        self.keep(anchor, &Value::String(text.clone()), cost, 1, at)?;
+        if let Some(Frame {
+            content: Content::Mapping { key, .. },
             ..
         }) = self.frames.last_mut()
         {
-            if let Some(first) = keys.get(&text) {
-                return Err(fault(
-                    at,
-                    format!("the key `{text}` is given twice; it was first given at line {first}"),
-                ));
-            }
-            keys.insert(text.clone(), at);
             *key = Some((text, at));
         }
         Ok(())
     }
 
-    /// A scalar `value` at line `at`.
-    fn value(&mut self, value: Value, at: usize, anchor: usize) -> Result<(), ParseError> {
+    /// A scalar `value`, written in `bytes` bytes, at line `at`.
+    fn value(
+        &mut self,
+        value: Value,
+        bytes: usize,
+        at: usize,
+        anchor: usize,
+    ) -> Result<(), ParseError> {
         let _ = self.next_pointer(at)?;
-        self.count(1, at)?;
+        let cost = Cost { values: 1, bytes };
+        self.count(cost, at)?;
         self.nest(1, at)?;
-        self.keep(anchor, &value, 1, 1);
+        self.keep(anchor, &value, cost, 1, at)?;
         self.attach(value, 1, at);
         Ok(())
     }
@@ -286,45 +342,56 @@ impl Builder {
     /// Opens a collection at line `at`.
     fn open(&mut self, content: Content, at: usize, anchor: usize) -> Result<(), ParseError> {
         let pointer = self.next_pointer(at)?;
-        self.count(1, at)?;
+        let before = self.counted;
+        self.count(
+            Cost {
+                values: 1,
+                bytes: 0,
+            },
+            at,
+        )?;
         self.nest(1, at)?;
         self.frames.push(Frame {
             content,
             pointer,
             anchor,
             at,
-            before: self.values.saturating_sub(1),
+            before,
             nesting: 0,
         });
         Ok(())
     }
 
     /// Closes the innermost collection and sets it in its parent.
-    fn close(&mut self) {
+    fn close(&mut self) -> Result<(), ParseError> {
         let Some(frame) = self.frames.pop() else {
-            return;
+            return Ok(());
         };
         let value = match frame.content {
             Content::Sequence(items) => Value::Array(items),
             Content::Mapping { map, .. } => Value::Object(map),
         };
-        let values = self.values.saturating_sub(frame.before);
+        let cost = Cost {
+            values: self.counted.values.saturating_sub(frame.before.values),
+            bytes: self.counted.bytes.saturating_sub(frame.before.bytes),
+        };
         let nesting = frame.nesting.saturating_add(1);
-        self.keep(frame.anchor, &value, values, nesting);
+        self.keep(frame.anchor, &value, cost, nesting, frame.at)?;
         self.attach(value, nesting, frame.at);
+        Ok(())
     }
 
-    /// An alias of `anchor` at line `at`: the value of the anchor, once it is complete.
+    /// An alias of `anchor` at line `at`: the value of the anchor, once it is complete, counted
+    /// by its values and its bytes before it is copied.
     fn alias(&mut self, anchor: usize, at: usize) -> Result<(), ParseError> {
         let _ = self.next_pointer(at)?;
-        let Some((values, nesting)) = self.anchors.get(&anchor).map(|a| (a.values, a.nesting))
-        else {
+        let Some((cost, nesting)) = self.anchors.get(&anchor).map(|a| (a.cost, a.nesting)) else {
             return Err(fault(
                 at,
                 "an alias refers to an anchor whose value is not complete",
             ));
         };
-        self.count(values, at)?;
+        self.count(cost, at)?;
         self.nest(nesting, at)?;
         let value = self
             .anchors
@@ -341,6 +408,7 @@ impl Builder {
             Some((Value::Object(document), _)) => Ok(Parsed {
                 document,
                 lines: Lines(self.lines),
+                bytes: self.counted.bytes,
             }),
             Some((other, at)) => Err(fault(
                 at,
@@ -354,7 +422,7 @@ impl Builder {
 /// The type of a JSON value, for a message.
 fn kind(value: &Value) -> &'static str {
     match value {
-        Value::Null => "null",
+        Value::Null => "empty",
         Value::Bool(_) => "a boolean",
         Value::Number(_) => "a number",
         Value::String(_) => "a string",
@@ -368,9 +436,22 @@ fn is_core(tag: &Tag, suffix: &str) -> bool {
     tag.is_yaml_core_schema() && tag.suffix == suffix
 }
 
+/// `tag` as written in YAML, cut as a quote: `!!<suffix>` for the core schema, `!<suffix>` for
+/// a local tag and the verbatim form `!<...>` otherwise.
+fn written(tag: &Tag) -> String {
+    let text = if tag.is_yaml_core_schema() {
+        format!("!!{}", tag.suffix)
+    } else if tag.handle == "!" {
+        format!("!{}", tag.suffix)
+    } else {
+        format!("!<{}{}>", tag.handle, tag.suffix)
+    };
+    quoted(&text)
+}
+
 /// The refusal of a tag the rules do not accept.
 fn unsupported(tag: Option<&Tag>, at: usize) -> ParseError {
-    let written = tag.map(ToString::to_string).unwrap_or_default();
+    let written = tag.map(written).unwrap_or_default();
     fault(at, format!("the tag `{written}` is not supported here"))
 }
 
@@ -417,11 +498,20 @@ fn scalar(
     let resolved = match (tag, style) {
         (Some(t), _) if is_core(t, "str") => Plain::Str,
         (Some(t), _) if t.is_yaml_core_schema() => {
-            let resolved = plain(text);
+            // The float of the core schema also matches a decimal integer, such as `1`.
+            let resolved = if t.suffix == "float" && is_float(text) {
+                Plain::Float
+            } else {
+                plain(text)
+            };
             if resolved.tag() != t.suffix {
                 return Err(fault(
                     at,
-                    format!("the value `{text}` does not have the type of its tag `{t}`"),
+                    format!(
+                        "the value `{}` does not have the type of its tag `{}`",
+                        quoted(text),
+                        written(t)
+                    ),
                 ));
             }
             resolved
@@ -451,7 +541,10 @@ fn scalar(
 fn beyond(text: &str, at: usize) -> ParseError {
     fault(
         at,
-        format!("the number `{text}` has no value in JSON, which holds finite doubles only"),
+        format!(
+            "the number `{}` has no value in JSON, which holds finite doubles only",
+            quoted(text)
+        ),
     )
 }
 

@@ -27,11 +27,11 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use serde_json::Value;
-use wayloop_core::artifacts::locations;
+use wayloop_core::artifacts::locations::{self, Refused};
 use wayloop_core::{
     Command, Context, Envelope, Reason, envelope_json, input_unreadable, run_json, usage_error,
 };
-use wayloop_runtime::project;
+use wayloop_runtime::project::{self, LoadError};
 
 /// The usage line, for a person, on standard error.
 const USAGE_LINE: &str = "Commands: version, steps, \
@@ -89,9 +89,24 @@ fn main() -> ExitCode {
     if let Some(message) = message {
         // A failure to write the message to standard error leaves nothing else to report to:
         // the exit code still carries the outcome.
-        let _ = writeln!(io::stderr().lock(), "wayloop: {message}");
+        let _ = writeln!(io::stderr().lock(), "wayloop: {}", printable(&message));
     }
     code
+}
+
+/// `text` with its control characters escaped as Rust writes them (a line break as `\n`, an
+/// escape as `\u{1b}`), so that a path or a name read from the project cannot move the cursor
+/// or rewrite the terminal.
+fn printable(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            if c.is_control() {
+                c.escape_default().to_string()
+            } else {
+                c.to_string()
+            }
+        })
+        .collect()
 }
 
 /// Runs one command, reading standard input from `stdin`, and writes its JSON result to `out`.
@@ -206,25 +221,23 @@ fn from_project(
 ) -> Result<Ran, Failure> {
     let root = Path::new(".");
     let files = if paths.is_empty() {
-        project::discover(root)
+        project::discover(root).map_err(LoadError::Read)
     } else {
         let named = paths.iter().map(|p| project::segments(Path::new(p)));
         match locations::given(named) {
             Ok(files) => Ok(files),
             Err((index, refused)) => {
                 let path = paths.get(index).copied().unwrap_or_default();
-                let envelope = usage_error(command.id(), refused.message());
-                return print(
-                    &envelope,
-                    out,
-                    Some(format!("{path}: {refused} {USAGE_LINE}")),
-                );
+                return refuse(command, path, refused, out);
             }
         }
     };
     let input = match files.and_then(|files| project::load(root, files)) {
         Ok(input) => input,
-        Err(error) => {
+        Err(LoadError::Outside(path)) => {
+            return refuse(command, path.as_str(), Refused::OutsideTheProject, out);
+        }
+        Err(LoadError::Read(error)) => {
             let message = format!("cannot read {error}");
             return unreadable(command, error.error(), message, out);
         }
@@ -232,6 +245,22 @@ fn from_project(
     let input = serde_json::to_value(&input).map_err(|e| Failure::Input(e.to_string()))?;
     let envelope = wayloop_core::run(command, &input, &context);
     print(&envelope, out, None)
+}
+
+/// Prints the usage envelope of a path a person named that is `refused`, with the path on
+/// standard error only (SPEC-0004 R15).
+fn refuse(
+    command: Command,
+    path: &str,
+    refused: Refused,
+    out: &mut impl Write,
+) -> Result<Ran, Failure> {
+    let envelope = usage_error(command.id(), refused.message());
+    print(
+        &envelope,
+        out,
+        Some(format!("{path}: {refused} {USAGE_LINE}")),
+    )
 }
 
 /// Prints the envelope of an input or a file that cannot be read, with `message` for a
@@ -429,6 +458,14 @@ mod tests {
         let (value, code) = envelope(&["validate", "--input", "/"], b"");
         assert_eq!(code, ExitCode::from(3));
         assert_eq!(value["error"]["reason"], "state");
+    }
+
+    #[test]
+    fn control_characters_are_escaped_for_standard_error() {
+        assert_eq!(
+            super::printable("plan/\u{1b}[2Jx\n.yaml: é"),
+            "plan/\\u{1b}[2Jx\\n.yaml: é"
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 8e7f2a32762c
+source_hash: c1d061d2507e
 ---
 # wayloop validate
 
@@ -27,15 +27,20 @@ $ wayloop validate --input <file> [--command-version <n>]
 $ wayloop validate --input - [--command-version <n>]
 ```
 
-Senza `--input`, il comando legge il progetto nella cartella corrente. Senza percorsi legge
-ogni artefatto salvato: `plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` e
-`specs/<NNNN>-<capability>/spec.md` (quindi non `specs/_templates/`). I link simbolici non
-vengono seguiti. Con dei percorsi legge solo quei file, come un unico insieme: ogni percorso è
-relativo alla cartella corrente, resta al suo interno e indica un file YAML (`.yaml`) o un file
-Markdown (`.md`). In entrambi i casi i file sono letti nell'ordine per byte dei loro percorsi,
-ognuno in una voce di `documents` con il suo percorso come origine `file` e, per lo YAML, la
-riga di ogni valore in `lines`; così ogni errore indica in `source` il file e la riga del
-valore errato.
+Senza `--input`, il comando legge il progetto nella cartella corrente, che deve essere la
+radice del progetto: eseguito da una sottocartella, non trova alcuna posizione e valida un
+insieme vuoto, con codice di uscita 0 (issue #320). Senza percorsi legge ogni artefatto
+salvato: `plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` e
+`specs/<NNNN>-<capability>/spec.md` (quindi non `specs/_templates/`). Una posizione raggiunta
+attraverso un link simbolico è trattata come assente, e dentro una posizione i link, i file
+speciali e i nomi non UTF-8 sono saltati. Con dei percorsi legge solo quei file, come un unico
+insieme: ogni percorso è relativo alla cartella corrente, non ha segmenti `..` né `\`, e indica
+un file YAML (`.yaml`) o un file Markdown (`.md`); un percorso il cui file, risolti i link, è
+fuori dal progetto è rifiutato come errore d'uso, e un percorso che non è un file regolare (una
+cartella, una pipe, un dispositivo) non può essere letto (codice di uscita 3). In entrambi i
+casi i file sono letti nell'ordine per byte dei loro percorsi, ognuno in una voce di
+`documents` con il suo percorso come origine `file` e, per lo YAML, la riga di ogni valore in
+`lines`; così ogni errore indica in `source` il file e la riga del valore errato.
 
 I file YAML sono letti con lo schema core di YAML 1.2: `no`, `on`, `yes` e le date come
 `2026-11-17` sono stringhe, e un valore tra virgolette è sempre una stringa. Un file è
@@ -43,8 +48,13 @@ rifiutato, come voce `unreadable` con la riga del difetto (codice `artifact_sche
 `syntax`), quando non si analizza, dà una chiave due volte nella stessa mappa, contiene più di
 un documento o un documento che non è una mappa, contiene un numero che JSON non può contenere
 (`.inf`, `.nan`, `1e400`) o un tag fuori dallo schema core, non è UTF-8, supera 1 MiB, annida
-valori oltre 64 livelli, o contiene più di 100.000 valori contando quelli ripetuti dai suoi
-alias. Un file così non viene caricato, quindi una alias bomb non può esaurire la memoria.
+valori oltre 64 livelli, contiene più di 100.000 valori contando quelli ripetuti dai suoi
+alias, o occuperebbe più di 8 MiB in memoria una volta analizzato, contando il suo testo, i
+puntatori delle sue righe e ogni valore ripetuto dai suoi alias e dalle sue ancore. Tutti i file
+di un insieme possono occupare al massimo 64 MiB, tra byte letti e documenti costruiti; un file
+oltre questo limite è rifiutato allo stesso modo. Un file così non viene caricato, quindi una
+alias bomb o un valore grande ripetuto dagli alias non può esaurire la memoria, e l'envelope
+viene sempre stampato. Un messaggio cita al massimo 80 caratteri di una chiave o di un valore.
 
 `--input` indica un file che contiene l'input canonico in JSON, oppure `-` per lo standard
 input; non accetta percorsi. `--command-version` richiede una versione del comando; senza, viene

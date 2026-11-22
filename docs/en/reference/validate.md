@@ -24,11 +24,16 @@ $ wayloop validate --input <file> [--command-version <n>]
 $ wayloop validate --input - [--command-version <n>]
 ```
 
-Without `--input`, the command reads the project in the current folder. With no path it reads
-every stored artifact: `plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` and
-`specs/<NNNN>-<capability>/spec.md` (so not `specs/_templates/`). Symbolic links are not
-followed. With paths it reads those files only, as one set: each path is relative to the
-current folder, stays inside it, and names a YAML file (`.yaml`) or a Markdown file (`.md`).
+Without `--input`, the command reads the project in the current folder, which must be the root
+of the project: run from a subfolder, it finds no location and validates an empty set, with
+exit code 0 (issue #320). With no path it reads every stored artifact: `plan/briefs/*.yaml`,
+`plan/council/*.yaml`, `plan/items/*.yaml` and `specs/<NNNN>-<capability>/spec.md` (so not
+`specs/_templates/`). A location reached through a symbolic link is treated as absent, and
+links, special files and names that are not UTF-8 inside a location are skipped. With paths it
+reads those files only, as one set: each path is relative to the current folder, has no `..`
+segment and no `\`, and names a YAML file (`.yaml`) or a Markdown file (`.md`); a path whose
+file, once its links are resolved, is outside the project is refused as a usage error, and a
+path that is not a regular file (a folder, a pipe, a device) cannot be read (exit code 3).
 Either way the files are read in the byte order of their paths, each into one entry of
 `documents` with its path as its `file` origin and, for YAML, the line of each value in
 `lines`; so every error gives the file and the line of the faulty value in `source`.
@@ -39,8 +44,12 @@ YAML files are read with the YAML 1.2 core schema: `no`, `on`, `yes` and dates s
 does not parse, gives a key twice in one mapping, holds more than one document or a document
 that is not a mapping, holds a number JSON cannot hold (`.inf`, `.nan`, `1e400`) or a tag
 outside the core schema, is not UTF-8, is larger than 1 MiB, nests values deeper than 64
-levels, or holds more than 100,000 values counting those its aliases repeat. Such a file is
-not loaded, so an alias bomb cannot exhaust memory.
+levels, holds more than 100,000 values counting those its aliases repeat, or would take more
+than 8 MiB in memory once parsed, counting its text, the pointers of its lines and every value
+its aliases and anchors repeat. All the files of one set may take at most 64 MiB, the bytes
+read and the documents built; a file beyond that is refused the same way. Such a file is not
+loaded, so an alias bomb or a large value repeated by aliases cannot exhaust memory, and the
+envelope is always printed. A message quotes at most 80 characters of a key or a value.
 
 `--input` names a file holding the canonical input as JSON, or `-` for standard input; it takes
 no path. `--command-version` requests a version of the command; without it the current version
