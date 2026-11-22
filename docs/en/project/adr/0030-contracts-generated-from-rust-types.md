@@ -257,6 +257,13 @@ with its tests and the architecture page.
   changes, released or not. Residual risk: the documentation site publishes `main`, so the
   `$id` of an unreleased version is public, and the schema at that URL may change before the
   first release. A reader that depends on it before a release accepts that risk.
+- 2026-11-22, decision of the maintainer with SPEC-0003 (G5, G6): the contracts of the areas
+  `events` (one per kind of ledger event) and `ledger` (the summary and the snapshot) do not
+  follow rule (B). From the first release that holds a version, every change of such a
+  contract, additive or not, is a new version `v<N+1>`, and the first event written in it
+  raises the minimum engine version of the ledger (SPEC-0003 R53). An older engine therefore
+  stops on a version it does not know instead of refusing an unknown member of a known version
+  as a broken chain. Before that release, the amendment of 2026-11-20 applies.
 
 ## Consequences
 

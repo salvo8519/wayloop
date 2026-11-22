@@ -5,7 +5,7 @@
 | Status | Draft |
 | Milestone | M1 · Engine core |
 | Owner | @salvo8519 |
-| Related | ADR 0009, ADR 0010, ADR 0028, #53, #54, #55, #56, #57, #163, #221, #222 |
+| Related | ADR 0009, ADR 0010, ADR 0028, #12, #53, #54, #55, #56, #57, #163, #221, #222 |
 | Commit scope | cli |
 
 ## Problem
@@ -22,7 +22,7 @@ Agents and people drive the engine through commands. Every command must speak th
 
 ## Requirements (EARS)
 - **R1**: THE ENGINE SHALL return every result in the envelope of ADR 0009 C1, with meta.envelope_version and meta.command_version.
-- **R2**: THE ENGINE SHALL report every refusal as {code, message, pointer, pointers, reason, expected, fix, source, document} and list every input error found in one pass in errors; `source` locates the faulty value in the repository (`{file, line}` with `line` only when it is known, `{issue}` or `{milestone}`; the optional line is a breaking change of version 1 of `envelope/result`, which no release holds, made under the amendment of ADR 0030 of 2026-11-20) and is absent for a document sent directly (SPEC-0001 Errors); `document`, an additive optional field (decided by the maintainer on 2026-11-20), is the index from 0 of the document in the input array `documents` for every error that belongs to a document, whose `pointer` is then relative to that document, and is absent for an error of the input itself.
+- **R2**: THE ENGINE SHALL report every refusal as {code, message, pointer, pointers, reason, expected, fix, source, document} and list every input error found in one pass in errors; `source` locates the faulty value in the repository (`{file, line}` with `line` only when it is known (the optional line is a breaking change of version 1 of `envelope/result`, which no release holds, made under the amendment of ADR 0030 of 2026-11-20), `{issue}`, `{milestone}`, or `{ledger, line}` for a line of a ledger segment, with its path relative to the git common directory, an additive form decided by the maintainer on 2026-11-22, SPEC-0003 section Contracts of the ledger) and is absent for a document sent directly (SPEC-0001 Errors); `document`, an additive optional field (decided by the maintainer on 2026-11-20), is the index from 0 of the document in the input array `documents` for every error that belongs to a document, whose `pointer` is then relative to that document, and is absent for an error of the input itself.
 - **R3**: THE ENGINE SHALL treat absent and null as not given and list every default applied in meta.defaults_applied.
 - **R4**: THE ENGINE SHALL snapshot every command input and output schema and bump the command version on a breaking change (ADR 0009 C5).
 - **R5**: WHEN a command changes state, THE ENGINE SHALL require the expected revision and refuse a stale one with reason stale.
@@ -35,7 +35,7 @@ Agents and people drive the engine through commands. Every command must speak th
 - **R12**: THE ENGINE SHALL report the revision, the hash of the latest ledger event, in `meta.revision` of every result that reads state (ADR 0009 C6).
 - **R13**: THE ENGINE SHALL return the effective configuration with the source of every value with `wayloop config show`.
 - **R14**: THE ENGINE SHALL expose one entry point that takes a command, its canonical input and a context (output budget, read-only mode, dry run) and returns the envelope; every channel SHALL call it and SHALL only translate its native input to the canonical input and the envelope to its native output (ADR 0028).
-- **R15**: THE ENGINE SHALL return, for the same input and the same context, the same envelope byte for byte in canonical JSON on every channel and platform, and SHALL place no clock time, host name or absolute path in the envelope.
+- **R15**: THE ENGINE SHALL return, for the same input and the same context, the same envelope byte for byte in canonical JSON on every channel and platform, and SHALL place in the envelope no clock time of the call, no host name and no absolute path; recorded times of the state at `meta.revision`, such as `recorded_at` and `merged_at` of the ledger, may be returned (decided by the maintainer on 2026-11-22, SPEC-0003 Q11).
 - **R16**: WHEN a command is refused, EVERY CHANNEL SHALL carry the whole envelope in its native error form: exit code of ADR 0009 C7 for the command line, a typed exception holding the envelope for the SDKs, an error result holding the envelope for the MCP server.
 - **R17**: THE PROJECT SHALL check every channel with a channel reconciler that sends each golden contract case through the translation of the channel, rebuilds the envelope with the inverse translation and compares it with the envelope of the entry point, reporting the channel and the JSON pointer of every difference.
 - **R18**: WHEN a command is refused or fails, THE ENGINE SHALL put the error report in the top-level field `error` of the envelope and leave `data` out; a result that succeeded has `data` and no `error` (ADR 0009 C1, amended on 2026-11-20).
@@ -51,7 +51,7 @@ Agents and people drive the engine through commands. Every command must speak th
 - **AC8**: Given a project key in the user file, when the configuration is read, then it is refused with the pointer and the fix. Verification: TDD.
 - **AC9**: Given a value set by an environment variable, when `wayloop config show` runs, then the value and the source environment are reported. Verification: TDD.
 - **AC10**: Given every golden contract case, when run through the entry point and through the command line, then the two envelopes are identical in canonical JSON (R14, R15). Verification: contract test.
-- **AC11**: Given an envelope that holds a clock time, a host name or an absolute path, when checked by the contract runner, then the check fails with the pointer of the value (R15). Verification: contract test.
+- **AC11**: Given an envelope that holds the clock time of the call, a host name or an absolute path, when checked by the contract runner, then the check fails with the pointer of the value; given the same command run at two clock times on the same revision, whose envelope holds the `recorded_at` of a ledger event, then the two envelopes are identical and the check passes (R15). Verification: contract test.
 - **AC12**: Given a refused input, when sent through every channel, then each native error form carries the same envelope (R16). Verification: contract test.
 - **AC13**: Given an adapter that drops one output field, when the channel reconciler runs, then it fails naming the channel and the pointer of the field (R17). Verification: contract test.
 - **AC14**: Given the same input in the function-calling format of each supported provider, when translated, then every translation gives the same `input_hash` (R14, R15). Verification: contract test.

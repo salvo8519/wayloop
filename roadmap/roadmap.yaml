@@ -173,7 +173,7 @@ milestones:
         issue: 22
         labels: ["area:core"]
         tasks:
-          - { issue: 12, title: "Approved specification of the ledger", spec: "0003", status: open }
+          - { issue: 12, title: "Approved specification of the ledger", spec: "0003", status: done }
           - { issue: 50, title: "Append-only writer with hash chain", spec: "0003", status: open }
           - { issue: 51, title: "Projection, replay and snapshots", spec: "0003", status: open }
           - { issue: 52, title: "Session, issue and milestone summaries with roll-up", spec: "0003", status: open }

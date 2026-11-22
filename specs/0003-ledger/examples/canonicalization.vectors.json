@@ -1,0 +1,63 @@
+{
+  "description": "Canonical JSON (RFC 8785) vectors of SPEC-0003 AC49. Each input is a JSON text; canonical is its canonical form and sha256 the SHA-256 of its UTF-8 bytes. Numbers are read by value (plan of SPEC-0001, Numbers): an integer written with a fraction or an exponent is accepted as an input and written in its canonical form, while a stored ledger line that holds it is not canonical (SPEC-0003 R59). Refused inputs carry the reason of the error; input_base16 gives bytes that are not UTF-8.",
+  "refused": [
+    {
+      "name": "number_with_fraction",
+      "input": "{\"n\":1.5}",
+      "reason": "type"
+    },
+    {
+      "name": "integer_out_of_range",
+      "input": "{\"n\":9007199254740992}",
+      "reason": "range"
+    },
+    {
+      "name": "lone_surrogate",
+      "input": "{\"s\":\"\\ud800\"}",
+      "reason": "syntax"
+    },
+    {
+      "name": "invalid_utf8",
+      "input_base16": "7b2273223a22ff227d",
+      "reason": "syntax"
+    }
+  ],
+  "vectors": [
+    {
+      "name": "key_order_utf16",
+      "input": "{\"\\u20ac\":\"Euro Sign\",\"\\r\":\"Carriage Return\",\"\\ufb33\":\"Hebrew Letter Dalet With Dagesh\",\"1\":\"One\",\"\\ud840\\udc00\":\"CJK Ideograph Extension B, outside the Basic Multilingual Plane\",\"\\u0080\":\"Control\",\"\\u00f6\":\"Latin Small Letter O With Diaeresis\"}",
+      "canonical": "{\"\\r\":\"Carriage Return\",\"1\":\"One\",\"\":\"Control\",\"ö\":\"Latin Small Letter O With Diaeresis\",\"€\":\"Euro Sign\",\"𠀀\":\"CJK Ideograph Extension B, outside the Basic Multilingual Plane\",\"דּ\":\"Hebrew Letter Dalet With Dagesh\"}",
+      "sha256": "99f1f6bd831604e2d24fa3bb9b530cc3ec4218ec95723455f9ec4bd5b1ce4c28"
+    },
+    {
+      "name": "string_escapes",
+      "input": "{\"s\":\"tab\\there, \\u0001 and \\u001f, quote \\\" and backslash \\\\, slash \\/, line\\nfeed, form\\ffeed, back\\bspace, \\u00e9 as an escape\"}",
+      "canonical": "{\"s\":\"tab\\there, \\u0001 and \\u001f, quote \\\" and backslash \\\\, slash /, line\\nfeed, form\\ffeed, back\\bspace, é as an escape\"}",
+      "sha256": "d37304a619b91416e49cfd355edbee7ec0b3b343abb24bdad6df6c85915dd3af"
+    },
+    {
+      "name": "accented_letters_and_integers",
+      "input": "{ \"città\" : \"perché\", \"n\" : 9007199254740991, \"m\" : -9007199254740991, \"z\" : 0 }",
+      "canonical": "{\"città\":\"perché\",\"m\":-9007199254740991,\"n\":9007199254740991,\"z\":0}",
+      "sha256": "e495cf0e658223317c47b6bbf610b611b5c0fcccc82d505f072e7b22b80021ef"
+    },
+    {
+      "name": "empty_containers",
+      "input": "{\"b\":[],\"a\":{}}",
+      "canonical": "{\"a\":{},\"b\":[]}",
+      "sha256": "aeeba1e56a144077f89e26c930dad7cf933e9383cfb8e33ddff618233b29be76"
+    },
+    {
+      "name": "integer_written_with_fraction",
+      "input": "{\"n\":1.0}",
+      "canonical": "{\"n\":1}",
+      "sha256": "2bfd14f43d17fc7cea24e0917a8879b4b2f880b8baeec1b9d90fbaad655e71bd"
+    },
+    {
+      "name": "integer_written_with_exponent",
+      "input": "{\"n\":1e3}",
+      "canonical": "{\"n\":1000}",
+      "sha256": "fe1c788f83a7b21b9bb68ea3d588468319662e1ba670dceb5a83fc7d05a183a8"
+    }
+  ]
+}

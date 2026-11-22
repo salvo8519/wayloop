@@ -49,3 +49,4 @@ Specifications written once stop governing the code. The current behaviour must 
 
 ## Open questions
 - [ ] Filtered reading of specifications by requirement id only, or also by tag?
+- [ ] Re-anchor cited line ranges along merges? For M1 a covered unit is `stale` when a merge changes a file it cites (SPEC-0003 R16, Q12, decided by the maintainer on 2026-11-22). With this specification, the git adapter could report the changed ranges of each merge and the engine re-anchor the citations of each verdict along the chain of merges, so that fewer units become stale; R16 of SPEC-0003 would then be amended to "a line cited by".
