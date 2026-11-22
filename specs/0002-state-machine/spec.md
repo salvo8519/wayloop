@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | Draft |
+| Status | Approved |
 | Milestone | M1 · Engine core |
 | Owner | @salvo8519 |
 | Related | #11, #48, #49, #58, #228, #309; ADR 0002, 0003, 0006, 0007, 0008, 0009, 0010, 0011, 0012, 0013, 0026, 0028, 0029, 0030; SPEC-0001, SPEC-0003, SPEC-0004, SPEC-0005, SPEC-0006, SPEC-0007, SPEC-0008, SPEC-0009, SPEC-0013, SPEC-0021 |
@@ -84,7 +84,7 @@ requirements and criteria of this draft that held the same numbers took the next
 - **R48**: WHILE an open brief has no council report in `draft`, or an approved council report has no pending plan proposal, THE ENGINE SHALL propose the action `run_council` or `generate_plan` for that subject within the budget of the phase, and dispatch it through `project_step_requested`.
 - **R49**: WHEN the review step of an issue starts, THE ENGINE SHALL dispatch it once per lens that R8 or R11 requires for the tier of the issue, one lens at a time in the order `presence`, `behaviour`, `proof`, each to a verifier that ran neither `build` nor `counter_review` of the issue, and only while the changed paths of the branch are recorded at the head that `verify` verified (I3, I10), whatever the order in which they were observed, over the coverage units of the requirements cited by its task; WHEN the last lens has voted, THE ENGINE SHALL tally each unit under R9 and R10 and move the issue to `pull_request` when every unit is `covered`, to `build` when a unit is `uncovered`, and otherwise hold it with a question of category `needs_validation` (SPEC-0009 R10).
 - **R50**: THE ENGINE SHALL list in `ready` of `next_steps`, after the ready issues, every coverage unit in state `stale` (SPEC-0003 R16), by unit identifier in code point order.
-- **R51**: WHEN `pull_request_merged` is observed for any pull request merged into the main branch, whether it closes a planned issue (I18, I24) or not (P13), or WHEN the git adapter observes a push to the main branch (`main_branch_pushed`, P13), THE ENGINE SHALL record `coverage_stale` for every `covered` unit that SPEC-0003 R16 makes stale: a unit with a cited file in the `changed_paths` the observation carries, the paths of the merge or the push relative to its base, unless every verdict of the unit was produced on the merged or pushed head.
+- **R51**: WHEN `pull_request_merged` is observed for any pull request merged into the default branch, whether it closes a planned issue (I18, I24) or not (P13), or WHEN the git adapter observes a push to the default branch (`default_branch_pushed`, P13), THE ENGINE SHALL record `coverage_stale` for every `covered` unit that SPEC-0003 R16 makes stale: a unit with a cited file in the `changed_paths` the observation carries, the paths of the merge or the push relative to its base, unless every verdict of the unit was produced on the merged or pushed head.
 - **R52**: IF a policy, given to `wayloop init` or carried by `run_start_requested`, lists in `skips` a step other than `counter_review`, or in `merge_waived_tiers` a tier other than `small` (ADR 0029), THEN THE ENGINE SHALL refuse it with the code `policy_skip_not_allowed` or `policy_waiver_not_allowed` and record nothing.
 - **R53**: WHEN `wayloop init` writes the configuration, THE ENGINE SHALL write the default of section Limits and budgets for every limit the person does not give, list each default in `meta.defaults_applied`, record the values in the first `limits_set`, and IF a token budget of section Limits and budgets is not given, THEN refuse the configuration with the code `budget_missing`.
 
@@ -120,7 +120,7 @@ requirements and criteria of this draft that held the same numbers took the next
 - **AC29** (R27): Given `limits.attempts` 3 and `limits.same_failure` 5, when attempts 1, 2 and 3 fail on different checks, then the failures of attempts 1 and 2 move the issue to `build` and the failure of attempt 3 opens the question `repeated_failure`; no attempt 4 is started. Verification: TDD.
 - **AC30** (R27, R31): Given `limits.same_failure` 2, when check `unit` fails on two consecutive attempts, then a question of category `repeated_failure` with the options `retry` and `stop` is opened and the issue is held; when an approver answers `retry`, then the attempt number is 1, the failure counts are reset and the issue resumes at `build`; when an approver answers `stop` instead, then the hold becomes `stopped_by_person`. Verification: TDD.
 - **AC31** (R28): Given a limit of N turns, when N executor steps have started and another is requested, then the issue is held with `turn_limit` and no `step_started` is recorded; given `limits_set` with N + 5 turns after an approved configuration gate, then the hold is removed and the step can be requested. Verification: TDD.
-- **AC32** (R29): Given a sprint budget of N tokens, when an executor call brings the recorded tokens of the sprint to N, then `budget_exhausted` is recorded, no step of the sprint is proposed, and a result of a step already started is still accepted; given `limits_set` with a budget above N, then `budget_restored` is recorded and steps are proposed again. Verification: TDD.
+- **AC32** (R29): Given a sprint budget of N tokens, when an executor call brings the recorded tokens of the sprint to N, then `budget_exhausted` is recorded, no step of the sprint other than a dispatch of `review` covered by the verification reserve is proposed, and a result of a step already started is still accepted; given `limits_set` with a budget above N, then `budget_restored` is recorded and steps are proposed again. Verification: TDD.
 - **AC33** (R30, R31): Given an issue at `counter_review`, when its result raises a question of category `security_sensitive_action`, then the issue keeps `counter_review`, is held with `question` and no action is proposed for it; given an answer from a person who is not an approver, then `input_ignored` is recorded; given a free-text answer from an approver, then `question_answered` and `issue_unblocked` are recorded and the issue resumes at `counter_review`. Verification: TDD.
 - **AC34** (R32, R34): Given an issue at `pull_request` before its checks complete, when `pull_request_merged` is observed, then the issue is `done` and `gate_bypassed` and `reconciliation_required` are recorded; given an issue at `build`, when `issue_closed` without a merge is observed, then it is held with `reconciliation_required`; given a `done` issue, when `issue_reopened` is observed, then `reconciliation_required` is recorded, no hold is added and the issue stays `done`. Verification: TDD.
 - **AC35** (R33): Given any observation delivered k times with the same external identifier, k from 1 to 5, in any interleaving with other inputs, when decided and applied, then the state and the ledger equal those after one delivery. Verification: property test.
@@ -138,7 +138,7 @@ requirements and criteria of this draft that held the same numbers took the next
 - **AC47** (R1, R2, R3): Given a random sequence of inputs decided one after the other by a writer, when the recorded events are applied again from the initial state, then the state is byte-identical to the state the writer held after each event, and no call of `decide` happens during the replay; and given any state and input, when `decide` runs, then every emitted event carries the `input_hash`, the `dispatch` or the `external_id` of the input, according to its class. Verification: property test.
 - **AC48** (R49, R8, R11): Given an issue of tier `contract` whose task cites one requirement with two acceptance criteria, when the review step starts, then three dispatches follow one another with the lenses `presence`, `behaviour` and `proof`; given a verifier that ran `build` of the issue, then its dispatch is refused with `verifier_not_independent`; given the votes `covered` from every lens, then the issue moves to `pull_request`; given one `uncovered` vote, then it moves to `build`; given one `needs_validation` vote and no `uncovered` one, then it is held with a question of category `needs_validation`. Verification: TDD.
 - **AC49** (R50): Given two units `0002/R8/AC4` and `0002/R9/AC5` in state `stale` and one ready issue, when the next steps are computed, then `ready` lists the issue first and then the two units in that order. Verification: TDD.
-- **AC50** (R51): Given a unit `0001/R1/AC1` `covered` by verdicts produced on commit C0 of an earlier issue, citing `crates/a.rs`, when `pull_request_merged` of another issue is observed with `changed_paths` holding `crates/a.rs`, at `merge` with an approved gate (I18) and, in a second run, at `build` without approval (I24), then in both runs `coverage_stale` names the unit, the merge commit and `crates/a.rs` (SPEC-0003 R16); given `changed_paths` without `crates/a.rs`, then the unit stays `covered`; given the merge of the pull request whose merged head H1 is the commit of every verdict of the unit, with `changed_paths` holding `crates/a.rs`, then no `coverage_stale` is recorded; given the merge of a pull request that closes no planned issue, or one whose issue is `done`, with `changed_paths` holding `crates/a.rs`, then P13 records `pull_request_merged` and `coverage_stale` for the unit, and `reconciliation_required` for the `done` issue; given `main_branch_pushed` of commit C9 with `changed_paths` holding `crates/a.rs`, then `coverage_stale` names the unit and C9; given either observation with no cited file in `changed_paths`, then only `input_ignored` with `no_effect` is recorded. Verification: TDD.
+- **AC50** (R51): Given a unit `0001/R1/AC1` `covered` by verdicts produced on commit C0 of an earlier issue, citing `crates/a.rs`, when `pull_request_merged` of another issue is observed with `changed_paths` holding `crates/a.rs`, at `merge` with an approved gate (I18) and, in a second run, at `build` without approval (I24), then in both runs `coverage_stale` names the unit, the merge commit as `commit` and `crates/a.rs` (SPEC-0003 R16); given `changed_paths` without `crates/a.rs`, then the unit stays `covered`; given the merge of the pull request whose merged head H1 is the commit of every verdict of the unit, with `changed_paths` holding `crates/a.rs`, then no `coverage_stale` is recorded; given the merge of a pull request that closes no planned issue, or one whose issue is `done`, with `changed_paths` holding `crates/a.rs`, then P13 records `pull_request_merged` and `coverage_stale` for the unit, and `reconciliation_required` for the `done` issue; given `default_branch_pushed` of commit C9 with `changed_paths` holding `crates/a.rs`, then `coverage_stale` names the unit and C9 as `commit`; given either observation with no cited file in `changed_paths`, then only `input_ignored` with `no_effect` is recorded. Verification: TDD.
 - **AC51** (R49): Given the paths of the branch observed at head H2 during `build`, and then `verify` passed with a `verification_result` that names H2, when the next steps are computed, then `run_step` of `review` is proposed and a `step_requested` for `review` is accepted, although no `branch_changes_observed` was recorded after `build`; given `verify` that names H3 while the paths are recorded at H2, then no action is proposed for the issue, its report of unmet conditions (R19) names `awaiting_external`, and a `step_requested` for `review` is refused with `head_not_observed` and H3 in `expected`; given then `branch_changes_observed` at H3, then the step is accepted. Verification: TDD.
 - **AC52** (R52): Given a policy whose `skips` holds `{tier: substantial, steps: [review]}`, when `wayloop init` or a run start carries it, then it is refused with `policy_skip_not_allowed`, the reason `enum` and `counter_review` in `expected`; given `merge_waived_tiers` holding `substantial`, then it is refused with `policy_waiver_not_allowed`, the reason `enum` and `small` in `expected`; in both cases nothing is recorded. Verification: TDD.
 - **AC53** (R53): Given `wayloop init` with approvers and every token budget but no limit, when it runs, then the first `limits_set` records `turns_per_issue` 20, `attempts` 3, `same_failure` 2, `executor_retries` 2 and `lease_minutes` 120, and `meta.defaults_applied` lists the five keys of `limits`; given a given limit, then it is recorded and not listed; given no `budgets.sprint`, then the configuration is refused with `budget_missing`, the reason `missing` and the pointer of the key, and no ledger is created. Verification: TDD.
@@ -274,6 +274,9 @@ on the configuration of the machine that replays.
 - The paths changed on a branch enter through `branch_changes_observed`, which the git adapter
   emits for the head of the branch. The engine computes the tier from them (R25); the agent
   never reports its own tier.
+- The default branch is the branch that the tracker reports as the default of the repository
+  (SPEC-0005), the branch of SPEC-0001 R23. The tracker and git adapters report
+  `pull_request_merged` and `default_branch_pushed` only for merges and pushes into it.
 
 ### Project phase
 
@@ -313,16 +316,16 @@ Project transitions (each records `phase_changed` when the derived phase changes
 | P10 | `delivery` | `status_change_requested`: milestone to `done` (gate met) | SPEC-0001 transition allowed; actor is an approver | Person | Derived: `complete` when no milestone remains `approved` or `implementing` | `artifact_status_changed`, `phase_changed` |
 | P11 | Any | `status_change_requested`: a brief or council report to `superseded` | SPEC-0001 transition allowed; actor is an approver | Person | Derived | `artifact_status_changed`, `gate_withdrawn` for its gates, `phase_changed` |
 | P12 | Any | `project_step_requested`, step `reconcile`, then `roadmap_change_proposal` (result) | Dispatch current; change valid against the current plan | Agent | Same | `step_started`; then `step_completed`, `gate_opened` (kind `roadmap_change`) |
-| P13 | Any | `pull_request_merged` (observation) of a pull request merged into the main branch that is not the closing pull request of a non-terminal planned issue (a pull request without issue, of a gate issue or of a dependency update, or one whose issue is `done` or `superseded`); or `main_branch_pushed` (observation) | None | Any (fact) | Same | `pull_request_merged` for a merge; `coverage_stale` for each unit of R51; `reconciliation_required` when the issue is `done` or `superseded` (I36); `input_ignored` (`no_effect`) when nothing else is recorded |
+| P13 | Any | `pull_request_merged` (observation) of a pull request merged into the default branch that is not the closing pull request of a non-terminal planned issue (a pull request without issue, of a gate issue or of a dependency update, or one whose issue is `done` or `superseded`); or `default_branch_pushed` (observation) | None | Any (fact) | Same | `pull_request_merged` for a merge; `coverage_stale` for each unit of R51; `reconciliation_required` when the issue is `done` or `superseded` (I36); `input_ignored` (`no_effect`) when nothing else is recorded |
 
 Reconciliation (SPEC-0007 R3) runs in any phase. Its proposal opens a gate of kind
 `roadmap_change`, and the change is applied by the `gate_resolved` that approves it, through the
 `artifact_status_changed` events it records (SPEC-0007 R4). The survey (SPEC-0010, SPEC-0011)
 may run in any phase and changes no phase by itself.
 
-P13 keeps the coverage true for every change of the main branch, not only for planned issues
-(R51, SPEC-0003 R16, Q12 of SPEC-0003). A push to the main branch is covered by the same rule
-when the git adapter observes it as `main_branch_pushed`; a push it does not observe makes no
+P13 keeps the coverage true for every change of the default branch, not only for planned issues
+(R51, SPEC-0003 R16, Q12 of SPEC-0003). A push to the default branch is covered by the same rule
+when the git adapter observes it as `default_branch_pushed`; a push it does not observe makes no
 unit stale, which the guide of the adapter states as a limit.
 
 ### Gates and approval states
@@ -401,7 +404,7 @@ evaluated before every other row (R33).
 | I0 | Any | Any observation whose `external_id` is recorded | None | None | Unchanged | Nothing |
 | I1 | `open` | `claim_requested` (command) | Ready (R19); the session is open | Engine | `claim`, checked out | `checkout_acquired`, artifact transitions (R43) |
 | I2 | `N` except `open` and `merge`, not checked out | `claim_requested` (command) | Ready (R19); the session is open | Engine | Same state, checked out | `checkout_acquired`, task to `implementing` if `approved` |
-| I3 | `X`, checked out, no dispatch, no hold | `step_requested` (command) | Sender is the holder (`checkout_not_held`); the step is the current state (`step_mismatch`); for `review`, the verifier ran neither `build` nor `counter_review` of the issue (`verifier_not_independent`, R49) and the head of `changed_paths` equals `verified_head`, whatever the order in which the two were observed (`head_not_observed`), so that SPEC-0003 R17 has a head to compare with; turns below the limit for an executor step; no budget scope of the issue exhausted | Engine | Same state, dispatch open | `step_started` |
+| I3 | `X`, checked out, no dispatch, no hold | `step_requested` (command) | Sender is the holder (`checkout_not_held`); the step is the current state (`step_mismatch`); for `review`, the verifier ran neither `build` nor `counter_review` of the issue (`verifier_not_independent`, R49) and the head of `changed_paths` equals `verified_head`, whatever the order in which the two were observed (`head_not_observed`), so that SPEC-0003 R17 has a head to compare with; turns below the limit for an executor step; no budget scope of the issue exhausted, except for a dispatch of `review` covered by the verification reserve (R29) | Engine | Same state, dispatch open | `step_started` |
 | I4 | `X`, executor step, as I3 | `step_requested` (command) | Turns at least the limit | Engine | Same state, hold `turn_limit` | `issue_blocked` |
 | I5 | `claim` | `step_result` (result) | Dispatch current; branch and worktree reported | Engine | `reanalysis` | `step_completed` |
 | I6 | `reanalysis` | `step_result`, outcome `completed` | Dispatch current; result valid | Agent | `counter_review`, or `checklist` when the tier skips it (R25) | `step_completed` |
@@ -495,7 +498,7 @@ it fails.
 
 | Condition | Code |
 | --- | --- |
-| The issue is a planned task issue in state `open`, from `claim` to `review`, or `pull_request` before its pull request is opened or, after a failed check, before its new head is observed | `awaiting_external` for `merge`, for `pull_request` awaiting checks and for `review` before the changed paths at `verified_head` are observed (I3); `transition_not_allowed` for `done` and `superseded` |
+| The issue is a planned task issue in state `open`, from `claim` to `verify`, `review` while the head of `changed_paths` equals `verified_head`, or `pull_request` before its pull request is opened or, after a failed check, before its new head is observed | `awaiting_external` for `merge`, for `pull_request` awaiting checks and for `review` before the changed paths at `verified_head` are observed (I3); `transition_not_allowed` for `done` and `superseded` |
 | The task is `approved` or `implementing` | `task_not_approved` |
 | Its epic and milestone are `approved` or `implementing` | `plan_not_approved` |
 | Every cited specification is `approved`, `implementing` or `done` | `specification_not_approved` |
@@ -582,6 +585,10 @@ A dispatch of `review` covered by the verification reserve is exempt from an exh
 budget (R29, decided by the maintainer on 2026-11-22): work already built is always verified,
 and no new work starts in the exhausted scope. Its tokens are still recorded and counted in the
 scope.
+
+Until the verification reserve enters the state with SPEC-0006 (M2), every dispatch of `review`
+of an issue whose `build` has completed counts as covered: work already built is verified even
+when its token scope is exhausted, within `limits.executor_retries` and the repetition of Q12.
 
 Usage and rate limits of a provider are not failures: the runtime
 waits or asks (SPEC-0008 R16) and the dispatch stays open.
@@ -687,7 +694,7 @@ Inputs:
 | `executor_failure` | Result | Runtime: `error` or `timeout`, with the executor call record when one exists | I28, I29 |
 | `council_report`, `plan_proposal`, `roadmap_change_proposal` | Result | Runtime, for a project dispatch | P4, P6, P12 |
 | `plan_observed` | Observation | Plan adapter: items and active sprint | Readiness, lanes, phase |
-| `branch_changes_observed` | Observation | Git adapter: branch, head, changed paths | R25 |
+| `branch_changes_observed` | Observation | Git adapter: branch, head, changed paths; at least for every head named by a passing `verification_result`, so that `review` never waits for an observation that is not coming (I3). | R25 |
 | `brief_submitted` | Observation | Tracker: a brief submitted on its gate issue | P1 |
 | `approval` | Observation | Tracker: person, gate, decision `approve` or `reject` | G2, G3, P2, P5, P7, P8 |
 | `answer` | Observation | Tracker: person, question gate, text, option when one is named | G4, I32 |
@@ -695,7 +702,7 @@ Inputs:
 | `status_change_requested` | Observation | Tracker: person, a person transition of SPEC-0001 | P10, P11, I34 |
 | `pull_request_opened`, `pull_request_synchronized`, `pull_request_checks_completed`, `pull_request_review_submitted`, `pull_request_merged`, `pull_request_closed`, `pull_request_reopened` | Observation | Tracker (SPEC-0003 R9); `pull_request_merged` also carries `changed_paths`, the paths the pull request changes at its merged head relative to its base, relative, NFC, sorted by code point, without duplicates, as `branch_changes_observed` reports them; they are not part of the payload, and the engine records their effect as `coverage_stale` (R51) | I15 to I26, P13, R51 |
 | `issue_closed`, `issue_reopened` | Observation | Tracker | I35, I36 |
-| `main_branch_pushed` | Observation | Git adapter, when it observes a push to the main branch that is not a merge of a pull request: the commit, its base and `changed_paths` as for `pull_request_merged` | P13, R51 |
+| `default_branch_pushed` | Observation | Git adapter, for a push to the default branch whose commit is not the merge commit of a pull request as the tracker reports it; a merge of a pull request is reported only as `pull_request_merged`. It carries the commit, its base and `changed_paths` as for `pull_request_merged` | P13, R51 |
 | `tracker_block_invalid` | Observation | Tracker adapter (SPEC-0005 R3) | I37 |
 
 Payloads of the kinds owned by this specification, version 1. The header fields (`issue`,
