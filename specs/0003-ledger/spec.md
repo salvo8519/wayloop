@@ -60,7 +60,7 @@ this draft that held the same numbers took the next free ones:
 - **R1**: THE ENGINE SHALL append every event to the ledger as one JSON Lines line and never rewrite, reorder or delete an acknowledged line; the only exceptions are the repair of a torn tail by the writer (R20), which removes no acknowledged line, and the recovery of R34.
 - **R2**: THE ENGINE SHALL store in every event, as `prev_hash`, the `hash` of the previous event of the ledger, and in the genesis event 64 zero digits.
 - **R3**: WHEN the ledger is replayed from the genesis event, THE ENGINE SHALL produce a state and a projection byte-identical to those the writer obtained by folding each event as it appended it, on every supported platform.
-- **R4**: IF the hash chain is broken, THEN THE ENGINE SHALL refuse every append and report the first broken event with its segment file, line, sequence number, pointer, expected and found values, and the revision of the last valid event.
+- **R4**: IF the hash chain is broken, THEN THE ENGINE SHALL refuse every append and report the first broken event with `source` `{ledger, line}` (its segment and line, section Contracts of the ledger), its sequence number, pointer, expected and found values, and the revision of the last valid event.
 - **R5**: THE ENGINE SHALL record every ruling as an event with a decision, a reason and the cost if wrong, and refuse a ruling that lacks any of them.
 - **R6**: THE ENGINE SHALL produce session, issue and milestone summaries as JSON validated by the summary schema, each within the token budget of its level.
 - **R7**: THE ENGINE SHALL write snapshots of the state and, WHEN it loads the ledger, replay from the latest valid snapshot plus the events that follow it.
@@ -72,7 +72,7 @@ this draft that held the same numbers took the next free ones:
 - **R13**: WHEN an agent checks out an issue that has a hand-over, THE ENGINE SHALL start its brief from the resume pack of R44, whatever agent or executor wrote the hand-over.
 - **R14**: THE ENGINE SHALL record one coverage state per coverage unit as events of the ledger, and derive the coverage of a requirement, a specification and a milestone from them.
 - **R15**: THE ENGINE SHALL store with every verdict the commit it was produced on, a flag for a dirty working tree and the citations it rests on.
-- **R16**: WHEN a merge changes a file cited by the evidence of a `covered` unit, THE ENGINE SHALL move that unit to `stale` and add it to the ready work.
+- **R16**: WHEN a merge changes, relative to the commit of the verdict, a file cited by the evidence of a `covered` unit, THE ENGINE SHALL record `coverage_stale` for that unit, move it to `stale` and add it to the ready work; a merge whose merged head is the commit of every verdict of the unit changes nothing relative to them.
 - **R17**: IF a verdict was produced on a commit other than the head of the branch under verification, or on a dirty working tree, THEN THE ENGINE SHALL refuse it and record the reason.
 - **R18**: THE ENGINE SHALL write through one writer that holds an exclusive whole-file lock of the operating system on `ledger.lock` for each write, appends the lines, flushes them to stable storage, and only then acknowledges the events; the writer releases the lock after the write, and the operating system releases it when the process ends.
 - **R19**: WHEN a command that changes state arrives, THE ENGINE SHALL evaluate its expected revision under the lock of the writer, after the retry check of R52, with the rule and the refusal of SPEC-0002 R41, and append nothing when it is stale.
@@ -104,7 +104,7 @@ this draft that held the same numbers took the next free ones:
 - **R45**: THE ENGINE SHALL record every executor call with role, executor, model, effort, step, phase, turns, tokens in, tokens out, duration in milliseconds and the source of its cost, with the cost in integer micro-units of a currency when the source gives one, and refuse a record that lacks a required field.
 - **R46**: WHILE a session holds a checkout, THE ENGINE SHALL extend its lease with every event of that session, including `lease_renewed`, and WHEN the checkout ends, THE ENGINE SHALL record a `checkout_released` event with the reason of section Payloads.
 - **R47**: THE ENGINE SHALL assign every session the identifier `session-<ledger>-<YYYY-MM-DD>-<NN>`, where `<ledger>` is the first eight digits of the `ledger_id`, the date is the UTC date of its `session_started` event, and `NN` is one more than the highest number used on that date in the ledger, the quarantine and the publications on the tracker, at least two digits.
-- **R48**: IF a hand-over or a lease renewal for an issue comes from a session that does not hold its checkout, other than the late hand-over of R12, THEN THE ENGINE SHALL refuse it with the code `checkout_not_held`, the reason `state` and the holder; IF a session end comes from an actor that is not the holder of that session, THEN THE ENGINE SHALL refuse it the same way.
+- **R48**: IF a hand-over, a lease renewal or a step request (SPEC-0002 I3) for an issue comes from a session that does not hold its checkout, other than the late hand-over of R12, THEN THE ENGINE SHALL refuse it with the code `checkout_not_held`, the reason `state` and the holder; IF a session end comes from an actor that is not the holder of that session, THEN THE ENGINE SHALL refuse it the same way.
 - **R49**: IF a derived file or a published summary cites a revision that is neither in the chain nor in a quarantine recorded by `ledger_recovered`, or a sequence number above the last event, THEN THE ENGINE SHALL report `ledger_regressed` with the file and the revision, and refuse every append until a person runs the recovery of R34.
 - **R50**: WHEN `wayloop ledger verify --full` runs, THE ENGINE SHALL also check that the revision of every published summary recorded by `summary_published` or `publication_imported` is in the chain or in a recorded quarantine.
 - **R51**: IF the git common directory is on a network file system, on a Windows drive reached from WSL, on a container bind mount or in a folder kept by a file synchronisation client, as far as the platform reports it, THEN THE ENGINE SHALL refuse to open the ledger with the code `ledger_storage_unsupported` and exit code 3.
@@ -115,24 +115,25 @@ this draft that held the same numbers took the next free ones:
 - **R56**: THE ENGINE SHALL refuse in `files_touched` and in every recorded path an absolute path, a `..` segment or a path not in Unicode NFC, and SHALL render published text so that it cannot close its marker or code fence or notify a tracker handle (section Security rules).
 - **R57**: THE ENGINE SHALL start every ledger with one genesis event of kind `ledger_created` at sequence 0, and refuse a ledger whose first event is not a genesis event or that holds a second one.
 - **R58**: THE ENGINE SHALL compute the `hash` of an event as the SHA-256, in lower-case hexadecimal, of the UTF-8 bytes of the event without its `hash` member, serialised as canonical JSON (RFC 8785), and refuse an event whose stored `hash` differs.
-- **R59**: THE ENGINE SHALL write every event as its canonical JSON followed by one line feed, at most `line_limit_bytes` of the genesis event, and refuse on read a line that exceeds the limit, checked before it is parsed, or that is not canonical JSON, with the segment file and line.
+- **R59**: THE ENGINE SHALL write every event as its canonical JSON followed by one line feed, at most `line_limit_bytes` of the genesis event, and refuse on read a line that exceeds the limit, checked before it is parsed, or that is not canonical JSON, with `source` `{ledger, line}`.
 - **R60**: THE ENGINE SHALL number events with `seq` from 0, each one more than the previous, and report a missing, repeated or out-of-order number with the reason `range`.
+- **R61**: THE PROJECT SHALL classify every change of a released contract of the areas `events` and `ledger` as a new version, additive changes included (section Contracts of the ledger, Q9).
 
 ## Acceptance criteria
 - **AC1** (R3): Given a generated ledger of 10,000 valid random events, when it is replayed twice and compared with the incremental fold of the writer that appended it, then the three states, the three projections and the revisions are byte-identical. Verification: property test.
-- **AC2** (R4, R58): Given `examples/ledger.edited-line.invalid.jsonl`, when it is loaded, then the error has the code `ledger_hash_mismatch`, `source` names the file and line 5, the pointer is `/hash`, and the revision of the last valid event is the hash of line 4. Verification: TDD, with the files of `examples/` as fixtures.
+- **AC2** (R4, R58): Given `examples/ledger.edited-line.invalid.jsonl`, when it is loaded, then the error has the code `ledger_hash_mismatch`, `source` is `{ledger, line}` naming the segment loaded and line 5, the pointer is `/hash`, and the revision of the last valid event is the hash of line 4. Verification: TDD, with the files of `examples/` as fixtures.
 - **AC3** (R6, R35): Given a milestone of 40 issues with 200 sessions, each hand-over at the budget, when the milestone summary is rolled up, then it validates, its `tokens` is at most the milestone budget, and for each section the kept entries plus the count in `omitted` equal the source entries of that section. Verification: TDD.
 - **AC4** (R9, R6): Given a merged pull request, when the issue summary is rolled up, then it has the outcome `merged` and the pull request entry carries the merge commit and `merged_at`. Verification: TDD, with `examples/summary.issue.merged.valid.json`.
 - **AC5** (R11, R28, R43): Given a session whose latest event plus its lease is earlier than the time given to `due_events`, when the next command that changes state is decided, then `checkout_released` with `lease_expired` and `session_ended` with `abandoned` are recorded first and the issue is ready; given a command that only reads, then nothing is appended. Verification: property test.
 - **AC6** (R13, R44): Given a hand-over written in a session of one executor, when an agent of another executor checks out the issue, then its brief starts with the resume pack as quoted data that names the author of each part, and the pack names that hand-over. Verification: TDD.
 - **AC7** (R14): Given a ledger of coverage events, when replayed, then the coverage of each specification equals its `covered` units over its active units. Verification: property test.
-- **AC8** (R16): Given a merge that edits a cited file, when reconciled, then the unit is `stale` and appears in the ready work, even when the edited lines are outside the cited range; given a merge that edits no cited file, then the unit stays `covered`. Verification: TDD.
+- **AC8** (R16): Given a `covered` unit whose verdicts were produced on commit C0 and a merge of another pull request that edits a cited file, when `pull_request_merged` is observed with its `changed_paths` (SPEC-0002 R51), then `coverage_stale` is recorded with the unit, the merge commit and the file, the unit is `stale` and appears in the ready work, even when the edited lines are outside the cited range; given a merge that edits no cited file, then the unit stays `covered`; given the merge of the pull request on whose merged head every verdict of the unit was produced, whose changes include the cited file, then the unit stays `covered`. Verification: TDD.
 - **AC9** (R17): Given a verdict carrying a commit older than the branch head, when submitted, then it is refused with the code `verdict_commit_stale` and the reason `stale`. Verification: TDD.
-- **AC10** (R60, R4): Given `examples/ledger.sequence-gap.invalid.jsonl`, when it is loaded, then the first error has the code `ledger_sequence_gap`, the reason `range`, `source` with line 7 and `expected` holding 6. Verification: TDD.
+- **AC10** (R60, R4): Given `examples/ledger.sequence-gap.invalid.jsonl`, when it is loaded, then the first error has the code `ledger_sequence_gap`, the reason `range`, `source` `{ledger, line}` with line 7 and `expected` holding 6. Verification: TDD.
 - **AC11** (R2, R4): Given `examples/ledger.rehashed-line.invalid.jsonl`, when it is loaded, then the error has the code `ledger_chain_broken`, the pointer `/prev_hash` of line 6, and `pointers` naming line 5. Verification: TDD.
 - **AC12** (R57, R23): Given `wayloop init` on a new clone, when the ledger is created, then line 1 is `ledger_created` with `seq` 0, `prev_hash` of 64 zeros, `format_version` 1 and `line_limit_bytes` 65,536; given a ledger whose first event is another kind, or that holds a second genesis event, then it is refused with the code `ledger_genesis`; given a genesis event with `hash_algorithm` `sha512`, then it is refused with the code `ledger_format_unknown` and the reason `enum`. Verification: TDD.
 - **AC13** (R18, R24): Given two processes in two worktrees of one clone, each appending 1,000 events at the same time, when both finish, then the ledger holds 2,001 events in one valid chain and every acknowledged event is present once; the test runs in CI on Linux, macOS and Windows. Verification: end-to-end.
-- **AC14** (R19, R52): Given an expected revision after which an event named the issue of the command, when a command that changes state runs, then it is refused with `revision_stale` and the reason `stale` (SPEC-0002 Errors) and the ledger is unchanged; given an expected revision after which only events of other issues were recorded, then the command is accepted; given a retry with the same `input_hash` after a stale revision, then the recorded result is returned. Verification: TDD.
+- **AC14** (R19, R52): Given an expected revision after which an event named the issue of the command, when a command that changes state runs, then it is refused with `revision_stale` and the reason `stale` (SPEC-0002 Errors) and the ledger is unchanged; given an expected revision after which only events of other issues were recorded, then the command is accepted; given that accepted command, then an event on its issue that makes its expected revision stale, when the command is retried with the same `input_hash` in the same session, then the result of its recorded events is returned, nothing is appended and no `revision_stale` is reported. Verification: TDD.
 - **AC15** (R20): Given `examples/ledger.torn-tail.invalid.jsonl`, when a reader loads it, then the partial line is ignored and nothing is moved; when the writer next takes the lock, then the partial line is moved to the quarantine, a `torn_tail_discarded` event follows line 31, the chain is valid and a warning `ledger_torn_tail` is reported; given a malformed line that is not the last one, then nothing is moved and the error of R59 is reported. Verification: TDD.
 - **AC16** (R21): Given an executor result that misses a required field, when it is returned, then a `result_rejected` event is recorded with the error pointer and the hash of the stored output, the retries of the step increase by one, and the state differs from the previous one only in the retries, the closed dispatch and the list of rejected results. Verification: TDD.
 - **AC17** (R22): Given an event of kind `future_kind` or of `schema_version` 99, when the ledger is loaded, then loading stops with the codes `event_kind_unknown` or `event_version_unknown`, the reason `enum`, the known values in `expected` and the recorded minimum engine version, and an append is refused. Verification: TDD.
@@ -168,7 +169,7 @@ this draft that held the same numbers took the next free ones:
 - **AC47** (R47): Given the ledger `5b0c7a1e-...`, two sessions started on 2027-01-15 and one on 2027-01-16, when they are recorded, then their identifiers are `session-5b0c7a1e-2027-01-15-01`, `session-5b0c7a1e-2027-01-15-02` and `session-5b0c7a1e-2027-01-16-01`; given a quarantine that holds `session-5b0c7a1e-2027-01-16-02`, then the next session of that date is `-03`. Verification: TDD.
 - **AC48** (R1, R18, R52): Given an append interrupted at every byte offset of its line, and after the line feed before the flush, when the ledger is loaded and the command is retried with the same input in the same session, then every acknowledged event is present once; a partial line is quarantined by the writer and the retry appends the event once; a complete line is kept and the retry appends nothing and returns its result. Verification: property test.
 - **AC49** (R59, R29, R56): Given `examples/canonicalization.vectors.json`, when each input is canonicalised and hashed, then the output and the hash equal the expected ones, and each invalid input is refused with its expected reason: `type` for `1.5`, `range` for 2^53, `syntax` for a lone surrogate and for invalid UTF-8; `1.0` and `1e3` have the canonical forms `1` and `1000`. Verification: contract test.
-- **AC50** (R27): Given `examples/ledger.time-order.invalid.jsonl`, when it is verified, then the error has the code `ledger_time_order`, the reason `range` and `source` with line 9. Verification: TDD.
+- **AC50** (R27): Given `examples/ledger.time-order.invalid.jsonl`, when it is verified, then the error has the code `ledger_time_order`, the reason `range` and `source` `{ledger, line}` with line 9. Verification: TDD.
 - **AC51** (R49, R50): Given a `state.yaml` or a snapshot whose `seq` is above the last event, or a published summary whose revision is not in the chain or a recorded quarantine, when the ledger is loaded or verified in full, then `ledger_regressed` names the file and the revision and an append is refused; given the recovery by a person, then `ledger_recovered` with the reason `regressed` is recorded and the derived files are rebuilt. Verification: TDD.
 - **AC52** (R51): Given a git common directory on a network file system, when a command opens the ledger, then it fails with `ledger_storage_unsupported` and exit code 3, on each platform where the test can mount one. Verification: end-to-end.
 - **AC53** (R53): Given a ledger whose minimum engine version is 0.1.0, when an engine of version 0.3.0 first appends a kind introduced in 0.3.0, then `min_engine_version_raised` with 0.3.0 precedes it; when an engine of version 0.2.0 loads that ledger, then it stops with the code `event_kind_unknown` and reports 0.3.0. Verification: TDD.
@@ -176,7 +177,10 @@ this draft that held the same numbers took the next free ones:
 - **AC55** (R56): Given a hand-over whose `files_touched` holds `/etc/passwd`, `../x` or a path in NFD, when submitted, then each is refused with its pointer; given a ruling whose text holds a marker of R38, a run of four backticks and a tracker handle, when the summary is rendered, then the marker is escaped, the fence is longer than four backticks and the handle notifies nobody. Verification: TDD.
 - **AC56** (R2, R57, R58, R59, R60): Given `examples/ledger.valid.jsonl`, when it is verified, then it passes, every line is canonical, every `prev_hash` equals the `hash` of the previous line, no lease ends between two events of one session, and the revision is `27765ee853d32a87cf9a58811891449fa18c103f1ea96854c95deb9e059c0c0c`. Verification: contract test.
 - **AC57** (R58): Given any event object and any permutation of the order of its members, when hashed, then the hash is the same and equals the SHA-256 of the canonical bytes without `hash`. Verification: property test.
-- **AC58** (R59): Given `examples/ledger.non-canonical.invalid.jsonl`, when it is loaded, then the error has the code `ledger_line_malformed`, the reason `syntax` and `source` with line 3; given a line one byte above the line limit, then the reason is `length` and the line is not parsed. Verification: TDD.
+- **AC58** (R59): Given `examples/ledger.non-canonical.invalid.jsonl`, when it is loaded, then the error has the code `ledger_line_malformed`, the reason `syntax` and `source` `{ledger, line}` with line 3; given a line one byte above the line limit, then the reason is `length` and the line is not parsed. Verification: TDD.
+- **AC59** (R15): Given a review result whose vote cites `{role: code, file: crates/a.rs, line: 10, end_line: 20}` and `{role: test, file: crates/a.rs, line: 40, end_line: 52}`, produced on the head of the branch with a clean working tree, when it is accepted, then its `coverage_verdict` holds that `commit`, `dirty` `false` and the two citations as given; given a vote without `commit` or without `dirty`, then the result is recorded as `result_rejected` with the reason `missing` at the pointer of the field. Verification: TDD.
+- **AC60** (R37): Given `wayloop init` without `[ledger.budgets]`, when it runs, then the first `limits_set` records `ledger_budgets` `handover` 1,200, `session` 1,500, `issue` 2,000 and `milestone` 4,000, and `meta.defaults_applied` lists the four keys; given `issue` 3,000, then 3,000 is recorded and `issue` is not listed. Verification: TDD.
+- **AC61** (R61): Given a contract `events/<kind>` released in version 1 and a member added to its type without a new version, when `scripts/schema_snapshots.py --diff-against origin/main` runs, then it fails and names the contract; given the same change of `ledger/summary`, then it fails too; given an added optional member of a released contract of the area `commands`, then it is classified as additive and passes. Verification: contract test.
 
 ## Coverage and verification
 
@@ -195,13 +199,14 @@ How the ledger holds these states (R14 to R17):
 | `planned` | `coverage_planned`, recorded when the gate of the specification is approved (SPEC-0002, Gates and approval states) |
 | `in_progress` | Derived: a dispatch of `review` is open for an issue whose task cites the requirement of the unit |
 | `covered`, `uncovered`, `needs_validation` | The tally of SPEC-0002 R9 over the `coverage_verdict` events of the latest review step of the unit; the engine computes it, no event carries it |
-| `stale` | `coverage_stale`, recorded when an observed merge changes a file cited by a `covered` unit (R16, Q12): the git adapter reports the paths that the merge changed, and the core compares them with the cited files. Changed ranges re-anchored along merges, which mark fewer units stale, arrive with SPEC-0009 |
+| `stale` | `coverage_stale`, recorded when `pull_request_merged` is observed (SPEC-0002 R51, I18, I24) for a `covered` unit with a cited file in the `changed_paths` that the observation carries, the paths the pull request changes at its merged head (R16, Q12). Relative to the commit of the verdict (R16): a unit whose verdicts were all produced on the merged head is not stale, because the merge adds no change after them; any other unit is compared with the paths of the merge, which marks it stale whenever the merge touches a cited file. Changed ranges re-anchored along merges, which mark fewer units stale, arrive with SPEC-0009 |
 
 The coverage of a requirement, a specification or a milestone is the number of its `covered`
 units over its active units, with the list of units, their state and their evidence (SPEC-0009
 R12). The head that R17 compares with is the head of the branch of the issue as last observed by
-`branch_changes_observed` (SPEC-0002); a refused verdict is a `result_rejected` of SPEC-0002 R23
-with the code `verdict_commit_stale` or `verdict_tree_dirty`.
+`branch_changes_observed` (SPEC-0002); a dispatch of `review` starts only after such a head was
+observed after the latest `build` (SPEC-0002 I3, `head_not_observed`). A refused verdict is a
+`result_rejected` of SPEC-0002 R23 with the code `verdict_commit_stale` or `verdict_tree_dirty`.
 
 ## Event model
 
@@ -320,7 +325,7 @@ agents and SDKs, accept enum values they do not know (ADR 0009 C5).
 | `reconciliation_required` | Inconsistent observation | SPEC-0002 | SPEC-0007 reconciliation |
 | `coverage_planned` | Coverage units of an approved specification (R14) | SPEC-0003 | Coverage of R14; SPEC-0009 R11, R12 |
 | `coverage_verdict` | One vote on one unit, with its evidence (R14, R15) | SPEC-0003 | SPEC-0002 R9, R49; coverage of R14 |
-| `coverage_stale` | A covered unit whose cited lines a merge changed (R16) | SPEC-0003 | SPEC-0002 R50; SPEC-0009 R11 |
+| `coverage_stale` | A covered unit with a cited file that a merge changed (R16) | SPEC-0003 | SPEC-0002 R50; SPEC-0009 R11 |
 | `policy_evaluated` | Evaluation of the policy on a pull request | SPEC-0021 R7 | SPEC-0021 R8 |
 | `waiver_used` | Waiver of a policy rule | SPEC-0021 R7 | SPEC-0021 R8 |
 
@@ -340,7 +345,7 @@ Payloads owned by this specification, version 1. Payloads are objects at most fo
 | `session_ended` | `outcome` (`handed_over`, `completed` or `abandoned`), `handover` (identifier, when `handed_over`) |
 | `checkout_acquired` | `holder`, `executor`, `branch` (valid under SPEC-0001 R11), `worktree` (name of the git worktree, never a path), `resumed_from` (optional hand-over identifier) |
 | `lease_renewed` | none |
-| `checkout_released` | `holder`, `reason` (`handed_over`, `awaiting_merge`, `merged`, `pull_request_closed`, `lease_expired`, `superseded`), `lease_ended_at` (when `lease_expired`, computed as in section Clock times) |
+| `checkout_released` | `holder`, `reason`: `handed_over` (the session ended with a hand-over), `awaiting_merge` (the issue reached `merge`, SPEC-0002 R35), `merged` (merged before it reached `merge`, SPEC-0002 I24), `pull_request_closed` (SPEC-0002 I25), `lease_expired` (R11) or `superseded` (the task was superseded); `lease_ended_at` (when `lease_expired`, computed as in section Clock times) |
 | `handover_recorded` | `record`: the hand-over record of SPEC-0001, whose `recorded_at` equals that of the event; `late` (`true`, only for a late hand-over of R12) |
 | `ruling_recorded` | `decision`, `reason`, `cost_if_wrong`, `question` (optional, the hash of the question gate it answers) |
 | `ruling_revoked` | `ruling` (hash of the `ruling_recorded` event), `reason` |
@@ -443,9 +448,10 @@ their meaning; no JSON schema is written by hand.
    same bytes on every platform.
 
 Strings are UTF-8 on disk. A lone surrogate, in an escape or in the bytes, and a byte sequence
-that is not UTF-8 are refused with the reason `syntax`. `1.0`, `1e3` and every number with a
-fraction or an exponent are refused with the reason `type`, even when their value is an
-integer (R29). `examples/canonicalization.vectors.json` holds the vectors of AC49: key order by
+that is not UTF-8 are refused with the reason `syntax`. Numbers are read by value (R29): in a
+payload to append, `1.0` and `1e3` are integers and are written `1` and `1000`, while a number
+whose value is not an integer, such as `1.5`, is refused with the reason `type`. A stored line
+that holds `1.0` or `1e3` is not canonical and is refused with the reason `syntax` (R59). `examples/canonicalization.vectors.json` holds the vectors of AC49: key order by
 UTF-16 code units, with a key outside the Basic Multilingual Plane; escapes of control
 characters; accented letters written as UTF-8; and the refused inputs.
 
@@ -454,7 +460,8 @@ every error of that line:
 
 1. It ends with a line feed; the last line of the last segment without one is a torn tail (R20).
 2. Its size is within the line limit, checked before it is parsed (R59).
-3. It is UTF-8, parses as JSON, holds only integers (R29) and equals its canonical form (R59).
+3. It is UTF-8, parses as JSON, holds only numbers whose value is an integer (R29) and equals
+   its canonical form (R59).
 4. Its `hash` is correct (R58).
 5. Its `seq` is one more than the previous (R60); the first is the genesis event (R57).
 6. Its `prev_hash` equals the `hash` of the previous line (R2).
@@ -568,8 +575,8 @@ published summaries cite revisions that the chain does not hold (R49, R50).
 | --- | --- | --- | --- |
 | Partial last line | `ledger_torn_tail` (warning) | `syntax` | Ignored by readers; quarantined and recorded by the writer (R20); never acknowledged, so nothing is lost |
 | Line over the limit | `ledger_line_malformed` | `length` | Broken chain |
-| Line not UTF-8, not JSON or not canonical | `ledger_line_malformed` | `syntax` | Broken chain |
-| Number with a fraction or an exponent | `ledger_line_malformed` | `type` | Broken chain |
+| Line not UTF-8, not JSON or not canonical, such as a stored `1.0` or `1e3` | `ledger_line_malformed` | `syntax` | Broken chain |
+| Number whose value is not an integer, such as `1.5` | `ledger_line_malformed` | `type` | Broken chain |
 | Stored `hash` wrong | `ledger_hash_mismatch` | `conflict` | Broken chain |
 | `seq` not one more than the previous | `ledger_sequence_gap` | `range` | Broken chain |
 | `prev_hash` not the previous `hash` | `ledger_chain_broken` | `conflict` | Broken chain |
@@ -626,7 +633,8 @@ A command of this kind from a session of an agent is refused with the reason `st
   never compares them with the current clock.
 - The core never reads a clock. The runtime passes the current time to one function,
   `due_events(state, now)` of SPEC-0002, which returns the events due by time: the releases of
-  R11 and the session ends of R43. Every command that changes state appends them first, under
+  R11, the session ends of R43 and the `summary_recorded` events of R36 that those ends cause,
+  in the order of SPEC-0002 section Ready work and lanes. Every command that changes state appends them first, under
   the lock (R28); a command that only reads never calls it and never appends.
 - The lease of a session ends at the `recorded_at` of the latest event of that session plus
   `limits.lease_minutes` of the latest `limits_set` (R46); its length and default are those of
@@ -650,9 +658,8 @@ A command of this kind from a session of an agent is refused with the reason `st
   quarantine and the publications, so that a recovery or a new clone never reuses one.
 - Hand-over numbers `HANDOVER-<issue>-<k>` continue the same way: `k` is one more than the
   highest found in the ledger, the quarantine and the publications of the issue.
-- A session holds zero or more checkouts. A checkout ends with `checkout_released` and one reason:
-  `handed_over` (the session ended with a hand-over), `awaiting_merge` (the issue reached
-  `merge`, SPEC-0002 R35), `merged`, `pull_request_closed`, `lease_expired` or `superseded`.
+- A session holds zero or more checkouts. A checkout ends with `checkout_released` and one of
+  the reasons listed in section Payloads (R46).
 - A late hand-over (R12) is accepted from the last holder after its lease ended, while no other
   session has claimed the issue. The session stays `abandoned`; the hand-over is recorded with
   `late` and the issue summary is rolled up again.
@@ -880,8 +887,8 @@ The hand-over is published in line 17. Line 7 holds accented letters, stored as 
 SPEC-0002 and this specification share the catalogue above. In particular:
 
 - the state changes only by `apply` of recorded events; `decide` is never called in a replay;
-- an issue is claimed by `checkout_acquired` and released by `checkout_released`, whose reasons
-  include `lease_expired` and `awaiting_merge`; the lease is computed only by `due_events`;
+- an issue is claimed by `checkout_acquired` and released by `checkout_released`, with the
+  reasons of section Payloads; the end of a lease is found only by `due_events`;
 - every event caused by an input carries its cause: `input_hash`, `dispatch` or `external_id`;
 - `result_rejected` counts as one retry of the step, and `step_failed` records the exhaustion of
   the retries; repeated failures of checks are counted by `attempt_failed`;
@@ -890,7 +897,8 @@ SPEC-0002 and this specification share the catalogue above. In particular:
 - staleness of an expected revision is scoped as in SPEC-0002 section Revisions;
 - a broken or regressed ledger is the stop reason `ledger_broken`;
 - the votes of `review` are recorded as `coverage_verdict` and tallied by SPEC-0002 R9; the stale
-  units of R16 are listed in the ready work by SPEC-0002 R50.
+  units of R16 are recorded by SPEC-0002 R51 when a merge is observed and listed in the ready
+  work by SPEC-0002 R50.
 
 ## Interfaces
 - Ledger files under `<git common dir>/wayloop/` with the layout of section Storage. New.
@@ -930,3 +938,5 @@ SPEC-0002 and this specification share the catalogue above. In particular:
 - [x] **Q10. Which `source` locates a ledger line?** Decided by the maintainer on 2026-11-22: (a), a fourth form of `source`, `{ledger, line}`, with the path of the segment relative to the git common directory, an additive change of `envelope/result` v1, which no release holds; SPEC-0004 R2 lists it, and the change of the type belongs to the ledger tasks (section Contracts of the ledger).
 - [x] **Q11. Recorded times in an envelope.** Decided by the maintainer on 2026-11-22: (a), SPEC-0004 R15 and AC11 are amended in this pull request to forbid only the clock time of the call; recorded times of the state, such as `recorded_at` and `merged_at`, may be returned (section Clock times, AC25).
 - [x] **Q12. How do the changed lines of a merge reach the core (R16)?** Decided by the maintainer on 2026-11-22: (b) for M1, the git adapter reports the changed paths and a unit is `stale` when a cited file changes (R16, AC8); changed ranges re-anchored along merges arrive with SPEC-0009, where they are recorded as an open question.
+- [ ] **Q13. How is a closed segment deleted?** R1 forbids deleting an acknowledged line, while Q1, section Storage and section Person-only commands allow a person to delete closed segments; the catalogue has no kind that records the deletion, and R32 does not say what a full verification does when the earliest segments are missing. Options: (a) drop deletion from M1: every segment is kept, and deletion becomes a later specification; (b) add the kind `segments_deleted` with the range of `seq`, the last hash of each deleted segment and the approver, make it an exception of R1, and let R32 verify from the snapshot that the earliest kept segment starts after; (c) move closed segments to an archive outside the ledger directory instead of deleting them, recorded by the same kind as (b). Recommendation: (b), because it keeps the decision of Q1 and leaves the chain verifiable from a recorded anchor.
+- [ ] **Q14. Are commands without a session idempotent?** R52 finds a retry only among the events of the same session, but `run_start_requested`, `project_step_requested` and `specification_submitted` may come without one. Options: (a) scope the key to the session, or to the run of `run_started` when there is no session; (b) scope the key to the whole ledger: the input holds `expected_revision`, so the same `input_hash` means the same command on the same revision; (c) leave such commands without idempotency and rely on the expected revision. Recommendation: (b), because it needs no new scope and a retry of any command is answered the same way.
