@@ -398,6 +398,10 @@ milestones:
           - { issue: 128, title: "Complete reference, guides and concepts in English and Italian", status: open }
           - { issue: 129, title: "GitLab adapter (free tier with structured fallback)", tags: [parallel], spec: "0005", status: open }
           - { issue: 130, title: "0.9.0 release candidate and contract freeze review", tags: [maintainer], status: open }
+      - title: "Performance"
+        labels: []
+        tasks:
+          - { issue: 316, title: "Closed segments of the ledger can be deleted and the chain still verified", status: open }
 
   - title: "M7 · Version 1.0"
     gate: "Wayloop 1.0.0 is published on every channel with frozen contracts and a stability policy."
