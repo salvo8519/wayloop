@@ -1,0 +1,96 @@
+# Scenario: one issue of tier substantial from its first claim to done (SPEC-0002 AC43).
+# A trace, not an event fixture: inputs, events and fields of SPEC-0002; payload shapes of the
+# kinds owned by SPEC-0003 come from it. Each entry gives the input with the time `at` given by
+# the writer, and the expected issue after it. Dispatches D1 to D8 stand for the hashes of the
+# `step_started` events.
+scenario: issue_cycle_happy_path
+configuration:
+  approvers: [maintainer]
+  limits: {turns_per_issue: 20, attempts: 3, same_failure: 2, executor_retries: 2, lease_minutes: 120}
+  policy:
+    areas: [{name: core, paths: ["crates/"], tier: substantial}]
+    skips: [{tier: small, steps: [counter_review]}]
+    merge_waived_tiers: []
+    required_checks: [rust]
+initial:
+  phase: delivery
+  sprint: {id: S01, lanes: [{name: core, issues: [12]}]}
+  sessions: [{session: session-5b0c7a1e-2026-11-17-01, holder: agent-a, executor: claude_code}]
+  artifacts:
+    - {id: M1, status: approved}
+    - {id: EPIC-0001, status: approved}
+    - {id: STORY-0001, status: approved}
+    - {id: SPEC-0001, status: approved}
+    - {id: TASK-0001, issue: 12, status: approved, area: core, depends_on: [], specifications: [SPEC-0001], requirements: ["SPEC-0001 R1"]}
+  issues:
+    - {issue: 12, issue_state: open, holds: [], turns: 0, attempt: 1}
+steps:
+  - input: {name: claim_requested, class: command, issue: 12, holder: agent-a, at: "2026-11-17T09:00:00Z"}
+    expect:
+      issue_state: claim
+      checkout: {holder: agent-a, branch: feat/12-record-time-entry, worktree: wayloop-12}
+      record: [checkout_acquired, artifact_status_changed, artifact_status_changed, artifact_status_changed, artifact_status_changed, artifact_status_changed]
+      artifacts: {TASK-0001: implementing, STORY-0001: implementing, SPEC-0001: implementing, EPIC-0001: implementing, M1: implementing}
+  - input: {name: step_requested, class: command, issue: 12, step: claim, at: "2026-11-17T09:00:01Z"}
+    expect: {issue_state: claim, dispatch: D1, turns: 0, record: [step_started]}
+  - input: {name: step_result, class: result, dispatch: D1, outcome: completed, at: "2026-11-17T09:01:00Z"}
+    expect: {issue_state: reanalysis, record: [step_completed]}
+  - input: {name: step_requested, class: command, issue: 12, step: reanalysis, at: "2026-11-17T09:01:01Z"}
+    expect: {dispatch: D2, turns: 1, record: [step_started]}
+  - input: {name: step_result, class: result, dispatch: D2, outcome: completed, at: "2026-11-17T09:20:00Z"}
+    expect: {issue_state: counter_review, record: [executor_call_recorded, step_completed]}
+  - input: {name: step_requested, class: command, issue: 12, step: counter_review, at: "2026-11-17T09:20:01Z"}
+    expect: {dispatch: D3, turns: 2, record: [step_started]}
+  - input: {name: step_result, class: result, dispatch: D3, outcome: completed, at: "2026-11-17T09:40:00Z"}
+    expect: {issue_state: checklist, record: [executor_call_recorded, step_completed]}
+  - input: {name: step_requested, class: command, issue: 12, step: checklist, at: "2026-11-17T09:40:01Z"}
+    expect: {dispatch: D4, turns: 3, record: [step_started]}
+  - input: {name: step_result, class: result, dispatch: D4, outcome: completed, at: "2026-11-17T09:50:00Z"}
+    expect: {issue_state: build, record: [executor_call_recorded, step_completed]}
+  - input: {name: step_requested, class: command, issue: 12, step: build, at: "2026-11-17T09:50:01Z"}
+    expect: {dispatch: D5, turns: 4, record: [step_started]}
+  - input: {name: lease_renewal_requested, class: command, issue: 12, holder: agent-a, at: "2026-11-17T10:20:00Z"}
+    expect: {record: [lease_renewed]}
+  - input: {name: step_result, class: result, dispatch: D5, outcome: completed, at: "2026-11-17T10:45:00Z"}
+    expect: {issue_state: verify, record: [executor_call_recorded, step_completed]}
+  - input: {name: step_requested, class: command, issue: 12, step: verify, at: "2026-11-17T10:45:01Z"}
+    expect: {dispatch: D6, turns: 4, record: [step_started]}
+  - input: {name: verification_result, class: result, dispatch: D6, head_sha: H1, checks: [{name: unit, passed: true}], at: "2026-11-17T10:50:00Z"}
+    note: The verified head H1 becomes verified_head (I10); review waits for the changed paths at H1 (I3).
+    expect: {issue_state: review, verified_head: H1, record: [step_completed]}
+  - next_steps: {now: "2026-11-17T10:50:00Z", free_workers: 0}
+    note: No run_step for review while the changed paths are not at verified_head; the issue is reported with awaiting_external (R19).
+    expect: {actions: []}
+  - input: {name: branch_changes_observed, class: observation, external_id: "branch:feat/12-record-time-entry:H1", head_sha: H1, paths: ["crates/wayloop-core/src/record.rs"], at: "2026-11-17T10:50:01Z"}
+    note: The changed paths at the verified head; they could equally have been observed during build, since I3 compares heads, not the order of events.
+    expect: {issue_state: review, tier: substantial, record: [branch_changes_observed]}
+  - input: {name: step_requested, class: command, issue: 12, step: review, lens: proof, verifier: agent-c, at: "2026-11-17T10:50:02Z"}
+    note: Tier substantial, one verifier on the lens proof (R11, R49); agent-c ran neither build nor counter_review.
+    expect: {dispatch: D7, turns: 5, record: [step_started]}
+  - input: {name: step_result, class: result, dispatch: D7, outcome: completed, votes: [{unit: 0001/R1/AC1, verdict: covered}], at: "2026-11-17T11:05:00Z"}
+    note: Each vote carries its citations, the commit H1 and working-tree flag false (SPEC-0003, Coverage and verification); omitted from this trace.
+    expect: {issue_state: pull_request, record: [executor_call_recorded, coverage_verdict, step_completed]}
+  - input: {name: step_requested, class: command, issue: 12, step: pull_request, at: "2026-11-17T11:05:01Z"}
+    expect: {dispatch: D8, record: [step_started]}
+  - input: {name: pull_request_opened, class: observation, external_id: "pull_request:40:opened", pull_request: 40, head_sha: H1, at: "2026-11-17T11:06:00Z"}
+    expect: {issue_state: pull_request, dispatch: null, record: [pull_request_opened, step_completed]}
+  - input: {name: pull_request_checks_completed, class: observation, external_id: "check_suite:7001", head_sha: H1, checks: [{name: rust, conclusion: success}], at: "2026-11-17T11:20:00Z"}
+    expect:
+      issue_state: merge
+      checkout: null
+      record: [pull_request_checks_completed, gate_opened, checkout_released]
+      checkout_released: {reason: awaiting_merge}
+      artifacts: {TASK-0001: implementing}
+  - input: {name: approval, class: observation, external_id: "comment:9001", actor: agent-b, decision: approve, at: "2026-11-17T11:21:00Z"}
+    expect: {issue_state: merge, gate: pending, record: [input_ignored], code: actor_not_authorised}
+  - input: {name: approval, class: observation, external_id: "comment:9002", actor: maintainer, decision: approve, at: "2026-11-17T11:30:00Z"}
+    expect: {issue_state: merge, gate: resolved, record: [approval_recorded, gate_resolved]}
+  - next_steps: {now: "2026-11-17T11:30:05Z", free_workers: 1}
+    expect: {actions: [{kind: merge, issue: 12}]}
+  - input: {name: pull_request_merged, class: observation, external_id: "pull_request:40:merged", actor: maintainer, head_sha: H1, changed_paths: ["crates/wayloop-core/src/record.rs"], at: "2026-11-17T11:31:00Z"}
+    note: Every verdict of the unit 0001/R1/AC1 was produced on the merged head H1, so no coverage_stale is recorded (R51, SPEC-0003 R16).
+    expect:
+      issue_state: done
+      checkout: null
+      record: [pull_request_merged, issue_done, artifact_status_changed, artifact_status_changed, artifact_status_changed]
+      artifacts: {TASK-0001: done, STORY-0001: done, EPIC-0001: done}

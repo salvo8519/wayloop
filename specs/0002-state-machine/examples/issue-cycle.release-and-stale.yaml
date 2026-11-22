@@ -1,0 +1,52 @@
+# Scenario: a scoped revision accepted, a stale command, a lease expiry, a stale result whose
+# cost is kept, and a new claim that resumes (SPEC-0002 R20, R21, R22, R41, AC23, AC24, AC40,
+# AC43). Revisions are symbolic: rev-N is the hash of the event with seq N. Every event of one
+# input carries the time `at` as recorded_at. A trace, not an event fixture.
+scenario: issue_cycle_release_and_stale
+configuration:
+  approvers: [maintainer]
+  limits: {turns_per_issue: 20, attempts: 3, same_failure: 2, executor_retries: 2, lease_minutes: 120}
+initial:
+  revision: rev-10
+  recorded_at: "2026-11-17T10:00:00Z"
+  sprint: {id: S01, lanes: [{name: core, issues: [12]}, {name: docs, issues: [13]}]}
+  sessions:
+    - {session: session-5b0c7a1e-2026-11-17-01, holder: agent-a, latest_event: "2026-11-17T10:00:00Z"}
+    - {session: session-5b0c7a1e-2026-11-17-02, holder: agent-b, latest_event: "2026-11-17T09:58:00Z"}
+  artifacts:
+    - {id: TASK-0001, issue: 12, status: implementing}
+    - {id: TASK-0002, issue: 13, status: implementing}
+  issues:
+    - {issue: 12, issue_state: build, checkout: {holder: agent-a, session: session-5b0c7a1e-2026-11-17-01}, holds: [], turns: 4, attempt: 1}
+    - {issue: 13, issue_state: reanalysis, checkout: {holder: agent-b, session: session-5b0c7a1e-2026-11-17-02}, holds: [], turns: 0, attempt: 1}
+steps:
+  - input: {name: step_requested, class: command, issue: 13, step: reanalysis, holder: agent-b, expected_revision: rev-10, at: "2026-11-17T10:05:00Z"}
+    expect: {revision: rev-11, dispatch: rev-11, record: [step_started]}
+  - input: {name: step_requested, class: command, issue: 12, step: build, holder: agent-a, expected_revision: rev-10, at: "2026-11-17T10:10:00Z"}
+    note: The only event after rev-10 names issue 13, so the revision is not stale for issue 12 (section Revisions).
+    expect: {revision: rev-12, dispatch: rev-12, record: [step_started]}
+  - input: {name: session_end_requested, class: command, issue: 12, holder: agent-a, expected_revision: rev-11, at: "2026-11-17T10:15:00Z"}
+    note: Event rev-12 names issue 12 and was recorded after rev-11.
+    expect: {refused: [revision_stale], expected: [rev-12], revision: rev-12, record: []}
+  - input: {name: lease_renewal_requested, class: command, issue: 13, holder: agent-b, expected_revision: rev-12, at: "2026-11-17T11:50:00Z"}
+    expect: {revision: rev-13, record: [lease_renewed]}
+  - due_events: {now: "2026-11-17T12:30:00Z"}
+    note: The lease of agent-a ended at 12:10 (latest event 10:10 plus 120 minutes); agent-b renewed at 11:50, so its lease ends at 13:50.
+    expect:
+      revision: rev-16
+      record: [checkout_released, artifact_status_changed, session_ended]
+      checkout_released: {issue: 12, reason: lease_expired}
+      session_ended: {session: session-5b0c7a1e-2026-11-17-01, outcome: abandoned}
+      issues: {12: {issue_state: build, checkout: null, dispatch: null}}
+      artifacts: {TASK-0001: approved}
+  - input: {name: step_result, class: result, dispatch: rev-12, outcome: completed, executor_call: {tokens_in: 21000, tokens_out: 2400}, at: "2026-11-17T12:31:00Z"}
+    expect: {refused: [dispatch_stale], revision: rev-17, record: [executor_call_recorded]}
+  - input: {name: session_start_requested, class: command, holder: agent-c, executor: fake, expected_revision: rev-17, at: "2026-11-17T12:40:00Z"}
+    expect: {revision: rev-18, record: [session_started]}
+  - input: {name: claim_requested, class: command, issue: 12, holder: agent-c, expected_revision: rev-18, at: "2026-11-17T12:40:01Z"}
+    expect:
+      revision: rev-20
+      issue_state: build
+      checkout: {holder: agent-c, session: session-5b0c7a1e-2026-11-17-03}
+      record: [checkout_acquired, artifact_status_changed]
+      artifacts: {TASK-0001: implementing}

@@ -1,0 +1,37 @@
+# Scenario: the same check fails on two consecutive attempts (SPEC-0002 R26, R27, AC30, AC43).
+# A trace, not an event fixture: inputs, events and fields of SPEC-0002.
+scenario: issue_cycle_repeated_failure
+configuration:
+  approvers: [maintainer]
+  limits: {turns_per_issue: 20, attempts: 3, same_failure: 2, executor_retries: 2, lease_minutes: 120}
+initial:
+  issues:
+    - {issue: 12, issue_state: verify, checkout: {holder: agent-a}, holds: [], turns: 4, attempt: 1, failures: {}}
+steps:
+  - input: {name: step_requested, class: command, issue: 12, step: verify, at: "2026-11-17T10:00:00Z"}
+    expect: {dispatch: D1, record: [step_started]}
+  - input: {name: verification_result, class: result, dispatch: D1, checks: [{name: unit, passed: false}, {name: lint, passed: true}], at: "2026-11-17T10:05:00Z"}
+    expect: {issue_state: build, attempt: 2, failures: {unit: 1}, holds: [], record: [attempt_failed]}
+  - input: {name: step_requested, class: command, issue: 12, step: build, at: "2026-11-17T10:05:01Z"}
+    expect: {dispatch: D2, turns: 5, record: [step_started]}
+  - input: {name: step_result, class: result, dispatch: D2, outcome: completed, at: "2026-11-17T10:40:00Z"}
+    expect: {issue_state: verify, record: [executor_call_recorded, step_completed]}
+  - input: {name: step_requested, class: command, issue: 12, step: verify, at: "2026-11-17T10:40:01Z"}
+    expect: {dispatch: D3, record: [step_started]}
+  - input: {name: verification_result, class: result, dispatch: D3, checks: [{name: unit, passed: false}, {name: lint, passed: true}], at: "2026-11-17T10:45:00Z"}
+    expect:
+      issue_state: build
+      attempt: 2
+      failures: {unit: 2}
+      holds: [{reason: question, gate: G1}]
+      record: [attempt_failed, gate_opened, issue_blocked]
+      question: {category: repeated_failure, options: [retry, stop]}
+  - input: {name: step_requested, class: command, issue: 12, step: build, at: "2026-11-17T10:46:00Z"}
+    expect: {refused: [issue_on_hold], record: []}
+  - input: {name: answer, class: observation, external_id: "comment:901", actor: maintainer, gate: G1, text: "retry", option: retry, at: "2026-11-17T11:00:00Z"}
+    expect:
+      issue_state: build
+      attempt: 1
+      failures: {}
+      holds: []
+      record: [question_answered, gate_resolved, issue_unblocked]
