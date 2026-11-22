@@ -121,6 +121,10 @@ Signed-off-by: Name Surname <email>
   closing keywords as GitHub does: `close`, `closes`, `closed`, `fix`, `fixes`, `fixed`,
   `resolve`, `resolves` and `resolved`, in any case, with an optional colon, anywhere in the
   body. Trivial changes without an issue (a typo) carry the label `no-issue`.
+- **Waiting for the maintainer**: a pull request whose work waits for an approval (a
+  specification before `Approved`) links its issue with `Refs #42`, so its checks stay green.
+  The change that records the approval switches the body to `Closes #42` and marks the task
+  `done` in `roadmap/roadmap.yaml`; `roadmap.py check --pr-body` passes before the merge.
 - **Branch and issue agree**: the issue number in the branch is the one linked in the body.
 - **One definition**: `scripts/conventions.py` owns the branch rule (`branch_issue`,
   `sprint_of`) and the closing keywords (`closed_issues`, `linked_issues`); the other scripts
