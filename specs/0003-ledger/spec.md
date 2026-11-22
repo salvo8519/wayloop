@@ -108,7 +108,7 @@ this draft that held the same numbers took the next free ones:
 - **R49**: IF a derived file or a published summary cites a revision that is neither in the chain nor in a quarantine recorded by `ledger_recovered`, or a sequence number above the last event, THEN THE ENGINE SHALL report `ledger_regressed` with the file and the revision, and refuse every append until a person runs the recovery of R34.
 - **R50**: WHEN `wayloop ledger verify --full` runs, THE ENGINE SHALL also check that the revision of every published summary recorded by `summary_published` or `publication_imported` is in the chain or in a recorded quarantine.
 - **R51**: IF the git common directory is on a network file system, on a Windows drive reached from WSL, on a container bind mount or in a folder kept by a file synchronisation client, as far as the platform reports it, THEN THE ENGINE SHALL refuse to open the ledger with the code `ledger_storage_unsupported` and exit code 3.
-- **R52**: WHEN a command arrives whose `input_hash` is already recorded by an event of the same session, THE ENGINE SHALL append nothing and return the result of the recorded events, before it evaluates the expected revision.
+- **R52**: WHEN a command arrives whose `input_hash` and `expected_revision` are already recorded by an event of the same session, or, for a command without a session, by any event of the ledger, THE ENGINE SHALL append nothing and return the result of the recorded events, before it evaluates the expected revision; the input holds `expected_revision`, so one `input_hash` names one command on one revision.
 - **R53**: WHEN the writer appends the first event of a kind or of a schema version that requires a newer engine than the minimum recorded by the ledger, THE ENGINE SHALL first record `min_engine_version_raised` with the new minimum.
 - **R54**: THE ENGINE SHALL record in every snapshot the fold version of the engine that wrote it, and ignore with a warning a snapshot whose fold version differs from its own.
 - **R55**: WHEN `wayloop init` creates a ledger in a clone whose tracker holds published summaries and hand-overs, THE ENGINE SHALL import with `publication_imported` every one that passes R39, so that resume packs and identifiers continue from them.
@@ -181,6 +181,7 @@ this draft that held the same numbers took the next free ones:
 - **AC59** (R15): Given a review result whose vote cites `{role: code, file: crates/a.rs, line: 10, end_line: 20}` and `{role: test, file: crates/a.rs, line: 40, end_line: 52}`, produced on the head of the branch with a clean working tree, when it is accepted, then its `coverage_verdict` holds that `commit`, `dirty` `false` and the two citations as given; given a vote without `commit` or without `dirty`, then the result is recorded as `result_rejected` with the reason `missing` at the pointer of the field. Verification: TDD.
 - **AC60** (R37): Given `wayloop init` without `[ledger.budgets]`, when it runs, then the first `limits_set` records `ledger_budgets` `handover` 1,200, `session` 1,500, `issue` 2,000 and `milestone` 4,000, and `meta.defaults_applied` lists the four keys; given `issue` 3,000, then 3,000 is recorded and `issue` is not listed. Verification: TDD.
 - **AC61** (R61): Given a contract `events/<kind>` released in version 1 and a member added to its type without a new version, when `scripts/schema_snapshots.py --diff-against origin/main` runs, then it fails and names the contract; given the same change of `ledger/summary`, then it fails too; given an added optional member of a released contract of the area `commands`, then it is classified as additive and passes. Verification: contract test.
+- **AC62** (R52): Given a `project_step_requested` without a session, accepted with the expected revision R1, and then an event that makes R1 stale for the project, when the same input is sent again, then the result of its recorded events is returned, nothing is appended and no `revision_stale` is reported; given the same command with the expected revision R2, whose `input_hash` therefore differs, then it is decided as a new command. Verification: TDD.
 
 ## Coverage and verification
 
@@ -496,8 +497,9 @@ computed on its bytes as stored.
   hand-over files and the index are derived and can be rebuilt from the ledger; the summary
   files are checked against their events (R41).
 - A segment is closed by a `snapshot_taken` event, which is its last line; the next event opens
-  a new segment. Closed segments are never written again and are kept uncompressed; they are
-  deleted only by a person, through a command recorded as an event (Q1).
+  a new segment. Closed segments are never written again and are kept uncompressed. Deleting
+  closed segments is not part of M1 and is planned separately (Q1, Q13): in M1 every segment is
+  kept (R1).
 - Paths of ledger files in events and errors are relative to the git common directory, such as
   `wayloop/ledger/000000000000.jsonl`; repository paths (`files_touched`, citations) are relative
   to the root of the project. An absolute path never enters the ledger or an envelope.
@@ -542,8 +544,9 @@ unsupported.
   the lease of a session stops two agents from working on one issue; the idempotency key makes
   a retried command safe.
 - An event is acknowledged only after its line is flushed to stable storage. A command
-  interrupted before the acknowledgement may still have left a complete line; its retry in the
-  same session finds the `input_hash` and appends nothing (R52).
+  interrupted before the acknowledgement may still have left a complete line; its retry finds the
+  `input_hash`, in the same session or, for a command without a session, in the ledger, and
+  appends nothing (R52).
 - An effect on the tracker happens before the event that records it, and is idempotent: a crash
   between the two repeats the effect, which the marker of R38 or the `external_id` of R30 makes
   harmless.
@@ -612,8 +615,9 @@ quarantine, and the derived files are rebuilt.
 
 ## Person-only commands
 
-`wayloop ledger recover`, `wayloop init` and the deletion of closed segments are decisions of a
-person. The engine accepts them only through these channels:
+`wayloop ledger recover` and `wayloop init` are decisions of a person. The deletion of closed
+segments is not part of M1 and is planned separately (Q13). The engine accepts these commands
+only through these channels:
 
 - An interactive terminal: the command is not exposed through the MCP server, the SDKs or the
   tool definitions of agents (ADR 0024); it requires a terminal on its standard input and the
@@ -926,7 +930,7 @@ SPEC-0002 and this specification share the catalogue above. In particular:
 (`specs/README.md`, Agent workflow).
 
 ## Open questions
-- [x] **Q1. Retention of closed segments after a snapshot.** Decided by the maintainer on 2026-11-17: (a), every segment is kept uncompressed and deleted only on an explicit command of a person, recorded as an event.
+- [x] **Q1. Retention of closed segments after a snapshot.** Decided by the maintainer on 2026-11-17: (a), every segment is kept uncompressed and deleted only on an explicit command of a person, recorded as an event. Narrowed by the maintainer on 2026-11-22 (Q13): deletion is not part of M1 and is planned separately; in M1 every segment is kept.
 - [x] **Q2. Recovery of a broken chain.** Decided by the maintainer on 2026-11-17: (a), `wayloop ledger recover` run by a person, with the confirmation of the last kept hash, and with breaks in closed segments treated by quarantining every later segment (R34, section Integrity).
 - [x] **Q3. Where the milestone summary is published.** Decided by the maintainer on 2026-11-17: (b), one comment on the tracking issue of the milestone, on the same path as an issue summary.
 - [x] **Q4. Who writes summaries.** Decided by the maintainer on 2026-11-17: (a), the deterministic fill rule of section Roll-up, with prose only from hand-overs.
@@ -938,5 +942,5 @@ SPEC-0002 and this specification share the catalogue above. In particular:
 - [x] **Q10. Which `source` locates a ledger line?** Decided by the maintainer on 2026-11-22: (a), a fourth form of `source`, `{ledger, line}`, with the path of the segment relative to the git common directory, an additive change of `envelope/result` v1, which no release holds; SPEC-0004 R2 lists it, and the change of the type belongs to the ledger tasks (section Contracts of the ledger).
 - [x] **Q11. Recorded times in an envelope.** Decided by the maintainer on 2026-11-22: (a), SPEC-0004 R15 and AC11 are amended in this pull request to forbid only the clock time of the call; recorded times of the state, such as `recorded_at` and `merged_at`, may be returned (section Clock times, AC25).
 - [x] **Q12. How do the changed lines of a merge reach the core (R16)?** Decided by the maintainer on 2026-11-22: (b) for M1, the git adapter reports the changed paths and a unit is `stale` when a cited file changes (R16, AC8); changed ranges re-anchored along merges arrive with SPEC-0009, where they are recorded as an open question.
-- [ ] **Q13. How is a closed segment deleted?** R1 forbids deleting an acknowledged line, while Q1, section Storage and section Person-only commands allow a person to delete closed segments; the catalogue has no kind that records the deletion, and R32 does not say what a full verification does when the earliest segments are missing. Options: (a) drop deletion from M1: every segment is kept, and deletion becomes a later specification; (b) add the kind `segments_deleted` with the range of `seq`, the last hash of each deleted segment and the approver, make it an exception of R1, and let R32 verify from the snapshot that the earliest kept segment starts after; (c) move closed segments to an archive outside the ledger directory instead of deleting them, recorded by the same kind as (b). Recommendation: (b), because it keeps the decision of Q1 and leaves the chain verifiable from a recorded anchor.
-- [ ] **Q14. Are commands without a session idempotent?** R52 finds a retry only among the events of the same session, but `run_start_requested`, `project_step_requested` and `specification_submitted` may come without one. Options: (a) scope the key to the session, or to the run of `run_started` when there is no session; (b) scope the key to the whole ledger: the input holds `expected_revision`, so the same `input_hash` means the same command on the same revision; (c) leave such commands without idempotency and rely on the expected revision. Recommendation: (b), because it needs no new scope and a retry of any command is answered the same way.
+- [x] **Q13. How is a closed segment deleted?** Decided by the maintainer on 2026-11-22: deletion of closed segments is not part of M1 and is planned separately. R1 is unchanged: no acknowledged line is deleted in M1, every segment is kept, and no event kind is added (section Storage, section Person-only commands; this narrows Q1).
+- [x] **Q14. Are commands without a session idempotent?** Decided by the maintainer on 2026-11-22: the same rule as for a command with a session: a retry with the same `input_hash` and the same `expected_revision` returns the result of the recorded events; for a command without a session the key is looked up in the whole ledger (R52, AC62).
