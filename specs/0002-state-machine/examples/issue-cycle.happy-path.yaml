@@ -55,10 +55,14 @@ steps:
     expect: {issue_state: verify, record: [executor_call_recorded, step_completed]}
   - input: {name: step_requested, class: command, issue: 12, step: verify, at: "2026-11-17T10:45:01Z"}
     expect: {dispatch: D6, turns: 4, record: [step_started]}
-  - input: {name: verification_result, class: result, dispatch: D6, checks: [{name: unit, passed: true}], at: "2026-11-17T10:50:00Z"}
-    expect: {issue_state: review, record: [step_completed]}
+  - input: {name: verification_result, class: result, dispatch: D6, head_sha: H1, checks: [{name: unit, passed: true}], at: "2026-11-17T10:50:00Z"}
+    note: The verified head H1 becomes verified_head (I10); review waits for the changed paths at H1 (I3).
+    expect: {issue_state: review, verified_head: H1, record: [step_completed]}
+  - next_steps: {now: "2026-11-17T10:50:00Z", free_workers: 0}
+    note: No run_step for review while the changed paths are not at verified_head; the issue is reported with awaiting_external (R19).
+    expect: {actions: []}
   - input: {name: branch_changes_observed, class: observation, external_id: "branch:feat/12-record-time-entry:H1", head_sha: H1, paths: ["crates/wayloop-core/src/record.rs"], at: "2026-11-17T10:50:01Z"}
-    note: The head after the latest build, which the guard of I3 for review requires and the verdict is compared with (SPEC-0003 R17).
+    note: The changed paths at the verified head; they could equally have been observed during build, since I3 compares heads, not the order of events.
     expect: {issue_state: review, tier: substantial, record: [branch_changes_observed]}
   - input: {name: step_requested, class: command, issue: 12, step: review, lens: proof, verifier: agent-c, at: "2026-11-17T10:50:02Z"}
     note: Tier substantial, one verifier on the lens proof (R11, R49); agent-c ran neither build nor counter_review.
