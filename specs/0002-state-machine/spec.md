@@ -43,7 +43,7 @@ requirements and criteria of this draft that held the same numbers took the next
 - **R7**: THE ENGINE SHALL apply the approvers, limits, budgets and policy recorded by the latest `limits_set` and `policy_set` events, never the configuration file read at the time of a decision.
 - **R8**: WHERE the risk tier of an issue is `contract`, THE ENGINE SHALL run the review step as a panel of three verifiers, one per lens (SPEC-0003, Coverage and verification), none of which wrote or counter-reviewed the change, each instructed that a coverage unit is `uncovered` unless it can cite the code and the test that cover it, and SHALL allow one repetition of the panel: one more dispatch of one lens when its verifier fails or its result is rejected, so that the panel costs at most four invocations.
 - **R9**: THE ENGINE SHALL compute the outcome of a panel from the votes alone: `covered` only when every lens votes `covered`; `needs_validation` when no lens votes `uncovered` and at least one votes `needs_validation`; `uncovered` otherwise. No model computes or reports the outcome.
-- **R10**: IF a verifier returns a vote without a citation for each claim, THEN THE ENGINE SHALL count it as `uncovered` and record the reason `uncited`.
+- **R10**: IF a verifier returns a vote without a citation for each claim, THEN THE ENGINE SHALL count it as `uncovered` and record `downgrade` `uncited` in its `coverage_verdict` (SPEC-0003, Payloads).
 - **R11**: WHERE the risk tier of an issue is `substantial`, THE ENGINE SHALL run the review step with one verifier on the `proof` lens under R9 and R10; WHERE it is `small`, THE ENGINE SHALL rely on the deterministic checks of the verify step alone, whatever the policy says.
 - **R12**: WHEN a gate of kind `council_report` or `roadmap` is rejected, THE ENGINE SHALL move its subject to `superseded`, propose no new `run_council` or `generate_plan` for that brief, and report the stop reason `rejected_awaiting_input` until an approver requests a new run or the brief is superseded.
 - **R13**: WHEN a subject reaches one of the approval states of section Gates and approval states, THE ENGINE SHALL open a gate, record `gate_opened`, and propose no action that passes the gate while it is pending.
@@ -82,8 +82,11 @@ requirements and criteria of this draft that held the same numbers took the next
 - **R46**: THE ENGINE SHALL record `run_started` with the account of the runtime and, WHILE that account is a recorded approver, propose no action and report the stop reason `engine_account_is_approver`.
 - **R47**: THE ENGINE SHALL derive the phase of the project from the statuses of its artifacts with the function of section Project phase, and record `phase_changed` whenever an event changes the derived phase.
 - **R48**: WHILE an open brief has no council report in `draft`, or an approved council report has no pending plan proposal, THE ENGINE SHALL propose the action `run_council` or `generate_plan` for that subject within the budget of the phase, and dispatch it through `project_step_requested`.
-- **R49**: WHEN the review step of an issue starts, THE ENGINE SHALL dispatch it once per lens that R8 or R11 requires for the tier of the issue, one lens at a time in the order `presence`, `behaviour`, `proof`, each to a verifier that ran neither `build` nor `counter_review` of the issue, over the coverage units of the requirements cited by its task; WHEN the last lens has voted, THE ENGINE SHALL tally each unit under R9 and R10 and move the issue to `pull_request` when every unit is `covered`, to `build` when a unit is `uncovered`, and otherwise hold it with a question of category `needs_validation` (SPEC-0009 R10).
-- **R50**: THE ENGINE SHALL list in `ready` of `next_steps`, after the ready issues, every coverage unit in state `stale` (SPEC-0003 R16), by unit identifier.
+- **R49**: WHEN the review step of an issue starts, THE ENGINE SHALL dispatch it once per lens that R8 or R11 requires for the tier of the issue, one lens at a time in the order `presence`, `behaviour`, `proof`, each to a verifier that ran neither `build` nor `counter_review` of the issue, and only after a head of the branch was observed after the latest `build` (I3), over the coverage units of the requirements cited by its task; WHEN the last lens has voted, THE ENGINE SHALL tally each unit under R9 and R10 and move the issue to `pull_request` when every unit is `covered`, to `build` when a unit is `uncovered`, and otherwise hold it with a question of category `needs_validation` (SPEC-0009 R10).
+- **R50**: THE ENGINE SHALL list in `ready` of `next_steps`, after the ready issues, every coverage unit in state `stale` (SPEC-0003 R16), by unit identifier in code point order.
+- **R51**: WHEN `pull_request_merged` is observed for the closing pull request of an issue (I18, I24), THE ENGINE SHALL record `coverage_stale` for every `covered` unit that SPEC-0003 R16 makes stale, comparing the cited files of its verdicts with the `changed_paths` the observation carries, and SHALL record none for a unit whose verdicts were all produced on the merged head.
+- **R52**: IF a policy, given to `wayloop init` or carried by `run_start_requested`, lists in `skips` a step other than `counter_review`, or in `merge_waived_tiers` a tier other than `small` (ADR 0029), THEN THE ENGINE SHALL refuse it with the code `policy_skip_not_allowed` or `policy_waiver_not_allowed` and record nothing.
+- **R53**: WHEN `wayloop init` writes the configuration, THE ENGINE SHALL write the default of section Limits and budgets for every limit the person does not give, list each default in `meta.defaults_applied`, record the values in the first `limits_set`, and IF a token budget of section Limits and budgets is not given, THEN refuse the configuration with the code `budget_missing`.
 
 ## Acceptance criteria
 - **AC1** (R1, R18, R32): Given every pair of issue-cycle state and input of the table Issue transitions, generated with random guards, when decided and applied, then the next state, the holds and the recorded events match the table, and every pair absent from the table is refused with `transition_not_allowed` or `step_mismatch` or, for an observation, recorded as the table says for an inconsistent observation. Verification: property test.
@@ -91,7 +94,7 @@ requirements and criteria of this draft that held the same numbers took the next
 - **AC3** (R5, R19): Given a random set of issues, lanes and free workers, when the next steps are computed for the same state with the issues stored in different orders, then the output is identical and ordered as section Ready work and lanes says. Verification: property test.
 - **AC4** (R8): Given an issue of tier `contract`, when the review step starts, then three verifiers are dispatched with distinct lenses and none of them is the implementer or the counter-reviewer; given the verifier of one lens that times out, then one more dispatch of that lens is started and a second failure of any lens holds the issue with `executor_failure`, so that at most four dispatches of `review` are started. Verification: TDD.
 - **AC5** (R9): Given every combination of three votes, when tallied, then the outcome matches the rule of R9. Verification: property test.
-- **AC6** (R10): Given a `covered` vote with no citation, when tallied, then it counts as `uncovered` with reason `uncited`. Verification: TDD.
+- **AC6** (R10): Given a `covered` vote with no citation, when tallied, then it counts as `uncovered` and its `coverage_verdict` records `downgrade` `uncited`. Verification: TDD.
 - **AC7** (R11): Given an issue of tier `substantial`, when the review step starts, then exactly one verifier is dispatched with the `proof` lens; given an issue of tier `small`, then none is, even under a policy that lists no skip. Verification: TDD.
 - **AC8** (R45, R44): Given a recorded configuration with approvers `maintainer`, 20 turns and a sprint budget of 100,000 tokens, when a run starts with the approver `other` added, 30 turns and a sprint budget of 50,000, then `limits_set` records the budget of 50,000 at once, a gate of kind `configuration` holds the new approver and the 30 turns, the limit stays 20 while it is pending, an approval by `other` is ignored with `actor_not_authorised`, and an approval by `maintainer` records `limits_set` with both changes. Verification: TDD.
 - **AC9** (R46): Given recorded approvers `maintainer` and `wayloop-bot`, when a run starts with the account `wayloop-bot`, then `run_started` is recorded, no action is proposed and the stop reason is `engine_account_is_approver`. Verification: TDD.
@@ -135,6 +138,10 @@ requirements and criteria of this draft that held the same numbers took the next
 - **AC47** (R1, R2, R3): Given a random sequence of inputs decided one after the other by a writer, when the recorded events are applied again from the initial state, then the state is byte-identical to the state the writer held after each event, and no call of `decide` happens during the replay; and given any state and input, when `decide` runs, then every emitted event carries the `input_hash`, the `dispatch` or the `external_id` of the input, according to its class. Verification: property test.
 - **AC48** (R49, R8, R11): Given an issue of tier `contract` whose task cites one requirement with two acceptance criteria, when the review step starts, then three dispatches follow one another with the lenses `presence`, `behaviour` and `proof`; given a verifier that ran `build` of the issue, then its dispatch is refused with `verifier_not_independent`; given the votes `covered` from every lens, then the issue moves to `pull_request`; given one `uncovered` vote, then it moves to `build`; given one `needs_validation` vote and no `uncovered` one, then it is held with a question of category `needs_validation`. Verification: TDD.
 - **AC49** (R50): Given two units `0002/R8/AC4` and `0002/R9/AC5` in state `stale` and one ready issue, when the next steps are computed, then `ready` lists the issue first and then the two units in that order. Verification: TDD.
+- **AC50** (R51): Given a unit `0001/R1/AC1` `covered` by verdicts produced on commit C0 of an earlier issue, citing `crates/a.rs`, when `pull_request_merged` of another issue is observed with `changed_paths` holding `crates/a.rs`, at `merge` with an approved gate (I18) and, in a second run, at `build` without approval (I24), then in both runs `coverage_stale` names the unit, the merge commit and `crates/a.rs` (SPEC-0003 R16); given `changed_paths` without `crates/a.rs`, then the unit stays `covered`; given the merge of the pull request whose merged head H1 is the commit of every verdict of the unit, with `changed_paths` holding `crates/a.rs`, then no `coverage_stale` is recorded. Verification: TDD.
+- **AC51** (R49): Given an issue at `review` whose latest `branch_changes_observed` was recorded before the latest `step_completed` of `build`, when the step `review` is requested, then it is refused with `head_not_observed` and no `step_started` is recorded; given a `branch_changes_observed` of the branch recorded after it, then the step is accepted. Verification: TDD.
+- **AC52** (R52): Given a policy whose `skips` holds `{tier: substantial, steps: [review]}`, when `wayloop init` or a run start carries it, then it is refused with `policy_skip_not_allowed`, the reason `enum` and `counter_review` in `expected`; given `merge_waived_tiers` holding `substantial`, then it is refused with `policy_waiver_not_allowed`, the reason `enum` and `small` in `expected`; in both cases nothing is recorded. Verification: TDD.
+- **AC53** (R53): Given `wayloop init` with approvers and every token budget but no limit, when it runs, then the first `limits_set` records `turns_per_issue` 20, `attempts` 3, `same_failure` 2, `executor_retries` 2 and `lease_minutes` 120, and `meta.defaults_applied` lists the five keys of `limits`; given a given limit, then it is recorded and not listed; given no `budgets.sprint`, then the configuration is refused with `budget_missing`, the reason `missing` and the pointer of the key, and no ledger is created. Verification: TDD.
 
 ## Model
 
@@ -184,9 +191,10 @@ Time enters the core only as data.
 - The lease of a session, its end and its renewal are defined once, in SPEC-0003 section Clock
   times (R46); its length is `limits.lease_minutes` of section Limits and budgets.
 
-### Inputs
+### Input classes
 
-Every input belongs to one class (R4). The class decides the cause recorded, how staleness is
+Every input belongs to one class (R4); the class of each input is given by the table Inputs of
+section Events. The class decides the cause recorded, how staleness is
 detected and what happens when the input does not fit the state.
 
 | Class | Sent by | Carries | Cause recorded (R3) | When it does not fit the state |
@@ -386,7 +394,7 @@ evaluated before every other row (R33).
 | I0 | Any | Any observation whose `external_id` is recorded | None | None | Unchanged | Nothing |
 | I1 | `open` | `claim_requested` (command) | Ready (R19); the session is open | Engine | `claim`, checked out | `checkout_acquired`, artifact transitions (R43) |
 | I2 | `N` except `open` and `merge`, not checked out | `claim_requested` (command) | Ready (R19); the session is open | Engine | Same state, checked out | `checkout_acquired`, task to `implementing` if `approved` |
-| I3 | `X`, checked out, no dispatch, no hold | `step_requested` (command) | Sender is the holder (`checkout_not_held`); the step is the current state (`step_mismatch`); for `review`, the verifier ran neither `build` nor `counter_review` of the issue (`verifier_not_independent`, R49); turns below the limit for an executor step; no budget scope of the issue exhausted | Engine | Same state, dispatch open | `step_started` |
+| I3 | `X`, checked out, no dispatch, no hold | `step_requested` (command) | Sender is the holder (`checkout_not_held`); the step is the current state (`step_mismatch`); for `review`, the verifier ran neither `build` nor `counter_review` of the issue (`verifier_not_independent`, R49) and a `branch_changes_observed` of the branch was recorded after the latest `step_completed` of `build` (`head_not_observed`), so that SPEC-0003 R17 has a head to compare with; turns below the limit for an executor step; no budget scope of the issue exhausted | Engine | Same state, dispatch open | `step_started` |
 | I4 | `X`, executor step, as I3 | `step_requested` (command) | Turns at least the limit | Engine | Same state, hold `turn_limit` | `issue_blocked` |
 | I5 | `claim` | `step_result` (result) | Dispatch current; branch and worktree reported | Engine | `reanalysis` | `step_completed` |
 | I6 | `reanalysis` | `step_result`, outcome `completed` | Dispatch current; result valid | Agent | `counter_review`, or `checklist` when the tier skips it (R25) | `step_completed` |
@@ -401,18 +409,18 @@ evaluated before every other row (R33).
 | I15 | `pull_request`, dispatch open, no pull request | `pull_request_opened` (observation) | Branch of the issue; body closes the issue (SPEC-0001 R10) | Engine | Same state, pull request recorded, dispatch closed | `pull_request_opened`, `step_completed` |
 | I16 | `pull_request`, pull request recorded, no dispatch | `pull_request_checks_completed` (observation): every required check `success` at the recorded head | Tier not waived (G7) | Engine | `merge`, not checked out | `pull_request_checks_completed`, `gate_opened` (kind `merge`), `checkout_released` (`awaiting_merge`) if checked out |
 | I17 | As I16 | As I16 | Tier `small` and the policy waives the merge gate | Engine | `merge`, not checked out | `pull_request_checks_completed`, `gate_waived`, `checkout_released` (`awaiting_merge`) if checked out |
-| I18 | `merge` | `pull_request_merged` (observation) | Merge gate `approved` or waived | Person or engine | `done` | `pull_request_merged`, `issue_done`, task to `done` and the transitions of R43 |
+| I18 | `merge` | `pull_request_merged` (observation) | Merge gate `approved` or waived | Person or engine | `done` | `pull_request_merged`, `issue_done`, task to `done` and the transitions of R43, `coverage_stale` for each unit of R51 |
 | I19 | `merge` | `pull_request_review_submitted` (observation), changes requested, at the recorded head | Reviewer is a recorded approver | Person | `build`, pull request kept | `pull_request_review_submitted`, `gate_resolved` (`rejected`) |
 | I20 | `pull_request`, pull request recorded | `pull_request_checks_completed` with a required check failed at the recorded head | Limits of R27 not reached | Engine | `build`, attempt plus one, same branch | `pull_request_checks_completed`, `attempt_failed` |
 | I21 | `pull_request`, dispatch open, pull request recorded | `pull_request_synchronized` (observation) at the branch of the issue | New head | Engine | Same state, head recorded, dispatch closed | `pull_request_synchronized`, `step_completed` |
 | I22 | `pull_request` without dispatch, or `merge` | `pull_request_synchronized` | New head | Any (fact) | `pull_request`, head recorded, checks cleared | `pull_request_synchronized`, `gate_withdrawn` (`head_changed`) for the merge gate |
 | I23 | `N` with a pull request | `pull_request_checks_completed` or `pull_request_review_submitted` at another head | None | Any (fact) | Unchanged | `input_ignored` (`head_stale`) |
-| I24 | `N` | `pull_request_merged` of the closing pull request | Merge gate neither `approved` nor waived | Any (fact) | `done` | `pull_request_merged`, `issue_done`, `gate_bypassed`, `gate_withdrawn` for pending gates, `checkout_released` (`merged`) if checked out, `reconciliation_required`, task to `done` |
+| I24 | `N` | `pull_request_merged` of the closing pull request | Merge gate neither `approved` nor waived | Any (fact) | `done` | `pull_request_merged`, `issue_done`, `gate_bypassed`, `gate_withdrawn` for pending gates, `checkout_released` (`merged`) if checked out, `reconciliation_required`, task to `done`, `coverage_stale` for each unit of R51 |
 | I25 | `N` with a pull request | `pull_request_closed` (observation) | None | Any (fact) | Same state, pull request cleared, hold `pull_request_closed` | `pull_request_closed`, `gate_withdrawn` (`pull_request_closed`), `checkout_released` (`pull_request_closed`) if checked out, `issue_blocked` |
 | I26 | `N`, held with `pull_request_closed` | `pull_request_reopened` (observation) of the cleared number | None | Any (fact) | `pull_request`, pull request restored, hold removed | `pull_request_reopened`, `issue_unblocked` |
 | I27 | An executor step with a dispatch | `step_result`, outcome `question_raised` | Dispatch current; question valid: context, options with cost, recommendation (SPEC-0007 R1) | Agent | Same state, hold `question` | `step_completed` (`question_raised`), `gate_opened` (kind `question`), `issue_blocked` |
-| I28 | Any state with a dispatch | `step_result` invalid or failing a guard, or `executor_failure` (result) | Retries below `limits.executor_retries` | Engine | Same state, dispatch closed, retries plus one | `result_rejected` or `step_retried` |
-| I29 | As I28 | As I28 | Retries at `limits.executor_retries` | Engine | Same state, dispatch closed, hold `executor_failure` | `result_rejected` when the output is invalid, `step_failed`, `issue_blocked` |
+| I28 | Any state with a dispatch | `step_result` invalid or failing a guard, or `executor_failure` (result) | Retries below `limits.executor_retries`; for a dispatch of `review` of tier `contract`, instead, the repetition of the panel not yet used (R8, Q12) | Engine | Same state, dispatch closed, retries plus one | `result_rejected` or `step_retried` |
+| I29 | As I28 | As I28 | Retries at `limits.executor_retries`; for a dispatch of `review` of tier `contract`, instead, the repetition of the panel already used (R8, Q12) | Engine | Same state, dispatch closed, hold `executor_failure` | `result_rejected` when the output is invalid, `step_failed`, `issue_blocked` |
 | I30 | `N`, checked out | `session_end_requested` (command) with a hand-over | Sender is the holder of the session; hand-over valid (SPEC-0001 R22) | Agent | Same state, not checked out | `handover_recorded`, `session_ended` (`handed_over`), `checkout_released` (`handed_over`) |
 | I31 | `N`, checked out | Due: the lease of the session ended (`due_events`) | `now` not earlier than the end of the lease | Engine | Same state, not checked out, dispatch closed | `checkout_released` (`lease_expired`), `session_ended` (`abandoned`), task to `approved` |
 | I32 | `N`, held | Input of the table Holds for a reason of the issue | As the table says | Person or engine | Hold removed; state of the table Holds when it was the last hold | `issue_unblocked` when no hold remains |
@@ -503,7 +511,8 @@ released keeps its lane and is the one claimed next.
 
 Order. `due_events` returns, for every session whose lease ended, by session identifier, its
 `checkout_released` events by issue number, each followed by the task transition of I31, then
-its `session_ended`. `next_steps` lists
+its `session_ended`, then the `summary_recorded` events of SPEC-0003 R36 and R43: its session
+summary, then the issue summary of each released issue, by issue number. `next_steps` lists
 actions in this order, and stops when `free_workers` actions that need a worker are listed:
 
 1. `run_step` for checked-out issues with no dispatch and no hold, by issue number; their
@@ -515,7 +524,7 @@ actions in this order, and stops when `free_workers` actions that need a worker 
    the order of the lane, then by issue number.
 
 Issues that are ready but get no `claim` are listed in `ready` in the same order, followed by the
-coverage units in state `stale`, by unit identifier (R50). This machine does not dispatch their
+coverage units in state `stale`, by unit identifier in code point order (R50). This machine does not dispatch their
 verification: the convergence run of SPEC-0009 R11 does.
 
 ### Limits and budgets
@@ -525,16 +534,16 @@ verification: the convergence run of SPEC-0009 R11 does.
 | Turns per issue | `limits.turns_per_issue` | 20 | Executor steps started (I3) | Hold `turn_limit` (I4, R28) |
 | Attempts per issue | `limits.attempts` | 3 | The attempt number; a failed verification or required check ends an attempt | Question `repeated_failure` when attempt `limits.attempts` fails (I12, R27) |
 | Same failure | `limits.same_failure` | 2 | Consecutive attempts on which one check fails | Question `repeated_failure` (I12, R27) |
-| Executor retries per step | `limits.executor_retries` | 2 | Executor failures and rejected results of the open step | `step_failed`, hold `executor_failure` (I29, R23) |
-| Lease | `limits.lease_minutes` | 120 | Minutes since the latest event of the session | Release (I31, R22) |
+| Executor retries per step | `limits.executor_retries` | 2 | Executor failures and rejected results of the open step; for `review` of tier `contract`, the one repetition of the panel replaces this limit (R8, Q12) | `step_failed`, hold `executor_failure` (I29, R23) |
+| Lease | `limits.lease_minutes` | 120 | The end of the lease, as SPEC-0003 section Clock times defines it | Release (I31, R22) |
 | Budget of a phase | `budgets.intake`, `budgets.council`, `budgets.planning` | None | Tokens of the executor calls of project steps in that phase | `budget_exhausted` (R29) |
 | Budget of a sprint | `budgets.sprint` | None | Tokens of the executor calls of issues of the active sprint | `budget_exhausted` (R29) |
 | Budget of a milestone | `budgets.milestone` | None | Tokens of the executor calls of issues of the milestone, in phase `delivery` | `budget_exhausted` (R29) |
 
 Defaults are listed in `meta.defaults_applied` (ADR 0009 C2) when `wayloop init` writes them, and
-recorded by the first `limits_set`; from then on the recorded value applies (R7). Budgets have no
-default: every phase has a token budget (constitution VI), so `wayloop init` writes the values the
-person gives and refuses a missing one. Tokens are the
+recorded by the first `limits_set`; from then on the recorded value applies (R7, R53). Budgets have
+no default: every phase has a token budget (constitution VI), so `wayloop init` writes the values
+the person gives and refuses a missing one with `budget_missing` (R53). Tokens are the
 sum of `tokens_in` and `tokens_out` of `executor_call_recorded` (SPEC-0003). The scope of an
 issue step is its milestone and, when the issue is in the active sprint, the sprint; the scope of
 a project step is the phase. Usage and rate limits of a provider are not failures: the runtime
@@ -544,8 +553,8 @@ waits or asks (SPEC-0008 R16) and the dispatch stays open.
 
 The tier of an issue is the highest of the tier of its area and the tiers of the paths of the
 latest `branch_changes_observed` at the recorded head of its branch, as the recorded policy maps
-them (SPEC-0021). Before any change is observed, the tier is the tier of the area. Tiers are
-`small`, `substantial` and `contract`, as in the table of AGENTS.md. The engine computes the tier
+them (SPEC-0021). Before any change is observed, the tier is the tier of the area. The enum
+`risk_tier` has the values `small`, `substantial` and `contract`, in rising order of risk. The engine computes the tier
 at every decision that uses it (R25); it is never reported by an agent. The tier decides which
 steps are skipped (R25), the verifiers of `review` (R8, R11, R49) and whether the merge gate is
 waived (R17).
@@ -568,12 +577,13 @@ SPEC-0003 section Coverage and verification. Each dispatch of `review` names its
 verifier in `step_started`; the verifier is not an agent that ran `build` or `counter_review` of
 the issue (R49). Its result carries one vote per coverage unit of the requirements cited by the
 task, each with its citations (R24). The engine records each vote as `coverage_verdict` (SPEC-0003
-R14, R15); a vote without a citation for each claim counts as `uncovered` with the reason
-`uncited` (R10). After the last lens, the engine tallies each unit under R9; no model computes
+R14, R15); a vote without a citation for each claim counts as `uncovered`, and its
+`coverage_verdict` records `downgrade` `uncited` (R10). After the last lens, the engine tallies each unit under R9; no model computes
 or reports the outcome. A verdict produced on a commit other than the head of the branch as
 last observed (`branch_changes_observed`), or on a
 dirty working tree, is a result that fails a guard (SPEC-0003 R17): `result_rejected`, one retry
-(R23).
+(R23). A dispatch of `review` starts only after a head of the branch was observed after the
+latest `build` (I3, `head_not_observed`), so that this comparison always has a head.
 
 The repetition of the panel that R8 allows is one more dispatch of one lens of the same review
 step when its verifier fails or its result is rejected (Q12); it replaces
@@ -582,14 +592,15 @@ panel costs at most four invocations, the reserve of SPEC-0006 R11. A second fai
 holds the issue with `executor_failure` (I29).
 
 `review` follows the tier for every tier (Q11): the policy may skip `counter_review` for any
-tier, but never `review` of `substantial` or `contract`, and never keeps `review` for `small`. A tier that rises after
+tier, but never `review` of `substantial` or `contract`, and never keeps `review` for `small`; a
+policy that lists another step in `skips` is refused (R52). A tier that rises after
 `counter_review` does not repeat it; it raises the review required at `review`. A merge waiver
 needs a `branch_changes_observed` at the recorded head: without one, the merge gate is opened.
 
 ### Revisions
 
 A command carries `expected_revision`, the hash of the latest ledger event the sender read
-(ADR 0009 C6, SPEC-0004 R12). A revision is stale when it is not the hash of an event of the
+(ADR 0009 C6, SPEC-0004 R5). A revision is stale when it is not the hash of an event of the
 chain, or when an event recorded after it touched the subject of the command:
 
 - for a command on an issue, an event whose header names that issue;
@@ -603,8 +614,9 @@ the recorded events before its revision is evaluated (SPEC-0003 R52). A stale co
 with the current revision in `expected` and nothing is recorded (R41); the sender reads the state again and decides again. Staleness and every guard are
 evaluated by the writer under its lock on the latest state, so that two commands that both read
 the same revision cannot both pass a guard that only one of them may pass. This is the rule of
-ADR 0009 C6 as amended by #233; this section adds only the list of events that touch the
-project.
+ADR 0009 C6 as amended by #233. This section adds two things to C6: the list of events that
+touch the project, above, and the order of the checks, in which a retry of SPEC-0003 R52 is
+answered before its revision is evaluated.
 
 Results use their dispatch instead of a revision (R21): a worker in one lane must not be refused
 because another lane recorded an event. Observations carry no revision: they report facts that
@@ -626,7 +638,7 @@ Inputs:
 | `claim_requested` | Command | Runtime or agent | I1, I2 |
 | `step_requested` | Command | Runtime or agent, the holder; for `review`, the lens and the verifier | I3, I4 |
 | `project_step_requested` | Command | Runtime: step `council`, `plan` or `reconcile`, subject | P3, P12 |
-| `lease_renewal_requested` | Command | Runtime of the holder, every quarter of the lease | R22 |
+| `lease_renewal_requested` | Command | Runtime of the holder, as SPEC-0003 section Clock times says | R22 |
 | `session_end_requested` | Command | Agent, the holder, with its hand-over input (SPEC-0001) | I30 |
 | `specification_submitted` | Command | Agent: the normalised specification (SPEC-0001 R12) | Gate `specification` |
 | `step_result` | Result | Runtime: validated executor output, outcome `completed`, `changes_requested` or `question_raised`, with the executor call record; for `review`, the votes with their evidence (SPEC-0003, Coverage and verification) | I5 to I9, I13, I14, I27 to I29, I38 |
@@ -640,7 +652,7 @@ Inputs:
 | `answer` | Observation | Tracker: person, question gate, text, option when one is named | G4, I32 |
 | `unblock_requested`, `stop_requested` | Observation | Tracker: person, issue or brief | I32, I33, P9 |
 | `status_change_requested` | Observation | Tracker: person, a person transition of SPEC-0001 | P10, P11, I34 |
-| `pull_request_opened`, `pull_request_synchronized`, `pull_request_checks_completed`, `pull_request_review_submitted`, `pull_request_merged`, `pull_request_closed`, `pull_request_reopened` | Observation | Tracker (SPEC-0003 R9) | I15 to I26 |
+| `pull_request_opened`, `pull_request_synchronized`, `pull_request_checks_completed`, `pull_request_review_submitted`, `pull_request_merged`, `pull_request_closed`, `pull_request_reopened` | Observation | Tracker (SPEC-0003 R9); `pull_request_merged` also carries `changed_paths`, the paths the pull request changes at its merged head relative to its base, relative, NFC, sorted by code point, without duplicates, as `branch_changes_observed` reports them; they are not part of the payload, and the engine records their effect as `coverage_stale` (R51) | I15 to I26, R51 |
 | `issue_closed`, `issue_reopened` | Observation | Tracker | I35, I36 |
 | `tracker_block_invalid` | Observation | Tracker adapter (SPEC-0005 R3) | I37 |
 
@@ -685,10 +697,11 @@ name of its command in SPEC-0004.
 | `issue_superseded` | `superseded_by` (task identifiers) |
 | `artifact_status_changed` | `artifact`, `from`, `to`, `by` (optional, the person) |
 | `budget_exhausted`, `budget_restored` | `scope` (`{kind, id}`, kind `phase`, `sprint` or `milestone`), `budget`, `tokens` |
-| `reconciliation_required` | `subject`, `code` (`issue_closed_without_merge`, `issue_reopened`, `merged_without_approval`, `status_conflict`, `observation_inconsistent`), `detail` (optional) |
+| `reconciliation_required` | `subject`, `code` (a value of the enum `reconciliation_code`: `issue_closed_without_merge`, `issue_reopened`, `merged_without_approval`, `status_conflict`, `observation_inconsistent`; it names the inconsistency found, it is not a refusal and not a constant of `Code`), `detail` (optional) |
 
 `checkout_acquired`, `lease_renewed`, `checkout_released`, `session_started`, `session_ended`,
-`handover_recorded`, `executor_call_recorded`, `result_rejected` and the pull request events are
+`handover_recorded`, `executor_call_recorded`, `result_rejected`, `summary_recorded`, the pull
+request events and the kinds `coverage_planned`, `coverage_verdict` and `coverage_stale` are
 owned by SPEC-0003; this machine emits them with the fields that specification defines.
 
 ### Artifact transitions taken by the engine
@@ -710,10 +723,11 @@ The engine transitions of SPEC-0001 and their triggers (R43). Person transitions
 
 ### Stop reasons
 
-`stop_reason` (R42): `approval_required` (a pending gate other than a question), each value of
-`question_category`, `turn_limit`, `executor_failure`, `pull_request_closed`,
-`reconciliation_required`, `stopped_by_person`, `budget_exhausted`, `rejected_awaiting_input`,
-`engine_account_is_approver`, `ledger_broken`. Each stop names its gate, question, issue or
+`stop_reason` (R42) holds each value of `question_category`, for a pending question, and each
+value of `hold_reason` other than `question`, for a held issue (table Holds), by reference to
+those enums, without repeating their values; and its own values `approval_required` (a pending
+gate other than a question), `budget_exhausted`, `rejected_awaiting_input`,
+`engine_account_is_approver` and `ledger_broken`. Each stop names its gate, question, issue or
 scope. `wayloop next` and `wayloop status` return them (SPEC-0004).
 
 ### Errors
@@ -744,13 +758,17 @@ SPEC-0003 is listed with a reference, not defined again.
 | R21 | `dispatch_stale` | `stale` | The open dispatch, when one exists |
 | I3, I30 | `checkout_not_held` | Defined by SPEC-0003 (R48) | |
 | I3, R49 | `verifier_not_independent` | `conflict` | None; the step that the verifier ran in `pointers` |
+| I3, R49 | `head_not_observed` | `missing` | None; no `branch_changes_observed` of the branch after the latest `build` |
+| R52 | `policy_skip_not_allowed` | `enum` | `counter_review` |
+| R52 | `policy_waiver_not_allowed` | `enum` | `small` |
+| R53 | `budget_missing` | `missing` | The budget keys not given |
 | R14 | `actor_not_authorised` | `requires` | None; carried by `input_ignored` |
 | R15 | `question_unanswered`, `checks_not_green`, `plan_changed` | `requires` | None; carried by `input_ignored` |
 | R23, R24 | `checklist_incomplete`, `objection_unruled`, `vote_missing` | `missing` | The missing requirements, objections or coverage units; carried by `result_rejected` |
 | R23, I13 | `verdict_commit_stale`, `verdict_tree_dirty` | Defined by SPEC-0003 (R17) | |
 | G4 | `option_unknown` | `enum` | `retry`, `stop`; carried by `input_ignored` |
 | R37 | `head_stale` | `stale` | The recorded head; carried by `input_ignored` |
-| Inputs | `no_effect` | `state` | None; carried by `input_ignored` |
+| Input classes | `no_effect` | `state` | None; carried by `input_ignored` |
 | R41 | `revision_stale` | `stale` | The current revision |
 
 ### Examples
@@ -768,7 +786,7 @@ come from it, so the files are traces, not fixtures of an event schema.
 - `issue-cycle.small-tier-waiver.yaml`: an issue of tier `small` merged under the policy waiver.
 
 ## Interfaces
-- Core: `decide`, `apply`, `due_events` and `next_steps` of section The four functions, in `crates/wayloop-core`; enums `issue_state` (from `IssueStep`), `gate_kind`, `gate_state`, `resolution`, `hold_reason`, `question_category`, `stop_reason`, `action_kind`, `phase`. The tier and the lens are the enums of the policy (SPEC-0021) and of SPEC-0003, imported, not defined here. Enums that reach a contract are types of `wayloop-schemas` (ADR 0030 G1). All new.
+- Core: `decide`, `apply`, `due_events` and `next_steps` of section The four functions, in `crates/wayloop-core`; enums `issue_state` (from `IssueStep`), `gate_kind`, `gate_state`, `resolution`, `hold_reason`, `question_category`, `stop_reason`, `action_kind`, `phase`, `reconciliation_code`, and `risk_tier`, the enum of section Risk tier, which the policy of SPEC-0021 uses. The lens is the enum of SPEC-0003 section Coverage and verification, imported, not defined here. Enums that reach a contract are types of `wayloop-schemas` (ADR 0030 G1). All new.
 - `wayloop next` returns `actions`, `ready` (issues, then stale coverage units) and `stops`; `wayloop status` returns the phase, the gates, and the state, holds and stop reasons of every issue (SPEC-0004). Both report `meta.revision`. Their data types are output contracts of the area `commands`, generated, in the envelope `Envelope<D>` (ADR 0030 G1, G5); new output members are additive.
 - Commands that change state (`claim`, step requests, lease renewal, session end, run start) take `expected_revision` (SPEC-0004 R5) and refuse with `revision_stale`.
 - Events: the payloads of section Events for the kinds owned here, as types of `wayloop-schemas` registered in `contract::CONTRACTS` with the area, names and rules of SPEC-0003 section Contracts of the ledger; snapshots and their history are generated (ADR 0030 G5, G6). New.
@@ -777,7 +795,7 @@ come from it, so the files are traces, not fixtures of an event schema.
 
 ## Dependencies
 - SPEC-0001 (Approved): statuses, allowed transitions, hand-over `step` values.
-- SPEC-0003: the event catalogue, the envelope of events, the payloads of checkout, session, hand-over, cost, rejected results and pull request events, and `due_events` timing.
+- SPEC-0003: the event catalogue, the envelope of events, the payloads of checkout, session, hand-over, cost, rejected results, pull request and coverage events, `due_events` timing, the lease (section Clock times) and the rule of a stale unit (R16) that R51 applies.
 - ADR 0029 (Accepted) amends constitution IV for the merge waiver of the tier `small` (R17).
 - ADR 0009 C6, as amended by #233, is the scoped staleness rule applied by section Revisions (R41).
 - ADR 0030 (Accepted): payloads, inputs and outputs are generated contracts.
@@ -805,3 +823,4 @@ ready work) and #58 (dry run on local fixtures) implement it.
 - [x] **Q10. Which tier is each risk level of R8, R11 and SPEC-0006 R11?** Decided by the maintainer on 2026-11-22: (a), one set of names: high is `contract`, medium is `substantial`, low is `small`, defined once in section Risk tier. R8, R11, AC4 and AC7 are written with the tier names, and SPEC-0006 R11 is amended in this pull request to use them.
 - [x] **Q11. May the policy keep `review` for `small`, or skip it for another tier?** Decided by the maintainer on 2026-11-22: (a), `review` follows the risk tier for every tier (R8, R11); the policy may skip only `counter_review` (R25, section Review by risk tier). This replaces the part of Q1 that let the policy skip `review`.
 - [x] **Q12. What is the one repetition of the panel that R8 allows?** Decided by the maintainer on 2026-11-22: (a), one more dispatch of one lens of the same review step when its verifier fails or its result is rejected, in place of `limits.executor_retries` for the review of `contract`, so that the panel costs at most four invocations, as SPEC-0006 R11 reserves (R8, AC4).
+- [ ] **Q13. Does the review budget match the reserve of SPEC-0006 R11?** For `substantial`, R11 and I28 allow one verifier plus `limits.executor_retries` (default 2), up to three invocations, while SPEC-0006 R11 reserves one; for `contract`, four match. SPEC-0006 counts budgets and reserves in invocations, while section Limits and budgets counts tokens. Options: (a) the reserve of `substantial` becomes one plus `limits.executor_retries`, three by default, and the reserve is converted to tokens with a recorded size per invocation; (b) `substantial` gets the rule of the panel, one repetition in place of the retries, so its reserve is two, and SPEC-0006 counts tokens; (c) keep one and charge the retries of `review` to the budget of the scope, outside the reserve. Recommendation: (b), because one rule for every review keeps R8, I28 and SPEC-0006 R11 in step and leaves one unit of budget, tokens, in both specifications.

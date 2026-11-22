@@ -26,5 +26,5 @@ steps:
       gate_waived: {kind: merge, tier: small, policy_revision: P2, policy_approved_by: maintainer}
   - next_steps: {now: "2026-11-17T14:05:05Z", free_workers: 0}
     expect: {actions: [{kind: merge, issue: 21}]}
-  - input: {name: pull_request_merged, class: observation, external_id: "pull_request:44:merged", actor: wayloop-bot, at: "2026-11-17T14:06:00Z"}
+  - input: {name: pull_request_merged, class: observation, external_id: "pull_request:44:merged", actor: wayloop-bot, head_sha: H1, changed_paths: ["docs/en/guide.md"], at: "2026-11-17T14:06:00Z"}
     expect: {issue_state: done, record: [pull_request_merged, issue_done, artifact_status_changed]}

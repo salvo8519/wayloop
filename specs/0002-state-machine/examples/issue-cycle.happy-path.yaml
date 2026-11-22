@@ -57,18 +57,19 @@ steps:
     expect: {dispatch: D6, turns: 4, record: [step_started]}
   - input: {name: verification_result, class: result, dispatch: D6, checks: [{name: unit, passed: true}], at: "2026-11-17T10:50:00Z"}
     expect: {issue_state: review, record: [step_completed]}
-  - input: {name: step_requested, class: command, issue: 12, step: review, lens: proof, verifier: agent-c, at: "2026-11-17T10:50:01Z"}
+  - input: {name: branch_changes_observed, class: observation, external_id: "branch:feat/12-record-time-entry:H1", head_sha: H1, paths: ["crates/wayloop-core/src/record.rs"], at: "2026-11-17T10:50:01Z"}
+    note: The head after the latest build, which the guard of I3 for review requires and the verdict is compared with (SPEC-0003 R17).
+    expect: {issue_state: review, tier: substantial, record: [branch_changes_observed]}
+  - input: {name: step_requested, class: command, issue: 12, step: review, lens: proof, verifier: agent-c, at: "2026-11-17T10:50:02Z"}
     note: Tier substantial, one verifier on the lens proof (R11, R49); agent-c ran neither build nor counter_review.
     expect: {dispatch: D7, turns: 5, record: [step_started]}
   - input: {name: step_result, class: result, dispatch: D7, outcome: completed, votes: [{unit: 0001/R1/AC1, verdict: covered}], at: "2026-11-17T11:05:00Z"}
-    note: Each vote carries its citations, commit and working-tree flag (SPEC-0003, Coverage and verification); omitted from this trace.
+    note: Each vote carries its citations, the commit H1 and working-tree flag false (SPEC-0003, Coverage and verification); omitted from this trace.
     expect: {issue_state: pull_request, record: [executor_call_recorded, coverage_verdict, step_completed]}
   - input: {name: step_requested, class: command, issue: 12, step: pull_request, at: "2026-11-17T11:05:01Z"}
     expect: {dispatch: D8, record: [step_started]}
   - input: {name: pull_request_opened, class: observation, external_id: "pull_request:40:opened", pull_request: 40, head_sha: H1, at: "2026-11-17T11:06:00Z"}
     expect: {issue_state: pull_request, dispatch: null, record: [pull_request_opened, step_completed]}
-  - input: {name: branch_changes_observed, class: observation, external_id: "branch:feat/12-record-time-entry:H1", head_sha: H1, paths: ["crates/wayloop-core/src/record.rs"], at: "2026-11-17T11:06:01Z"}
-    expect: {tier: substantial, record: [branch_changes_observed]}
   - input: {name: pull_request_checks_completed, class: observation, external_id: "check_suite:7001", head_sha: H1, checks: [{name: rust, conclusion: success}], at: "2026-11-17T11:20:00Z"}
     expect:
       issue_state: merge
@@ -82,7 +83,8 @@ steps:
     expect: {issue_state: merge, gate: resolved, record: [approval_recorded, gate_resolved]}
   - next_steps: {now: "2026-11-17T11:30:05Z", free_workers: 1}
     expect: {actions: [{kind: merge, issue: 12}]}
-  - input: {name: pull_request_merged, class: observation, external_id: "pull_request:40:merged", actor: maintainer, at: "2026-11-17T11:31:00Z"}
+  - input: {name: pull_request_merged, class: observation, external_id: "pull_request:40:merged", actor: maintainer, head_sha: H1, changed_paths: ["crates/wayloop-core/src/record.rs"], at: "2026-11-17T11:31:00Z"}
+    note: Every verdict of the unit 0001/R1/AC1 was produced on the merged head H1, so no coverage_stale is recorded (R51, SPEC-0003 R16).
     expect:
       issue_state: done
       checkout: null
