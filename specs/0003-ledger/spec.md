@@ -5,7 +5,7 @@
 | Status | Draft |
 | Milestone | M1 · Engine core |
 | Owner | @salvo8519 |
-| Related | #12, #50, #51, #52, #161, #162, #309; ADR 0002, ADR 0003, ADR 0006, ADR 0007, ADR 0008, ADR 0009, ADR 0010, ADR 0013, ADR 0028, ADR 0029, ADR 0030; SPEC-0001, SPEC-0002, SPEC-0004, SPEC-0005, SPEC-0006, SPEC-0007, SPEC-0008, SPEC-0009, SPEC-0010, SPEC-0020, SPEC-0021 |
+| Related | #12, #50, #51, #52, #161, #162, #309, #316; ADR 0002, ADR 0003, ADR 0006, ADR 0007, ADR 0008, ADR 0009, ADR 0010, ADR 0013, ADR 0028, ADR 0029, ADR 0030; SPEC-0001, SPEC-0002, SPEC-0004, SPEC-0005, SPEC-0006, SPEC-0007, SPEC-0008, SPEC-0009, SPEC-0010, SPEC-0020, SPEC-0021 |
 | Commit scope | ledger |
 
 ## Problem
@@ -72,7 +72,7 @@ this draft that held the same numbers took the next free ones:
 - **R13**: WHEN an agent checks out an issue that has a hand-over, THE ENGINE SHALL start its brief from the resume pack of R44, whatever agent or executor wrote the hand-over.
 - **R14**: THE ENGINE SHALL record one coverage state per coverage unit as events of the ledger, and derive the coverage of a requirement, a specification and a milestone from them.
 - **R15**: THE ENGINE SHALL store with every verdict the commit it was produced on, a flag for a dirty working tree and the citations it rests on.
-- **R16**: WHEN a merge changes, relative to the commit of the verdict, a file cited by the evidence of a `covered` unit, THE ENGINE SHALL record `coverage_stale` for that unit, move it to `stale` and add it to the ready work; a merge whose merged head is the commit of every verdict of the unit changes nothing relative to them.
+- **R16**: WHEN a merge into the main branch, or a push to it that the git adapter observes, changes a file cited by the evidence of a `covered` unit, the changed files being the paths of the merge relative to its base, THE ENGINE SHALL record `coverage_stale` for that unit, move it to `stale` and add it to the ready work, unless every verdict of the unit was produced on the merged head.
 - **R17**: IF a verdict was produced on a commit other than the head of the branch under verification, or on a dirty working tree, THEN THE ENGINE SHALL refuse it and record the reason.
 - **R18**: THE ENGINE SHALL write through one writer that holds an exclusive whole-file lock of the operating system on `ledger.lock` for each write, appends the lines, flushes them to stable storage, and only then acknowledges the events; the writer releases the lock after the write, and the operating system releases it when the process ends.
 - **R19**: WHEN a command that changes state arrives, THE ENGINE SHALL evaluate its expected revision under the lock of the writer, after the retry check of R52, with the rule and the refusal of SPEC-0002 R41, and append nothing when it is stale.
@@ -108,7 +108,7 @@ this draft that held the same numbers took the next free ones:
 - **R49**: IF a derived file or a published summary cites a revision that is neither in the chain nor in a quarantine recorded by `ledger_recovered`, or a sequence number above the last event, THEN THE ENGINE SHALL report `ledger_regressed` with the file and the revision, and refuse every append until a person runs the recovery of R34.
 - **R50**: WHEN `wayloop ledger verify --full` runs, THE ENGINE SHALL also check that the revision of every published summary recorded by `summary_published` or `publication_imported` is in the chain or in a recorded quarantine.
 - **R51**: IF the git common directory is on a network file system, on a Windows drive reached from WSL, on a container bind mount or in a folder kept by a file synchronisation client, as far as the platform reports it, THEN THE ENGINE SHALL refuse to open the ledger with the code `ledger_storage_unsupported` and exit code 3.
-- **R52**: WHEN a command arrives whose `input_hash` and `expected_revision` are already recorded by an event of the same session, or, for a command without a session, by any event of the ledger, THE ENGINE SHALL append nothing and return the result of the recorded events, before it evaluates the expected revision; the input holds `expected_revision`, so one `input_hash` names one command on one revision.
+- **R52**: WHEN a command arrives whose `input_hash` is already recorded by an event of the same session, or, for a command without a session, by any event of the ledger, THE ENGINE SHALL append nothing and return the result of the recorded events, before it evaluates the expected revision; `expected_revision` is part of the input, so one `input_hash` names one command on one revision. The state, and therefore every snapshot, keeps the set of the `input_hash` values of the commands without a session, so that the check needs no scan of the ledger.
 - **R53**: WHEN the writer appends the first event of a kind or of a schema version that requires a newer engine than the minimum recorded by the ledger, THE ENGINE SHALL first record `min_engine_version_raised` with the new minimum.
 - **R54**: THE ENGINE SHALL record in every snapshot the fold version of the engine that wrote it, and ignore with a warning a snapshot whose fold version differs from its own.
 - **R55**: WHEN `wayloop init` creates a ledger in a clone whose tracker holds published summaries and hand-overs, THE ENGINE SHALL import with `publication_imported` every one that passes R39, so that resume packs and identifiers continue from them.
@@ -127,7 +127,7 @@ this draft that held the same numbers took the next free ones:
 - **AC5** (R11, R28, R43): Given a session whose latest event plus its lease is earlier than the time given to `due_events`, when the next command that changes state is decided, then `checkout_released` with `lease_expired` and `session_ended` with `abandoned` are recorded first and the issue is ready; given a command that only reads, then nothing is appended. Verification: property test.
 - **AC6** (R13, R44): Given a hand-over written in a session of one executor, when an agent of another executor checks out the issue, then its brief starts with the resume pack as quoted data that names the author of each part, and the pack names that hand-over. Verification: TDD.
 - **AC7** (R14): Given a ledger of coverage events, when replayed, then the coverage of each specification equals its `covered` units over its active units. Verification: property test.
-- **AC8** (R16): Given a `covered` unit whose verdicts were produced on commit C0 and a merge of another pull request that edits a cited file, when `pull_request_merged` is observed with its `changed_paths` (SPEC-0002 R51), then `coverage_stale` is recorded with the unit, the merge commit and the file, the unit is `stale` and appears in the ready work, even when the edited lines are outside the cited range; given a merge that edits no cited file, then the unit stays `covered`; given the merge of the pull request on whose merged head every verdict of the unit was produced, whose changes include the cited file, then the unit stays `covered`. Verification: TDD.
+- **AC8** (R16): Given a `covered` unit whose verdicts were produced on commit C0 and a merge of another pull request that edits a cited file, when `pull_request_merged` is observed with its `changed_paths` (SPEC-0002 R51), then `coverage_stale` is recorded with the unit, the merge commit and the file, the unit is `stale` and appears in the ready work, even when the edited lines are outside the cited range; given a merge that edits no cited file, then the unit stays `covered`; given the merge of the pull request on whose merged head every verdict of the unit was produced, whose changes include the cited file, then the unit stays `covered`; given the merge of a pull request that closes no planned issue, or a `main_branch_pushed` of a commit, that edits the cited file, then the unit is `stale` as well. Verification: TDD.
 - **AC9** (R17): Given a verdict carrying a commit older than the branch head, when submitted, then it is refused with the code `verdict_commit_stale` and the reason `stale`. Verification: TDD.
 - **AC10** (R60, R4): Given `examples/ledger.sequence-gap.invalid.jsonl`, when it is loaded, then the first error has the code `ledger_sequence_gap`, the reason `range`, `source` `{ledger, line}` with line 7 and `expected` holding 6. Verification: TDD.
 - **AC11** (R2, R4): Given `examples/ledger.rehashed-line.invalid.jsonl`, when it is loaded, then the error has the code `ledger_chain_broken`, the pointer `/prev_hash` of line 6, and `pointers` naming line 5. Verification: TDD.
@@ -200,13 +200,14 @@ How the ledger holds these states (R14 to R17):
 | `planned` | `coverage_planned`, recorded when the gate of the specification is approved (SPEC-0002, Gates and approval states) |
 | `in_progress` | Derived: a dispatch of `review` is open for an issue whose task cites the requirement of the unit |
 | `covered`, `uncovered`, `needs_validation` | The tally of SPEC-0002 R9 over the `coverage_verdict` events of the latest review step of the unit; the engine computes it, no event carries it |
-| `stale` | `coverage_stale`, recorded when `pull_request_merged` is observed (SPEC-0002 R51, I18, I24) for a `covered` unit with a cited file in the `changed_paths` that the observation carries, the paths the pull request changes at its merged head (R16, Q12). Relative to the commit of the verdict (R16): a unit whose verdicts were all produced on the merged head is not stale, because the merge adds no change after them; any other unit is compared with the paths of the merge, which marks it stale whenever the merge touches a cited file. Changed ranges re-anchored along merges, which mark fewer units stale, arrive with SPEC-0009 |
+| `stale` | `coverage_stale`, recorded when a merge into the main branch is observed as `pull_request_merged`, whatever pull request it closes, or a push to it as `main_branch_pushed` (SPEC-0002 R51, I18, I24, P13), for a `covered` unit with a cited file in the `changed_paths` that the observation carries, the paths of the merge relative to its base (R16, Q12); a unit whose verdicts were all produced on the merged head is not stale, because the merge adds no change after them. Changed ranges re-anchored along merges, which mark fewer units stale, arrive with SPEC-0009 |
 
 The coverage of a requirement, a specification or a milestone is the number of its `covered`
 units over its active units, with the list of units, their state and their evidence (SPEC-0009
 R12). The head that R17 compares with is the head of the branch of the issue as last observed by
-`branch_changes_observed` (SPEC-0002); a dispatch of `review` starts only after such a head was
-observed after the latest `build` (SPEC-0002 I3, `head_not_observed`). A refused verdict is a
+`branch_changes_observed` (SPEC-0002); a dispatch of `review` starts only while that head is the
+head that `verify` verified, whatever the order of the two observations (SPEC-0002 I3, I10,
+`head_not_observed`). A refused verdict is a
 `result_rejected` of SPEC-0002 R23 with the code `verdict_commit_stale` or `verdict_tree_dirty`.
 
 ## Event model
@@ -249,6 +250,7 @@ fact gives the same value and two facts never share one:
 | Comment of a person (approval, answer, request) | `comment:<id>`, or `comment:<id>:<edit>` for an edited comment |
 | Plan observation | `plan:<plan_sha256>:<part>` |
 | Branch changes | `branch:<branch>:<head_sha>` |
+| Push to the main branch (`main_branch_pushed`, SPEC-0002) | `push:<commit>` |
 | Imported publication | `comment:<id>:<sha256>` |
 
 A publication by the engine (`summary_published`) is not an observation: its event carries no
@@ -286,7 +288,7 @@ agents and SDKs, accept enum values they do not know (ADR 0009 C5).
 | `pull_request_synchronized` | Observation: new head (R9) | SPEC-0003 | SPEC-0002 I21, I22 |
 | `pull_request_checks_completed` | Observation: one run of the checks (R9) | SPEC-0003 | SPEC-0002 I12, I16, I17, I20 |
 | `pull_request_review_submitted` | Observation (R9) | SPEC-0003 | SPEC-0002 I19 |
-| `pull_request_merged` | Observation (R9) | SPEC-0003 | SPEC-0002 I18, I24; roll-up |
+| `pull_request_merged` | Observation (R9) | SPEC-0003 | SPEC-0002 I18, I24, P13; roll-up |
 | `pull_request_closed` | Observation (R9) | SPEC-0003 | SPEC-0002 I25; roll-up |
 | `pull_request_reopened` | Observation (R9) | SPEC-0003 | SPEC-0002 I26 |
 | `executor_call_recorded` | Cost of one executor call (R45) | SPEC-0003 | SPEC-0002 turns and budgets, SPEC-0004 `wayloop cost`, roll-up |
@@ -367,7 +369,7 @@ Payloads owned by this specification, version 1. Payloads are objects at most fo
 | `ledger_recovered` | `reason` (`chain_broken` or `regressed`), `broken_seq` (optional), `last_kept_hash`, `file` (in the quarantine), `approved_by` (handle), `channel` (`terminal` or `tracker`) |
 | `coverage_planned` | `specification` (identifier), `units` (unit identifiers of section Coverage and verification, sorted by code point, unique) |
 | `coverage_verdict` | `unit`, `lens` (`presence`, `behaviour` or `proof`), `verdict` (`covered`, `uncovered` or `needs_validation`, as counted by the engine), `downgrade` (`uncited`, set only when the engine counted a vote as `uncovered` because a claim had no citation, SPEC-0002 R10), `citations` (list of `{role, file, line, end_line}`; `role` is `code` or `test`; `file` relative to the root of the project; lines from 1), `missing_fact` (for `needs_validation`, the fact the repository cannot establish), `commit` (the commit the verdict was produced on), `dirty` (whether the working tree had uncommitted changes) |
-| `coverage_stale` | `unit`, `merge_commit`, `files` (the cited files that the merge changed, sorted by code point, unique) |
+| `coverage_stale` | `unit`, `merge_commit` (the merge commit, or the pushed commit of `main_branch_pushed`), `files` (the cited files that the merge changed, sorted by code point, unique) |
 
 The event header carries the issue (`issue`) for every kind that concerns one. The pull request
 events link their issue through the header `issue` and their branch: R9 requires both, and the
@@ -942,5 +944,5 @@ SPEC-0002 and this specification share the catalogue above. In particular:
 - [x] **Q10. Which `source` locates a ledger line?** Decided by the maintainer on 2026-11-22: (a), a fourth form of `source`, `{ledger, line}`, with the path of the segment relative to the git common directory, an additive change of `envelope/result` v1, which no release holds; SPEC-0004 R2 lists it, and the change of the type belongs to the ledger tasks (section Contracts of the ledger).
 - [x] **Q11. Recorded times in an envelope.** Decided by the maintainer on 2026-11-22: (a), SPEC-0004 R15 and AC11 are amended in this pull request to forbid only the clock time of the call; recorded times of the state, such as `recorded_at` and `merged_at`, may be returned (section Clock times, AC25).
 - [x] **Q12. How do the changed lines of a merge reach the core (R16)?** Decided by the maintainer on 2026-11-22: (b) for M1, the git adapter reports the changed paths and a unit is `stale` when a cited file changes (R16, AC8); changed ranges re-anchored along merges arrive with SPEC-0009, where they are recorded as an open question.
-- [x] **Q13. How is a closed segment deleted?** Decided by the maintainer on 2026-11-22: deletion of closed segments is not part of M1 and is planned separately. R1 is unchanged: no acknowledged line is deleted in M1, every segment is kept, and no event kind is added (section Storage, section Person-only commands; this narrows Q1).
+- [x] **Q13. How is a closed segment deleted?** Decided by the maintainer on 2026-11-22: deletion of closed segments is not part of M1 and is planned separately (#316). R1 is unchanged: no acknowledged line is deleted in M1, every segment is kept, and no event kind is added (section Storage, section Person-only commands; this narrows Q1).
 - [x] **Q14. Are commands without a session idempotent?** Decided by the maintainer on 2026-11-22: the same rule as for a command with a session: a retry with the same `input_hash` and the same `expected_revision` returns the result of the recorded events; for a command without a session the key is looked up in the whole ledger (R52, AC62).
