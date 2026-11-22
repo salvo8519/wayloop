@@ -45,7 +45,11 @@ referenced by a task of the roadmap.
    questions, ordered by impact: scope, then contracts and security, then behaviour, then
    detail. Each question offers the options considered and a recommended answer. Record each
    answer in the specification and remove the question.
-7. **Approval.** Only on the maintainer's explicit approval set `| Status | Approved |`. Then
+   While the specification waits for approval, its pull request links the issue with
+   `Refs #<n>`, not `Closes`, so its checks stay green (conventions, Pull requests).
+7. **Approval.** Only on the maintainer's explicit approval set `| Status | Approved |`, mark
+   the task `done` in `roadmap/roadmap.yaml` and switch the pull request body to
+   `Closes #<n>`; `uv run python scripts/roadmap.py check --pr-body <file>` passes. Then
    ask `spec-writer` for `plan.md` and `tasks.md` from the templates: tasks are ordered, `[P]`
    marks disjoint files, every task names its verification technique.
 8. **Link.** The roadmap task carries `spec: "NNNN"` (through `roadmap-update`).
