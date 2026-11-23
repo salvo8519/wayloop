@@ -292,12 +292,10 @@ fn the_envelope_snapshot_is_the_schema_of_the_envelope_and_accepts_an_envelope()
     );
     let oracle = jsonschema::draft202012::new(&read).unwrap();
     assert!(oracle.is_valid(&empty_success()));
-    assert!(
-        Schema::load(&read)
-            .unwrap()
-            .validate(&empty_success(), Code::new("contract"))
-            .is_empty()
-    );
+    let errors = Schema::load(&read)
+        .unwrap()
+        .validate(&empty_success(), Code::new("contract"));
+    assert_eq!(errors, []);
 }
 
 /// The pointer and the reason of every error of `document` against the schema of the contract
