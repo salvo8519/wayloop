@@ -25,8 +25,9 @@ $ wayloop validate --input - [--command-version <n>]
 ```
 
 Without `--input`, the command reads the project in the current folder, which must be the root
-of the project: run from a subfolder, it finds no location and validates an empty set, with
-exit code 0 (issue #320). With no path it reads every stored artifact: `plan/briefs/*.yaml`,
+of the project. It gives the folders of the locations it found in `locations`; run from a
+subfolder, it finds none and validates an empty set, with exit code 0 and the warning
+`artifact_location_missing`. With no path it reads every stored artifact: `plan/briefs/*.yaml`,
 `plan/council/*.yaml`, `plan/items/*.yaml` and `specs/<NNNN>-<capability>/spec.md` (so not
 `specs/_templates/`). A location reached through a symbolic link is treated as absent, and
 links, special files and names that are not UTF-8 inside a location are skipped. With paths it
@@ -69,6 +70,7 @@ path, goes to standard error.
 | `schema_version` | The `schema_version` of each document is a version its type knows; a document of an earlier version is migrated to the current one after it passes the schema of its own version |
 | `schema_brief` | Each brief passes the schema of its version (`schemas/artifacts/brief/v1.json`): required members, unknown members, types, accepted values, lengths, formats |
 | `identifier_format` | The `id` is in the canonical form of its type, for example `BRIEF-0001` |
+| `artifact_locations` | Some folder of a location exists in the project the documents were discovered in; with `locations` only, after the checks above |
 
 Each schema is one check, `schema_<kind>`: in `diagnostics.checks` when it ran, in
 `diagnostics.not_done` with the reason `not_built` when it is not in this version. A check the
@@ -85,6 +87,9 @@ engine did not run is never skipped silently:
 | `statuses` | The set: transitions and initial statuses against `base` |
 | `naming` | The set: titles, branch names, commit headers and pull request links |
 
+`artifact_locations` is listed in `diagnostics.not_done` with the reason `input_absent` when
+`locations` is not given: the documents were named or sent directly.
+
 When the input itself is refused, or the command line is not understood, or the input cannot
 be read, no check runs: `diagnostics.checks` and `diagnostics.not_done` are then empty.
 
@@ -99,6 +104,7 @@ absent member. The input schema is closed: a member it does not list is refused.
 | `base` | list of `{id, status}` | no | Statuses on the default branch of the artifacts of the set |
 | `policy` | object `{types, scopes, areas}`, each a list of names of the policy, identifiers of at least one character | no | The subset of the project policy the model reads |
 | `adrs` | list of integers from 1 | no | Numbers of the ADRs of the project |
+| `locations` | list of `plan_briefs`, `plan_council`, `plan_items`, `specs`, for the folders `plan/briefs`, `plan/council`, `plan/items` and `specs` | no | The folders of the locations that exist in the project, when the documents were discovered there; their order and a repeated folder have no meaning, they are not compared with the `file` origins of the documents, and `[]` means none, which gives the warning `artifact_location_missing`. Absent: the documents were named or sent directly, and the check `artifact_locations` is not done |
 | `language` | BCP 47 tag, for example `it` or `en-GB` | no | The language of the project. No check of this version reads it, so no default is applied or reported when it is absent; a check that needs it lists the default in `meta.defaults_applied` |
 
 An entry of `documents`:
@@ -197,6 +203,13 @@ it is stored:
 | `usage` | `syntax` | 2 | The command line is not understood; `command` is the command named, empty when none |
 | `input_unreadable` | `missing`, `state` | 3 | The input file, a file named or a folder of the project does not exist (`missing`) or cannot be read (`state`); the envelope holds no path |
 | `internal_error` | `internal` | 5 | The engine could not compute the result; the input may be valid |
+
+Warnings are listed in `diagnostics.warnings`, in the shape of an error; the result is not
+refused for them and the exit code does not change:
+
+| Code | Reason | Pointer | Meaning |
+| --- | --- | --- | --- |
+| `artifact_location_missing` | `missing` | `/locations` | No folder of a location exists in the project where the documents were discovered, for example because the command ran in a subfolder of the project |
 
 An unknown member gets the closest member of the schema in `fix`, for example `problem` for
 `problema`.

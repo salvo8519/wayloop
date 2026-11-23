@@ -30,6 +30,7 @@
 use core::fmt;
 
 use wayloop_schemas::Format;
+use wayloop_schemas::validate::ArtifactFolder;
 use wayloop_schemas::value::ProjectPath;
 
 use crate::schema::format;
@@ -85,7 +86,7 @@ enum Name {
 /// A folder that holds stored artifacts, and the name of their files.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Location {
-    folder: &'static str,
+    folder: ArtifactFolder,
     name: Name,
 }
 
@@ -102,27 +103,28 @@ const SPECIFICATION: &str = "spec.md";
 /// project, and are not listed.
 pub const LOCATIONS: [Location; 4] = [
     Location {
-        folder: "plan/briefs",
+        folder: ArtifactFolder::PlanBriefs,
         name: Name::Yaml,
     },
     Location {
-        folder: "plan/council",
+        folder: ArtifactFolder::PlanCouncil,
         name: Name::Yaml,
     },
     Location {
-        folder: "plan/items",
+        folder: ArtifactFolder::PlanItems,
         name: Name::Yaml,
     },
     Location {
-        folder: "specs",
+        folder: ArtifactFolder::Specs,
         name: Name::Specification,
     },
 ];
 
 impl Location {
-    /// The folder, relative to the root of the project, with `/` separators.
+    /// The folder; its `path` is relative to the root of the project, with `/` separators, and
+    /// the input of `validate` lists the folders that exist.
     #[must_use]
-    pub const fn folder(&self) -> &'static str {
+    pub const fn folder(&self) -> ArtifactFolder {
         self.folder
     }
 
@@ -146,7 +148,7 @@ impl Location {
     }
 
     /// Whether `below`, the segments of a path below the folder, names a file of this location.
-    fn holds(&self, below: &[&str]) -> bool {
+    fn holds(self, below: &[&str]) -> bool {
         match (self.name, below) {
             (Name::Yaml, [file]) => file.len() > YAML.len() && file.ends_with(YAML),
             (Name::Specification, [folder, file]) => {
@@ -222,7 +224,7 @@ fn located(path: &str) -> Option<Stored> {
     }
     LOCATIONS.iter().find_map(|location| {
         let below = path
-            .strip_prefix(location.folder)?
+            .strip_prefix(location.folder().path())?
             .strip_prefix('/')?
             .split('/')
             .collect::<Vec<_>>();
@@ -334,7 +336,7 @@ mod tests {
     fn the_locations_are_those_of_the_specification() {
         let listed: Vec<(&str, usize, Stored)> = LOCATIONS
             .iter()
-            .map(|l| (l.folder(), l.depth(), l.stored()))
+            .map(|l| (l.folder().path(), l.depth(), l.stored()))
             .collect();
         assert_eq!(
             listed,

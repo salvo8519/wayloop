@@ -403,13 +403,18 @@ def diff(root: Path, *contracts: Contract, base: str = "main") -> snapshots.Diff
 
 
 def test_an_unchanged_history_passes(repo: Path) -> None:
-    assert diff(repo, contract(text=schema(a={"type": "string"}))) == ([], [], [])
+    assert diff(repo, contract(text=schema(a={"type": "string"}))) == ([], [], [], [])
 
 
 def test_an_additive_change_of_the_current_version_passes(repo: Path) -> None:
     current = contract(text=schema(a={"type": "string"}, b={"type": "integer"}))
     write(repo, current)
-    assert diff(repo, current) == ([], [], [])
+    assert diff(repo, current) == (
+        [],
+        [],
+        [],
+        ["schemas/envelope/result/v1.json: changed, additively"],
+    )
 
 
 def test_a_breaking_change_of_the_current_version_is_classified(repo: Path) -> None:
@@ -419,6 +424,7 @@ def test_a_breaking_change_of_the_current_version_is_classified(repo: Path) -> N
         [],
         ["schemas/envelope/result/v1.json#/properties/a: `type` changed"],
         [],
+        [],
     )
     git(repo, "commit", "-q", "-am", "breaking")
     assert diff(repo, current)[1] != [], "committed or not, the base decides"
@@ -427,9 +433,10 @@ def test_a_breaking_change_of_the_current_version_is_classified(repo: Path) -> N
 def test_a_breaking_change_as_a_new_version_passes(repo: Path) -> None:
     following = contract(version=2, text=schema(a={"type": "integer"}))
     write(repo, following)
-    assert diff(repo, following) == ([], [], [])
+    added = ["schemas/envelope/result/v2.json: added"]
+    assert diff(repo, following) == ([], [], [], added)
     write(repo, contract(version=2, text="{}\n"))
-    assert diff(repo, contract(version=2, text="{}\n")) == ([], [], []), "v2 is not on main yet"
+    assert diff(repo, contract(version=2, text="{}\n")) == ([], [], [], added), "not on main yet"
 
 
 def test_an_earlier_version_changed_is_a_rewritten_history(repo: Path) -> None:
@@ -574,7 +581,7 @@ def test_every_part_of_the_generator_is_recognised_by_the_pattern() -> None:
 
 def test_a_release_stamps_an_unreleased_version(draft: Path) -> None:
     edit_history(draft, lambda h: h["versions"]["1"].update(introduced_in="0.1.0"))
-    assert diff(draft) == ([], [], [])
+    assert diff(draft) == ([], [], [], [])
 
 
 BROKEN = "schemas/envelope/result/v1.json#/properties/a: `type` changed"
@@ -587,10 +594,10 @@ def test_a_breaking_change_of_an_unreleased_version_is_allowed_and_reported(
     # release; the change is still reported, so that the pull request shows it.
     current = contract(text=schema(a={"type": "integer"}))
     write(draft, current)
-    assert diff(draft, current) == ([], [], [BROKEN])
+    assert diff(draft, current) == ([], [], [BROKEN], [])
     git(draft, "tag", "not-a-release", "main")
     git(draft, "tag", "v0.1.0-rc.1", "main")
-    assert diff(draft, current) == ([], [], [BROKEN]), "only a tag v<semver> is a release"
+    assert diff(draft, current) == ([], [], [BROKEN], []), "only a tag v<semver> is a release"
 
 
 @pytest.mark.parametrize(
@@ -604,7 +611,7 @@ def test_a_breaking_change_of_a_released_version_is_refused(
     root = base_branch(git_repo, introduced_in, tag)
     current = contract(text=schema(a={"type": "integer"}))
     write(root, current)
-    assert diff(root, current) == ([], [BROKEN], [])
+    assert diff(root, current) == ([], [BROKEN], [], [])
 
 
 def test_a_release_tag_without_the_version_does_not_release_it(git_repo: Path) -> None:
@@ -615,7 +622,7 @@ def test_a_release_tag_without_the_version_does_not_release_it(git_repo: Path) -
     root = base_branch(git_repo, None, None)
     current = contract(text=schema(a={"type": "integer"}))
     write(root, current)
-    assert diff(root, current) == ([], [], [BROKEN])
+    assert diff(root, current) == ([], [], [BROKEN], [])
 
 
 def test_a_snapshot_released_on_the_base_after_the_fork_is_not_deleted(repo: Path) -> None:
@@ -624,7 +631,7 @@ def test_a_snapshot_released_on_the_base_after_the_fork_is_not_deleted(repo: Pat
     git(repo, "add", ".")
     git(repo, "commit", "-q", "-m", "released later")
     git(repo, "checkout", "-q", "feat/1-x")
-    assert diff(repo) == ([], [], [])
+    assert diff(repo) == ([], [], [], [])
 
 
 def test_without_a_merge_base_the_tip_of_the_base_is_released(repo: Path) -> None:
@@ -709,6 +716,18 @@ def test_main_writes_checks_and_diffs(
     current[0] = contract(version=1)
     with pytest.raises(SystemExit, match="not written"):
         snapshots.main([], root=repo)
+
+
+def test_main_lists_the_additive_changes_by_file(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    current = [contract(text=schema(a={"type": "string"}, b={"type": "integer"}))]
+    monkeypatch.setattr(snapshots, "generated", lambda root: current)
+    snapshots.main([], root=repo)
+    snapshots.main(["--diff-against", "main"], root=repo)
+    out = capsys.readouterr().out
+    assert "Additive changes of the contracts, allowed:" in out
+    assert "schemas/envelope/result/v1.json: changed, additively" in out
 
 
 def test_main_reports_a_breaking_change_of_an_unreleased_version_and_passes(

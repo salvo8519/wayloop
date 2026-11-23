@@ -18,7 +18,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command as Process;
 
-use serde_json::Value;
+use serde_json::{Value, json};
 use wayloop_core::{Command, Context, envelope_json, run};
 use wayloop_runtime::test_support::TempProject;
 
@@ -38,10 +38,15 @@ impl Project {
     /// Standard output, as text and as JSON, standard error, and the exit code of
     /// `wayloop validate args`.
     fn validate(&self, args: &[&str]) -> (String, Value, String, i32) {
+        self.validate_in("", args)
+    }
+
+    /// `wayloop validate` with `args`, run in the folder `below` of the project.
+    fn validate_in(&self, below: &str, args: &[&str]) -> (String, Value, String, i32) {
         let output = Process::new(env!("CARGO_BIN_EXE_wayloop"))
             .arg("validate")
             .args(args)
-            .current_dir(self.0.root())
+            .current_dir(self.0.root().join(below))
             .output()
             .unwrap();
         let text = String::from_utf8(output.stdout).unwrap();
@@ -83,6 +88,25 @@ fn validate_reads_the_project_and_prints_the_envelope_of_its_golden_input() {
     let (text, _, _, code) = briefs("discover").validate(&[]);
     assert_eq!(text, format!("{}\n", envelope_json(&expected).unwrap()));
     assert_eq!(code, 1);
+}
+
+#[test]
+fn validate_warns_when_it_runs_outside_the_root_of_the_project() {
+    // SPEC-0001 AC37: from a folder of the project, discovery finds no location and no file.
+    let project = briefs("subfolder");
+    let (_, envelope, _, code) = project.validate_in("plan", &[]);
+    assert_eq!(code, 0);
+    assert_eq!(envelope["data"]["documents"], json!([]));
+    let warnings = envelope["diagnostics"]["warnings"].as_array().unwrap();
+    assert_eq!(warnings.len(), 1);
+    assert_eq!(warnings[0]["code"], "artifact_location_missing");
+    assert_eq!(warnings[0]["pointer"], "/locations");
+    // Named files give no locations: the check is not done, and nothing is warned.
+    let (_, envelope, _, _) = project.validate(&["plan/briefs/BRIEF-0001.yaml"]);
+    assert_eq!(envelope["diagnostics"]["warnings"], json!([]));
+    let not_done = envelope["diagnostics"]["not_done"].as_array().unwrap();
+    let absent = json!({"check": "artifact_locations", "reason": "input_absent"});
+    assert!(not_done.contains(&absent), "{not_done:?}");
 }
 
 #[test]

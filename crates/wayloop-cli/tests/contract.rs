@@ -395,3 +395,41 @@ fn a_case_names_what_it_covers_and_nothing_else() {
         assert!(given.iter().all(|k| expect.contains(&k.as_str())), "{name}");
     }
 }
+
+#[test]
+fn the_maximal_case_gives_every_member_of_the_input() {
+    // Review of #320: a new member of the input must reach the maximal case, as its
+    // description says, or this test names it.
+    let schema: Value = serde_json::from_str(
+        VALIDATE
+            .embedded(Part::Schema, VALIDATE.version)
+            .unwrap()
+            .text,
+    )
+    .unwrap();
+    let declared = |schema: &Value| -> Vec<String> {
+        let mut keys: Vec<String> = schema["properties"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        keys.sort();
+        keys
+    };
+    let input = &cases()["maximal"]["input"];
+    let given: Vec<String> = input.as_object().unwrap().keys().cloned().collect();
+    assert_eq!(given, declared(&schema));
+    let mut members: Vec<String> = input["documents"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|entry| entry.as_object().unwrap().keys().cloned())
+        .collect();
+    members.sort();
+    members.dedup();
+    let entry = declared(&schema["$defs"]["DocumentEntry"]);
+    let not_in_case: Vec<&String> = entry.iter().filter(|m| !members.contains(m)).collect();
+    // `text` and `error` belong to other formats, `input_kind` to inputs, not to artifacts.
+    assert_eq!(not_in_case, ["error", "input_kind", "text"]);
+}

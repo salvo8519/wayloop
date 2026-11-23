@@ -8,10 +8,12 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 use wayloop_core::artifacts::locations::{MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, Stored, StoredFile};
 use wayloop_core::{Command, Context, run};
-use wayloop_schemas::validate::{EntryFormat, ValidateInput};
+use wayloop_schemas::validate::{ArtifactFolder, EntryFormat, ValidateInput};
 use wayloop_schemas::value::ProjectPath;
 
-use super::{Content, LoadError, discover, entry, list, load, load_within, segments};
+use super::{
+    Content, LoadError, discover, discovered_input, entry, list, load, load_within, segments,
+};
 use crate::test_support::TempProject;
 use wayloop_core::artifacts::locations::Refused;
 
@@ -49,7 +51,7 @@ impl Project {
 
     /// The input of every stored artifact of the project, as `wayloop validate` reads it.
     fn input(&self) -> ValidateInput {
-        load(self.root(), discover(self.root()).unwrap()).unwrap()
+        discovered_input(self.root()).unwrap()
     }
 
     /// The envelope of the entry point for the input of the project.
@@ -84,7 +86,9 @@ fn discovery_finds_the_locations_of_the_core_sorted_with_relative_slash_paths() 
             ("BRIEF-0005.yaml", b"kind: brief\n"),
         ],
     );
-    let found = discover(project.root()).unwrap();
+    let discovery = discover(project.root()).unwrap();
+    assert_eq!(discovery.locations, ArtifactFolder::ALL);
+    let found = discovery.files;
     assert_eq!(
         paths(&found),
         [
@@ -100,7 +104,10 @@ fn discovery_finds_the_locations_of_the_core_sorted_with_relative_slash_paths() 
     assert_eq!(input.documents[4].format, EntryFormat::Markdown);
     assert_eq!(input.documents[4].text.as_deref(), Some("# SPEC-0001"));
     let empty = Project::new("discover-empty", &[]);
-    assert_eq!(discover(empty.root()).unwrap(), []);
+    // SPEC-0001 R26: no folder of a location exists, which the core reports as a warning.
+    let nothing = discover(empty.root()).unwrap();
+    assert_eq!(nothing.files, []);
+    assert_eq!(nothing.locations, []);
     assert_eq!(empty.input().documents, []);
 }
 
@@ -154,8 +161,13 @@ fn discovery_follows_no_symbolic_link() {
         project.root().join("plan/items/BRIEF-0009.yaml"),
     )
     .unwrap();
-    let found = discover(project.root()).unwrap();
-    assert_eq!(paths(&found), [("plan/items/TASK-0001.yaml", Stored::Yaml)]);
+    let discovery = discover(project.root()).unwrap();
+    assert_eq!(
+        paths(&discovery.files),
+        [("plan/items/TASK-0001.yaml", Stored::Yaml)]
+    );
+    // A folder reached through a link is not a location of the project.
+    assert_eq!(discovery.locations, [ArtifactFolder::PlanItems]);
     let linked_parent = Project::new("linked-parent", &[]);
     fs::create_dir_all(outside.root().join("plan/briefs")).unwrap();
     fs::write(
@@ -168,7 +180,9 @@ fn discovery_follows_no_symbolic_link() {
         linked_parent.root().join("plan"),
     )
     .unwrap();
-    assert_eq!(discover(linked_parent.root()).unwrap(), []);
+    let discovery = discover(linked_parent.root()).unwrap();
+    assert_eq!(discovery.files, []);
+    assert_eq!(discovery.locations, []);
 }
 
 #[cfg(unix)]
@@ -481,7 +495,7 @@ fn the_set_is_bounded_by_the_bytes_read_and_built() {
             ("plan/briefs/BRIEF-0002.yaml", brief),
         ],
     );
-    let files = discover(project.root()).unwrap();
+    let files = discover(project.root()).unwrap().files;
     let whole = load(project.root(), files.clone()).unwrap();
     assert!(
         whole
@@ -521,7 +535,7 @@ fn a_name_that_is_not_utf8_is_skipped() {
     if fs::write(project.root().join("plan/items").join(name), b"a: 1\n").is_err() {
         return; // The file system refuses such names: nothing to skip.
     }
-    let found = discover(project.root()).unwrap();
+    let found = discover(project.root()).unwrap().files;
     assert_eq!(paths(&found), [("plan/items/TASK-0001.yaml", Stored::Yaml)]);
 }
 

@@ -10,12 +10,13 @@ use core::num::{NonZeroU32, NonZeroU64};
 use serde_json::{Map, Value, json};
 use wayloop_schemas::artifact::ArtifactKind;
 use wayloop_schemas::contract::{Area, BRIEF, CONTRACTS, Embedded, Part, VALIDATE};
-use wayloop_schemas::validate::InputKind;
+use wayloop_schemas::validate::{ArtifactFolder, InputKind};
 use wayloop_schemas::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
 use wayloop_schemas::{NotDone, NotDoneReason, Source};
 
 use super::input::{self, Input};
 use super::kinds::{self, Checked, Kind, Migration};
+use super::locations::{LOCATIONS, Location};
 use super::{checks, codes, run_with, validate_with};
 use crate::command::COMMAND_INPUT;
 use crate::envelope::without_nulls;
@@ -513,6 +514,50 @@ fn a_format_error_of_the_id_has_its_own_code_and_keeps_its_fix() {
 // The set ----------------------------------------------------------------------------------
 
 #[test]
+fn a_project_without_any_location_gives_a_warning_and_the_check_runs() {
+    // AC37: discovery outside the root of a project finds no folder and no file.
+    for (locations, warned) in [(json!([]), true), (json!(["specs"]), false)] {
+        let input = json!({"documents": [], "locations": locations});
+        assert_eq!(input_schema().validate(&input, COMMAND_INPUT), []);
+        let validation = validate(&input::read(&input).unwrap());
+        assert_eq!(validation.errors, []);
+        assert!(validation.checks.contains(&checks::ARTIFACT_LOCATIONS));
+        assert!(
+            validation
+                .not_done
+                .iter()
+                .all(|n| *n.check() != checks::ARTIFACT_LOCATIONS)
+        );
+        let warnings = found(&validation.warnings);
+        if warned {
+            assert_eq!(
+                warnings,
+                [(
+                    codes::ARTIFACT_LOCATION_MISSING,
+                    "/locations".into(),
+                    Reason::Missing
+                )]
+            );
+        } else {
+            assert_eq!(warnings, []);
+        }
+    }
+    // A folder outside the artifact model is refused by the schema.
+    let input = json!({"documents": [], "locations": ["plan"]});
+    let errors = input_schema().validate(&input, COMMAND_INPUT);
+    assert_eq!(
+        found(&errors),
+        [(COMMAND_INPUT, "/locations/0".into(), Reason::Enum)]
+    );
+}
+
+#[test]
+fn the_folders_of_the_contract_are_those_of_the_locations() {
+    let folders: Vec<ArtifactFolder> = LOCATIONS.iter().map(Location::folder).collect();
+    assert_eq!(folders, ArtifactFolder::ALL);
+}
+
+#[test]
 fn checks_not_built_are_listed_once_with_their_reason() {
     let validation = validate(&read(vec![
         entry(json!({"kind": "task", "id": "TASK-0001"})),
@@ -528,6 +573,7 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     assert_eq!(
         not_done,
         [
+            "artifact_locations",
             "identifier_duplicate",
             "links",
             "markdown",
@@ -538,12 +584,10 @@ fn checks_not_built_are_listed_once_with_their_reason() {
             "statuses",
         ]
     );
-    assert!(
-        validation
-            .not_done
-            .iter()
-            .all(|n| n.reason() == NotDoneReason::NotBuilt)
-    );
+    // The locations were not given: the documents were not discovered (AC37).
+    let reasons: Vec<NotDoneReason> = validation.not_done.iter().map(NotDone::reason).collect();
+    assert_eq!(reasons[0], NotDoneReason::InputAbsent);
+    assert!(reasons[1..].iter().all(|r| *r == NotDoneReason::NotBuilt));
     // One check identifier per schema (S6): schema_brief ran, schema_task did not.
     assert_eq!(
         validation
@@ -582,7 +626,7 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     assert_eq!(validation.warnings, []);
     assert_eq!(
         NotDone::new(checks::LINKS, NotDoneReason::NotBuilt),
-        validation.not_done[1]
+        validation.not_done[2]
     );
 }
 

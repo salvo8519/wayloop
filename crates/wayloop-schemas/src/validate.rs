@@ -59,6 +59,33 @@ impl EntryFormat {
 }
 
 crate::contract_enum! {
+    /// A folder of the project that holds stored artifacts (SPEC-0001, Where artifacts live).
+    pub enum ArtifactFolder {
+        /// The folder `plan/briefs`: briefs, `BRIEF-<seq>.yaml`.
+        PlanBriefs = "plan_briefs",
+        /// The folder `plan/council`: council reports, `COUNCIL-<seq>.yaml`.
+        PlanCouncil = "plan_council",
+        /// The folder `plan/items`: plan items before their tracker item exists.
+        PlanItems = "plan_items",
+        /// The folder `specs`: living specifications, `<NNNN>-<capability>/spec.md`.
+        Specs = "specs",
+    }
+}
+
+impl ArtifactFolder {
+    /// The path of the folder, relative to the root of the project, with `/` separators.
+    #[must_use]
+    pub const fn path(self) -> &'static str {
+        match self {
+            Self::PlanBriefs => "plan/briefs",
+            Self::PlanCouncil => "plan/council",
+            Self::PlanItems => "plan/items",
+            Self::Specs => "specs",
+        }
+    }
+}
+
+crate::contract_enum! {
     /// Type of an input (SPEC-0001, Inputs), which has no `kind` member.
     pub enum InputKind {
         /// A pull request: title, body, branch and labels.
@@ -241,6 +268,14 @@ pub struct ValidateInput {
     /// `meta.defaults_applied`; no check of this version reads it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<LanguageTag>,
+    /// The folders of stored artifacts that exist in the project, when the documents were
+    /// discovered there (SPEC-0001 R26). Empty: none exists, for example because the command
+    /// did not run at the root of the project, which is reported as a warning. Absent: the
+    /// documents were named or sent directly, and the check is not done. Their order and a
+    /// repeated folder have no meaning, and the folders are not compared with the `file`
+    /// origins of the documents.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locations: Option<Vec<ArtifactFolder>>,
 }
 
 /// What the engine read of one document. A member is absent when the document does not give
@@ -276,9 +311,22 @@ pub struct ValidateData {
 
 #[cfg(test)]
 mod tests {
-    use super::{DocumentEntry, EntryFormat, ValidateData, ValidateInput};
+    use super::{ArtifactFolder, DocumentEntry, EntryFormat, ValidateData, ValidateInput};
     use crate::contract::{Direction, schema_for};
     use serde_json::json;
+
+    #[test]
+    fn the_meaning_of_each_folder_names_its_path() {
+        // Review of #320: the doc comment of each value repeats its path, which `path` holds.
+        let schema = schema_for::<ValidateInput>(Direction::Input).unwrap();
+        let description = schema["$defs"]["ArtifactFolder"]["description"]
+            .as_str()
+            .unwrap();
+        for folder in ArtifactFolder::ALL {
+            let line = format!("- `{}`: The folder `{}`:", folder.id(), folder.path());
+            assert!(description.contains(&line), "{line} in {description}");
+        }
+    }
 
     #[test]
     fn the_input_is_closed_its_documents_free_and_its_lines_typed() {

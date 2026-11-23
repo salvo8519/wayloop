@@ -46,6 +46,7 @@ Every level of the loop must have a validated structure so that the engine can c
 - **R23**: THE ENGINE SHALL allocate the next identifier of a type as the highest sequence of that type found on the default branch and in the tracker plus one, and check again before merge that the identifier is still unique.
 - **R24**: WHEN an epic moves to another milestone, THE ENGINE SHALL change the milestone of every story and task of the epic in a non-terminal status in the same plan change.
 - **R25**: WHEN the tracker item of a plan item is created, THE ENGINE SHALL treat the tracker form as the source and remove the plan file in the same change.
+- **R26**: WHEN the documents of a validation were discovered in a project and no folder of the locations of Where artifacts live exists there, THE ENGINE SHALL report the warning `artifact_location_missing` and SHALL NOT refuse the set for it (#320, decided by the maintainer on 2026-11-23).
 
 ## Acceptance criteria
 - **AC1** (R1, R3, R5, R6, R9, R12, R14): Given one valid and one invalid example per artifact type and per input, when validated, then only the invalid ones fail, each with its field. Verification: TDD, with the files of `examples/` as fixtures.
@@ -84,6 +85,7 @@ Every level of the loop must have a validated structure so that the engine can c
 - **AC34** (R25): Given a task proposal file under `plan/items/`, when its issue is created, then the change that records the issue removes the file and later validation reads the tracker form. Verification: TDD.
 - **AC35** (R1): Given an acceptance criterion with the verification `judge` and no `rubric`, when validated, then it is refused with the reason `requires`. Verification: TDD.
 - **AC36** (R6, R12): Given a living specification in Markdown with the extra section `## Notes`, the verification text `property test for production, TDD for validation`, and the heading `## Requisiti` instead of `## Requirements (EARS)`, when normalised, then `## Notes` and `## Requisiti` are kept as prose, `verification` is `[property, tdd]`, and `/requirements` is reported with the reason `missing`. Verification: TDD.
+- **AC37** (R26): Given a discovery that found no folder of a location (`locations: []`), when validated, then the result succeeds with the warning `artifact_location_missing`, reason `missing`, at `/locations`, and the check `artifact_locations` is listed as run; given documents named or sent directly, without `locations`, then the check is listed as not done with the reason `input_absent`. Verification: TDD.
 
 ## Artifact model
 
@@ -611,6 +613,7 @@ C8).
 | R19 | `initial_status` | `state` |
 | R20 | `delta_conflict` | `conflict` |
 | R22 | `handover_input` | `unknown_field`, and the reasons of `artifact_schema` |
+| R26 | `artifact_location_missing` (warning) | `missing` |
 
 ## Examples
 

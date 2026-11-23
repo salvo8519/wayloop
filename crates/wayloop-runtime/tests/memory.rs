@@ -47,7 +47,7 @@ fn short_keys(keys: usize) -> String {
 /// The heap held by the input of `files` once loaded, and its formats.
 fn held(files: &[(&str, &[u8])]) -> (usize, Vec<EntryFormat>) {
     let project = TempProject::new("memory", files);
-    let found = discover(project.root()).unwrap();
+    let found = discover(project.root()).unwrap().files;
     let before = resident();
     let input = load(project.root(), found).unwrap();
     let held = resident().saturating_sub(before);

@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 88bf18419689
+source_hash: ee10f3b3b10f
 ---
 # Architettura
 
@@ -152,7 +152,9 @@ i file è I/O, quindi lo fa il runtime (piano di SPEC-0001, D1).
   valore e ogni riga, e ciò che alias e ancore ripetono. Un test del runtime verifica su Linux
   che la memoria residente aggiunta da un insieme caricato resti entro questi limiti.
 - **Il runtime legge e analizza, solo dentro il progetto.** `wayloop_runtime::project` elenca
-  le cartelle di ogni posizione fino alla sua profondità. Una posizione la cui cartella, o una
+  le cartelle di ogni posizione fino alla sua profondità, e indica le cartelle che esistono nel
+  membro `locations` dell'input; da esse il core decide se avvisare che non ne esiste nessuna
+  (SPEC-0001 R26). Una posizione la cui cartella, o una
   cartella che la contiene, è un link simbolico è trattata come assente; dentro una posizione i
   link, i file speciali e i nomi non UTF-8 sono saltati. Prima di leggere un file risolve i link
   della radice e del file e rifiuta un file fuori dalla radice o il cui nome risolto ha un'altra
@@ -393,7 +395,8 @@ volta, nel modulo `contract`:
 Le righe di un commento di documentazione sono unite in paragrafi, perché vanno a capo alla
 larghezza del codice. Il generatore poi verifica le regole dei contratti che non sono regole
 del sottoinsieme: una descrizione sulla radice, su ogni definizione e su ogni membro (una fatta
-solo di spazi non conta), il significato di ogni valore di enum nella sua descrizione, nessun
+solo di spazi non conta), il significato di ogni valore di enum nella sua descrizione, ogni
+valore testuale di enum in `snake_case`, nessun
 `additionalProperties` che chiuda un output (una mappa pura mantiene lo schema dei suoi
 valori), e al massimo quattro livelli di oggetti, compresi i valori di una mappa (ADR 0009 C4).
 Il sottoinsieme ha una sola definizione, il caricatore dell'interprete (ADR 0030 G3):

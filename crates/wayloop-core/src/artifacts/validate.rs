@@ -18,7 +18,7 @@ use serde::Deserialize as _;
 use serde_json::{Map, Value};
 use wayloop_schemas::artifact::{ArtifactKind, Brief};
 use wayloop_schemas::contract::{Part, VALIDATE};
-use wayloop_schemas::validate::{DocumentSummary, InputKind, Origin, ValidateData};
+use wayloop_schemas::validate::{ArtifactFolder, DocumentSummary, InputKind, Origin, ValidateData};
 use wayloop_schemas::{Diagnostics, ErrorReport, NotDone, NotDoneReason, Outcome};
 
 use super::input::{self, Body, Entry, Input, Place};
@@ -78,8 +78,39 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
             *error = error.clone().with_document(index);
         }
     }
+    match &input.locations {
+        Some(folders) => {
+            validation.checks.push(checks::ARTIFACT_LOCATIONS);
+            if folders.is_empty() {
+                validation.warnings.push(no_location());
+            }
+        }
+        None => {
+            not_done.insert(NotDone::new(
+                checks::ARTIFACT_LOCATIONS,
+                NotDoneReason::InputAbsent,
+            ));
+        }
+    }
     validation.not_done = not_done.into_iter().collect();
     validation
+}
+
+/// The warning of a project where no folder of a location exists, at the empty `locations`.
+fn no_location() -> Error {
+    let folders: Vec<&str> = ArtifactFolder::ALL.iter().map(|f| f.path()).collect();
+    let message = format!(
+        "No folder of stored artifacts exists in the project ({}); the command may not have \
+         run at the root of the project.",
+        folders.join(", ")
+    );
+    let pointer = Pointer::root().join("locations");
+    Error::new(
+        codes::ARTIFACT_LOCATION_MISSING,
+        message,
+        pointer,
+        Reason::Missing,
+    )
 }
 
 fn not_built(not_done: &mut BTreeSet<NotDone>, check: Check) {

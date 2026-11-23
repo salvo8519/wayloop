@@ -52,6 +52,7 @@ The entry point of ADR 0028 takes JSON. The input of `validate`, version 1, is:
 | `base` | list of objects `{id, status}` | Statuses on the default branch of the artifacts of this set; absent when not compared (R13, R19) |
 | `policy` | object `{types, scopes, areas}` | Subset of the project policy; absent means the default policy, listed in `meta.defaults_applied` (R21) |
 | `adrs` | list of integers from 1 | Numbers of the ADRs of the project, for the warning on `related` (Q5 of the specification; Q3 below); absent means not checked, listed in `diagnostics.not_done` |
+| `locations` | list of enum: `plan_briefs`, `plan_council`, `plan_items`, `specs` (the folders `plan/briefs`, `plan/council`, `plan/items`, `specs`) | The folders of the locations that exist in the project, when the documents were discovered there; empty gives the warning `artifact_location_missing` (R26), absent means the documents were named or sent directly and the check `artifact_locations` is listed in `diagnostics.not_done` (#320, decided by the maintainer on 2026-11-23) |
 | `language` | BCP 47 tag | Language of the project (decided by the maintainer on 2026-11-20); when absent and a check needs it, the default is listed in `meta.defaults_applied`; while no check reads it, no default is applied or reported |
 
 The whole version 1 is fixed in task T5, so that the command contract does not change at each

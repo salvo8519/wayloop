@@ -41,7 +41,7 @@ use wayloop_core::artifacts::locations::{
     StoredFile,
 };
 use wayloop_schemas::validate::{
-    DocumentEntry, EntryFormat, FreeDocument, Origin, ParseError, ValidateInput,
+    ArtifactFolder, DocumentEntry, EntryFormat, FreeDocument, Origin, ParseError, ValidateInput,
 };
 use wayloop_schemas::value::ProjectPath;
 
@@ -110,21 +110,56 @@ impl From<ReadError> for LoadError {
     }
 }
 
-/// The stored artifacts of the project at `root`, sorted by the core.
+/// What discovery found in a project: its stored artifacts and the folders that hold them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Discovery {
+    /// The stored artifacts, sorted by the core.
+    pub files: Vec<StoredFile>,
+    /// The folders of the locations that exist, in the order of the locations; the core warns
+    /// when there is none (SPEC-0001 R26).
+    pub locations: Vec<ArtifactFolder>,
+}
+
+/// The stored artifacts of the project at `root`, sorted by the core, and the folders of the
+/// locations that exist.
 ///
 /// # Errors
 ///
 /// [`LoadError::Read`] when a folder of a location exists but cannot be listed;
 /// [`LoadError::Refused`] when the project holds more than
 /// [`MAX_FILES`](locations::MAX_FILES) artifacts.
-pub fn discover(root: &Path) -> Result<Vec<StoredFile>, LoadError> {
+pub fn discover(root: &Path) -> Result<Discovery, LoadError> {
     let mut found = Vec::new();
+    let mut folders = Vec::new();
     for location in &LOCATIONS {
-        list(root, location.folder(), location.depth(), &mut found)?;
+        let folder = location.folder();
+        // A folder reached through a link is not a location of the project.
+        if is_real_folder(root, folder.path())? {
+            folders.push(folder);
+            list(root, folder.path(), location.depth(), &mut found)?;
+        }
     }
-    locations::discovered(found).map_err(|refused| LoadError::Refused {
+    let files = locations::discovered(found).map_err(|refused| LoadError::Refused {
         path: None,
         refused,
+    })?;
+    Ok(Discovery {
+        files,
+        locations: folders,
+    })
+}
+
+/// The canonical input of `validate` for the project at `root`: its stored artifacts, loaded,
+/// and the folders of the locations that exist, which the core checks (SPEC-0001 R26).
+///
+/// # Errors
+///
+/// As [`discover`] and [`load`].
+pub fn discovered_input(root: &Path) -> Result<ValidateInput, LoadError> {
+    let found = discover(root)?;
+    Ok(ValidateInput {
+        locations: Some(found.locations),
+        ..load(root, found.files)?
     })
 }
 
@@ -144,16 +179,15 @@ fn is_real_folder(root: &Path, folder: &str) -> Result<bool, ReadError> {
     Ok(true)
 }
 
-/// Adds to `found` the paths of the regular files below `folder`, `depth` levels down at most.
+/// Adds to `found` the paths of the regular files below `folder`, a folder reached without a
+/// link, `depth` levels down at most. A folder inside it is entered when the listing says it
+/// is a folder, which a symbolic link is not.
 pub(crate) fn list(
     root: &Path,
     folder: &str,
     depth: usize,
     found: &mut Vec<String>,
 ) -> Result<(), ReadError> {
-    if !is_real_folder(root, folder)? {
-        return Ok(());
-    }
     let path = root.join(folder);
     let entries = fs::read_dir(&path).map_err(|e| ReadError::new(&path, e))?;
     for entry in entries {
@@ -241,6 +275,7 @@ pub(crate) fn load_within(
         policy: None,
         adrs: None,
         language: None,
+        locations: None,
     })
 }
 
