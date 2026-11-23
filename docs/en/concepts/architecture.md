@@ -368,7 +368,8 @@ module `contract`:
 The lines of a doc comment are joined into paragraphs, since they wrap at the width of the
 code. The generator then checks the rules of the contracts that are not rules of the subset:
 a description on the root, every definition and every member (one of blanks only is none),
-the meaning of every enum value in its description, no `additionalProperties` that closes an
+the meaning of every enum value in its description, every text enum value in `snake_case`,
+no `additionalProperties` that closes an
 output (a pure map keeps the schema of its values), and at most four levels of objects, the
 values of a map included (ADR 0009 C4). The subset itself has one definition, the
 loader of the interpreter (ADR 0030 G3): `wayloop_core::schema::contract_schema` runs the

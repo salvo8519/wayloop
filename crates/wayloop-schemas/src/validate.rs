@@ -311,9 +311,22 @@ pub struct ValidateData {
 
 #[cfg(test)]
 mod tests {
-    use super::{DocumentEntry, EntryFormat, ValidateData, ValidateInput};
+    use super::{ArtifactFolder, DocumentEntry, EntryFormat, ValidateData, ValidateInput};
     use crate::contract::{Direction, schema_for};
     use serde_json::json;
+
+    #[test]
+    fn the_meaning_of_each_folder_names_its_path() {
+        // Review of #320: the doc comment of each value repeats its path, which `path` holds.
+        let schema = schema_for::<ValidateInput>(Direction::Input).unwrap();
+        let description = schema["$defs"]["ArtifactFolder"]["description"]
+            .as_str()
+            .unwrap();
+        for folder in ArtifactFolder::ALL {
+            let line = format!("- `{}`: The folder `{}`:", folder.id(), folder.path());
+            assert!(description.contains(&line), "{line} in {description}");
+        }
+    }
 
     #[test]
     fn the_input_is_closed_its_documents_free_and_its_lines_typed() {

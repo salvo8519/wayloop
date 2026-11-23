@@ -6,7 +6,8 @@
 //! type, a format that is not named, a reference out of the file or a reference chain) is
 //! refused there, and `wayloop_core::schema::contract_schema` runs both. These checks hold
 //! what a schema of the subset can still break: a description on the root, every definition and
-//! every member; the meaning of every enum value; at most four levels of objects; no
+//! every member; the meaning of every enum value, and every text value in `snake_case`; at
+//! most four levels of objects; no
 //! `additionalProperties` that closes an output (a pure map keeps the schema of its values);
 //! and, in an input, `additionalProperties` on every
 //! object but the free objects of [`FREE_OBJECTS`]: `false`, or the schema of every member of
