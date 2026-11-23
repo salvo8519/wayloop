@@ -14,7 +14,7 @@ fn the_binary_prints_the_generated_document() {
         .output()
         .unwrap();
     assert!(output.status.success());
-    assert!(output.stderr.is_empty());
+    assert_eq!(output.stderr, b"");
     let printed: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(printed, wayloop_schemagen::generate().unwrap());
 }
