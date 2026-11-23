@@ -2,6 +2,6 @@
 # A bump is one small pull request that fixes the new lints in the same change; the weekly
 # maintenance workflow reports what the newest stable would find.
 [toolchain]
-channel = "1.97.0"
+channel = "1.100.0"
 components = ["rustfmt", "clippy"]
 profile = "minimal"
