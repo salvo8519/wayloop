@@ -6,8 +6,12 @@
 //! (`conflict`), an `origin` with no member (`missing`) or more than one (`conflict`), `lines`
 //! without a file origin (`requires`, or `conflict` with another origin), an `unreadable` entry
 //! without a file origin (the same reasons: only a file can fail to parse). The keys and the
-//! lines of `lines` are rules of the schema (#307). Every error is found in one pass, entry
-//! by entry.
+//! lines of `lines` are rules of the schema (#307).
+//!
+//! The schema and these rules are two stages: the rules run only on an input the schema
+//! accepts, each stage finding all its errors in one pass, entry by entry. An input the schema
+//! refuses therefore lists none of the errors of these rules; once it is fixed, the rules may
+//! report more.
 //!
 //! An input that passed the schema and these rules is then read, without its members set to
 //! null, which are not given (ADR 0009 C2), into its contract type, [`ValidateInput`]: a
@@ -174,9 +178,9 @@ fn entry_rules(members: &Map<String, Value>, at: &Pointer, errors: &mut Vec<Erro
         );
     }
     let origin = given("origin").map(|o| origin_rules(o, &at.join("origin"), errors));
-    // In an entry of another format, `lines` is refused above as a conflict, once; its keys
-    // and its lines are checked by the schema (#307).
-    if matches!(given("lines"), Some(Value::Object(_))) && format == EntryFormat::Document {
+    // In an entry of another format, `lines` is refused above as a conflict, once. The schema
+    // has accepted the input, so `lines` is a map of lines keyed by pointers (#307).
+    if given("lines").is_some() && format == EntryFormat::Document {
         needs_file(origin, at, "lines", errors);
     }
     if format == EntryFormat::Unreadable {

@@ -68,12 +68,14 @@ fn objects_are_open_in_an_output_and_closed_in_an_input() {
         let input = (registered.schema)(Direction::Input).unwrap();
         let mut found = Vec::new();
         objects(&output, &Pointer::root(), &mut found);
-        // An output is open; a map keeps the schema of its values (#307).
+        // An output is open; a pure map keeps the schema of its values (#307).
         for (pointer, schema) in &found {
+            let pure_map = schema
+                .get("additionalProperties")
+                .is_none_or(Value::is_object)
+                && schema.get("properties").is_none();
             assert!(
-                schema
-                    .get("additionalProperties")
-                    .is_none_or(Value::is_object),
+                schema.get("additionalProperties").is_none() || pure_map,
                 "{pointer}"
             );
         }
@@ -396,6 +398,27 @@ fn an_output_closed_by_the_derive_is_refused() {
     assert!(schema_for::<Closed>(Direction::Input).is_ok());
 }
 
+/// Described.
+#[derive(JsonSchema)]
+struct MapOfLevel1 {
+    /// A map whose values nest three more levels of objects.
+    a: BTreeMap<String, Level1>,
+}
+
+#[test]
+fn the_values_of_a_map_count_in_the_levels_of_objects() {
+    // Review of #307: a map adds the level of its values, as a member does.
+    for direction in [Direction::Input, Direction::Output] {
+        assert_eq!(
+            refused::<MapOfLevel1>(direction),
+            ContractError {
+                pointer: at("/$defs/Level3"),
+                problem: Problem::TooDeep
+            }
+        );
+    }
+}
+
 #[test]
 fn objects_nest_at_most_four_levels() {
     assert_eq!(MAX_OBJECT_LEVELS, 4);
@@ -448,7 +471,7 @@ fn each_problem_is_told_in_words_with_its_place() {
         (
             at("/additionalProperties"),
             Problem::ClosedOutput,
-            "at /additionalProperties: `additionalProperties: false` in an output, which is open",
+            "at /additionalProperties: `additionalProperties` that closes an output, which is open",
         ),
         (
             at("/$defs/A"),
@@ -550,6 +573,40 @@ struct WithFreeMap {
     a: BTreeMap<String, Value>,
 }
 
+/// Any value, behind a name.
+#[derive(JsonSchema)]
+struct AnyValue(Value);
+
+/// Described.
+#[derive(JsonSchema)]
+struct WithNamedFreeMap {
+    /// A map of any values, through a definition.
+    a: BTreeMap<String, AnyValue>,
+}
+
+/// Described.
+#[derive(JsonSchema)]
+struct WithFlattenedMap {
+    /// A member.
+    a: u32,
+    /// Other members, numbers.
+    #[serde(flatten)]
+    rest: BTreeMap<String, u32>,
+}
+
+#[test]
+fn a_map_flattened_beside_members_closes_an_output() {
+    // Contract audit of #307, S1: the schema of the map would refuse a future member of another
+    // type, so the output would be closed (ADR 0009 C5).
+    assert_eq!(
+        refused::<WithFlattenedMap>(Direction::Output),
+        ContractError {
+            pointer: at("/additionalProperties"),
+            problem: Problem::ClosedOutput
+        }
+    );
+}
+
 #[test]
 fn a_typed_map_is_accepted_and_a_map_of_any_value_is_an_open_input() {
     // #307: a map keeps the schema of its values, which checks every member, in both
@@ -562,13 +619,16 @@ fn a_typed_map_is_accepted_and_a_map_of_any_value_is_an_open_input() {
         );
     }
     assert!(schema_for::<WithFreeMap>(Direction::Output).is_ok());
-    assert_eq!(
-        refused::<WithFreeMap>(Direction::Input),
-        ContractError {
-            pointer: at("/properties/a"),
-            problem: Problem::OpenInput
-        }
-    );
+    // A reference is followed: a definition of any value leaves the map open (review of #307).
+    for open in [refused::<WithFreeMap>, refused::<WithNamedFreeMap>] {
+        assert_eq!(
+            open(Direction::Input),
+            ContractError {
+                pointer: at("/properties/a"),
+                problem: Problem::OpenInput
+            }
+        );
+    }
 }
 
 #[test]

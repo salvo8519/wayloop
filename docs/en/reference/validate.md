@@ -107,7 +107,7 @@ An entry of `documents`:
 | --- | --- | --- | --- |
 | `format` | `document`, `markdown` or `unreadable` | yes | `document`: a JSON value in the normalised form of its type; `markdown`: the text of a living specification; `unreadable`: a file that did not parse |
 | `document` | object | with `document` | The document |
-| `lines` | object | no; with `document` and a `file` origin only | The line, from 1, of each value of the document, keyed by its RFC 6901 pointer into the document; the schema states both rules: keys in the format `json-pointer`, values integers from 1 |
+| `lines` | object | no; with `document` and a `file` origin only | The line, from 1, of each value of the document, keyed by its RFC 6901 pointer into the document; the schema states both rules: keys in the format `json-pointer`, values integers from 1. A line set to null is not given, as any member (ADR 0009 C2); a validator of plain draft 2020-12 refuses it |
 | `text` | string | with `markdown` | The content of the file |
 | `error` | object `{line, message}` | with `unreadable` | Where the parser stopped, from line 1, and its message |
 | `input_kind` | `pull_request`, `commit` or `handover_input` | no; with `document` only | The type of an input, which has no `kind` member |
@@ -170,14 +170,16 @@ Every error found is listed in `error.errors`; the first one is repeated at the 
 2. Otherwise, the errors of the documents, in the order of the documents; within a document,
    by stage (kind, version and schema first, then identifier); within a stage, in the order of
    the schema pass: the members of an object in the byte order of their keys (`/aa` before
-   `/zz`), the elements of an array by index, absent members after present ones.
+   `/zz`), the elements of an array by index, absent members after present ones. The errors of
+   the name of a member come before the errors of its value, at the same pointer.
 
 Every `pointer` of the result is an RFC 6901 pointer; the schemas of the output and of the
-envelope give it the format `json-pointer`. The `pointer` of an error of the input points into
-the canonical input, for example
-`/documents/0/format`. The `pointer` of an error of a document points into that document, for
-example `/problem`; `document` gives the index, from 0, of that document in `documents`, and
-`source` says where it is stored:
+envelope give it the format `json-pointer`, which a JSON Schema validator checks when format
+assertion is enabled (in draft 2020-12 a format is an annotation by default). The `pointer` of
+an error of the input points into the canonical input, for example `/documents/0/format`. The
+`pointer` of an error of a document points into that document, for example `/problem`;
+`document` gives the index, from 0, of that document in `documents`, and `source` says where
+it is stored:
 
 | Origin of the document | `source` |
 | --- | --- |

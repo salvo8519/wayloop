@@ -553,7 +553,11 @@ fn a_free_map_is_refused_by_the_rules_and_a_typed_map_is_read() {
         let schema = contract_schema(registered::<WithMap>(), direction).unwrap();
         let read = Schema::load(&schema).unwrap();
         let errors = read.validate(&json!({"a": {"k": -1}}), Code::new("contract"));
-        assert_eq!(errors.len(), 1, "{direction:?}");
+        let found: Vec<(&str, Reason)> = errors
+            .iter()
+            .map(|e| (e.pointer().as_str(), e.reason()))
+            .collect();
+        assert_eq!(found, [("/a/k", Reason::Range)], "{direction:?}");
     }
     let subset = ContractFault::Subset(refused::<RequiredNull>(Direction::Output));
     assert!(

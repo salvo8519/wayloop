@@ -78,16 +78,11 @@ macro_rules! pointer_doc {
 #[serde(transparent)]
 pub struct Pointer(String);
 
-/// A string in the named format `json-pointer`, which the core checks with [`Pointer::parse`].
-impl JsonSchema for Pointer {
-    fn schema_name() -> Cow<'static, str> {
-        "Pointer".into()
-    }
-
-    fn json_schema(_: &mut SchemaGenerator) -> Schema {
-        rules::formatted(Format::JsonPointer, pointer_doc!())
-    }
-}
+// A string in the named format `json-pointer`, which the core checks with `Pointer::parse`.
+crate::__json_schema!(
+    Pointer,
+    rules::formatted(Format::JsonPointer, pointer_doc!())
+);
 
 /// A pointer is ordered as its text, so a map keyed by pointers is searched by text.
 impl Borrow<str> for Pointer {

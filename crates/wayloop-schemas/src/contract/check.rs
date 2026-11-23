@@ -34,11 +34,20 @@ const SUBSCHEMAS: [&str; 3] = ["allOf", "anyOf", "oneOf"];
 pub(super) const FREE_OBJECTS: [&str; 1] = [FreeDocument::NAME];
 
 /// Whether an object of an input is closed: `additionalProperties: false`, or a map whose
-/// schema of values states a type or a reference, so that no member goes unchecked.
-fn is_closed(schema: &Map<String, Value>) -> bool {
+/// schema of values, or the definition it refers to, states a type, so that no member goes
+/// unchecked. A map of any value, such as `BTreeMap<String, Value>` or a map of a newtype over
+/// it, stays open.
+fn is_closed(root: &Value, schema: &Map<String, Value>) -> bool {
     match schema.get("additionalProperties") {
         Some(Value::Bool(false)) => true,
-        Some(Value::Object(values)) => values.contains_key("type") || values.contains_key("$ref"),
+        Some(values @ Value::Object(_)) => {
+            let target = values
+                .get("$ref")
+                .and_then(Value::as_str)
+                .and_then(|r| r.strip_prefix("#/$defs/"))
+                .and_then(|name| root.get("$defs")?.get(name));
+            target.unwrap_or(values).get("type").is_some()
+        }
         _ => false,
     }
 }
@@ -49,7 +58,13 @@ const MAX_HOPS: usize = 64;
 
 /// The first place of `schema` that leaves the rules of the contracts.
 pub(super) fn check(schema: &Value, direction: Direction) -> Result<(), ContractError> {
-    walk(schema, &Pointer::root(), Need::Description, direction)?;
+    walk(
+        schema,
+        schema,
+        &Pointer::root(),
+        Need::Description,
+        direction,
+    )?;
     levels(schema, schema, &Pointer::root(), 0, 0)
 }
 
@@ -74,6 +89,7 @@ enum Need {
 /// Checks the subschema `value` at `pointer` and every subschema below it. A value that is not
 /// an object is not a schema of the subset; the loader of the core refuses it.
 fn walk(
+    root: &Value,
     value: &Value,
     pointer: &Pointer,
     need: Need,
@@ -92,7 +108,7 @@ fn walk(
     if direction == Direction::Input
         && need != Need::InCondition
         && is_object(schema)
-        && !is_closed(schema)
+        && !is_closed(root, schema)
         && !FREE_OBJECTS
             .iter()
             .any(|name| *pointer == Pointer::root().join("$defs").join(name))
@@ -108,7 +124,7 @@ fn walk(
                 Need::Description | Need::Nothing => Need::Description,
             };
             for (name, member) in members {
-                walk(member, &at.join(name), member_need, direction)?;
+                walk(root, member, &at.join(name), member_need, direction)?;
             }
         }
     }
@@ -118,23 +134,41 @@ fn walk(
     };
     for keyword in SUBSCHEMA {
         if let Some(sub) = schema.get(keyword) {
-            walk(sub, &pointer.join(keyword), inner, direction)?;
+            walk(root, sub, &pointer.join(keyword), inner, direction)?;
         }
     }
     for keyword in CONDITION {
         if let Some(sub) = schema.get(keyword) {
-            walk(sub, &pointer.join(keyword), Need::InCondition, direction)?;
+            walk(
+                root,
+                sub,
+                &pointer.join(keyword),
+                Need::InCondition,
+                direction,
+            )?;
         }
     }
     for keyword in SUBSCHEMAS {
         if let Some(Value::Array(entries)) = schema.get(keyword) {
             let at = pointer.join(keyword);
             for (i, entry) in entries.iter().enumerate() {
-                walk(entry, &at.join_index(i), inner, direction)?;
+                walk(root, entry, &at.join_index(i), inner, direction)?;
             }
         }
     }
     Ok(())
+}
+
+/// Whether an object of an output refuses members it does not declare: any
+/// `additionalProperties` but the schema of the values of a pure map, an object that declares
+/// no member. Beside declared members (a map flattened into a type), the schema of the map would
+/// refuse a future member of another type (ADR 0009 C5).
+fn closes_output(schema: &Map<String, Value>) -> bool {
+    match schema.get("additionalProperties") {
+        None => false,
+        Some(Value::Object(_)) => schema.contains_key("properties"),
+        Some(_) => true,
+    }
 }
 
 /// The rules on the keywords of one subschema.
@@ -144,12 +178,7 @@ fn own_keywords(
     description: &str,
     direction: Direction,
 ) -> Result<(), ContractError> {
-    // A schema of the members of a map describes its values and closes nothing.
-    if direction == Direction::Output
-        && schema
-            .get("additionalProperties")
-            .is_some_and(|v| !v.is_object())
-    {
+    if direction == Direction::Output && closes_output(schema) {
         let at = pointer.join("additionalProperties");
         return Err(refuse(&at, Problem::ClosedOutput));
     }
@@ -226,8 +255,11 @@ fn levels(
             levels(root, member, &at.join(name), level, hops)?;
         }
     }
-    if let Some(items) = schema.get("items") {
-        levels(root, items, &pointer.join("items"), level, hops)?;
+    // The values of a map nest like a member: an object there is one level deeper (#307).
+    for keyword in ["items", "additionalProperties"] {
+        if let Some(sub) = schema.get(keyword) {
+            levels(root, sub, &pointer.join(keyword), level, hops)?;
+        }
     }
     for keyword in SUBSCHEMAS {
         if let Some(Value::Array(entries)) = schema.get(keyword) {

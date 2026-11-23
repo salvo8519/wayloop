@@ -887,6 +887,29 @@ fn the_schema_keys_lines_by_pointers_and_takes_line_numbers_from_1() {
         );
     }
     assert_eq!(input::rules(&input), []);
+    // Contract audit of #307: an external validator that checks formats reads each line the
+    // same way, beyond the safe-integer bound of the core and the nulls of ADR 0009 C2, which
+    // the oracle does not share.
+    let text = VALIDATE
+        .embedded(Part::Schema, VALIDATE.version)
+        .unwrap()
+        .text;
+    let oracle = oracle(&serde_json::from_str(text).unwrap());
+    for (key, line) in [
+        ("x", json!(1)),
+        ("/a", json!("2")),
+        ("/b", json!(0)),
+        ("/c", json!(2.5)),
+        ("/f", json!(3.0)),
+        ("/~2", json!(1)),
+        ("", json!(1)),
+        ("/~0~1", json!(2)),
+    ] {
+        let one = json!({"documents": [{"format": "document", "document": {},
+            "origin": {"file": "a.yaml"}, "lines": {key: line}}]});
+        let core = input_schema().validate(&one, COMMAND_INPUT).is_empty();
+        assert_eq!(oracle.is_valid(&one), core, "{key}: {line}");
+    }
 }
 
 // The entry point --------------------------------------------------------------------------

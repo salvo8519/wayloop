@@ -127,6 +127,15 @@ impl Checker<'_> {
         self.errors.push(error);
     }
 
+    /// Checks the name `key` of the member at `at` against the node `names`, a schema of
+    /// strings (the loader refuses any other): its errors are reported at the member and told
+    /// as errors of its name.
+    fn name(&mut self, names: usize, key: &str, at: &Pointer) {
+        self.naming = true;
+        self.check(names, &Value::String(key.to_owned()), at);
+        self.naming = false;
+    }
+
     fn string(&mut self, rules: &Rules, text: &str, pointer: &Pointer) {
         let subject = if self.naming {
             "The name of the member"
@@ -196,10 +205,7 @@ impl Checker<'_> {
         for (key, member) in members.iter().filter(|(_, v)| !v.is_null()) {
             let at = pointer.join(key);
             if let Some(names) = rules.names {
-                // The name is checked as a string; its errors are reported at the member.
-                self.naming = true;
-                self.check(names, &Value::String(key.clone()), &at);
-                self.naming = false;
+                self.name(names, key, &at);
             }
             if let Some(&schema) = rules.properties.get(key) {
                 self.check(schema, member, &at);

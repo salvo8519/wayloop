@@ -204,6 +204,7 @@ pub(super) fn load(schema: &Value) -> Result<Compiled, LoadError> {
             *slot = Node::Ref(target);
         }
     }
+    loader.names_are_strings()?;
     let mut states = vec![Measure::New; loader.nodes.len()];
     loader.measure(root, 0, &mut states)?;
     for index in defs.into_values() {
@@ -633,6 +634,34 @@ impl Loader {
         self.condition_heights.push(height);
         self.condition_pointers.push(pointer.clone());
         Ok(index)
+    }
+
+    /// Refuses a `propertyNames` whose schema, through its reference, is not a schema of
+    /// strings without `enum` or `const`: a name is a string, so only the errors of a string
+    /// (`length`, `syntax`) can be reported for it, each told as the error of a name.
+    fn names_are_strings(&self) -> Result<(), LoadError> {
+        let names = self.nodes.iter().filter_map(|node| match node {
+            Node::Rules(rules) => rules.names,
+            Node::Ref(_) => None,
+        });
+        for index in names {
+            let mut target = index;
+            // A definition is never itself a reference, so one step resolves it.
+            if let Some(Node::Ref(definition)) = self.nodes.get(target) {
+                target = *definition;
+            }
+            let string = matches!(
+                self.nodes.get(target),
+                Some(Node::Rules(rules)) if rules.kind == Some(Type::String) && rules.values.is_none()
+            );
+            if !string {
+                return Err(invalid(
+                    self.pointer(index),
+                    "`propertyNames` is a schema of strings, without `enum` or `const`",
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn condition_height(&self, index: usize) -> usize {

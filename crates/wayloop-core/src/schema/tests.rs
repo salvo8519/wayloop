@@ -87,7 +87,7 @@ fn oracle_format(name: &str, text: &str) -> bool {
     }
 }
 
-const FORMATS: [&str; 19] = [
+const FORMATS: [&str; 20] = [
     "date",
     "utc-date-time",
     "language-tag",
@@ -107,7 +107,11 @@ const FORMATS: [&str; 19] = [
     "criterion-id",
     "decision-id",
     "question-id",
+    "json-pointer",
 ];
+
+/// The formats the oracle checks with its own builtin check, independent of the core.
+const BUILTIN: [&str; 2] = ["date", "json-pointer"];
 
 fn oracle_date() -> &'static jsonschema::Validator {
     static DATE: OnceLock<jsonschema::Validator> = OnceLock::new();
@@ -127,7 +131,7 @@ pub(crate) fn oracle(schema: &Value) -> jsonschema::Validator {
     let mut options = jsonschema::draft202012::options()
         .should_validate_formats(true)
         .should_ignore_unknown_formats(false);
-    for name in FORMATS.into_iter().filter(|n| *n != "date") {
+    for name in FORMATS.into_iter().filter(|n| !BUILTIN.contains(n)) {
         options = options.with_format(name, move |text: &str| oracle_format(name, text));
     }
     options.build(schema).unwrap()
@@ -740,6 +744,21 @@ fn a_format_applies_to_strings_only() {
 }
 
 #[test]
+fn the_formats_of_the_tests_are_every_named_format() {
+    let named: Vec<&str> = wayloop_schemas::Format::ALL
+        .iter()
+        .map(|f| f.id())
+        .collect();
+    assert_eq!(named, FORMATS);
+    let examples: Vec<&str> = FORMAT_EXAMPLES.iter().map(|(name, _, _)| *name).collect();
+    let mut sorted = examples.clone();
+    sorted.sort_unstable();
+    let mut all = named.clone();
+    all.sort_unstable();
+    assert_eq!(sorted, all);
+}
+
+#[test]
 fn every_named_format_is_known_to_the_interpreter_and_to_the_oracle() {
     for name in FORMATS {
         let schema = json!({"type": "string", "format": name});
@@ -749,7 +768,7 @@ fn every_named_format_is_known_to_the_interpreter_and_to_the_oracle() {
 }
 
 /// Accepted and refused examples of each named format.
-const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 19] = [
+const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 20] = [
     (
         "project-path",
         &[
@@ -901,6 +920,11 @@ const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 19] = [
     ),
     ("decision-id", &["D1", "D3"], &["D0", "d3", "D"]),
     ("question-id", &["Q1", "Q20"], &["Q0", "QQ1"]),
+    (
+        "json-pointer",
+        &["", "/", "//", "/a~0b~1c", "/~01", "/documents/0/lines"],
+        &["a", "#/a", "/~", "/~2", "~0", "a/b"],
+    ),
 ];
 
 #[test]
@@ -1117,6 +1141,18 @@ fn a_map_checks_every_member_by_its_name_and_its_value() {
         name.message(),
         "The name of the member is not in the form of the format `json-pointer`."
     );
+    let short = json!({"type": "object", "propertyNames": {"type": "string", "minLength": 2, "maxLength": 3}});
+    let messages: Vec<String> = check(&short, &json!({"a": 1, "abcd": 2, "abc": 3}))
+        .iter()
+        .map(|e| e.message().to_owned())
+        .collect();
+    assert_eq!(
+        messages,
+        [
+            "The name of the member has 1 characters; at least 2 are required.",
+            "The name of the member has 4 characters; at most 3 are accepted.",
+        ]
+    );
     // A value is checked as a value even beside a name check.
     let text = json!({"type": "object", "additionalProperties": {"type": "string", "format": "json-pointer"}});
     assert_eq!(
@@ -1130,6 +1166,22 @@ fn the_keywords_of_a_map_take_a_schema() {
     for (schema, pointer) in [
         (json!({"additionalProperties": 1}), "/additionalProperties"),
         (json!({"propertyNames": false}), "/propertyNames"),
+        (
+            json!({"propertyNames": {"type": "integer"}}),
+            "/propertyNames",
+        ),
+        (
+            json!({"propertyNames": {"format": "json-pointer"}}),
+            "/propertyNames",
+        ),
+        (
+            json!({"propertyNames": {"type": "string", "enum": ["a"]}}),
+            "/propertyNames",
+        ),
+        (
+            json!({"$defs": {"N": {"type": "integer"}}, "propertyNames": {"$ref": "#/$defs/N"}}),
+            "/propertyNames",
+        ),
     ] {
         let error = refused(&schema);
         assert!(error.to_string().contains(pointer), "{error}");
@@ -1527,6 +1579,7 @@ proptest! {
             "[a-zA-Z]{1,4}([-_][a-zA-Z0-9]{1,9}){0,3}",
             "([A-Za-z]:)?[/\\\\]?([a-z.]{0,4}[/\\\\]){0,3}[a-z.]{0,5}",
             "(BRIEF|COUNCIL|GATE|EPIC|STORY|SPEC|CHANGE|TASK|HANDOVER|M|R|AC|D|Q)[-_ ]?[0-9]{0,6}(-[0-9]{0,3})?",
+            "#?(/([a-z~]|~[0-2]){0,3}){0,3}",
         ],
     ) {
         let schema = json!({"type": "string", "format": format});

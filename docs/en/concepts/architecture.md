@@ -281,7 +281,7 @@ silently ignored.
 | `items` | Schema of every element of an array | |
 | `properties` | Schema of each declared member; with `additionalProperties: false` any other member is refused, without `additionalProperties` the object is open and other members are accepted unchecked, as in output schemas (ADR 0009 C5, amended on 2026-11-20) | `unknown_field`, with the closest declared key in `fix` |
 | `additionalProperties` | `false`, or the schema of every member not declared in `properties`: the values of a map | the reasons of that schema |
-| `propertyNames` | Schema of the name of every member, checked as a string and reported at the pointer of the member: the keys of a map | the reasons of that schema, usually `syntax` |
+| `propertyNames` | Schema of the name of every member, a schema of strings without `enum` or `const`, checked as a string and reported at the pointer of the member before the errors of its value: the keys of a map | the reasons of that schema, usually `syntax` |
 | `required` | Declared members that must be present | `missing` |
 | `if` and `then`, `allOf` | Conditional requirements: when the value matches the condition of `if`, the members of the `required` of `then` must be present; `allOf` lists such pairs | `requires`, with the members the condition tested in `pointers` |
 | `$ref`, `$defs` | A reference to a definition of the same file, whose name has no `/`, `~` or `%` | |
@@ -326,7 +326,8 @@ it exhaustively: a format added to the enum does not compile until the core chec
 - **Oracle.** The tests check every schema and document they use with a JSON Schema validator
   crate, a development dependency that is never shipped; it must agree with the interpreter on
   the verdict. The named formats are checked in the oracle by regular expressions written from
-  SPEC-0001, independently of the parsers of the core. Two rules of Wayloop are not JSON
+  SPEC-0001, independently of the parsers of the core, except `date` and `json-pointer`, which
+  the oracle checks with its own builtin formats. Two rules of Wayloop are not JSON
   Schema, so the oracle sees the document without its members set to null, and the integer
   bound is added to its verdict; the bound is checked on every number, which matches the
   interpreter only for documents that their schema describes fully, as the documents of the
@@ -360,14 +361,14 @@ module `contract`:
 | An enum value with its meaning | A `oneOf` of documented constants becomes an `enum`, and each value is appended to the description as a line ``- `value`: meaning`` |
 | Any JSON value | The boolean schema `true` becomes an object schema with a description |
 | Integer formats | A `format` such as `uint32` is removed; the type and the bounds remain |
-| Closed inputs, open outputs | In an input every object that declares its members and has no `additionalProperties` gets `additionalProperties: false`; an object that declares none is a free object, written by hand for a document of another schema, and stays open; a map keeps the schema of its values and of its keys; an output has no `additionalProperties: false` |
+| Closed inputs, open outputs | In an input every object that declares its members and has no `additionalProperties` gets `additionalProperties: false`; an object that declares none is a free object, written by hand for a document of another schema, and stays open; a map keeps the schema of its values and of its keys; an output has no `additionalProperties`, except the schema of the values of a pure map |
 
 The lines of a doc comment are joined into paragraphs, since they wrap at the width of the
 code. The generator then checks the rules of the contracts that are not rules of the subset:
 a description on the root, every definition and every member (one of blanks only is none),
-the meaning of every enum value in its description, no `additionalProperties: false` in an
-output,
-and at most four levels of objects (ADR 0009 C4). The subset itself has one definition, the
+the meaning of every enum value in its description, no `additionalProperties` that closes an
+output (a pure map keeps the schema of its values), and at most four levels of objects, the
+values of a map included (ADR 0009 C4). The subset itself has one definition, the
 loader of the interpreter (ADR 0030 G3): `wayloop_core::schema::contract_schema` runs the
 checks of the generator and then `Schema::load` on a registered type, and fails with
 `ContractFault::Rule` or `ContractFault::Subset`. A `null` type, the keywords `pattern`,

@@ -21,8 +21,8 @@
 //! - The checks of the generator, after the transform, for the rules that are not rules of the
 //!   subset: a description on the root, on every definition and on every member (one of
 //!   blanks only is none), the meaning of every enum value in its description, no
-//!   `additionalProperties: false` in an output, and at most four levels of objects (ADR 0009
-//!   C4).
+//!   `additionalProperties` that closes an output (only a pure map keeps the schema of its
+//!   values), and at most four levels of objects (ADR 0009 C4).
 //!
 //! [`snapshot`] writes the text of a snapshot under `schemas/`, with its published `$id`; it
 //! writes no file either. [`CONTRACTS`] is the registry of the contracts, with the area, the
@@ -78,9 +78,9 @@ pub enum Problem {
     MissingDescription,
     /// An enum value whose meaning the description does not give.
     UndocumentedValue(String),
-    /// `additionalProperties: false` in an output, written by the derive (for example
-    /// `deny_unknown_fields`): an output is open (ADR 0009 C5). A map keeps the schema of its
-    /// values.
+    /// `additionalProperties` in an output, written by the derive (for example
+    /// `deny_unknown_fields`, or a map flattened beside declared members): an output is open
+    /// (ADR 0009 C5). A pure map, which declares no member, keeps the schema of its values.
     ClosedOutput,
     /// Objects nested deeper than [`MAX_OBJECT_LEVELS`].
     TooDeep,
@@ -114,7 +114,7 @@ impl fmt::Display for ContractError {
             ),
             Problem::ClosedOutput => write!(
                 f,
-                "at {place}: `additionalProperties: false` in an output, which is open"
+                "at {place}: `additionalProperties` that closes an output, which is open"
             ),
             Problem::OpenInput => write!(
                 f,

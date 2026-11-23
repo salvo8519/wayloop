@@ -24,7 +24,7 @@
 //! | `items` | Schema of every element of an array | |
 //! | `properties` | Schema of each declared member; without `additionalProperties` the object is open and other members are accepted unchecked (output snapshots, ADR 0009 C5) | |
 //! | `additionalProperties` | `false`: a member not in `properties` is refused; or a schema: every member not in `properties` is checked by it (a map, such as the `lines` of `validate`) | `unknown_field`, with the closest declared key in `fix`, for `false` |
-//! | `propertyNames` | Schema of the name of every member, checked as a string; its errors are reported at the pointer of the member | the reason of the keyword that failed, usually `syntax` |
+//! | `propertyNames` | Schema of the name of every member, checked as a string; its errors are reported at the pointer of the member and told as errors of the name. It is a schema of strings, through its reference, without `enum` or `const` | the reason of the keyword that failed, usually `syntax` |
 //! | `required` | Declared members that must be present | `missing` |
 //! | `if` and `then` | A conditional requirement: when the value matches the condition of `if`, the members listed in the `required` of `then` must be present | `requires`, with the pointers of the members the condition tested in `pointers` |
 //! | `allOf` | A list of `if` and `then` pairs | |
@@ -74,7 +74,9 @@
 //! Every error is found in one pass, in document order: a value's own errors come before the
 //! errors inside it; the members of an object are visited in the byte order of their keys
 //! (JSON objects have no order, and the document model keeps none), the elements of an array
-//! by index; the absent members of an object follow its present ones, first those of
+//! by index; the errors of the name of a member (`propertyNames`) come before the errors of
+//! its value, at the same pointer; the absent members of an object follow its present ones,
+//! first those of
 //! `required` in its order, then those of each `then`. A member missing under both `required`
 //! and a `then` is reported once, as `missing`. The closest key of an `unknown_field` is a
 //! declared key not present in the object, at an optimal string alignment distance (the
@@ -104,8 +106,9 @@ mod load;
 pub(crate) mod tests;
 
 /// Deepest nesting of subschemas a schema may have, counted through `$ref`: the root is at
-/// depth 0 and each `properties` member, `items`, `additionalProperties`, `propertyNames`, `if`, `contains` and reference target adds
-/// one level (an entry of `allOf` and a `then` add none).
+/// depth 0 and each `properties` member, `items`, `additionalProperties`, `propertyNames`,
+/// `if`, `contains` and reference target adds one level (an entry of `allOf` and a `then` add
+/// none).
 pub const MAX_DEPTH: usize = 32;
 
 /// Why a schema was refused when loaded. A refused schema is a defect of the engine, not of

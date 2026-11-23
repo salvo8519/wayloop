@@ -7,6 +7,7 @@
 //! `lines` that is not an RFC 6901 pointer and a line that is not an integer from 1. It checks
 //! them on the JSON value before it reads the input into these types.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use schemars::{JsonSchema, Schema, SchemaGenerator};
@@ -144,28 +145,16 @@ impl JsonSchema for FreeDocument {
 pub struct Lines(pub BTreeMap<Pointer, Line>);
 
 impl JsonSchema for Lines {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
+    fn schema_name() -> Cow<'static, str> {
         "Lines".into()
     }
 
     fn json_schema(generator: &mut SchemaGenerator) -> Schema {
-        let mut schema = Map::new();
-        schema.insert(
-            "description".to_owned(),
-            "The line, from 1, of each value of the document, keyed by its RFC 6901 pointer into \
-             the document."
-                .into(),
-        );
-        schema.insert("type".to_owned(), "object".into());
-        schema.insert(
-            "propertyNames".to_owned(),
-            generator.subschema_for::<Pointer>().to_value(),
-        );
-        schema.insert(
-            "additionalProperties".to_owned(),
-            generator.subschema_for::<Line>().to_value(),
-        );
-        Schema::from(schema)
+        rules::map::<Pointer, Line>(
+            generator,
+            "The line, from 1, of each value of the document, keyed by its RFC 6901 pointer \
+             into the document.",
+        )
     }
 }
 

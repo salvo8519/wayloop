@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 9339886a1e5d
+source_hash: b99388b7e5bf
 ---
 # wayloop validate
 
@@ -113,7 +113,7 @@ Una voce di `documents`:
 | --- | --- | --- | --- |
 | `format` | `document`, `markdown` o `unreadable` | sì | `document`: un valore JSON nella forma normalizzata del suo tipo; `markdown`: il testo di una specifica viva; `unreadable`: un file che non è stato possibile analizzare |
 | `document` | oggetto | con `document` | Il documento |
-| `lines` | oggetto | no; solo con `document` e un'origine `file` | La riga, da 1, di ogni valore del documento, indicizzata dal suo puntatore RFC 6901 nel documento; lo schema dichiara entrambe le regole: chiavi nel formato `json-pointer`, valori interi da 1 |
+| `lines` | oggetto | no; solo con `document` e un'origine `file` | La riga, da 1, di ogni valore del documento, indicizzata dal suo puntatore RFC 6901 nel documento; lo schema dichiara entrambe le regole: chiavi nel formato `json-pointer`, valori interi da 1. Una riga impostata a null non è data, come ogni membro (ADR 0009 C2); un validatore del semplice draft 2020-12 la rifiuta |
 | `text` | stringa | con `markdown` | Il contenuto del file |
 | `error` | oggetto `{line, message}` | con `unreadable` | Dove il parser si è fermato, dalla riga 1, e il suo messaggio |
 | `input_kind` | `pull_request`, `commit` o `handover_input` | no; solo con `document` | Il tipo di un input, che non ha un membro `kind` |
@@ -180,13 +180,16 @@ Ogni errore trovato è elencato in `error.errors`; il primo è ripetuto al livel
    fase (prima tipo, versione e schema, poi identificativo); dentro una fase, nell'ordine del
    passaggio dello schema: i membri di un oggetto nell'ordine dei byte delle loro chiavi (`/aa`
    prima di `/zz`), gli elementi di un array per indice, i membri assenti dopo quelli presenti.
+   Gli errori del nome di un membro vengono prima degli errori del suo valore, allo stesso
+   puntatore.
 
 Ogni `pointer` del risultato è un puntatore RFC 6901; gli schemi dell'output e dell'envelope gli
-danno il formato `json-pointer`. Il `pointer` di un errore dell'input punta nell'input
-canonico, per esempio
-`/documents/0/format`. Il `pointer` di un errore di un documento punta in quel documento, per
-esempio `/problem`; `document` dà l'indice, da 0, di quel documento in `documents`, e `source`
-dice dove è memorizzato:
+danno il formato `json-pointer`, che un validatore JSON Schema controlla quando la verifica dei
+formati è attiva (nel draft 2020-12 un formato è per default un'annotazione). Il `pointer` di
+un errore dell'input punta nell'input canonico, per esempio `/documents/0/format`. Il
+`pointer` di un errore di un documento punta in quel documento, per esempio `/problem`;
+`document` dà l'indice, da 0, di quel documento in `documents`, e `source` dice dove è
+memorizzato:
 
 | Origine del documento | `source` |
 | --- | --- |
