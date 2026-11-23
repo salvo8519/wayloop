@@ -109,7 +109,7 @@ One module of `wayloop-schemas`, `contract`, holds every rule the derive does no
 | Conditional requirements (`superseded_by` required when `status` is `superseded`) | A `#[schemars(transform = ...)]` attribute on the type that calls one helper of `contract::rules`; the helper writes the `allOf` of `if` and `then` of the subset |
 | Named formats | One enum `Format` in `wayloop-schemas` listing every named format; each value-form newtype implements `JsonSchema` by hand, once, with `type: string` and its format. The core's format checker matches on the same enum, so a format the generator emits and the core lacks does not compile |
 | Integer bounds | On the newtype (`#[schemars(range(min = 1))]` or a non-zero integer type); the bound of plus or minus (2^53 - 1) stays a rule of the interpreter, not of each schema |
-| Closed inputs, open outputs | A transform applied by the generator by direction: every object of an input schema gets `additionalProperties: false`; output schemas get none (C5 as amended on 2026-11-20) |
+| Closed inputs, open outputs | A transform applied by the generator by direction: every object of an input schema gets `additionalProperties: false`; output schemas get none (C5 as amended on 2026-11-20); a typed map keeps the schema of its values in both directions (amendment of 2026-11-23) |
 | Absent, not null (C2) | Settings: an `Option` adds no `null` type and no `nullable`; optional members use `skip_serializing_if` and are left out of `required` |
 | Enum values with their meaning | A transform turns the `oneOf` of documented constants into `enum`, and appends the meaning of each value to the description of the member, as ADR 0024 requires |
 | Any JSON value (`fix`, `value`) | A transform turns the boolean schema `true` into an object schema with its description |
@@ -264,6 +264,22 @@ with its tests and the architecture page.
   raises the minimum engine version of the ledger (SPEC-0003 R53). An older engine therefore
   stops on a version it does not know instead of refusing an unknown member of a known version
   as a broken chain. Before that release, the amendment of 2026-11-20 applies.
+- 2026-11-23, choice 8 of #288, approved by the maintainer on 2026-11-20, with #307 (G2,
+  G3): the subset of the interpreter takes a schema as the value of `additionalProperties`,
+  which checks every member not declared in `properties`, and `propertyNames`, which checks the
+  name of every member as a string. A map is therefore typed: in an input it is closed when the
+  schema of its values, or the definition its reference names, states a type, and a map whose
+  values may be anything stays an open object, refused. In an output a pure
+  map, an object that declares no member, keeps the schema of its values; an
+  `additionalProperties` beside declared members, as a flattened map writes, is refused, since
+  it would close the output (ADR 0009 C5, amended on 2026-11-23). The values of a map count in
+  the four levels of objects. `propertyNames` is a schema of strings, without `enum` or
+  `const`, so that every error of a name is told as one. The named format `json-pointer` is the
+  form of `wayloop_schemas::Pointer`, checked by the core with `Pointer::parse`, decision of the
+  maintainer on 2026-11-23: every `pointer` of the contracts carries it. The `lines` of
+  `validate` are generated from `BTreeMap<Pointer, Line>`, leave `FREE_OBJECTS`, and the rules
+  of the core that repeated them are removed; `commands/validate` v1 and `envelope/result` v1,
+  which no release holds, change under the amendment of 2026-11-20.
 
 ## Consequences
 

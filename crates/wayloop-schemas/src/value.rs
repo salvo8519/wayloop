@@ -20,7 +20,6 @@ use schemars::Schema;
 use serde_json::{Map, Value};
 
 use crate::Format;
-use crate::contract::rules;
 use crate::number::{integer, is_safe};
 
 #[doc(hidden)]
@@ -39,13 +38,6 @@ pub fn positive_schema(description: &str) -> Schema {
     schema.insert("minimum".to_owned(), 1.into());
     schema.insert("type".to_owned(), "integer".into());
     Schema::from(schema)
-}
-
-/// The schema of a text in the named `format`, with its `description`.
-#[doc(hidden)]
-#[must_use]
-pub fn formatted_schema(format: Format, description: &str) -> Schema {
-    rules::formatted(format, description)
 }
 
 /// The text of a JSON string; `None` for any other value.
@@ -109,7 +101,7 @@ macro_rules! formatted_text {
 
         $crate::__inline_schema!(
             $name,
-            $crate::value::formatted_schema($format, concat!($($doc, "\n"),*))
+            $crate::contract::rules::formatted($format, concat!($($doc, "\n"),*))
         );
     };
 }
@@ -328,8 +320,9 @@ non_empty_text! {
 }
 
 /// The schema of an object whose members the contract does not describe, with its
-/// `description`: a document of another schema, or a map. It stays open in an input too, since
-/// it declares no member (ADR 0030 G2, as amended for #256); the core checks its content.
+/// `description`: a document of another schema. It stays open in an input too, since it declares
+/// no member (ADR 0030 G2, as amended for #256); the core checks its content. A map is not one:
+/// it keeps the schema of its values (#307).
 #[doc(hidden)]
 #[must_use]
 pub fn free_object_schema(description: &str) -> Schema {

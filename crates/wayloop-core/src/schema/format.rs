@@ -4,7 +4,7 @@
 //! Every check works on ASCII and reads the text once; no regular expression is involved. A
 //! fix is offered only when it is a value the format accepts and differs from the text.
 
-use wayloop_schemas::Format;
+use wayloop_schemas::{Format, Pointer};
 
 /// How a named format is checked. The match in [`shape`] is exhaustive over [`Format`], the
 /// one list of named formats shared with the generator of `wayloop-schemas` (ADR 0030 G2): a
@@ -29,6 +29,8 @@ enum Shape {
     Handover,
     /// `<PREFIX><k>`, a part of an artifact: a number from 1.
     Part(&'static str),
+    /// An RFC 6901 JSON pointer, as [`Pointer::parse`] reads it.
+    JsonPointer,
 }
 
 /// The shape that checks `format`.
@@ -53,6 +55,7 @@ const fn shape(format: Format) -> Shape {
         Format::CriterionId => Shape::Part("AC"),
         Format::DecisionId => Shape::Part("D"),
         Format::QuestionId => Shape::Part("Q"),
+        Format::JsonPointer => Shape::JsonPointer,
     }
 }
 
@@ -87,13 +90,14 @@ impl Shape {
                 .and_then(|rest| rest.split_once('-'))
                 .is_some_and(|(issue, k)| is_counter(issue) && is_counter(k)),
             Shape::Part(prefix) => text.strip_prefix(prefix).is_some_and(is_counter),
+            Shape::JsonPointer => Pointer::parse(text).is_some(),
         }
     }
 
     /// A corrected value for `text`, when one can be derived and the shape accepts it.
     fn fix(self, text: &str) -> Option<String> {
         let candidate = match self {
-            Shape::Date | Shape::UtcDateTime => None,
+            Shape::Date | Shape::UtcDateTime | Shape::JsonPointer => None,
             Shape::LanguageTag => Some(text.replace('_', "-")),
             Shape::TrackerHandle => (!text.starts_with('@')).then(|| format!("@{text}")),
             Shape::ProjectPath => project_path_fix(text),

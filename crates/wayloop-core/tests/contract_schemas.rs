@@ -449,6 +449,17 @@ struct WithMap {
     a: BTreeMap<String, u32>,
 }
 
+/// Described.
+#[derive(JsonSchema)]
+#[expect(
+    dead_code,
+    reason = "a test type exists for its schema only and is never built"
+)]
+struct WithFreeMap {
+    /// A map of any values.
+    a: BTreeMap<String, Value>,
+}
+
 /// Nothing: its schema is the boolean `false`.
 struct Never;
 
@@ -532,12 +543,21 @@ fn a_boolean_schema_is_refused_by_the_loader() {
 }
 
 #[test]
-fn a_map_is_refused_by_the_rules_in_both_directions() {
-    // An input map is an open object, refused before the loader sees it (contract audit S5).
+fn a_free_map_is_refused_by_the_rules_and_a_typed_map_is_read() {
+    // A map of any value is an open object of an input, refused before the loader sees it
+    // (contract audit S5); a map of numbers is a map the interpreter reads (#307).
+    let fault = contract_schema(registered::<WithFreeMap>(), Direction::Input).unwrap_err();
+    assert!(matches!(fault, ContractFault::Rule(_)), "{fault}");
+    assert!(fault.to_string().starts_with("a rule of the contracts: "));
     for direction in [Direction::Input, Direction::Output] {
-        let fault = contract_schema(registered::<WithMap>(), direction).unwrap_err();
-        assert!(matches!(fault, ContractFault::Rule(_)), "{fault}");
-        assert!(fault.to_string().starts_with("a rule of the contracts: "));
+        let schema = contract_schema(registered::<WithMap>(), direction).unwrap();
+        let read = Schema::load(&schema).unwrap();
+        let errors = read.validate(&json!({"a": {"k": -1}}), Code::new("contract"));
+        let found: Vec<(&str, Reason)> = errors
+            .iter()
+            .map(|e| (e.pointer().as_str(), e.reason()))
+            .collect();
+        assert_eq!(found, [("/a/k", Reason::Range)], "{direction:?}");
     }
     let subset = ContractFault::Subset(refused::<RequiredNull>(Direction::Output));
     assert!(

@@ -830,14 +830,12 @@ fn an_origin_gives_exactly_one_place() {
 }
 
 #[test]
-fn lines_need_a_file_origin_and_line_numbers_from_1() {
+fn lines_need_a_file_origin() {
     let input = json!({"documents": [
         {"format": "document", "document": {}, "lines": {"": 1}},
         {"format": "document", "document": {}, "lines": {"": 1}, "origin": {"issue": 3}},
         {"format": "document", "document": {}, "lines": {"": 1}, "origin": {}},
-        {"format": "document", "document": {}, "origin": {"file": "a.yaml"},
-         "lines": {"x": 1, "/a": "2", "/b": 0, "/c": 2.5, "/d": 9_007_199_254_740_992_u64,
-                   "/e": null, "/f": 3.0, "/~2": 1}},
+        {"format": "document", "document": {}, "lines": {"": 1}, "origin": {"file": "a.yaml"}},
     ]});
     assert_eq!(
         refused_input(&input),
@@ -853,14 +851,65 @@ fn lines_need_a_file_origin_and_line_numbers_from_1() {
                 Some(vec!["/documents/1/lines".into()])
             ),
             ("/documents/2/origin".into(), Reason::Missing, None),
-            ("/documents/3/lines/~1a".into(), Reason::Type, None),
-            ("/documents/3/lines/~1b".into(), Reason::Range, None),
-            ("/documents/3/lines/~1c".into(), Reason::Type, None),
-            ("/documents/3/lines/~1d".into(), Reason::Range, None),
-            ("/documents/3/lines/~1~02".into(), Reason::Syntax, None),
-            ("/documents/3/lines/x".into(), Reason::Syntax, None),
         ]
     );
+}
+
+#[test]
+fn the_schema_keys_lines_by_pointers_and_takes_line_numbers_from_1() {
+    // #307: the schema states the rules of `lines`, which the core no longer repeats.
+    let input = json!({"documents": [
+        {"format": "document", "document": {}, "origin": {"file": "a.yaml"},
+         "lines": {"x": 1, "/a": "2", "/b": 0, "/c": 2.5, "/d": 9_007_199_254_740_992_u64,
+                   "/e": null, "/f": 3.0, "/~2": 1, "": 1, "/~0~1": 2}},
+    ]});
+    let errors = input_schema().validate(&input, COMMAND_INPUT);
+    let found: Vec<(String, Reason)> = errors
+        .iter()
+        .map(|e| (e.pointer().to_string(), e.reason()))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            ("/documents/0/lines/~1a".into(), Reason::Type),
+            ("/documents/0/lines/~1b".into(), Reason::Range),
+            ("/documents/0/lines/~1c".into(), Reason::Type),
+            ("/documents/0/lines/~1d".into(), Reason::Range),
+            ("/documents/0/lines/~1~02".into(), Reason::Syntax),
+            ("/documents/0/lines/x".into(), Reason::Syntax),
+        ]
+    );
+    let names = errors.iter().filter(|e| e.reason() == Reason::Syntax);
+    for error in names {
+        assert_eq!(
+            error.message(),
+            "The name of the member is not in the form of the format `json-pointer`."
+        );
+    }
+    assert_eq!(input::rules(&input), []);
+    // Contract audit of #307: an external validator that checks formats reads each line the
+    // same way, beyond the safe-integer bound of the core and the nulls of ADR 0009 C2, which
+    // the oracle does not share.
+    let text = VALIDATE
+        .embedded(Part::Schema, VALIDATE.version)
+        .unwrap()
+        .text;
+    let oracle = oracle(&serde_json::from_str(text).unwrap());
+    for (key, line) in [
+        ("x", json!(1)),
+        ("/a", json!("2")),
+        ("/b", json!(0)),
+        ("/c", json!(2.5)),
+        ("/f", json!(3.0)),
+        ("/~2", json!(1)),
+        ("", json!(1)),
+        ("/~0~1", json!(2)),
+    ] {
+        let one = json!({"documents": [{"format": "document", "document": {},
+            "origin": {"file": "a.yaml"}, "lines": {key: line}}]});
+        let core = input_schema().validate(&one, COMMAND_INPUT).is_empty();
+        assert_eq!(oracle.is_valid(&one), core, "{key}: {line}");
+    }
 }
 
 // The entry point --------------------------------------------------------------------------

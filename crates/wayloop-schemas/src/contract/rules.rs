@@ -2,13 +2,14 @@
 //!
 //! A conditional requirement is written by a function of the type, named in
 //! `#[schemars(transform = ...)]`, that calls one helper of this module; a value form with a
-//! named format implements `JsonSchema` by hand, once, with [`formatted`]. The output stays
+//! named format implements `JsonSchema` by hand, once, with [`formatted`]; a typed map, whose
+//! keys `schemars` does not describe, with [`map`]. The output stays
 //! inside the subset of the core: an entry of `allOf` is a pair of `if` and `then`, the
 //! condition tests declared members only, and `then` holds `required` only.
 
 use core::num::NonZeroU32;
 
-use schemars::Schema;
+use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde_json::{Map, Value, json};
 
 use crate::Format;
@@ -87,6 +88,22 @@ pub fn formatted(format: Format, description: &str) -> Schema {
     let mut schema = string_schema(description);
     schema.insert("format".to_owned(), format.id().into());
     schema
+}
+
+/// The schema of a map from `K` to `V`, with its `description`: `propertyNames` checks every
+/// key by the schema of `K` and `additionalProperties` every value by the schema of `V` (#307).
+/// The derive of `schemars` writes no `propertyNames` for a map, so a typed map uses this.
+#[must_use]
+pub fn map<K: JsonSchema, V: JsonSchema>(
+    generator: &mut SchemaGenerator,
+    description: &str,
+) -> Schema {
+    schemars::json_schema!({
+        "description": description,
+        "type": "object",
+        "propertyNames": generator.subschema_for::<K>(),
+        "additionalProperties": generator.subschema_for::<V>(),
+    })
 }
 
 /// Appends the pair of `condition` and the requirement of `then` to the `allOf` of `schema`.

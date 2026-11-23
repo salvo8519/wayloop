@@ -7,12 +7,14 @@
 //! `lines` that is not an RFC 6901 pointer and a line that is not an integer from 1. It checks
 //! them on the JSON value before it reads the input into these types.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use crate::Pointer;
 use crate::artifact::ArtifactKind;
 use crate::contract::rules;
 use crate::value::{
@@ -136,25 +138,22 @@ impl JsonSchema for FreeDocument {
 }
 
 /// The line, from 1, of each value of a document read from a file, keyed by its RFC 6901
-/// pointer into the document; the core checks the keys and the lines.
+/// pointer into the document. The schema states both rules: the names of its members are in
+/// the format `json-pointer` and their values are lines (#307).
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Lines(pub BTreeMap<String, Line>);
-
-impl Lines {
-    /// The name of its schema, a free object of the input (ADR 0030 G2, as amended for #256).
-    pub const NAME: &'static str = "Lines";
-}
+pub struct Lines(pub BTreeMap<Pointer, Line>);
 
 impl JsonSchema for Lines {
-    fn schema_name() -> std::borrow::Cow<'static, str> {
-        Self::NAME.into()
+    fn schema_name() -> Cow<'static, str> {
+        "Lines".into()
     }
 
-    fn json_schema(_: &mut SchemaGenerator) -> Schema {
-        free_object_schema(
-            "The line, from 1, of each value of the document, keyed by its RFC 6901 pointer into \
-             the document.",
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        rules::map::<Pointer, Line>(
+            generator,
+            "The line, from 1, of each value of the document, keyed by its RFC 6901 pointer \
+             into the document.",
         )
     }
 }
@@ -282,17 +281,18 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn the_input_is_closed_and_its_documents_and_lines_are_free_objects() {
+    fn the_input_is_closed_its_documents_free_and_its_lines_typed() {
         let schema = schema_for::<ValidateInput>(Direction::Input).unwrap();
         assert_eq!(schema["additionalProperties"], false);
         assert_eq!(schema["required"], json!(["documents"]));
         let entry = &schema["$defs"]["DocumentEntry"];
         assert_eq!(entry["additionalProperties"], false);
-        for free in ["FreeDocument", "Lines"] {
-            let free = &schema["$defs"][free];
-            assert_eq!(free["type"], "object");
-            assert!(free.get("additionalProperties").is_none(), "{free}");
-        }
+        let free = &schema["$defs"]["FreeDocument"];
+        assert_eq!(free["type"], "object");
+        assert!(free.get("additionalProperties").is_none(), "{free}");
+        let lines = &schema["$defs"]["Lines"];
+        assert_eq!(lines["propertyNames"], json!({"$ref": "#/$defs/Pointer"}));
+        assert_eq!(lines["additionalProperties"]["minimum"], 1);
         assert_eq!(
             entry["allOf"][2],
             json!({

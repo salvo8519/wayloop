@@ -34,7 +34,7 @@ fn lines(text: &str) -> Vec<(String, u64)> {
         .lines
         .0
         .into_iter()
-        .map(|(pointer, line)| (pointer, line.get().get()))
+        .map(|(pointer, line)| (pointer.as_str().to_owned(), line.get().get()))
         .collect()
 }
 

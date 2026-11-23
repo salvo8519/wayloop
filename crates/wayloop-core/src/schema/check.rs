@@ -61,6 +61,8 @@ pub(super) struct Checker<'s> {
     pub(super) schema: &'s Compiled,
     pub(super) code: Code,
     pub(super) errors: Vec<Error>,
+    /// Whether the string checked is the name of a member (`propertyNames`), not a value.
+    pub(super) naming: bool,
 }
 
 impl Checker<'_> {
@@ -125,20 +127,35 @@ impl Checker<'_> {
         self.errors.push(error);
     }
 
+    /// Checks the name `key` of the member at `at` against the node `names`, a schema of
+    /// strings (the loader refuses any other): its errors are reported at the member and told
+    /// as errors of its name.
+    fn name(&mut self, names: usize, key: &str, at: &Pointer) {
+        self.naming = true;
+        self.check(names, &Value::String(key.to_owned()), at);
+        self.naming = false;
+    }
+
     fn string(&mut self, rules: &Rules, text: &str, pointer: &Pointer) {
+        let subject = if self.naming {
+            "The name of the member"
+        } else {
+            "The text"
+        };
         let length = size(text.chars().count());
         if let Some(min) = rules.min_length.filter(|min| length < *min) {
-            let message = format!("The text has {length} characters; at least {min} are required.");
+            let message =
+                format!("{subject} has {length} characters; at least {min} are required.");
             self.push(message, pointer, Reason::Length);
         }
         if let Some(max) = rules.max_length.filter(|max| length > *max) {
-            let message = format!("The text has {length} characters; at most {max} are accepted.");
+            let message = format!("{subject} has {length} characters; at most {max} are accepted.");
             self.push(message, pointer, Reason::Length);
         }
         if let Some(format) = rules.format {
             if !format::accepts(format, text) {
                 let message = format!(
-                    "The text is not in the form of the format `{}`.",
+                    "{subject} is not in the form of the format `{}`.",
                     format.id()
                 );
                 let mut error = self.error(message, pointer, Reason::Syntax);
@@ -187,7 +204,12 @@ impl Checker<'_> {
         let given = |key: &str| members.get(key).is_some_and(|v| !v.is_null());
         for (key, member) in members.iter().filter(|(_, v)| !v.is_null()) {
             let at = pointer.join(key);
+            if let Some(names) = rules.names {
+                self.name(names, key, &at);
+            }
             if let Some(&schema) = rules.properties.get(key) {
+                self.check(schema, member, &at);
+            } else if let Some(schema) = rules.additional {
                 self.check(schema, member, &at);
             } else if rules.closed {
                 let absent = rules

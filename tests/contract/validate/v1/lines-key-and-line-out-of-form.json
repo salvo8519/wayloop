@@ -1,0 +1,42 @@
+{
+  "description": "A key of lines that is not an RFC 6901 pointer is refused with syntax at the member, and a line below 1 with range; both are rules of the input schema.",
+  "covers": [
+    "SPEC-0001 R1",
+    "SPEC-0001 R12"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {},
+        "origin": {
+          "file": "plan/briefs/BRIEF-0001.yaml"
+        },
+        "lines": {
+          "x": 1,
+          "/id": 0
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "command_input",
+      "/error/pointer": "/documents/0/lines/~1id",
+      "/error/reason": "range",
+      "/error/errors/1/pointer": "/documents/0/lines/x",
+      "/error/errors/1/reason": "syntax",
+      "/error/errors/1/message": "The name of the member is not in the form of the format `json-pointer`.",
+      "/meta/input_hash": "550993f62c06c351dca61877221ebf4aded80dabab81d132f625bb8200fd72e7"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 2
+    }
+  }
+}

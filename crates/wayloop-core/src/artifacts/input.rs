@@ -5,9 +5,13 @@
 //! with the code `command_input`, a member of an entry that belongs to another format
 //! (`conflict`), an `origin` with no member (`missing`) or more than one (`conflict`), `lines`
 //! without a file origin (`requires`, or `conflict` with another origin), an `unreadable` entry
-//! without a file origin (the same reasons: only a file can fail to parse), a key of `lines`
-//! that is not an RFC 6901 pointer (`syntax`) and a line that is not an integer from 1
-//! (`type`, `range`). Every error is found in one pass, entry by entry.
+//! without a file origin (the same reasons: only a file can fail to parse). The keys and the
+//! lines of `lines` are rules of the schema (#307).
+//!
+//! The schema and these rules are two stages: the rules run only on an input the schema
+//! accepts, each stage finding all its errors in one pass, entry by entry. An input the schema
+//! refuses therefore lists none of the errors of these rules; once it is fixed, the rules may
+//! report more.
 //!
 //! An input that passed the schema and these rules is then read, without its members set to
 //! null, which are not given (ADR 0009 C2), into its contract type, [`ValidateInput`]: a
@@ -17,7 +21,6 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize as _;
 use serde_json::{Map, Value};
-use wayloop_schemas::number::{integer, is_safe};
 use wayloop_schemas::validate::{DocumentEntry, EntryFormat, InputKind, Origin, ValidateInput};
 use wayloop_schemas::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
 
@@ -48,7 +51,7 @@ pub(crate) struct Entry {
     pub(crate) origin: Option<Place>,
     pub(crate) body: Body,
     /// The line of each value of the document, by its pointer as written.
-    pub(crate) lines: BTreeMap<String, Line>,
+    pub(crate) lines: BTreeMap<Pointer, Line>,
 }
 
 /// What an entry holds, by its `format`.
@@ -175,10 +178,10 @@ fn entry_rules(members: &Map<String, Value>, at: &Pointer, errors: &mut Vec<Erro
         );
     }
     let origin = given("origin").map(|o| origin_rules(o, &at.join("origin"), errors));
-    // In an entry of another format, `lines` is refused above as a conflict, once.
-    if let Some(Value::Object(lines)) = given("lines").filter(|_| format == EntryFormat::Document) {
+    // In an entry of another format, `lines` is refused above as a conflict, once. The schema
+    // has accepted the input, so `lines` is a map of lines keyed by pointers (#307).
+    if given("lines").is_some() && format == EntryFormat::Document {
         needs_file(origin, at, "lines", errors);
-        line_rules(lines, &at.join("lines"), errors);
     }
     if format == EntryFormat::Unreadable {
         needs_file(origin, at, "format", errors);
@@ -246,27 +249,6 @@ fn origin_rules(origin: &Value, at: &Pointer, errors: &mut Vec<Error>) -> Given 
                     .with_pointers(several.iter().map(|key| at.join(key))),
             );
             Given::Refused
-        }
-    }
-}
-
-/// Refuses a key of `lines` that is not a pointer and a line that is not an integer from 1.
-fn line_rules(lines: &Map<String, Value>, at: &Pointer, errors: &mut Vec<Error>) {
-    for (key, value) in lines.iter().filter(|(_, v)| !v.is_null()) {
-        let here = at.join(key);
-        if Pointer::parse(key).is_none() {
-            let message = format!("The key `{key}` is not an RFC 6901 pointer.");
-            errors.push(Error::new(COMMAND_INPUT, message, here, Reason::Syntax));
-            continue;
-        }
-        let Some(n) = integer(value) else {
-            let message = "Expected an integer, a line number from 1.".to_owned();
-            errors.push(Error::new(COMMAND_INPUT, message, here, Reason::Type));
-            continue;
-        };
-        if n < 1 || !is_safe(n) {
-            let message = format!("The line {value} is not a line number from 1.");
-            errors.push(Error::new(COMMAND_INPUT, message, here, Reason::Range));
         }
     }
 }

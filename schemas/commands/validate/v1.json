@@ -134,7 +134,15 @@
       "type": "string"
     },
     "Lines": {
+      "additionalProperties": {
+        "description": "Line of a file, counted from 1.",
+        "minimum": 1,
+        "type": "integer"
+      },
       "description": "The line, from 1, of each value of the document, keyed by its RFC 6901 pointer into the document.",
+      "propertyNames": {
+        "$ref": "#/$defs/Pointer"
+      },
       "type": "object"
     },
     "Origin": {
@@ -178,6 +186,11 @@
         "message"
       ],
       "type": "object"
+    },
+    "Pointer": {
+      "description": "An RFC 6901 JSON pointer; its root is stated where it is used. Empty for the whole value, or a sequence of `/`-prefixed reference tokens in which `~` is written `~0` and `/` is written `~1`. It serialises as its string.",
+      "format": "json-pointer",
+      "type": "string"
     },
     "Policy": {
       "additionalProperties": false,
