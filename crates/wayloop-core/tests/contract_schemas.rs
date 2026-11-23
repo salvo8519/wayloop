@@ -265,7 +265,7 @@ fn empty_success() -> Value {
 fn every_embedded_snapshot_of_every_version_loads_in_the_core_and_the_oracle() {
     // ADR 0030 G3: the committed snapshots, embedded in wayloop-schemas, are schemas the
     // interpreter loads and valid draft 2020-12 schemas, each with its published `$id`.
-    assert!(!EMBEDDED.is_empty());
+    assert_ne!(EMBEDDED.len(), 0);
     for embedded in EMBEDDED {
         let read: Value = serde_json::from_str(embedded.text).unwrap();
         assert_eq!(

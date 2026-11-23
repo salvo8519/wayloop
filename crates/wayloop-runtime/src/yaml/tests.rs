@@ -197,7 +197,7 @@ fn a_malformed_file_is_refused_with_its_line() {
     ] {
         let (line, message) = refused(text);
         assert_eq!(line, at, "{text}: {message}");
-        assert!(!message.is_empty());
+        assert_ne!(message, "");
     }
 }
 
