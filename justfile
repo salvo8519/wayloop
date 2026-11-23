@@ -106,6 +106,7 @@ coverage-floor floor=pure_coverage_floor:
 
 # Mutation testing of the pure crates (cargo-mutants); surviving mutants in target/mutants/mutants.out/missed.txt.
 mutants:
+    mkdir -p target/mutants
     cargo mutants $(printf -- '--package %s ' {{pure_crates}}) --no-shuffle --output target/mutants
 
 # Format everything.

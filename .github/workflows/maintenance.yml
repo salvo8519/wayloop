@@ -114,6 +114,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - uses: ./.github/actions/python-env
+      # The shared assets (brand images) are copied into each edition only when the site is
+      # prepared, as for the build; the links are checked on the prepared pages.
+      - name: Prepare the documentation as for the build
+        run: uv run python scripts/docs.py prepare
       - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
           args: --no-progress --max-retries 3 --exclude-path docs/_shared/vendor './**/*.md'
