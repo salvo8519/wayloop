@@ -248,7 +248,7 @@ mod tests {
                 "{}",
                 contract.name
             );
-            assert!(!contract.files.is_empty(), "{}", contract.name);
+            assert_ne!(contract.files.len(), 0, "{}", contract.name);
             let parts: BTreeSet<Part> = contract.files.iter().map(|f| f.part).collect();
             assert_eq!(parts.len(), contract.files.len(), "{}", contract.name);
             for file in contract.files {

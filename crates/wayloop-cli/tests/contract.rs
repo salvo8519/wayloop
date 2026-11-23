@@ -60,7 +60,7 @@ fn cases() -> BTreeMap<String, Value> {
             cases.insert(name, serde_json::from_str(&text).unwrap());
         }
     }
-    assert!(!cases.is_empty(), "no case in {}", dir.display());
+    assert_ne!(cases.len(), 0, "no case in {}", dir.display());
     cases
 }
 
@@ -385,8 +385,9 @@ fn a_case_names_what_it_covers_and_nothing_else() {
         let keys: Vec<&String> = case.as_object().unwrap().keys().collect();
         assert!(keys.iter().all(|k| allowed.contains(&k.as_str())), "{name}");
         assert!(case["description"].is_string(), "{name}");
-        assert!(
-            !case["covers"].as_array().unwrap().is_empty(),
+        assert_ne!(
+            case["covers"].as_array().unwrap().len(),
+            0,
             "{name}: covers"
         );
         let given: Vec<&String> = case["expect"].as_object().unwrap().keys().collect();

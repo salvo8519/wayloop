@@ -265,7 +265,7 @@ fn empty_success() -> Value {
 fn every_embedded_snapshot_of_every_version_loads_in_the_core_and_the_oracle() {
     // ADR 0030 G3: the committed snapshots, embedded in wayloop-schemas, are schemas the
     // interpreter loads and valid draft 2020-12 schemas, each with its published `$id`.
-    assert!(!EMBEDDED.is_empty());
+    assert_ne!(EMBEDDED.len(), 0);
     for embedded in EMBEDDED {
         let read: Value = serde_json::from_str(embedded.text).unwrap();
         assert_eq!(
@@ -292,12 +292,10 @@ fn the_envelope_snapshot_is_the_schema_of_the_envelope_and_accepts_an_envelope()
     );
     let oracle = jsonschema::draft202012::new(&read).unwrap();
     assert!(oracle.is_valid(&empty_success()));
-    assert!(
-        Schema::load(&read)
-            .unwrap()
-            .validate(&empty_success(), Code::new("contract"))
-            .is_empty()
-    );
+    let errors = Schema::load(&read)
+        .unwrap()
+        .validate(&empty_success(), Code::new("contract"));
+    assert_eq!(errors, []);
 }
 
 /// The pointer and the reason of every error of `document` against the schema of the contract
