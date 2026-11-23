@@ -1,5 +1,15 @@
 {
   "$defs": {
+    "ArtifactFolder": {
+      "description": "A folder of the project that holds stored artifacts (SPEC-0001, Where artifacts live), relative to the root of the project.\n\n- `plan/briefs`: Briefs, `BRIEF-<seq>.yaml`.\n- `plan/council`: Council reports, `COUNCIL-<seq>.yaml`.\n- `plan/items`: Plan items before their tracker item exists.\n- `specs`: Living specifications, `<NNNN>-<capability>/spec.md`.",
+      "enum": [
+        "plan/briefs",
+        "plan/council",
+        "plan/items",
+        "specs"
+      ],
+      "type": "string"
+    },
     "BaseStatus": {
       "additionalProperties": false,
       "description": "The status of one artifact of the set on the default branch.",
@@ -276,6 +286,13 @@
       "description": "Language of the project: the language of the prose of a document without its own `language`. When it is absent and a check needs it, the default is listed in `meta.defaults_applied`; no check of this version reads it.",
       "format": "language-tag",
       "type": "string"
+    },
+    "locations": {
+      "description": "The folders of stored artifacts that exist in the project, when the documents were discovered there (#320). Empty: none exists, for example because the command did not run at the root of the project, which is reported as a warning. Absent: the documents were named or sent directly, and the check is not done.",
+      "items": {
+        "$ref": "#/$defs/ArtifactFolder"
+      },
+      "type": "array"
     },
     "policy": {
       "$ref": "#/$defs/Policy",

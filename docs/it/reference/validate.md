@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: b99388b7e5bf
+source_hash: 97766b2bd4ed
 ---
 # wayloop validate
 
@@ -28,8 +28,9 @@ $ wayloop validate --input - [--command-version <n>]
 ```
 
 Senza `--input`, il comando legge il progetto nella cartella corrente, che deve essere la
-radice del progetto: eseguito da una sottocartella, non trova alcuna posizione e valida un
-insieme vuoto, con codice di uscita 0 (issue #320). Senza percorsi legge ogni artefatto
+radice del progetto. Indica in `locations` le cartelle delle posizioni che ha trovato; eseguito
+da una sottocartella, non ne trova nessuna e valida un insieme vuoto, con codice di uscita 0 e
+l'avviso `no_artifact_location`. Senza percorsi legge ogni artefatto
 salvato: `plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` e
 `specs/<NNNN>-<capability>/spec.md` (quindi non `specs/_templates/`). Una posizione raggiunta
 attraverso un link simbolico è trattata come assente, e dentro una posizione i link, i file
@@ -74,6 +75,7 @@ letto; il messaggio per una persona, con il percorso, va sullo standard error.
 | `schema_version` | Lo `schema_version` di ogni documento è una versione che il suo tipo conosce; un documento di una versione precedente viene migrato alla versione corrente dopo aver superato lo schema della propria versione |
 | `schema_brief` | Ogni brief supera lo schema della sua versione (`schemas/artifacts/brief/v1.json`): membri obbligatori, membri sconosciuti, tipi, valori ammessi, lunghezze, formati |
 | `identifier_format` | L'`id` è nella forma canonica del suo tipo, per esempio `BRIEF-0001` |
+| `artifact_locations` | Nel progetto in cui i documenti sono stati scoperti esiste almeno una cartella di una posizione; solo con `locations`, dopo i controlli precedenti |
 
 Ogni schema è un controllo, `schema_<kind>`: in `diagnostics.checks` quando è stato eseguito, in
 `diagnostics.not_done` con il motivo `not_built` quando non è in questa versione. Un controllo
@@ -90,6 +92,9 @@ che il motore non ha eseguito non è mai saltato in silenzio:
 | `statuses` | L'insieme: transizioni e stati iniziali rispetto a `base` |
 | `naming` | L'insieme: titoli, nomi dei branch, intestazioni dei commit e collegamenti delle pull request |
 
+`artifact_locations` è elencato in `diagnostics.not_done` con il motivo `input_absent` quando
+`locations` non è dato: i documenti sono stati indicati per nome o inviati direttamente.
+
 Quando l'input stesso è rifiutato, o la riga di comando non è compresa, o l'input non può
 essere letto, nessun controllo viene eseguito: `diagnostics.checks` e `diagnostics.not_done`
 sono allora vuoti.
@@ -105,6 +110,7 @@ un membro assente. Lo schema di input è chiuso: un membro che non elenca è rif
 | `base` | lista di `{id, status}` | no | Stati sul branch predefinito degli artefatti dell'insieme |
 | `policy` | oggetto `{types, scopes, areas}`, ciascuno una lista di nomi della policy, identificativi di almeno un carattere | no | La parte della policy del progetto che il modello legge |
 | `adrs` | lista di interi da 1 | no | Numeri degli ADR del progetto |
+| `locations` | lista di `plan/briefs`, `plan/council`, `plan/items`, `specs` | no | Le cartelle delle posizioni che esistono nel progetto, quando i documenti vi sono stati scoperti; `[]` significa nessuna, e dà l'avviso `no_artifact_location`. Assente: i documenti sono stati indicati per nome o inviati direttamente, e il controllo `artifact_locations` non è eseguito |
 | `language` | tag BCP 47, per esempio `it` o `en-GB` | no | La lingua del progetto. Nessun controllo di questa versione la legge, quindi quando è assente nessun default viene applicato né riportato; un controllo che ne ha bisogno elenca il default in `meta.defaults_applied` |
 
 Una voce di `documents`:
@@ -207,6 +213,13 @@ memorizzato:
 | `usage` | `syntax` | 2 | La riga di comando non è compresa; `command` è il comando indicato, vuoto quando nessuno |
 | `input_unreadable` | `missing`, `state` | 3 | Il file di input, un file indicato o una cartella del progetto non esiste (`missing`) o non può essere letto (`state`); l'envelope non contiene percorsi |
 | `internal_error` | `internal` | 5 | Il motore non ha potuto calcolare il risultato; l'input può essere valido |
+
+Gli avvisi sono elencati in `diagnostics.warnings`, nella forma di un errore; il risultato non
+è rifiutato per essi e il codice di uscita non cambia:
+
+| Codice | Motivo | Puntatore | Significato |
+| --- | --- | --- | --- |
+| `no_artifact_location` | `missing` | `/locations` | Nel progetto in cui i documenti sono stati scoperti non esiste alcuna cartella di una posizione, per esempio perché il comando è stato eseguito in una sottocartella del progetto; l'insieme è vuoto |
 
 Un membro sconosciuto riceve in `fix` il membro più vicino dello schema, per esempio `problem`
 per `problema`.

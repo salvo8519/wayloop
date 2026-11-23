@@ -228,19 +228,19 @@ fn from_project(
     out: &mut impl Write,
 ) -> Result<Ran, Failure> {
     let root = Path::new(".");
-    let files = if paths.is_empty() {
-        project::discover(root)
+    let loaded = if paths.is_empty() {
+        project::discovered(root)
     } else {
         let named = paths.iter().map(|p| project::segments(Path::new(p)));
         match locations::given(named) {
-            Ok(files) => Ok(files),
+            Ok(files) => project::load(root, files),
             Err((index, refused)) => {
                 let path = index.and_then(|i| paths.get(i)).copied();
                 return refuse(command, path, refused, out);
             }
         }
     };
-    let input = match files.and_then(|files| project::load(root, files)) {
+    let input = match loaded {
         Ok(input) => input,
         Err(LoadError::Refused { path, refused }) => {
             let path = path.map(|p| p.as_str().to_owned());

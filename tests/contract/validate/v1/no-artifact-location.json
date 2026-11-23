@@ -1,0 +1,29 @@
+{
+  "description": "Discovery ran where no folder of stored artifacts exists, for example in a subfolder of the project: the set is empty, the result succeeds, and the warning no_artifact_location says so at /locations (#320).",
+  "covers": [
+    "SPEC-0001 R1"
+  ],
+  "input": {
+    "documents": [],
+    "locations": []
+  },
+  "expect": {
+    "exit_code": 0,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/diagnostics/warnings/0/code": "no_artifact_location",
+      "/diagnostics/warnings/0/pointer": "/locations",
+      "/diagnostics/warnings/0/reason": "missing",
+      "/diagnostics/warnings/0/message": "No folder of stored artifacts exists in the project (plan/briefs, plan/council, plan/items, specs); the command may not have run at the root of the project.",
+      "/meta/input_hash": "8aba0b31202d1ce1ad4d1ea87c4e15f4c9e1963599ab653b034397a184cf5464"
+    },
+    "absent": [
+      "/error"
+    ],
+    "lengths": {
+      "/data/documents": 0,
+      "/diagnostics/warnings": 1
+    }
+  }
+}

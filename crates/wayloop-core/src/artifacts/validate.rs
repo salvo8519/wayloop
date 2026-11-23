@@ -23,6 +23,7 @@ use wayloop_schemas::{Diagnostics, ErrorReport, NotDone, NotDoneReason, Outcome}
 
 use super::input::{self, Body, Entry, Input, Place};
 use super::kinds::{self, Checked, Kind, Loaded};
+use super::locations::{LOCATIONS, Location};
 use super::{checks, codes};
 use crate::command::COMMAND_INPUT;
 use crate::{Check, Error, Pointer, Reason};
@@ -78,8 +79,39 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
             *error = error.clone().with_document(index);
         }
     }
+    match &input.locations {
+        Some(folders) => {
+            validation.checks.push(checks::ARTIFACT_LOCATIONS);
+            if folders.is_empty() {
+                validation.warnings.push(no_location());
+            }
+        }
+        None => {
+            not_done.insert(NotDone::new(
+                checks::ARTIFACT_LOCATIONS,
+                NotDoneReason::InputAbsent,
+            ));
+        }
+    }
     validation.not_done = not_done.into_iter().collect();
     validation
+}
+
+/// The warning of a project where no folder of a location exists, at the empty `locations`.
+fn no_location() -> Error {
+    let folders: Vec<&str> = LOCATIONS.iter().map(Location::folder).collect();
+    let message = format!(
+        "No folder of stored artifacts exists in the project ({}); the command may not have \
+         run at the root of the project.",
+        folders.join(", ")
+    );
+    let pointer = Pointer::root().join("locations");
+    Error::new(
+        codes::NO_ARTIFACT_LOCATION,
+        message,
+        pointer,
+        Reason::Missing,
+    )
 }
 
 fn not_built(not_done: &mut BTreeSet<NotDone>, check: Check) {

@@ -59,6 +59,21 @@ impl EntryFormat {
 }
 
 crate::contract_enum! {
+    /// A folder of the project that holds stored artifacts (SPEC-0001, Where artifacts live),
+    /// relative to the root of the project.
+    pub enum ArtifactFolder {
+        /// Briefs, `BRIEF-<seq>.yaml`.
+        PlanBriefs = "plan/briefs",
+        /// Council reports, `COUNCIL-<seq>.yaml`.
+        PlanCouncil = "plan/council",
+        /// Plan items before their tracker item exists.
+        PlanItems = "plan/items",
+        /// Living specifications, `<NNNN>-<capability>/spec.md`.
+        Specs = "specs",
+    }
+}
+
+crate::contract_enum! {
     /// Type of an input (SPEC-0001, Inputs), which has no `kind` member.
     pub enum InputKind {
         /// A pull request: title, body, branch and labels.
@@ -241,6 +256,12 @@ pub struct ValidateInput {
     /// `meta.defaults_applied`; no check of this version reads it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<LanguageTag>,
+    /// The folders of stored artifacts that exist in the project, when the documents were
+    /// discovered there (#320). Empty: none exists, for example because the command did not
+    /// run at the root of the project, which is reported as a warning. Absent: the documents
+    /// were named or sent directly, and the check is not done.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locations: Option<Vec<ArtifactFolder>>,
 }
 
 /// What the engine read of one document. A member is absent when the document does not give

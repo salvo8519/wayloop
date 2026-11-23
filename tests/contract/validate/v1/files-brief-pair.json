@@ -1,5 +1,5 @@
 {
-  "description": "The valid and the invalid brief of the examples, read from plan/briefs/ by wayloop validate: the errors of the invalid brief carry its file and the line of the faulty value, the line of the mapping for a missing key; the valid brief gives no error.",
+  "description": "The valid and the invalid brief of the examples, read from plan/briefs/ by wayloop validate: the errors of the invalid brief carry its file and the line of the faulty value, the line of the mapping for a missing key; the valid brief gives no error. Discovery found the folder plan/briefs only, so there is no warning of the locations.",
   "covers": [
     "SPEC-0001 R1",
     "SPEC-0001 R6",
@@ -105,6 +105,9 @@
           "/scope_in/0": 17
         }
       }
+    ],
+    "locations": [
+      "plan/briefs"
     ]
   },
   "expect": {
@@ -129,13 +132,14 @@
         "file": "plan/briefs/BRIEF-0003.yaml",
         "line": 4
       },
-      "/meta/input_hash": "9d7ac6df29084a0a3f16206c5bb49efbfc570eec88f7efc57be0bed03beae223"
+      "/meta/input_hash": "277ca4de1aa7f22ef47503f605d0926fd875062249a0260e2515978c101b36a2"
     },
     "absent": [
       "/data"
     ],
     "lengths": {
-      "/error/errors": 2
+      "/error/errors": 2,
+      "/diagnostics/warnings": 0
     }
   }
 }

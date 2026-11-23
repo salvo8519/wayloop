@@ -21,7 +21,9 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize as _;
 use serde_json::{Map, Value};
-use wayloop_schemas::validate::{DocumentEntry, EntryFormat, InputKind, Origin, ValidateInput};
+use wayloop_schemas::validate::{
+    ArtifactFolder, DocumentEntry, EntryFormat, InputKind, Origin, ValidateInput,
+};
 use wayloop_schemas::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
 
 use crate::command::COMMAND_INPUT;
@@ -32,6 +34,8 @@ use crate::{Error, Pointer, Reason, Source};
 #[derive(Debug, Clone, PartialEq, Default)]
 pub(crate) struct Input {
     pub(crate) documents: Vec<Entry>,
+    /// The folders of the locations that exist, when the documents were discovered.
+    pub(crate) locations: Option<Vec<ArtifactFolder>>,
 }
 
 /// Where a document was read: the one member of its origin.
@@ -101,7 +105,10 @@ pub(crate) fn read(input: &Value) -> Result<Input, Box<Error>> {
         .into_iter()
         .map(entry)
         .collect::<Result<_, _>>()?;
-    Ok(Input { documents })
+    Ok(Input {
+        documents,
+        locations: typed.locations,
+    })
 }
 
 /// A failure of the engine, boxed: the input holds what its schema and its rules refuse.
