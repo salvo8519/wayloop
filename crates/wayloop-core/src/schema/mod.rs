@@ -76,8 +76,7 @@
 //! (JSON objects have no order, and the document model keeps none), the elements of an array
 //! by index; the errors of the name of a member (`propertyNames`) come before the errors of
 //! its value, at the same pointer; the absent members of an object follow its present ones,
-//! first those of
-//! `required` in its order, then those of each `then`. A member missing under both `required`
+//! first those of `required` in its order, then those of each `then`. A member missing under both `required`
 //! and a `then` is reported once, as `missing`. The closest key of an `unknown_field` is a
 //! declared key not present in the object, at an optimal string alignment distance (the
 //! restricted Damerau-Levenshtein distance) of at most a third of the length of the unknown

@@ -268,14 +268,14 @@ with its tests and the architecture page.
   G3): the subset of the interpreter takes a schema as the value of `additionalProperties`,
   which checks every member not declared in `properties`, and `propertyNames`, which checks the
   name of every member as a string. A map is therefore typed: in an input it is closed when the
-  schema of its values states a type or a reference, and a map whose values may be anything
-  stays an open object, refused; a reference is followed to its definition. In an output a pure
+  schema of its values, or the definition its reference names, states a type, and a map whose
+  values may be anything stays an open object, refused. In an output a pure
   map, an object that declares no member, keeps the schema of its values; an
   `additionalProperties` beside declared members, as a flattened map writes, is refused, since
   it would close the output (ADR 0009 C5, amended on 2026-11-23). The values of a map count in
   the four levels of objects. `propertyNames` is a schema of strings, without `enum` or
-  `const`, so that every error of a name is told as one. The named format `json-pointer` is the form of
-  `wayloop_schemas::Pointer`, checked by the core with `Pointer::parse`, decision of the
+  `const`, so that every error of a name is told as one. The named format `json-pointer` is the
+  form of `wayloop_schemas::Pointer`, checked by the core with `Pointer::parse`, decision of the
   maintainer on 2026-11-23: every `pointer` of the contracts carries it. The `lines` of
   `validate` are generated from `BTreeMap<Pointer, Line>`, leave `FREE_OBJECTS`, and the rules
   of the core that repeated them are removed; `commands/validate` v1 and `envelope/result` v1,
