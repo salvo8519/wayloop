@@ -296,7 +296,8 @@ no `pattern`: the core holds no regular expression engine, and a named format gi
 relative to the root of the project in one spelling: segments joined by `/`, none empty, `.`
 or `..`; no `\` and no drive letter), the identifiers of each
 artifact type (`brief-id`, `council-id`, `gate-id`, `epic-id`, `story-id`, `spec-id`,
-`change-id`, `task-id`, `milestone-id`, `handover-id`), the identifiers of parts
+`change-id`, `task-id`, `milestone-id`, `handover-id`), `brief-or-council-id` (either of the
+first two, the subject of a gate issue), the identifiers of parts
 (`requirement-id`, `criterion-id`, `decision-id`, `question-id`), with the canonical forms of
 SPEC-0001, and `json-pointer` (an RFC 6901 pointer, the form of every `pointer` of the
 contracts). The documentation of the module lists each form and each fix. The list of named
@@ -368,7 +369,9 @@ module `contract`:
 The lines of a doc comment are joined into paragraphs, since they wrap at the width of the
 code. The generator then checks the rules of the contracts that are not rules of the subset:
 a description on the root, every definition and every member (one of blanks only is none),
-the meaning of every enum value in its description, every text enum value in `snake_case`,
+the meaning of every enum value in its description (an `enum` in the condition of an `if`
+names values of a member and is described where the member is declared), every text enum
+value in `snake_case`,
 no `additionalProperties` that closes an
 output (a pure map keeps the schema of its values), and at most four levels of objects, the
 values of a map included (ADR 0009 C4). The subset itself has one definition, the

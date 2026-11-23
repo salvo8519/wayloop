@@ -6,7 +6,8 @@
 //! type, a format that is not named, a reference out of the file or a reference chain) is
 //! refused there, and `wayloop_core::schema::contract_schema` runs both. These checks hold
 //! what a schema of the subset can still break: a description on the root, every definition and
-//! every member; the meaning of every enum value, and every text value in `snake_case`; at
+//! every member; the meaning of every enum value outside a condition, and every text value in
+//! `snake_case`; at
 //! most four levels of objects; no
 //! `additionalProperties` that closes an output (a pure map keeps the schema of its values);
 //! and, in an input, `additionalProperties` on every
@@ -129,7 +130,8 @@ fn walk(
     {
         return Err(refuse(pointer, Problem::OpenInput));
     }
-    own_keywords(schema, pointer, description.unwrap_or_default(), direction)?;
+    let documented = need != Need::InCondition;
+    own_keywords(schema, pointer, description, documented, direction)?;
     for keyword in ["properties", "$defs"] {
         if let Some(Value::Object(members)) = schema.get(keyword) {
             let at = pointer.join(keyword);
@@ -185,13 +187,17 @@ fn closes_output(schema: &Map<String, Value>) -> bool {
     }
 }
 
-/// The rules on the keywords of one subschema.
+/// The rules on the keywords of one subschema. The values of an `enum` are documented where the
+/// member is declared: inside a condition, which only names values of declared members,
+/// `documented` is false and only their spelling is checked.
 fn own_keywords(
     schema: &Map<String, Value>,
     pointer: &Pointer,
-    description: &str,
+    description: Option<&str>,
+    documented: bool,
     direction: Direction,
 ) -> Result<(), ContractError> {
+    let description = description.unwrap_or_default();
     if direction == Direction::Output && closes_output(schema) {
         let at = pointer.join("additionalProperties");
         return Err(refuse(&at, Problem::ClosedOutput));
@@ -210,7 +216,7 @@ fn own_keywords(
                 l.strip_prefix(&line)
                     .is_some_and(|meaning| !meaning.trim().is_empty())
             });
-            if !explained {
+            if documented && !explained {
                 return Err(refuse(
                     &at.join_index(i),
                     Problem::UndocumentedValue(value_text(value)),

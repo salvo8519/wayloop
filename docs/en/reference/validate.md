@@ -5,16 +5,17 @@ types of the artifact model) and inputs (pull requests, commits, hand-overs) aga
 schemas, in one pass, and reports every error with the pointer of the faulty value and the
 place where it is stored. It changes nothing.
 
-Today only briefs are validated against their schema. A document of any other type, a living
-specification sent as Markdown, and an input are accepted unchecked, and the checks not run
-are listed in `diagnostics.not_done`; so are the checks across documents (identifiers, links,
-parts, statuses, naming).
+Today briefs, gate issues, milestones, epics, user stories and tasks are validated against
+their schemas. A council report, a living specification, a change delta, a hand-over and an
+input are accepted unchecked, and the checks not run are listed in `diagnostics.not_done`; so
+are the checks across documents (identifiers, links, parts, statuses, naming, areas).
 
 This page describes version 1 of the command, as built from source. Its contract is the pair
 of schema snapshots `schemas/commands/validate/v1.json` (input) and
 `schemas/commands/validate/v1.output.json` (output), generated from the types of
-`wayloop-schemas` (ADR 0030); the schema of a brief is `schemas/artifacts/brief/v1.json`. This
-page explains them.
+`wayloop-schemas` (ADR 0030); the schema of each artifact type is
+`schemas/artifacts/<kind>/v1.json`, for example `schemas/artifacts/task/v1.json`. This page
+explains them.
 
 ## Usage
 
@@ -68,7 +69,7 @@ path, goes to standard error.
 | --- | --- |
 | `document_kind` | Each document has a `kind` among `brief`, `council_report`, `gate`, `milestone`, `epic`, `story`, `specification`, `change`, `task` and `handover`, or is an input with `input_kind` |
 | `schema_version` | The `schema_version` of each document is a version its type knows; a document of an earlier version is migrated to the current one after it passes the schema of its own version |
-| `schema_brief` | Each brief passes the schema of its version (`schemas/artifacts/brief/v1.json`): required members, unknown members, types, accepted values, lengths, formats |
+| `schema_<kind>`: `schema_brief`, `schema_epic`, `schema_gate`, `schema_milestone`, `schema_story`, `schema_task` | Each document of the type passes the schema of its version (`schemas/artifacts/<kind>/v1.json`): required members, unknown members, types, accepted values, lengths, formats, and the members a status or a verification requires (see below) |
 | `identifier_format` | The `id` is in the canonical form of its type, for example `BRIEF-0001` |
 | `artifact_locations` | Some folder of a location exists in the project the documents were discovered in; with `locations` only, after the checks above |
 
@@ -78,7 +79,7 @@ engine did not run is never skipped silently:
 
 | Check | Not run on |
 | --- | --- |
-| `schema_<kind>`, for example `schema_task` | A document of a type whose schema is not in this version |
+| `schema_<kind>`, for example `schema_council_report` | A document of a type whose schema is not in this version |
 | `schema_<input_kind>`, for example `schema_commit` | An input whose schema is not in this version |
 | `markdown` | A living specification sent as Markdown |
 | `identifier_duplicate` | The set: two artifacts with one identifier |
@@ -86,6 +87,26 @@ engine did not run is never skipped silently:
 | `parts` | The set: parts of artifacts and operations of change deltas |
 | `statuses` | The set: transitions and initial statuses against `base` |
 | `naming` | The set: titles, branch names, commit headers and pull request links |
+| `areas` | The set: the `area` of each epic and task against the areas of the project policy |
+
+A schema also states the members that a status or a verification requires; a document
+without one is refused with the reason `requires`, the member missing in `pointer` and the
+member of the condition in `pointers`:
+
+| Type | Member | Required when |
+| --- | --- | --- |
+| Every type | `superseded_by` | `status` is `superseded` |
+| Gate issue | `approved_by` | `status` is `done` |
+| Milestone | `tracker_number` | `status` is `implementing` or `done` |
+| Epic, user story, task | `issue` | `status` is `implementing` or `done` |
+| User story | `specification` | `status` is `approved`, `implementing` or `done` |
+| Task | `rubric` | `verification` contains `judge` |
+
+A task or a user story without its epic, or an epic, a story or a task without its milestone,
+gets one error, `missing` at `/epic` or `/milestone`, and no error of a link. The schema checks the form of a link (for
+example `EPIC-0001`), not that its target exists: that is the check `links`. The subject of a
+gate issue is a brief or a council report, in the form `BRIEF-<seq>` or `COUNCIL-<seq>`.
+`blocked` is not a status of any artifact: it is a state of the issue cycle.
 
 `artifact_locations` is listed in `diagnostics.not_done` with the reason `input_absent` when
 `locations` is not given: the documents were named or sent directly.
@@ -102,7 +123,7 @@ absent member. The input schema is closed: a member it does not list is refused.
 | --- | --- | --- | --- |
 | `documents` | list of objects | yes | One entry per stored artifact or input; `[]` means none |
 | `base` | list of `{id, status}` | no | Statuses on the default branch of the artifacts of the set |
-| `policy` | object `{types, scopes, areas}`, each a list of names of the policy, identifiers of at least one character | no | The subset of the project policy the model reads |
+| `policy` | object `{types, scopes, areas}`, each a list of names of the policy, identifiers of at least one character | no | The subset of the project policy the model reads. No check of this version reads it: the check `areas` is listed as not done |
 | `adrs` | list of integers from 1 | no | Numbers of the ADRs of the project |
 | `locations` | list of `plan_briefs`, `plan_council`, `plan_items`, `specs`, for the folders `plan/briefs`, `plan/council`, `plan/items` and `specs` | no | The folders of the locations that exist in the project, when the documents were discovered there; their order and a repeated folder have no meaning, they are not compared with the `file` origins of the documents, and `[]` means none, which gives the warning `artifact_location_missing`. Absent: the documents were named or sent directly, and the check `artifact_locations` is not done |
 | `language` | BCP 47 tag, for example `it` or `en-GB` | no | The language of the project. No check of this version reads it, so no default is applied or reported when it is absent; a check that needs it lists the default in `meta.defaults_applied` |

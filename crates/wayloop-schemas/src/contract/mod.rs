@@ -20,7 +20,8 @@
 //!     direction objects stay open (ADR 0009 C5, as amended on 2026-11-20).
 //! - The checks of the generator, after the transform, for the rules that are not rules of the
 //!   subset: a description on the root, on every definition and on every member (one of
-//!   blanks only is none), the meaning of every enum value in its description, no
+//!   blanks only is none), the meaning of every enum value in its description (outside the
+//!   condition of an `if`, which names values described where their member is declared), no
 //!   `additionalProperties` that closes an output (only a pure map keeps the schema of its
 //!   values), and at most four levels of objects (ADR 0009 C4).
 //!
@@ -48,7 +49,10 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::artifact::{ArtifactKind, Brief, BriefOrigin, BriefStatus};
+use crate::artifact::{
+    ArtifactKind, Brief, BriefOrigin, BriefStatus, Epic, Gate, GateStatus, Milestone,
+    PlanItemStatus, SpecReference, Story, StoryCriterion, Task, Verification,
+};
 use crate::validate::{
     BaseStatus, DocumentEntry, DocumentSummary, EntryFormat, InputKind, Origin, ParseError, Policy,
     Status, ValidateData, ValidateInput,
@@ -237,10 +241,13 @@ mod embedded;
 mod registry;
 
 pub use embedded::EMBEDDED;
-pub use registry::{Area, BRIEF, CONTRACTS, Contract, ContractFile, Embedded, Part, VALIDATE};
+pub use registry::{
+    Area, BRIEF, CONTRACTS, Contract, ContractFile, EPIC, Embedded, GATE, MILESTONE, Part, STORY,
+    TASK, VALIDATE,
+};
 
 /// Every contract type of this crate whose schema is derived, in the byte order of their names.
-pub const TYPES: [Registered; 31] = [
+pub const TYPES: [Registered; 41] = [
     registered!(ArtifactKind),
     registered!(BaseStatus),
     registered!(Brief),
@@ -256,20 +263,30 @@ pub const TYPES: [Registered; 31] = [
     registered!(EntryFormat),
     ENVELOPE,
     VALIDATE_OUTPUT,
+    registered!(Epic),
     registered!(Error),
     registered!(ErrorReport),
+    registered!(Gate),
+    registered!(GateStatus),
     registered!(InputHash),
     registered!(InputKind),
     registered!(Meta),
+    registered!(Milestone),
     registered!(NotDone),
     registered!(NotDoneReason),
     registered!(Origin),
     registered!(ParseError),
+    registered!(PlanItemStatus),
     registered!(Pointer),
     registered!(Policy),
     registered!(Reason),
     registered!(Source),
+    registered!(SpecReference),
     registered!(Status),
+    registered!(Story),
+    registered!(StoryCriterion),
+    registered!(Task),
     registered!(ValidateData),
     registered!(ValidateInput),
+    registered!(Verification),
 ];

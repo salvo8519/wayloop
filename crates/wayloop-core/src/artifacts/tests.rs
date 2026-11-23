@@ -1,6 +1,7 @@
 //! Tests of the artifact model and of `validate` (SPEC-0001 T5: R1, R5, R6, R12, R14, R16;
-//! AC1, AC8, AC9, AC25). The contract cases of the command are in `tests/contract/validate/v1/`
-//! and run in the tests of `wayloop-cli`; these tests cover the parts the cases cannot reach.
+//! AC1, AC8, AC9, AC25; T7: R1, R5, R6, R9; AC1, AC9, AC35). The contract cases of the
+//! command are in `tests/contract/validate/v1/` and run in the tests of `wayloop-cli`; these
+//! tests cover the parts the cases cannot reach.
 
 // The helpers take JSON values by value so that a test reads as the document it builds.
 #![allow(clippy::needless_pass_by_value)]
@@ -9,7 +10,7 @@ use core::num::{NonZeroU32, NonZeroU64};
 
 use serde_json::{Map, Value, json};
 use wayloop_schemas::artifact::ArtifactKind;
-use wayloop_schemas::contract::{Area, BRIEF, CONTRACTS, Embedded, Part, VALIDATE};
+use wayloop_schemas::contract::{Area, BRIEF, CONTRACTS, Embedded, Part, VALIDATE, reread};
 use wayloop_schemas::validate::{ArtifactFolder, InputKind};
 use wayloop_schemas::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
 use wayloop_schemas::{NotDone, NotDoneReason, Source};
@@ -208,6 +209,396 @@ fn the_oracle_agrees_with_the_interpreter_on_briefs() {
     }
 }
 
+// Gates, milestones, epics, stories and tasks (T7: R1, R5, R6, R9; AC1, AC9, AC35) ----------
+
+/// The valid gate of the examples of SPEC-0001.
+fn gate() -> Value {
+    json!({
+        "kind": "gate", "schema_version": 1, "id": "GATE-0001",
+        "title": "Approve the brief on terminal time tracking", "status": "done",
+        "subject": "BRIEF-0001", "issue": 2, "approved_by": "@example-owner"
+    })
+}
+
+/// The valid milestone of the examples.
+fn milestone() -> Value {
+    json!({
+        "kind": "milestone", "schema_version": 1, "id": "M1", "title": "Time entries",
+        "status": "implementing",
+        "gate": "A user records, lists and exports the entries of a month offline.",
+        "council_report": "COUNCIL-0001", "due": "2027-03-31", "tracker_number": 1
+    })
+}
+
+/// The valid epic of the examples.
+fn epic() -> Value {
+    json!({
+        "kind": "epic", "schema_version": 1, "id": "EPIC-0001",
+        "title": "Time entries are recorded from the terminal", "status": "implementing",
+        "milestone": "M1",
+        "outcome": "A user records a time entry with one command and lists the entries of a day.",
+        "area": "core", "issue": 10
+    })
+}
+
+/// The valid story of the examples.
+fn story() -> Value {
+    json!({
+        "kind": "story", "schema_version": 1, "id": "STORY-0001",
+        "title": "Record a time entry with one command", "status": "implementing",
+        "epic": "EPIC-0001", "milestone": "M1",
+        "as_a": "freelance developer", "i_want": "to record a time entry with one command",
+        "so_that": "I do not leave the terminal",
+        "acceptance_criteria": [{
+            "id": "AC1", "given": "an empty log",
+            "when": "I run the record command with a duration and a project",
+            "then": "the log holds one entry with that duration and project"
+        }],
+        "specification": ["SPEC-0001"], "issue": 11
+    })
+}
+
+/// The valid task of the examples.
+fn task() -> Value {
+    json!({
+        "kind": "task", "schema_version": 1, "id": "TASK-0001",
+        "title": "timesheet record appends one entry to the log", "status": "implementing",
+        "epic": "EPIC-0001", "milestone": "M1", "story": "STORY-0001",
+        "specification": [{"spec": "SPEC-0001", "requirements": ["R1", "R2"]}],
+        "verification": ["tdd"], "area": "core", "depends_on": [], "complexity": 3,
+        "parallel": false, "issue": 12
+    })
+}
+
+/// `document` without the member `key`.
+fn without(mut document: Value, key: &str) -> Value {
+    document.as_object_mut().unwrap().remove(key);
+    document
+}
+
+/// The errors of validating `document` alone, by code, pointer and reason.
+fn errors_of(document: Value) -> Vec<(Code, String, Reason)> {
+    let validation = validate(&read(vec![entry(document)]));
+    assert_eq!(validation.failures, []);
+    found(&validation.errors)
+}
+
+fn schema_error(pointer: &str, reason: Reason) -> (Code, String, Reason) {
+    (codes::ARTIFACT_SCHEMA, pointer.to_owned(), reason)
+}
+
+#[test]
+fn the_valid_plan_items_of_the_examples_pass_and_read_into_their_types() {
+    let validation = validate(&read(
+        [gate(), milestone(), epic(), story(), task()]
+            .into_iter()
+            .map(entry)
+            .collect(),
+    ));
+    assert_eq!(validation.errors, []);
+    assert_eq!(validation.failures, []);
+    let checks: Vec<&str> = validation
+        .checks
+        .iter()
+        .map(wayloop_schemas::Check::id)
+        .collect();
+    for kind in ["gate", "milestone", "epic", "story", "task"] {
+        assert!(
+            checks.contains(&format!("schema_{kind}").as_str()),
+            "{kind}"
+        );
+    }
+}
+
+#[test]
+fn a_gate_in_status_done_requires_the_person_who_approved_it() {
+    // SPEC-0001, Gate issue: `approved_by` when `status` is `done` (reason `requires`).
+    let validation = validate(&read(vec![entry(without(gate(), "approved_by"))]));
+    let [error] = &validation.errors[..] else {
+        panic!("{:?}", validation.errors);
+    };
+    assert_eq!(
+        (error.pointer().as_str(), error.reason()),
+        ("/approved_by", Reason::Requires)
+    );
+    assert_eq!(error.pointers(), Some(&[at("/status")][..]));
+    let draft = without(with(gate(), "status", json!("draft")), "approved_by");
+    assert_eq!(errors_of(draft), []);
+    // A gate has no status approved: it is done when the subject is approved.
+    let approved = with(gate(), "status", json!("approved"));
+    let validation = validate(&read(vec![entry(approved)]));
+    assert_eq!(
+        found(&validation.errors),
+        [schema_error("/status", Reason::Enum)]
+    );
+    assert_eq!(
+        validation.errors[0].expected(),
+        Some(&[json!("draft"), json!("done"), json!("superseded")][..])
+    );
+}
+
+#[test]
+fn the_subject_of_a_gate_is_a_brief_or_a_council_report() {
+    let council = with(gate(), "subject", json!("COUNCIL-0001"));
+    assert_eq!(errors_of(council), []);
+    for (subject, fix) in [
+        ("TASK-0001", None),
+        ("council 1", Some("COUNCIL-0001")),
+        ("BRIEF-1", Some("BRIEF-0001")),
+    ] {
+        let validation = validate(&read(vec![entry(with(gate(), "subject", json!(subject)))]));
+        assert_eq!(
+            found(&validation.errors),
+            [schema_error("/subject", Reason::Syntax)],
+            "{subject}"
+        );
+        assert_eq!(
+            validation.errors[0].fix(),
+            fix.map(|f| json!(f)).as_ref(),
+            "{subject}"
+        );
+    }
+}
+
+#[test]
+fn the_tracker_number_is_required_once_a_plan_item_is_implementing_or_done() {
+    // Milestone: `tracker_number`; epic, story and task: `issue`; when `status` is
+    // `implementing` or `done`, never before.
+    for (document, member) in [
+        (milestone(), "tracker_number"),
+        (epic(), "issue"),
+        (story(), "issue"),
+        (task(), "issue"),
+    ] {
+        for status in ["implementing", "done"] {
+            let item = without(with(document.clone(), "status", json!(status)), member);
+            assert_eq!(
+                errors_of(item),
+                [schema_error(&format!("/{member}"), Reason::Requires)],
+                "{member} {status}"
+            );
+        }
+        for status in ["draft", "approved"] {
+            let item = without(with(document.clone(), "status", json!(status)), member);
+            assert_eq!(errors_of(item), [], "{member} {status}");
+        }
+    }
+}
+
+#[test]
+fn a_story_requires_its_specification_from_approved_on() {
+    let draft = without(
+        without(with(story(), "status", json!("draft")), "specification"),
+        "issue",
+    );
+    assert_eq!(errors_of(draft.clone()), []);
+    for status in ["approved", "implementing", "done"] {
+        let item = with(draft.clone(), "status", json!(status));
+        let item = if status == "approved" {
+            item
+        } else {
+            with(item, "issue", json!(11))
+        };
+        assert_eq!(
+            errors_of(item),
+            [schema_error("/specification", Reason::Requires)],
+            "{status}"
+        );
+    }
+    // A specification given is at least one identifier, in any status.
+    assert_eq!(
+        errors_of(with(draft, "specification", json!([]))),
+        [schema_error("/specification", Reason::Length)]
+    );
+}
+
+#[test]
+fn a_task_verified_by_a_judge_requires_a_rubric() {
+    // AC35, for the task: `rubric` when `verification` contains `judge`.
+    let judged = with(task(), "verification", json!(["tdd", "judge"]));
+    let validation = validate(&read(vec![entry(judged.clone())]));
+    let [error] = &validation.errors[..] else {
+        panic!("{:?}", validation.errors);
+    };
+    assert_eq!(
+        (error.pointer().as_str(), error.reason()),
+        ("/rubric", Reason::Requires)
+    );
+    assert_eq!(error.pointers(), Some(&[at("/verification")][..]));
+    let rubric = with(judged, "rubric", json!("Score 1 to 5."));
+    assert_eq!(errors_of(rubric), []);
+    assert_eq!(
+        errors_of(with(task(), "verification", json!([]))),
+        [schema_error("/verification", Reason::Length)]
+    );
+    assert_eq!(
+        errors_of(with(task(), "verification", json!(["unit"]))),
+        [schema_error("/verification/0", Reason::Enum)]
+    );
+}
+
+#[test]
+fn a_task_without_its_epic_or_its_milestone_gives_one_error_each() {
+    // Q2 of the plan: one error, `missing`, and no error of a link.
+    assert_eq!(
+        errors_of(without(task(), "epic")),
+        [schema_error("/epic", Reason::Missing)]
+    );
+    assert_eq!(
+        errors_of(without(without(task(), "epic"), "milestone")),
+        [
+            schema_error("/epic", Reason::Missing),
+            schema_error("/milestone", Reason::Missing)
+        ]
+    );
+    // A story needs its epic and its milestone too, and an epic its milestone.
+    assert_eq!(
+        errors_of(without(story(), "epic")),
+        [schema_error("/epic", Reason::Missing)]
+    );
+    assert_eq!(
+        errors_of(without(epic(), "milestone")),
+        [schema_error("/milestone", Reason::Missing)]
+    );
+}
+
+#[test]
+fn blocked_is_never_a_status_of_a_plan_item() {
+    // SPEC-0001, Common rules: `blocked` is an issue-cycle state of SPEC-0002 only.
+    for document in [milestone(), epic(), story(), task()] {
+        let validation = validate(&read(vec![entry(with(
+            document,
+            "status",
+            json!("blocked"),
+        ))]));
+        assert_eq!(
+            found(&validation.errors),
+            [schema_error("/status", Reason::Enum)]
+        );
+        assert_eq!(
+            validation.errors[0].expected(),
+            Some(
+                &[
+                    json!("draft"),
+                    json!("approved"),
+                    json!("implementing"),
+                    json!("done"),
+                    json!("superseded")
+                ][..]
+            )
+        );
+    }
+}
+
+#[test]
+fn the_complexity_of_a_task_is_from_1_to_10() {
+    for complexity in [1, 10] {
+        assert_eq!(errors_of(with(task(), "complexity", json!(complexity))), []);
+    }
+    for complexity in [0, 11] {
+        assert_eq!(
+            errors_of(with(task(), "complexity", json!(complexity))),
+            [schema_error("/complexity", Reason::Range)],
+            "{complexity}"
+        );
+    }
+    // Read by value: 3.0 is the integer 3, and reads into the type of the task.
+    assert_eq!(errors_of(with(task(), "complexity", json!(3.0))), []);
+}
+
+#[test]
+fn the_parts_and_links_of_a_plan_item_have_the_forms_of_their_types() {
+    let cases = [
+        (with(milestone(), "due", json!("31/03/2027")), "/due"),
+        (
+            with(milestone(), "council_report", json!("COUNCIL-1")),
+            "/council_report",
+        ),
+        (
+            with(epic(), "milestone", json!("Milestone 1")),
+            "/milestone",
+        ),
+        (
+            with(
+                story(),
+                "acceptance_criteria",
+                json!([{"id": "1", "given": "a", "when": "b", "then": "c"}]),
+            ),
+            "/acceptance_criteria/0/id",
+        ),
+        (with(task(), "story", json!("STORY-1")), "/story"),
+        (
+            with(task(), "depends_on", json!(["TASK-1"])),
+            "/depends_on/0",
+        ),
+        (
+            with(task(), "expanded_from", json!("EPIC-0001")),
+            "/expanded_from",
+        ),
+        (
+            with(
+                task(),
+                "specification",
+                json!([{"spec": "SPEC-0001", "requirements": ["AC1"]}]),
+            ),
+            "/specification/0/requirements/0",
+        ),
+    ];
+    for (document, pointer) in cases {
+        assert_eq!(
+            errors_of(document),
+            [schema_error(pointer, Reason::Syntax)],
+            "{pointer}"
+        );
+    }
+    // An empty area is not an area of any policy.
+    assert_eq!(
+        errors_of(with(epic(), "area", json!(""))),
+        [schema_error("/area", Reason::Length)]
+    );
+}
+
+#[test]
+fn the_oracle_agrees_with_the_interpreter_on_plan_items() {
+    let variations = |document: Value| {
+        vec![
+            document.clone(),
+            with(document.clone(), "status", json!("superseded")),
+            with(document.clone(), "status", json!("draft")),
+            with(document.clone(), "titolo", json!("x")),
+            with(document.clone(), "language", json!("it")),
+            with(document.clone(), "issue", json!(0)),
+            without(document.clone(), "title"),
+            with(document, "superseded_by", json!([])),
+        ]
+    };
+    let documents = [
+        (gate(), without(gate(), "approved_by")),
+        (milestone(), without(milestone(), "tracker_number")),
+        (epic(), without(epic(), "issue")),
+        (story(), without(story(), "specification")),
+        (task(), with(task(), "verification", json!(["judge"]))),
+    ];
+    for (document, refused) in documents {
+        let kind = document["kind"].as_str().unwrap().to_owned();
+        let contract = CONTRACTS.iter().find(|c| c.name == kind).unwrap();
+        let snapshot = contract.embedded(Part::Schema, NonZeroU32::MIN).unwrap();
+        let schema: Value = serde_json::from_str(snapshot.text).unwrap();
+        let loaded = kinds::load(snapshot).unwrap();
+        let oracle = oracle(&schema);
+        let mut all = variations(document);
+        all.push(refused);
+        for document in all {
+            let errors = loaded.validate(&document, codes::ARTIFACT_SCHEMA);
+            assert_eq!(
+                oracle.is_valid(&without_nulls(&document)),
+                errors.is_empty(),
+                "{document}: {errors:?}"
+            );
+        }
+    }
+}
+
 // Versions and migrations (R16, AC25) --------------------------------------------------------
 
 const SAMPLE_V1: Embedded = embedded_test(
@@ -267,6 +658,8 @@ fn sample_kind() -> Kind {
         id: "sample",
         versions: vec![SAMPLE_V1, SAMPLE_V2],
         migrations: &RENAME,
+        // A test type is read as a JSON value.
+        reread: reread::<Value>,
     }
 }
 
@@ -468,21 +861,25 @@ fn a_type_whose_schemas_cannot_be_loaded_is_a_failure_of_the_engine() {
             id: "broken",
             versions: vec![NOT_JSON],
             migrations: &[],
+            reread: reread::<Value>,
         },
         Kind {
             id: "broken",
             versions: vec![OUTSIDE],
             migrations: &[],
+            reread: reread::<Value>,
         },
         Kind {
             id: "broken",
             versions: vec![SAMPLE_V1, SAMPLE_V2],
             migrations: &[],
+            reread: reread::<Value>,
         },
         Kind {
             id: "broken",
             versions: vec![],
             migrations: &[],
+            reread: reread::<Value>,
         },
     ] {
         let failure = kinds::load_all(core::slice::from_ref(&kind)).unwrap_err();
@@ -560,8 +957,8 @@ fn the_folders_of_the_contract_are_those_of_the_locations() {
 #[test]
 fn checks_not_built_are_listed_once_with_their_reason() {
     let validation = validate(&read(vec![
-        entry(json!({"kind": "task", "id": "TASK-0001"})),
-        entry(json!({"kind": "task"})),
+        entry(json!({"kind": "handover", "id": "HANDOVER-12-3"})),
+        entry(json!({"kind": "handover"})),
         json!({"format": "markdown", "text": "# SPEC-0001: x"}),
         json!({"format": "document", "document": {"header": "x"}, "input_kind": "commit"}),
         entry(brief()),
@@ -573,6 +970,7 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     assert_eq!(
         not_done,
         [
+            "areas",
             "artifact_locations",
             "identifier_duplicate",
             "links",
@@ -580,15 +978,21 @@ fn checks_not_built_are_listed_once_with_their_reason() {
             "naming",
             "parts",
             "schema_commit",
-            "schema_task",
+            "schema_handover",
             "statuses",
         ]
     );
     // The locations were not given: the documents were not discovered (AC37).
     let reasons: Vec<NotDoneReason> = validation.not_done.iter().map(NotDone::reason).collect();
-    assert_eq!(reasons[0], NotDoneReason::InputAbsent);
-    assert!(reasons[1..].iter().all(|r| *r == NotDoneReason::NotBuilt));
-    // One check identifier per schema (S6): schema_brief ran, schema_task did not.
+    assert_eq!(reasons[1], NotDoneReason::InputAbsent);
+    assert!(
+        reasons
+            .iter()
+            .enumerate()
+            .all(|(i, r)| i == 1 || *r == NotDoneReason::NotBuilt)
+    );
+    // One check identifier per schema (S6): the schemas of the built types ran, the schema
+    // of the hand-over did not.
     assert_eq!(
         validation
             .checks
@@ -599,6 +1003,11 @@ fn checks_not_built_are_listed_once_with_their_reason() {
             "document_kind",
             "schema_version",
             "schema_brief",
+            "schema_epic",
+            "schema_gate",
+            "schema_milestone",
+            "schema_story",
+            "schema_task",
             "identifier_format"
         ]
     );
@@ -616,8 +1025,8 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     assert_eq!(
         summaries,
         [
-            (Some("task"), None, Some("TASK-0001")),
-            (Some("task"), None, None),
+            (Some("handover"), None, Some("HANDOVER-12-3")),
+            (Some("handover"), None, None),
             (None, None, None),
             (None, Some("commit"), None),
             (Some("brief"), None, Some("BRIEF-0001")),
@@ -626,7 +1035,7 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     assert_eq!(validation.warnings, []);
     assert_eq!(
         NotDone::new(checks::LINKS, NotDoneReason::NotBuilt),
-        validation.not_done[2]
+        validation.not_done[3]
     );
 }
 

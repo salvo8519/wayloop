@@ -38,6 +38,31 @@ pub fn require_if_equals(schema: &mut Schema, when: &str, value: impl Into<Value
     push(schema, condition, then);
 }
 
+/// Requires the members `then` whenever the member `when` equals one of `values`, for example
+/// `issue` when `status` is `implementing` or `done`.
+pub fn require_if_in(schema: &mut Schema, when: &str, values: &[&str], then: &[&str]) {
+    let condition = json!({
+        "properties": {when: {"enum": values}},
+        "required": [when],
+    });
+    push(schema, condition, then);
+}
+
+/// Requires the members `then` whenever the list `when` holds `value`, for example `rubric`
+/// when `verification` holds `judge`.
+pub fn require_if_contains(
+    schema: &mut Schema,
+    when: &str,
+    value: impl Into<Value>,
+    then: &[&str],
+) {
+    let condition = json!({
+        "properties": {when: {"contains": {"const": value.into()}}},
+        "required": [when],
+    });
+    push(schema, condition, then);
+}
+
 /// The rules of an artifact the derive does not write (SPEC-0001, Common rules): `kind` is the
 /// constant `kind` and `schema_version` the constant `version`, both from the registration of
 /// the contract (ADR 0030 G5); `superseded_by` is required when `status` equals `superseded`,

@@ -8,7 +8,10 @@ use std::collections::BTreeMap;
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde_json::{Value, json};
 
-use super::rules::{artifact, formatted, require_if_absent, require_if_equals, require_if_present};
+use super::rules::{
+    artifact, formatted, require_if_absent, require_if_contains, require_if_equals, require_if_in,
+    require_if_present,
+};
 use super::transform::{ANY_VALUE, only_reachable_definitions, unwrapped};
 use super::{
     ContractError, Direction, MAX_OBJECT_LEVELS, PUBLISHED_AT, Problem, TYPES, schema_for, snapshot,
@@ -660,6 +663,87 @@ fn a_requirement_on_an_absent_member_tests_it_against_null() {
         schema.get("allOf"),
         Some(&json!([
             {"if": {"properties": {"data": {"const": null}}}, "then": {"required": ["error"]}}
+        ]))
+    );
+}
+
+/// An artifact whose replacement is required in two statuses.
+#[derive(JsonSchema)]
+#[schemars(transform = replaced_in_two_statuses)]
+struct Started {
+    /// Status of the artifact.
+    status: Status,
+    /// The artifact that replaces this one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    superseded_by: Option<TaskId>,
+}
+
+fn replaced_in_two_statuses(schema: &mut Schema) {
+    require_if_in(
+        schema,
+        "status",
+        &["accepted", "superseded"],
+        &["superseded_by"],
+    );
+}
+
+/// The same artifact, whose condition names a value that is not `snake_case`.
+#[derive(JsonSchema)]
+#[schemars(transform = replaced_in_a_misspelt_status)]
+struct Misspelt {
+    /// Status of the artifact.
+    status: Status,
+    /// The artifact that replaces this one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    superseded_by: Option<TaskId>,
+}
+
+fn replaced_in_a_misspelt_status(schema: &mut Schema) {
+    require_if_in(schema, "status", &["Superseded"], &["superseded_by"]);
+}
+
+#[test]
+fn a_condition_names_values_documented_where_the_member_is_declared() {
+    // The values of an `enum` in an `if` are values of a declared member, described there:
+    // the condition needs no meaning of its own, but keeps the spelling of the contracts.
+    for direction in [Direction::Input, Direction::Output] {
+        let schema = schema_for::<Started>(direction).unwrap();
+        assert_eq!(
+            schema["allOf"][0]["if"]["properties"]["status"]["enum"],
+            json!(["accepted", "superseded"])
+        );
+        assert_eq!(
+            refused::<Misspelt>(direction),
+            ContractError {
+                pointer: at("/allOf/0/if/properties/status/enum/0"),
+                problem: Problem::NotSnakeCase("Superseded".into())
+            }
+        );
+    }
+}
+
+#[test]
+fn a_requirement_on_one_of_several_values_or_on_an_element_of_a_list() {
+    let mut schema = Schema::from(serde_json::Map::new());
+    require_if_in(&mut schema, "status", &["implementing", "done"], &["issue"]);
+    require_if_contains(&mut schema, "verification", "judge", &["rubric"]);
+    assert_eq!(
+        schema.get("allOf"),
+        Some(&json!([
+            {
+                "if": {
+                    "properties": {"status": {"enum": ["implementing", "done"]}},
+                    "required": ["status"]
+                },
+                "then": {"required": ["issue"]}
+            },
+            {
+                "if": {
+                    "properties": {"verification": {"contains": {"const": "judge"}}},
+                    "required": ["verification"]
+                },
+                "then": {"required": ["rubric"]}
+            }
         ]))
     );
 }

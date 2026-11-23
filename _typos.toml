@@ -1,2 +1,13 @@
 [files]
-extend-exclude = ["uv.lock", "Cargo.lock", "*.svg", "docs/it/**", "README.it.md", "i18n/**", "CLAUDE.local.md.example"]
+# The story cases of SPEC-0001 AC9 hold Italian prose on purpose.
+extend-exclude = [
+  "uv.lock",
+  "Cargo.lock",
+  "*.svg",
+  "docs/it/**",
+  "README.it.md",
+  "i18n/**",
+  "CLAUDE.local.md.example",
+  "tests/contract/validate/v1/story-italian-prose.json",
+  "tests/contract/validate/v1/story-key-in-italian.json",
+]

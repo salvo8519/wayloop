@@ -71,7 +71,7 @@ Prerequisites outside this specification:
 
 ## Remaining kinds
 
-- [ ] **T7 Validate milestones, epics, stories, tasks and gate issues**
+- [x] **T7 Validate milestones, epics, stories, tasks and gate issues**
   - Covers: R1, R5, R6, R9 (required parent and milestone); AC1 (these pairs), AC9 (story with Italian prose passes; key `titolo` refused with `fix` `title`), AC35 (task with `judge` and no `rubric`). Issue: #258.
   - Files: `schemas/artifacts/{milestone,epic,story,task,gate}/v1.json`, `crates/wayloop-core/src/artifacts/` (kind registry, formats), `tests/contract/validate/v1/`.
   - Tests first: golden cases from `gate`, `task`, `epic` (schema part only), `story`, `milestone` examples; `approved_by` required when a gate is `done` (`requires`); `specification` required on a story from `approved` (`requires`); a task without `epic` gives one error (Q2).

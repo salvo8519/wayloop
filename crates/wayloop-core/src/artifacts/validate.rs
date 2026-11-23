@@ -14,9 +14,8 @@
 
 use std::collections::BTreeSet;
 
-use serde::Deserialize as _;
 use serde_json::{Map, Value};
-use wayloop_schemas::artifact::{ArtifactKind, Brief};
+use wayloop_schemas::artifact::ArtifactKind;
 use wayloop_schemas::contract::{Part, VALIDATE};
 use wayloop_schemas::validate::{ArtifactFolder, DocumentSummary, InputKind, Origin, ValidateData};
 use wayloop_schemas::{Diagnostics, ErrorReport, NotDone, NotDoneReason, Outcome};
@@ -190,7 +189,7 @@ fn check_entry(
             };
             if let Some(loaded) = kinds.iter().find(|k| k.id == kind) {
                 match loaded.check(document) {
-                    Checked::Valid(current) => match read_artifact(loaded.id, current) {
+                    Checked::Valid(current) => match read_artifact(loaded, current) {
                         Ok(read) => return summary(Some(&read), None, origin),
                         Err(failure) => validation.failures.push(*failure),
                     },
@@ -213,21 +212,15 @@ fn check_entry(
     }
 }
 
-/// The document `current`, accepted by the current schema of its type `kind`, read into the
-/// contract type of that kind and written again: the form the later checks read. A failure is
+/// The document `current`, accepted by the current schema of its type `loaded`, read into the
+/// contract type of that type and written again: the form the later checks read. A failure is
 /// a defect of the engine (ADR 0030 G1).
 fn read_artifact(
-    kind: &str,
+    loaded: &Loaded,
     current: Map<String, Value>,
 ) -> Result<Map<String, Value>, Box<Error>> {
-    let value = Value::Object(current);
-    let read = match ArtifactKind::from_id(kind) {
-        Some(ArtifactKind::Brief) => Brief::deserialize(&value)
-            .and_then(serde_json::to_value)
-            .map_err(|e| e.to_string()),
-        _ => Err(format!("the type {kind} has no contract type")),
-    };
-    match read {
+    let kind = loaded.id;
+    match (loaded.reread)(&Value::Object(current)) {
         Ok(Value::Object(read)) => Ok(read),
         Ok(_) => Err(Box::new(Error::internal(format!(
             "A {kind} is not written as an object."

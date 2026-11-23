@@ -37,6 +37,7 @@ fn oracle_format(name: &str, text: &str) -> bool {
     match name {
         "brief-id" => prefix("BRIEF"),
         "council-id" => prefix("COUNCIL"),
+        "brief-or-council-id" => prefix("BRIEF") || prefix("COUNCIL"),
         "gate-id" => prefix("GATE"),
         "epic-id" => prefix("EPIC"),
         "story-id" => prefix("STORY"),
@@ -87,7 +88,7 @@ fn oracle_format(name: &str, text: &str) -> bool {
     }
 }
 
-const FORMATS: [&str; 20] = [
+const FORMATS: [&str; 21] = [
     "date",
     "utc-date-time",
     "language-tag",
@@ -95,6 +96,7 @@ const FORMATS: [&str; 20] = [
     "project-path",
     "brief-id",
     "council-id",
+    "brief-or-council-id",
     "gate-id",
     "epic-id",
     "story-id",
@@ -768,7 +770,7 @@ fn every_named_format_is_known_to_the_interpreter_and_to_the_oracle() {
 }
 
 /// Accepted and refused examples of each named format.
-const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 20] = [
+const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 21] = [
     (
         "project-path",
         &[
@@ -878,6 +880,17 @@ const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 20] = [
         ],
     ),
     ("council-id", &["COUNCIL-0001"], &["COUNCIL-001"]),
+    (
+        "brief-or-council-id",
+        &["BRIEF-0001", "COUNCIL-0001", "COUNCIL-10000"],
+        &[
+            "GATE-0001",
+            "BRIEF-1",
+            "council-0001",
+            "BRIEFCOUNCIL-0001",
+            "COUNCIL-",
+        ],
+    ),
     ("gate-id", &["GATE-0001"], &["GATE-1"]),
     ("epic-id", &["EPIC-0003"], &["EPIC-03"]),
     ("story-id", &["STORY-0042"], &["STORY-42"]),
@@ -955,6 +968,9 @@ fn fixes_of_formats() {
         ("task-id", "TASK-010000", Some("TASK-10000")),
         ("task-id", "STORY-0107", None),
         ("task-id", "TASK-", None),
+        ("brief-or-council-id", "brief-7", Some("BRIEF-0007")),
+        ("brief-or-council-id", "Council 12", Some("COUNCIL-0012")),
+        ("brief-or-council-id", "TASK-0001", None),
         ("milestone-id", "Milestone 2", Some("M2")),
         ("milestone-id", "m2", Some("M2")),
         ("milestone-id", "M02", Some("M2")),

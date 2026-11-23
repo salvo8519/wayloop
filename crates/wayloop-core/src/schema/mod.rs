@@ -64,6 +64,7 @@
 //! | `tracker-handle` | `@` then 1 to 39 letters, digits or single hyphens, not at either end | `@` added |
 //! | `project-path` | A path relative to the root of the project in one spelling: segments joined by `/`, none empty, `.` or `..`; no `\`, no drive letter (`C:`) | `\` written `/`, empty and `.` segments dropped; none for a path that starts with `/` or `\` |
 //! | `brief-id`, `council-id`, `gate-id`, `epic-id`, `story-id`, `spec-id`, `change-id`, `task-id` | `BRIEF-`, `COUNCIL-`, `GATE-`, `EPIC-`, `STORY-`, `SPEC-`, `CHANGE-` or `TASK-` then four digits, or five or more without a leading zero (SPEC-0001, Identifiers) | prefix in upper case, separator `-`, sequence padded or unpadded |
+//! | `brief-or-council-id` | A `brief-id` or a `council-id`: the subject of a gate issue | as for the identifier it starts with |
 //! | `milestone-id` | `M` then `0` or a number without a leading zero | `M` and the number, from `m2`, `M02` or `Milestone 2` |
 //! | `handover-id` | `HANDOVER-<issue>-<k>`, both numbers from 1 without a leading zero | prefix in upper case, leading zeros removed |
 //! | `requirement-id`, `criterion-id`, `decision-id`, `question-id` | `R`, `AC`, `D` or `Q` then a number from 1 without a leading zero | prefix in upper case, leading zeros removed |

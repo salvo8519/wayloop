@@ -14,6 +14,26 @@ pub const EMBEDDED: &[Embedded] = &[
         text: include_str!("../../snapshots/artifacts/brief/v1.json"),
     },
     Embedded {
+        path: "artifacts/epic/v1.json",
+        text: include_str!("../../snapshots/artifacts/epic/v1.json"),
+    },
+    Embedded {
+        path: "artifacts/gate/v1.json",
+        text: include_str!("../../snapshots/artifacts/gate/v1.json"),
+    },
+    Embedded {
+        path: "artifacts/milestone/v1.json",
+        text: include_str!("../../snapshots/artifacts/milestone/v1.json"),
+    },
+    Embedded {
+        path: "artifacts/story/v1.json",
+        text: include_str!("../../snapshots/artifacts/story/v1.json"),
+    },
+    Embedded {
+        path: "artifacts/task/v1.json",
+        text: include_str!("../../snapshots/artifacts/task/v1.json"),
+    },
+    Embedded {
         path: "commands/validate/v1.json",
         text: include_str!("../../snapshots/commands/validate/v1.json"),
     },

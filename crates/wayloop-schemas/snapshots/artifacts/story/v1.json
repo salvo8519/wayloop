@@ -1,0 +1,216 @@
+{
+  "$defs": {
+    "PlanItemStatus": {
+      "description": "Status of a milestone, an epic, a user story or a task (SPEC-0001 R5); `draft` is the initial status. `blocked` is never one: it is a state of the issue cycle (SPEC-0002).\n\n- `draft`: Proposed, not approved.\n- `approved`: Approved by a person; work may start.\n- `implementing`: Work has started: a task of it is claimed.\n- `done`: Delivered; terminal.\n- `superseded`: Replaced by the items in `superseded_by`; terminal.",
+      "enum": [
+        "draft",
+        "approved",
+        "implementing",
+        "done",
+        "superseded"
+      ],
+      "type": "string"
+    },
+    "StoryCriterion": {
+      "additionalProperties": false,
+      "description": "An acceptance criterion of a user story.",
+      "properties": {
+        "given": {
+          "description": "The situation before the action.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "description": "Identifier within the story, `AC<k>`, cited as `STORY-<seq> AC<k>`.",
+          "format": "criterion-id",
+          "type": "string"
+        },
+        "then": {
+          "description": "The outcome expected.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "when": {
+          "description": "The action.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "given",
+        "when",
+        "then"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://salvo8519.github.io/wayloop/schemas/artifacts/story/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "superseded"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "superseded_by"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "implementing",
+              "done"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "issue"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "approved",
+              "implementing",
+              "done"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "specification"
+        ]
+      }
+    }
+  ],
+  "description": "A user story of an epic (SPEC-0001, User story), a tracker sub-issue of its epic.",
+  "properties": {
+    "acceptance_criteria": {
+      "description": "Acceptance criteria; at least one.",
+      "items": {
+        "$ref": "#/$defs/StoryCriterion"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "as_a": {
+      "description": "Role of the user.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "epic": {
+      "description": "Parent epic.",
+      "format": "epic-id",
+      "type": "string"
+    },
+    "i_want": {
+      "description": "Capability wanted.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "id": {
+      "description": "Stable identifier, in the canonical form of the type; assigned by the engine and never reused (SPEC-0001 R2, R14).",
+      "format": "story-id",
+      "type": "string"
+    },
+    "issue": {
+      "description": "Tracker number of the issue; required when `status` is `implementing` or `done`.",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "kind": {
+      "const": "story",
+      "description": "Artifact type; selects the schema."
+    },
+    "language": {
+      "description": "Language of the prose, a BCP 47 tag; when absent, the language of the project.",
+      "format": "language-tag",
+      "type": "string"
+    },
+    "milestone": {
+      "description": "Milestone of the story; must equal the milestone of its epic.",
+      "format": "milestone-id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of the schema of the type the document was written against (SPEC-0001 R16).",
+      "type": "integer"
+    },
+    "so_that": {
+      "description": "Benefit.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "specification": {
+      "description": "Specifications that turn the story into requirements, at least one; required when `status` is `approved`, `implementing` or `done`.",
+      "items": {
+        "description": "Identifier of a living specification: `SPEC-` and four digits, or five or more without a leading zero, for example `SPEC-0003`.",
+        "format": "spec-id",
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "status": {
+      "$ref": "#/$defs/PlanItemStatus",
+      "description": "Current status (SPEC-0001 R5), not the issue-cycle state of SPEC-0002."
+    },
+    "superseded_by": {
+      "description": "Identifiers of the artifacts of the same type that replace this one, at least one; required when `status` is `superseded`.",
+      "items": {
+        "description": "Identifier of a user story: `STORY-` and four digits, or five or more without a leading zero, for example `STORY-0042`.",
+        "format": "story-id",
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "title": {
+      "description": "Outcome or name, in sentence case without a final full stop; 1 to 120 characters (Unicode code points).",
+      "maxLength": 120,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "title",
+    "status",
+    "epic",
+    "milestone",
+    "as_a",
+    "i_want",
+    "so_that",
+    "acceptance_criteria"
+  ],
+  "title": "Story",
+  "type": "object"
+}

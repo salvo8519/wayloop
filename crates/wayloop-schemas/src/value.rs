@@ -29,13 +29,16 @@ pub mod __private {
     pub use serde_json;
 }
 
-/// The schema of an integer from 1, with its `description`.
+/// The schema of an integer from 1, up to `max` when given, with its `description`.
 #[doc(hidden)]
 #[must_use]
-pub fn positive_schema(description: &str) -> Schema {
+pub fn positive_schema(description: &str, max: Option<u64>) -> Schema {
     let mut schema = Map::new();
     schema.insert("description".to_owned(), description.into());
     schema.insert("minimum".to_owned(), 1.into());
+    if let Some(max) = max {
+        schema.insert("maximum".to_owned(), max.into());
+    }
     schema.insert("type".to_owned(), "integer".into());
     Schema::from(schema)
 }
@@ -47,14 +50,16 @@ pub fn text(value: &Value) -> Option<String> {
     value.as_str().map(str::to_owned)
 }
 
-/// An integer from 1 to [`SAFE_INTEGER`](crate::number::SAFE_INTEGER), read by value: `3.0` is
-/// `3`; `None` for any other value, as the interpreter refuses an integer beyond that range.
+/// An integer from 1 to [`SAFE_INTEGER`](crate::number::SAFE_INTEGER), and to `max` when given,
+/// read by value: `3.0` is `3`; `None` for any other value, as the interpreter refuses an
+/// integer beyond that range.
 #[doc(hidden)]
 #[must_use]
-pub fn positive(value: &Value) -> Option<NonZeroU64> {
+pub fn positive(value: &Value, max: Option<u64>) -> Option<NonZeroU64> {
     integer(value)
         .filter(|n| is_safe(*n))
         .and_then(|n| u64::try_from(n).ok())
+        .filter(|n| max.is_none_or(|max| *n <= max))
         .and_then(NonZeroU64::new)
 }
 
@@ -106,7 +111,8 @@ macro_rules! formatted_text {
     };
 }
 
-/// An integer from 1 of the contracts, from its doc comment.
+/// An integer from 1 of the contracts, from its doc comment, with an optional inclusive upper
+/// bound written `<= <max>`.
 ///
 /// ```
 /// wayloop_schemas::positive_integer! {
@@ -117,17 +123,25 @@ macro_rules! formatted_text {
 /// assert_eq!(read.get().get(), 3);
 /// assert!(serde_json::from_str::<Apples>("0").is_err());
 /// assert!(serde_json::from_str::<Apples>("1.5").is_err());
+///
+/// wayloop_schemas::positive_integer! {
+///     /// A score, from 1 to 5.
+///     pub struct Score <= 5;
+/// }
+/// assert!(serde_json::from_str::<Score>("5").is_ok());
+/// assert!(serde_json::from_str::<Score>("6").is_err());
 /// ```
 ///
 /// The type derives `Debug`, `Clone`, `Copy`, `PartialEq`, `Eq`, `PartialOrd`, `Ord` and
-/// `Hash`, and gets `new()`, `get()`, `Display`, `Serialize` as its number, `Deserialize` that
-/// reads an integer by value, and an inlined `JsonSchema`: an integer from 1 whose description
-/// is the doc comment.
+/// `Hash`, and gets `MAX`, its upper bound when it has one; `new()`, `get()`, `Display`,
+/// `Serialize` as its number, `Deserialize` that reads an integer by value within its bounds,
+/// and an inlined `JsonSchema`: an integer from 1, with its `maximum` when bounded, whose
+/// description is the doc comment.
 #[macro_export]
 macro_rules! positive_integer {
     (
         $(#[doc = $doc:literal])*
-        $vis:vis struct $name:ident;
+        $vis:vis struct $name:ident $(<= $max:literal)?;
     ) => {
         $(#[doc = $doc])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -145,14 +159,37 @@ macro_rules! positive_integer {
             pub const fn get(self) -> ::core::num::NonZeroU64 {
                 self.0
             }
+
+            /// The inclusive upper bound; `None` when the number has none.
+            pub const MAX: ::core::option::Option<u64> = $crate::__bound!($($max)?);
+
+            /// The number `value` holds, read by value, within the bounds of the type.
+            fn read(
+                value: &$crate::value::__private::serde_json::Value,
+            ) -> ::core::option::Option<::core::num::NonZeroU64> {
+                $crate::value::positive(value, Self::MAX)
+            }
         }
 
-        $crate::__value_traits!($name, $crate::value::positive, "expected an integer from 1");
+        $crate::__value_traits!($name, $name::read, "expected an integer from 1 within its bound");
 
         $crate::__inline_schema!(
             $name,
-            $crate::value::positive_schema(concat!($($doc, "\n"),*))
+            $crate::value::positive_schema(concat!($($doc, "\n"),*), $name::MAX)
         );
+    };
+}
+
+/// The upper bound of [`positive_integer!`](crate::positive_integer!): `Some(max)` when one is
+/// written, `None` otherwise.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __bound {
+    () => {
+        ::core::option::Option::None
+    };
+    ($max:literal) => {
+        ::core::option::Option::Some($max)
     };
 }
 
@@ -219,6 +256,71 @@ crate::formatted_text! {
     /// Identifier of a brief: `BRIEF-` and four digits, or five or more without a leading zero,
     /// for example `BRIEF-0001` (SPEC-0001, Identifiers).
     pub struct BriefId = Format::BriefId;
+}
+
+crate::formatted_text! {
+    /// Identifier of a council report: `COUNCIL-` and four digits, or five or more without a
+    /// leading zero, for example `COUNCIL-0001`.
+    pub struct CouncilId = Format::CouncilId;
+}
+
+crate::formatted_text! {
+    /// Identifier of a brief or of a council report, the subject of a gate issue, for example
+    /// `BRIEF-0001` or `COUNCIL-0001`.
+    pub struct BriefOrCouncilId = Format::BriefOrCouncilId;
+}
+
+crate::formatted_text! {
+    /// Identifier of a gate issue: `GATE-` and four digits, or five or more without a leading
+    /// zero, for example `GATE-0001`.
+    pub struct GateId = Format::GateId;
+}
+
+crate::formatted_text! {
+    /// Identifier of a milestone: `M` and a number from 0 without a leading zero, for example
+    /// `M0` or `M12`; it records the order of creation, not of delivery.
+    pub struct MilestoneId = Format::MilestoneId;
+}
+
+crate::formatted_text! {
+    /// Identifier of an epic: `EPIC-` and four digits, or five or more without a leading zero,
+    /// for example `EPIC-0003`.
+    pub struct EpicId = Format::EpicId;
+}
+
+crate::formatted_text! {
+    /// Identifier of a user story: `STORY-` and four digits, or five or more without a leading
+    /// zero, for example `STORY-0042`.
+    pub struct StoryId = Format::StoryId;
+}
+
+crate::formatted_text! {
+    /// Identifier of a living specification: `SPEC-` and four digits, or five or more without a
+    /// leading zero, for example `SPEC-0003`.
+    pub struct SpecId = Format::SpecId;
+}
+
+crate::formatted_text! {
+    /// Identifier of a task: `TASK-` and four digits, or five or more without a leading zero,
+    /// for example `TASK-0107`.
+    pub struct TaskId = Format::TaskId;
+}
+
+crate::formatted_text! {
+    /// Identifier of a requirement of a living specification: `R` and a number from 1 without
+    /// a leading zero, for example `R2`.
+    pub struct RequirementId = Format::RequirementId;
+}
+
+crate::formatted_text! {
+    /// Identifier of an acceptance criterion within its artifact: `AC` and a number from 1
+    /// without a leading zero, for example `AC1`.
+    pub struct CriterionId = Format::CriterionId;
+}
+
+crate::formatted_text! {
+    /// A calendar date, `YYYY-MM-DD` (RFC 3339 `full-date`), for example `2027-03-31`.
+    pub struct Date = Format::Date;
 }
 
 crate::formatted_text! {

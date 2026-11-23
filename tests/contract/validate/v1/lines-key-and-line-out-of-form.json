@@ -29,7 +29,6 @@
       "/error/reason": "range",
       "/error/errors/1/pointer": "/documents/0/lines/x",
       "/error/errors/1/reason": "syntax",
-      "/error/errors/1/message": "The name of the member is not in the form of the format `json-pointer`.",
       "/meta/input_hash": "550993f62c06c351dca61877221ebf4aded80dabab81d132f625bb8200fd72e7"
     },
     "absent": [

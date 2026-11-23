@@ -333,6 +333,77 @@ fn the_examples_load_into_the_committed_golden_inputs() {
 }
 
 #[test]
+fn the_examples_of_the_plan_items_load_into_the_documents_of_their_cases() {
+    // T7: the cases of gates, milestones, epics, stories and tasks send the examples
+    // directly; each document of a case is the example read as `wayloop validate` reads it, so
+    // that the examples and the cases cannot drift.
+    let valid = [
+        "brief",
+        "council_report",
+        "specification",
+        "gate",
+        "milestone",
+        "epic",
+        "story",
+        "task",
+    ]
+    .map(|kind| format!("{kind}.valid.yaml"));
+    let invalid = [
+        ("gate-invalid", "gate.invalid.yaml"),
+        ("task-invalid", "task.invalid.yaml"),
+        ("milestone-invalid", "milestone.invalid.yaml"),
+    ];
+    let texts: Vec<(String, String)> = valid
+        .iter()
+        .map(String::as_str)
+        .chain(invalid.iter().map(|(_, name)| *name))
+        .map(|name| (format!("plan/items/{name}"), example(name)))
+        .collect();
+    let files: Vec<(&str, &[u8])> = texts
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_bytes()))
+        .collect();
+    let input = serde_json::to_value(Project::new("plan-examples", &files).input()).unwrap();
+    let loaded = |name: &str| -> Value {
+        let file = format!("plan/items/{name}");
+        let documents = input["documents"].as_array().unwrap();
+        let found = documents
+            .iter()
+            .find(|d| d["origin"]["file"] == file.as_str())
+            .unwrap_or_else(|| panic!("{file} was not read"));
+        found["document"].clone()
+    };
+    let set: Vec<Value> = valid.iter().map(|name| loaded(name)).collect();
+    let documents = |case: &str| -> Vec<Value> {
+        let input = case_input(case);
+        input["documents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| entry["document"].clone())
+            .collect()
+    };
+    assert_eq!(documents("plan-valid"), set);
+    for (case, name) in invalid {
+        let mut expected = set.clone();
+        expected.push(loaded(name));
+        assert_eq!(documents(case), expected, "{case}");
+    }
+    // Every other case of a plan item sends the valid set first, then the document it checks.
+    for case in [
+        "story-italian-prose",
+        "story-key-in-italian",
+        "story-approved-without-specification",
+        "task-judge-without-rubric",
+        "epic-implementing-without-issue",
+    ] {
+        let given = documents(case);
+        assert_eq!(given.get(..set.len()), Some(&set[..]), "{case}");
+        assert_eq!(given.len(), set.len() + 1, "{case}");
+    }
+}
+
+#[test]
 fn source_carries_the_file_and_the_line_of_the_faulty_value() {
     let text = "# A brief.\nkind: brief\nschema_version: 1\nid: BRIEF-0001\ntitle: Time from the terminal\nstatus: approved\norigin: light_requirements\nowner: \"@example-owner\"\nproblem: Hours are lost.\ngoals:\n  - Record time\n  - 42\nusers:\n  - Freelancers\nscope_in:\n  - Time entries\n";
     let project = Project::new(

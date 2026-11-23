@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: ee10f3b3b10f
+source_hash: aeaf95c2eca9
 ---
 # Architettura
 
@@ -317,7 +317,8 @@ La condizione di un `if` usa `properties`, `required`, `enum`, `const` e `contai
 `project-path` (un percorso relativo alla radice del progetto in una sola grafia: segmenti uniti
 da `/`, nessuno vuoto, `.` o `..`; nessun `\` e nessuna lettera di unità), gli
 identificativi di ogni tipo di artefatto (`brief-id`, `council-id`, `gate-id`, `epic-id`,
-`story-id`, `spec-id`, `change-id`, `task-id`, `milestone-id`, `handover-id`) e gli
+`story-id`, `spec-id`, `change-id`, `task-id`, `milestone-id`, `handover-id`),
+`brief-or-council-id` (l'uno o l'altro dei primi due, l'oggetto di una issue di gate) e gli
 identificativi delle parti (`requirement-id`, `criterion-id`, `decision-id`, `question-id`),
 con le forme canoniche della SPEC-0001, e `json-pointer` (un puntatore RFC 6901, la forma di
 ogni `pointer` dei contratti). La documentazione del modulo elenca ogni forma e ogni
@@ -395,8 +396,9 @@ volta, nel modulo `contract`:
 Le righe di un commento di documentazione sono unite in paragrafi, perché vanno a capo alla
 larghezza del codice. Il generatore poi verifica le regole dei contratti che non sono regole
 del sottoinsieme: una descrizione sulla radice, su ogni definizione e su ogni membro (una fatta
-solo di spazi non conta), il significato di ogni valore di enum nella sua descrizione, ogni
-valore testuale di enum in `snake_case`, nessun
+solo di spazi non conta), il significato di ogni valore di enum nella sua descrizione (un `enum`
+nella condizione di un `if` nomina valori di un membro ed è descritto dove il membro è
+dichiarato), ogni valore testuale di enum in `snake_case`, nessun
 `additionalProperties` che chiuda un output (una mappa pura mantiene lo schema dei suoi
 valori), e al massimo quattro livelli di oggetti, compresi i valori di una mappa (ADR 0009 C4).
 Il sottoinsieme ha una sola definizione, il caricatore dell'interprete (ADR 0030 G3):

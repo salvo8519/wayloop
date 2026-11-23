@@ -26,6 +26,8 @@ crate::closed_enum! {
         BriefId = "brief-id",
         /// `COUNCIL-` and a sequence.
         CouncilId = "council-id",
+        /// `BRIEF-` or `COUNCIL-` and a sequence: what a gate issue submits for approval.
+        BriefOrCouncilId = "brief-or-council-id",
         /// `GATE-` and a sequence.
         GateId = "gate-id",
         /// `EPIC-` and a sequence.
@@ -71,19 +73,20 @@ mod tests {
             Format::ProjectPath => 4,
             Format::BriefId => 5,
             Format::CouncilId => 6,
-            Format::GateId => 7,
-            Format::EpicId => 8,
-            Format::StoryId => 9,
-            Format::SpecId => 10,
-            Format::ChangeId => 11,
-            Format::TaskId => 12,
-            Format::MilestoneId => 13,
-            Format::HandoverId => 14,
-            Format::RequirementId => 15,
-            Format::CriterionId => 16,
-            Format::DecisionId => 17,
-            Format::QuestionId => 18,
-            Format::JsonPointer => 19,
+            Format::BriefOrCouncilId => 7,
+            Format::GateId => 8,
+            Format::EpicId => 9,
+            Format::StoryId => 10,
+            Format::SpecId => 11,
+            Format::ChangeId => 12,
+            Format::TaskId => 13,
+            Format::MilestoneId => 14,
+            Format::HandoverId => 15,
+            Format::RequirementId => 16,
+            Format::CriterionId => 17,
+            Format::DecisionId => 18,
+            Format::QuestionId => 19,
+            Format::JsonPointer => 20,
         }
     }
 
@@ -110,6 +113,7 @@ mod tests {
                 "project-path",
                 "brief-id",
                 "council-id",
+                "brief-or-council-id",
                 "gate-id",
                 "epic-id",
                 "story-id",
