@@ -499,6 +499,9 @@ class Diff(NamedTuple):
     unreleased: list[str]
     """Breaking changes of a current version that no release holds: allowed until the first
     release, and reported (ADR 0030, amendment of 2026-11-20)."""
+    additive: list[str]
+    """Snapshots of a current version changed with no breaking change, and snapshots added:
+    allowed, and reported by file so that a reviewer sees every contract that moved."""
 
 
 def is_release(version: str) -> bool:
@@ -531,6 +534,7 @@ def diff_against(root: Path, base: str, contracts: list[Contract]) -> Diff:
     rewritten: list[str] = []
     found: list[str] = []
     unreleased: list[str] = []
+    additive: list[str] = []
     # The introduced_in of every version recorded on the base.
     introduced: dict[tuple[str, int], Any] = {}
     currents: dict[str, tuple[int, int]] = {}
@@ -602,15 +606,14 @@ def diff_against(root: Path, base: str, contracts: list[Contract]) -> Diff:
                 output=directions[path] == "output",
             )
         ]
-        if (
-            problems
-            and introduced.get((folder, version)) == UNRELEASED
-            and not in_a_release(root, path)
-        ):
+        if not problems:
+            additive.append(f"{path}: changed, additively")
+        elif introduced.get((folder, version)) == UNRELEASED and not in_a_release(root, path):
             unreleased += problems
         else:
             found += problems
-    return Diff(rewritten, found, unreleased)
+    additive += [f"{path}: added" for path in sorted(directions) if path not in entries]
+    return Diff(rewritten, found, unreleased, additive)
 
 
 def schema_history(root: Path = ROOT) -> dict[str, Any]:
@@ -636,7 +639,9 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> None:
     args = parser.parse_args(argv)
     contracts = generated(root)
     if args.diff_against:
-        rewritten, found, unreleased = diff_against(root, args.diff_against, contracts)
+        rewritten, found, unreleased, additive = diff_against(root, args.diff_against, contracts)
+        if additive:
+            print(_report("Additive changes of the contracts, allowed", additive))
         if unreleased:
             print(
                 _report(

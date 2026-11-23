@@ -515,7 +515,7 @@ fn a_format_error_of_the_id_has_its_own_code_and_keeps_its_fix() {
 
 #[test]
 fn a_project_without_any_location_gives_a_warning_and_the_check_runs() {
-    // #320: discovery outside the root of a project finds no folder and no file.
+    // AC37: discovery outside the root of a project finds no folder and no file.
     for (locations, warned) in [(json!([]), true), (json!(["specs"]), false)] {
         let input = json!({"documents": [], "locations": locations});
         assert_eq!(input_schema().validate(&input, COMMAND_INPUT), []);
@@ -533,7 +533,7 @@ fn a_project_without_any_location_gives_a_warning_and_the_check_runs() {
             assert_eq!(
                 warnings,
                 [(
-                    codes::NO_ARTIFACT_LOCATION,
+                    codes::ARTIFACT_LOCATION_MISSING,
                     "/locations".into(),
                     Reason::Missing
                 )]
@@ -553,7 +553,7 @@ fn a_project_without_any_location_gives_a_warning_and_the_check_runs() {
 
 #[test]
 fn the_folders_of_the_contract_are_those_of_the_locations() {
-    let folders: Vec<ArtifactFolder> = LOCATIONS.iter().map(Location::artifact_folder).collect();
+    let folders: Vec<ArtifactFolder> = LOCATIONS.iter().map(Location::folder).collect();
     assert_eq!(folders, ArtifactFolder::ALL);
 }
 
@@ -584,7 +584,7 @@ fn checks_not_built_are_listed_once_with_their_reason() {
             "statuses",
         ]
     );
-    // The locations were not given: the documents were not discovered (#320).
+    // The locations were not given: the documents were not discovered (AC37).
     let reasons: Vec<NotDoneReason> = validation.not_done.iter().map(NotDone::reason).collect();
     assert_eq!(reasons[0], NotDoneReason::InputAbsent);
     assert!(reasons[1..].iter().all(|r| *r == NotDoneReason::NotBuilt));

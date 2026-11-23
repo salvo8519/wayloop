@@ -59,17 +59,29 @@ impl EntryFormat {
 }
 
 crate::contract_enum! {
-    /// A folder of the project that holds stored artifacts (SPEC-0001, Where artifacts live),
-    /// relative to the root of the project.
+    /// A folder of the project that holds stored artifacts (SPEC-0001, Where artifacts live).
     pub enum ArtifactFolder {
-        /// Briefs, `BRIEF-<seq>.yaml`.
-        PlanBriefs = "plan/briefs",
-        /// Council reports, `COUNCIL-<seq>.yaml`.
-        PlanCouncil = "plan/council",
-        /// Plan items before their tracker item exists.
-        PlanItems = "plan/items",
-        /// Living specifications, `<NNNN>-<capability>/spec.md`.
+        /// The folder `plan/briefs`: briefs, `BRIEF-<seq>.yaml`.
+        PlanBriefs = "plan_briefs",
+        /// The folder `plan/council`: council reports, `COUNCIL-<seq>.yaml`.
+        PlanCouncil = "plan_council",
+        /// The folder `plan/items`: plan items before their tracker item exists.
+        PlanItems = "plan_items",
+        /// The folder `specs`: living specifications, `<NNNN>-<capability>/spec.md`.
         Specs = "specs",
+    }
+}
+
+impl ArtifactFolder {
+    /// The path of the folder, relative to the root of the project, with `/` separators.
+    #[must_use]
+    pub const fn path(self) -> &'static str {
+        match self {
+            Self::PlanBriefs => "plan/briefs",
+            Self::PlanCouncil => "plan/council",
+            Self::PlanItems => "plan/items",
+            Self::Specs => "specs",
+        }
     }
 }
 
@@ -257,9 +269,11 @@ pub struct ValidateInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<LanguageTag>,
     /// The folders of stored artifacts that exist in the project, when the documents were
-    /// discovered there (#320). Empty: none exists, for example because the command did not
-    /// run at the root of the project, which is reported as a warning. Absent: the documents
-    /// were named or sent directly, and the check is not done.
+    /// discovered there (SPEC-0001 R26). Empty: none exists, for example because the command
+    /// did not run at the root of the project, which is reported as a warning. Absent: the
+    /// documents were named or sent directly, and the check is not done. Their order and a
+    /// repeated folder have no meaning, and the folders are not compared with the `file`
+    /// origins of the documents.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locations: Option<Vec<ArtifactFolder>>,
 }

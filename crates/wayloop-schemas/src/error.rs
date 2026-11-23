@@ -28,7 +28,7 @@ crate::contract_enum! {
     pub enum Reason {
         /// The input is not well-formed.
         Syntax = "syntax",
-        /// A required field is absent.
+        /// A required field, or a file or folder it names, is absent.
         Missing = "missing",
         /// A field is not part of the schema.
         UnknownField = "unknown_field",

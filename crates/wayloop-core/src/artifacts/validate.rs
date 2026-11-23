@@ -18,12 +18,11 @@ use serde::Deserialize as _;
 use serde_json::{Map, Value};
 use wayloop_schemas::artifact::{ArtifactKind, Brief};
 use wayloop_schemas::contract::{Part, VALIDATE};
-use wayloop_schemas::validate::{DocumentSummary, InputKind, Origin, ValidateData};
+use wayloop_schemas::validate::{ArtifactFolder, DocumentSummary, InputKind, Origin, ValidateData};
 use wayloop_schemas::{Diagnostics, ErrorReport, NotDone, NotDoneReason, Outcome};
 
 use super::input::{self, Body, Entry, Input, Place};
 use super::kinds::{self, Checked, Kind, Loaded};
-use super::locations::{LOCATIONS, Location};
 use super::{checks, codes};
 use crate::command::COMMAND_INPUT;
 use crate::{Check, Error, Pointer, Reason};
@@ -99,7 +98,7 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
 
 /// The warning of a project where no folder of a location exists, at the empty `locations`.
 fn no_location() -> Error {
-    let folders: Vec<&str> = LOCATIONS.iter().map(Location::folder).collect();
+    let folders: Vec<&str> = ArtifactFolder::ALL.iter().map(|f| f.path()).collect();
     let message = format!(
         "No folder of stored artifacts exists in the project ({}); the command may not have \
          run at the root of the project.",
@@ -107,7 +106,7 @@ fn no_location() -> Error {
     );
     let pointer = Pointer::root().join("locations");
     Error::new(
-        codes::NO_ARTIFACT_LOCATION,
+        codes::ARTIFACT_LOCATION_MISSING,
         message,
         pointer,
         Reason::Missing,

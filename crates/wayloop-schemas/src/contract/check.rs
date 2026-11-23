@@ -34,6 +34,18 @@ const SUBSCHEMAS: [&str; 3] = ["allOf", "anyOf", "oneOf"];
 /// #256). Every other object of an input is closed, or a map whose members one schema checks.
 pub(super) const FREE_OBJECTS: [&str; 1] = [FreeDocument::NAME];
 
+/// Whether `text` is a `snake_case` value (ADR 0009 C4): lower-case ASCII letters and digits in
+/// words joined by one `_`, starting with a letter.
+pub(super) fn is_snake_case(text: &str) -> bool {
+    text.split('_').enumerate().all(|(i, word)| {
+        let mut chars = word.chars();
+        chars
+            .next()
+            .is_some_and(|first| first.is_ascii_lowercase() || (i > 0 && first.is_ascii_digit()))
+            && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+    })
+}
+
 /// Whether an object of an input is closed: `additionalProperties: false`, or a map whose
 /// schema of values, or the definition it refers to, states a type, so that no member goes
 /// unchecked. A map of any value, such as `BTreeMap<String, Value>` or a map of a newtype over
@@ -186,6 +198,12 @@ fn own_keywords(
     if let Some(Value::Array(values)) = schema.get("enum") {
         let at = pointer.join("enum");
         for (i, value) in values.iter().enumerate() {
+            if value.as_str().is_some_and(|text| !is_snake_case(text)) {
+                return Err(refuse(
+                    &at.join_index(i),
+                    Problem::NotSnakeCase(value_text(value)),
+                ));
+            }
             let line = meaning_line(value, "");
             let explained = description.lines().any(|l| {
                 l.strip_prefix(&line)

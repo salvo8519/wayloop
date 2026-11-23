@@ -116,7 +116,7 @@ pub struct Discovery {
     /// The stored artifacts, sorted by the core.
     pub files: Vec<StoredFile>,
     /// The folders of the locations that exist, in the order of the locations; the core warns
-    /// when there is none (#320).
+    /// when there is none (SPEC-0001 R26).
     pub locations: Vec<ArtifactFolder>,
 }
 
@@ -132,8 +132,11 @@ pub fn discover(root: &Path) -> Result<Discovery, LoadError> {
     let mut found = Vec::new();
     let mut folders = Vec::new();
     for location in &LOCATIONS {
-        if list(root, location.folder(), location.depth(), &mut found)? {
-            folders.push(location.artifact_folder());
+        let folder = location.folder();
+        // A folder reached through a link is not a location of the project.
+        if is_real_folder(root, folder.path())? {
+            folders.push(folder);
+            list(root, folder.path(), location.depth(), &mut found)?;
         }
     }
     let files = locations::discovered(found).map_err(|refused| LoadError::Refused {
@@ -147,12 +150,12 @@ pub fn discover(root: &Path) -> Result<Discovery, LoadError> {
 }
 
 /// The canonical input of `validate` for the project at `root`: its stored artifacts, loaded,
-/// and the folders of the locations that exist, which the core checks (#320).
+/// and the folders of the locations that exist, which the core checks (SPEC-0001 R26).
 ///
 /// # Errors
 ///
 /// As [`discover`] and [`load`].
-pub fn discovered(root: &Path) -> Result<ValidateInput, LoadError> {
+pub fn discovered_input(root: &Path) -> Result<ValidateInput, LoadError> {
     let found = discover(root)?;
     Ok(ValidateInput {
         locations: Some(found.locations),
@@ -176,18 +179,15 @@ fn is_real_folder(root: &Path, folder: &str) -> Result<bool, ReadError> {
     Ok(true)
 }
 
-/// Adds to `found` the paths of the regular files below `folder`, `depth` levels down at most,
-/// and tells whether `folder` is a folder reached without a link; when it is not, nothing is
-/// added.
+/// Adds to `found` the paths of the regular files below `folder`, a folder reached without a
+/// link, `depth` levels down at most. A folder inside it is entered when the listing says it
+/// is a folder, which a symbolic link is not.
 pub(crate) fn list(
     root: &Path,
     folder: &str,
     depth: usize,
     found: &mut Vec<String>,
-) -> Result<bool, ReadError> {
-    if !is_real_folder(root, folder)? {
-        return Ok(false);
-    }
+) -> Result<(), ReadError> {
     let path = root.join(folder);
     let entries = fs::read_dir(&path).map_err(|e| ReadError::new(&path, e))?;
     for entry in entries {
@@ -206,7 +206,7 @@ pub(crate) fn list(
             found.push(below);
         }
     }
-    Ok(true)
+    Ok(())
 }
 
 /// The segments of `path`, a path a person named, as the platform splits it: `.` for the

@@ -121,15 +121,10 @@ pub const LOCATIONS: [Location; 4] = [
 ];
 
 impl Location {
-    /// The folder, relative to the root of the project, with `/` separators.
+    /// The folder; its `path` is relative to the root of the project, with `/` separators, and
+    /// the input of `validate` lists the folders that exist.
     #[must_use]
-    pub const fn folder(&self) -> &'static str {
-        self.folder.id()
-    }
-
-    /// The folder as a value of the input of `validate`, which lists the folders that exist.
-    #[must_use]
-    pub const fn artifact_folder(&self) -> ArtifactFolder {
+    pub const fn folder(&self) -> ArtifactFolder {
         self.folder
     }
 
@@ -229,7 +224,7 @@ fn located(path: &str) -> Option<Stored> {
     }
     LOCATIONS.iter().find_map(|location| {
         let below = path
-            .strip_prefix(location.folder())?
+            .strip_prefix(location.folder().path())?
             .strip_prefix('/')?
             .split('/')
             .collect::<Vec<_>>();
@@ -341,7 +336,7 @@ mod tests {
     fn the_locations_are_those_of_the_specification() {
         let listed: Vec<(&str, usize, Stored)> = LOCATIONS
             .iter()
-            .map(|l| (l.folder(), l.depth(), l.stored()))
+            .map(|l| (l.folder().path(), l.depth(), l.stored()))
             .collect();
         assert_eq!(
             listed,

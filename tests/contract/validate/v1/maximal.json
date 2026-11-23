@@ -1,5 +1,5 @@
 {
-  "description": "Every member of the input given: two briefs read from files with their lines, the statuses of the default branch, the policy and the ADR numbers.",
+  "description": "Every member of the input given: two briefs read from files with their lines, the statuses of the default branch, the policy, the ADR numbers and the folders of the locations found.",
   "covers": [
     "SPEC-0001 R1",
     "SPEC-0001 R12"
@@ -106,7 +106,10 @@
       2,
       9
     ],
-    "language": "en"
+    "language": "en",
+    "locations": [
+      "plan_briefs"
+    ]
   },
   "expect": {
     "exit_code": 0,
@@ -122,13 +125,14 @@
       },
       "/data/documents/1/id": "BRIEF-0002",
       "/data/documents/1/status": "draft",
-      "/meta/input_hash": "c938f7d9fd362ec68c73c4dc4ac23e04aa91e41d2a41d8ae3e7219b9ae3da47d"
+      "/meta/input_hash": "aa10d45af50e8760e3b77a5398fa56392744e162d8d1a57ec116ed35f6d8dea1"
     },
     "absent": [
       "/error"
     ],
     "lengths": {
-      "/data/documents": 2
+      "/data/documents": 2,
+      "/diagnostics/warnings": 0
     }
   }
 }

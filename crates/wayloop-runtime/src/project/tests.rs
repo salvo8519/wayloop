@@ -11,7 +11,9 @@ use wayloop_core::{Command, Context, run};
 use wayloop_schemas::validate::{ArtifactFolder, EntryFormat, ValidateInput};
 use wayloop_schemas::value::ProjectPath;
 
-use super::{Content, LoadError, discover, discovered, entry, list, load, load_within, segments};
+use super::{
+    Content, LoadError, discover, discovered_input, entry, list, load, load_within, segments,
+};
 use crate::test_support::TempProject;
 use wayloop_core::artifacts::locations::Refused;
 
@@ -49,7 +51,7 @@ impl Project {
 
     /// The input of every stored artifact of the project, as `wayloop validate` reads it.
     fn input(&self) -> ValidateInput {
-        discovered(self.root()).unwrap()
+        discovered_input(self.root()).unwrap()
     }
 
     /// The envelope of the entry point for the input of the project.
@@ -102,7 +104,7 @@ fn discovery_finds_the_locations_of_the_core_sorted_with_relative_slash_paths() 
     assert_eq!(input.documents[4].format, EntryFormat::Markdown);
     assert_eq!(input.documents[4].text.as_deref(), Some("# SPEC-0001"));
     let empty = Project::new("discover-empty", &[]);
-    // #320: no folder of a location exists, which the core reports as a warning.
+    // SPEC-0001 R26: no folder of a location exists, which the core reports as a warning.
     let nothing = discover(empty.root()).unwrap();
     assert_eq!(nothing.files, []);
     assert_eq!(nothing.locations, []);

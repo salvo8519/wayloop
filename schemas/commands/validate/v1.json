@@ -1,11 +1,11 @@
 {
   "$defs": {
     "ArtifactFolder": {
-      "description": "A folder of the project that holds stored artifacts (SPEC-0001, Where artifacts live), relative to the root of the project.\n\n- `plan/briefs`: Briefs, `BRIEF-<seq>.yaml`.\n- `plan/council`: Council reports, `COUNCIL-<seq>.yaml`.\n- `plan/items`: Plan items before their tracker item exists.\n- `specs`: Living specifications, `<NNNN>-<capability>/spec.md`.",
+      "description": "A folder of the project that holds stored artifacts (SPEC-0001, Where artifacts live).\n\n- `plan_briefs`: The folder `plan/briefs`: briefs, `BRIEF-<seq>.yaml`.\n- `plan_council`: The folder `plan/council`: council reports, `COUNCIL-<seq>.yaml`.\n- `plan_items`: The folder `plan/items`: plan items before their tracker item exists.\n- `specs`: The folder `specs`: living specifications, `<NNNN>-<capability>/spec.md`.",
       "enum": [
-        "plan/briefs",
-        "plan/council",
-        "plan/items",
+        "plan_briefs",
+        "plan_council",
+        "plan_items",
         "specs"
       ],
       "type": "string"
@@ -288,7 +288,7 @@
       "type": "string"
     },
     "locations": {
-      "description": "The folders of stored artifacts that exist in the project, when the documents were discovered there (#320). Empty: none exists, for example because the command did not run at the root of the project, which is reported as a warning. Absent: the documents were named or sent directly, and the check is not done.",
+      "description": "The folders of stored artifacts that exist in the project, when the documents were discovered there (SPEC-0001 R26). Empty: none exists, for example because the command did not run at the root of the project, which is reported as a warning. Absent: the documents were named or sent directly, and the check is not done. Their order and a repeated folder have no meaning, and the folders are not compared with the `file` origins of the documents.",
       "items": {
         "$ref": "#/$defs/ArtifactFolder"
       },

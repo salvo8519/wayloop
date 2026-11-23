@@ -231,6 +231,7 @@ struct NoDefinitionDescription {
 
 /// Values.
 #[derive(JsonSchema)]
+#[schemars(rename_all = "snake_case")]
 enum Undocumented {
     /// The first.
     First,
@@ -239,6 +240,7 @@ enum Undocumented {
 
 /// Values.
 #[derive(JsonSchema)]
+#[schemars(rename_all = "snake_case")]
 enum Unexplained {
     First,
     Second,
@@ -370,14 +372,14 @@ fn an_enum_value_without_its_meaning_is_refused() {
         ContractError {
             // The derive groups the values without a description in one entry, first.
             pointer: at("/oneOf/0/enum/0"),
-            problem: Problem::UndocumentedValue("Second".into())
+            problem: Problem::UndocumentedValue("second".into())
         }
     );
     assert_eq!(
         refused::<Unexplained>(Direction::Output),
         ContractError {
             pointer: at("/enum/0"),
-            problem: Problem::UndocumentedValue("First".into())
+            problem: Problem::UndocumentedValue("first".into())
         }
     );
     assert_eq!(
@@ -467,6 +469,11 @@ fn each_problem_is_told_in_words_with_its_place() {
             at("/enum/0"),
             Problem::UndocumentedValue("x".into()),
             "at /enum/0: the description gives no meaning for the value x",
+        ),
+        (
+            at("/enum/0"),
+            Problem::NotSnakeCase("a/b".into()),
+            "at /enum/0: the enum value a/b is not snake_case",
         ),
         (
             at("/additionalProperties"),
@@ -798,6 +805,42 @@ fn a_contract_enum_value_without_its_meaning_is_refused() {
                 problem: Problem::UndocumentedValue("green".into())
             }
         );
+    }
+}
+
+crate::contract_enum! {
+    /// A folder written as a path, which C4 refuses (review of #320).
+    pub enum PathValue {
+        /// The folder of the briefs.
+        Briefs = "plan/briefs",
+    }
+}
+
+#[test]
+fn an_enum_value_that_is_not_snake_case_is_refused() {
+    for direction in [Direction::Input, Direction::Output] {
+        let error = refused::<PathValue>(direction);
+        assert_eq!(error.problem, Problem::NotSnakeCase("plan/briefs".into()));
+    }
+}
+
+#[test]
+fn snake_case_is_lower_case_words_joined_by_one_underscore() {
+    for good in ["a", "plan_briefs", "schema_v1", "step_2", "x9"] {
+        assert!(super::check::is_snake_case(good), "{good}");
+    }
+    for bad in [
+        "",
+        "_a",
+        "a_",
+        "a__b",
+        "Plan",
+        "plan/briefs",
+        "plan-briefs",
+        "1a",
+        "a b",
+    ] {
+        assert!(!super::check::is_snake_case(bad), "{bad}");
     }
 }
 

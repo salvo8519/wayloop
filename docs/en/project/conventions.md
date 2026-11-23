@@ -197,7 +197,8 @@ Rules, checked by `scripts/schema_snapshots.py` in `just check` (recipe `schemas
   unchanged `v<N>`. `--diff-against <base>` classifies the changes against the merge base with
   `main`, and refuses a rewritten history: an earlier version changed, a released file deleted,
   replaced by a symlink or with another mode, a version or a contract removed, a current
-  version gone back.
+  version gone back. It lists every snapshot that changed additively or was added, by
+  file, so that a pull request shows each contract it moves.
 - Until the first release that holds it, the current version may also change incompatibly
   (ADR 0030, amendment of 2026-11-20). No release holds a version when its record on `main`
   says `introduced_in: unreleased` and no release tag holds its file. Only a tag

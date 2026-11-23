@@ -140,8 +140,10 @@ files is I/O, so the runtime does it (plan of SPEC-0001, D1).
   aliases and anchors repeat. A test of the runtime checks on Linux that the resident memory
   a loaded set adds stays within them.
 - **The runtime reads and parses, inside the project only.** `wayloop_runtime::project` lists
-  the folders of each location down to its depth. A location whose folder, or a parent of it,
-  is a symbolic link is treated as absent; inside a location, links, special files and names
+  the folders of each location down to its depth, and gives the folders that exist in the
+  member `locations` of the input; the core decides from them whether to warn that none exists
+  (SPEC-0001 R26). A location whose folder, or a parent of it, is a symbolic link is treated as
+  absent; inside a location, links, special files and names
   that are not UTF-8 are skipped. Before it reads a file, it resolves the root and the file
   through their links and refuses a file outside the root or whose resolved name has another
   extension, as the command line refuses such a path, and refuses what is not a regular file,

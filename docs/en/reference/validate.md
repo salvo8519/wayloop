@@ -27,7 +27,7 @@ $ wayloop validate --input - [--command-version <n>]
 Without `--input`, the command reads the project in the current folder, which must be the root
 of the project. It gives the folders of the locations it found in `locations`; run from a
 subfolder, it finds none and validates an empty set, with exit code 0 and the warning
-`no_artifact_location`. With no path it reads every stored artifact: `plan/briefs/*.yaml`,
+`artifact_location_missing`. With no path it reads every stored artifact: `plan/briefs/*.yaml`,
 `plan/council/*.yaml`, `plan/items/*.yaml` and `specs/<NNNN>-<capability>/spec.md` (so not
 `specs/_templates/`). A location reached through a symbolic link is treated as absent, and
 links, special files and names that are not UTF-8 inside a location are skipped. With paths it
@@ -104,7 +104,7 @@ absent member. The input schema is closed: a member it does not list is refused.
 | `base` | list of `{id, status}` | no | Statuses on the default branch of the artifacts of the set |
 | `policy` | object `{types, scopes, areas}`, each a list of names of the policy, identifiers of at least one character | no | The subset of the project policy the model reads |
 | `adrs` | list of integers from 1 | no | Numbers of the ADRs of the project |
-| `locations` | list of `plan/briefs`, `plan/council`, `plan/items`, `specs` | no | The folders of the locations that exist in the project, when the documents were discovered there; `[]` means none, which gives the warning `no_artifact_location`. Absent: the documents were named or sent directly, and the check `artifact_locations` is not done |
+| `locations` | list of `plan_briefs`, `plan_council`, `plan_items`, `specs`, for the folders `plan/briefs`, `plan/council`, `plan/items` and `specs` | no | The folders of the locations that exist in the project, when the documents were discovered there; their order and a repeated folder have no meaning, they are not compared with the `file` origins of the documents, and `[]` means none, which gives the warning `artifact_location_missing`. Absent: the documents were named or sent directly, and the check `artifact_locations` is not done |
 | `language` | BCP 47 tag, for example `it` or `en-GB` | no | The language of the project. No check of this version reads it, so no default is applied or reported when it is absent; a check that needs it lists the default in `meta.defaults_applied` |
 
 An entry of `documents`:
@@ -209,7 +209,7 @@ refused for them and the exit code does not change:
 
 | Code | Reason | Pointer | Meaning |
 | --- | --- | --- | --- |
-| `no_artifact_location` | `missing` | `/locations` | No folder of a location exists in the project where the documents were discovered, for example because the command ran in a subfolder of the project; the set is empty |
+| `artifact_location_missing` | `missing` | `/locations` | No folder of a location exists in the project where the documents were discovered, for example because the command ran in a subfolder of the project |
 
 An unknown member gets the closest member of the schema in `fix`, for example `problem` for
 `problema`.

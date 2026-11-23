@@ -12,7 +12,7 @@ pub const SCHEMA_VERSION: Check = Check::new("schema_version");
 pub const IDENTIFIER_FORMAT: Check = Check::new("identifier_format");
 
 /// Some folder of a location of the artifact model exists in the project the documents were
-/// discovered in (#320); run when `locations` is given, `input_absent` otherwise.
+/// discovered in (R26); run when `locations` is given, `input_absent` otherwise.
 pub const ARTIFACT_LOCATIONS: Check = Check::new("artifact_locations");
 
 // The schema of each type is its own check, `schema_<kind>` (`kinds::schema_check`): in

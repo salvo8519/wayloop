@@ -107,7 +107,7 @@
       }
     ],
     "locations": [
-      "plan/briefs"
+      "plan_briefs"
     ]
   },
   "expect": {
@@ -132,7 +132,7 @@
         "file": "plan/briefs/BRIEF-0003.yaml",
         "line": 4
       },
-      "/meta/input_hash": "277ca4de1aa7f22ef47503f605d0926fd875062249a0260e2515978c101b36a2"
+      "/meta/input_hash": "afee0ab0e67d20563adae0ec33a47913de63feab889e770125c27fe28e817ecb"
     },
     "absent": [
       "/data"

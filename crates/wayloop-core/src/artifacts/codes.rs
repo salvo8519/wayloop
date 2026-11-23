@@ -47,13 +47,12 @@ pub const DELTA_CONFLICT: Code = Code::new("delta_conflict");
 /// A hand-over input that breaks its schema or sets an engine field (R22).
 pub const HANDOVER_INPUT: Code = Code::new("handover_input");
 
-/// A warning of the command `validate`, not of the artifact model: the documents were
-/// discovered in a project where no folder of a location exists, for example because the
-/// command did not run at the root of the project (#320).
-pub const NO_ARTIFACT_LOCATION: Code = Code::new("no_artifact_location");
+/// A warning: the documents were discovered in a project where no folder of a location exists,
+/// for example because the command did not run at the root of the project (R26).
+pub const ARTIFACT_LOCATION_MISSING: Code = Code::new("artifact_location_missing");
 
 /// Every code of SPEC-0001, in the order of its Errors table.
-pub const ALL: [Code; 19] = [
+pub const ALL: [Code; 20] = [
     ARTIFACT_SCHEMA,
     LINK_MISSING,
     LINK_SUPERSEDED,
@@ -73,6 +72,7 @@ pub const ALL: [Code; 19] = [
     INITIAL_STATUS,
     DELTA_CONFLICT,
     HANDOVER_INPUT,
+    ARTIFACT_LOCATION_MISSING,
 ];
 
 #[cfg(test)]
@@ -106,6 +106,7 @@ mod tests {
                 "initial_status",
                 "delta_conflict",
                 "handover_input",
+                "artifact_location_missing",
             ]
         );
         assert_eq!(ids.iter().collect::<BTreeSet<_>>().len(), ids.len());

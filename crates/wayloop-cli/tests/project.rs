@@ -92,14 +92,14 @@ fn validate_reads_the_project_and_prints_the_envelope_of_its_golden_input() {
 
 #[test]
 fn validate_warns_when_it_runs_outside_the_root_of_the_project() {
-    // #320: from a folder of the project, discovery finds no location and no file.
+    // SPEC-0001 AC37: from a folder of the project, discovery finds no location and no file.
     let project = briefs("subfolder");
     let (_, envelope, _, code) = project.validate_in("plan", &[]);
     assert_eq!(code, 0);
     assert_eq!(envelope["data"]["documents"], json!([]));
     let warnings = envelope["diagnostics"]["warnings"].as_array().unwrap();
     assert_eq!(warnings.len(), 1);
-    assert_eq!(warnings[0]["code"], "no_artifact_location");
+    assert_eq!(warnings[0]["code"], "artifact_location_missing");
     assert_eq!(warnings[0]["pointer"], "/locations");
     // Named files give no locations: the check is not done, and nothing is warned.
     let (_, envelope, _, _) = project.validate(&["plan/briefs/BRIEF-0001.yaml"]);

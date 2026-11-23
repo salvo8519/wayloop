@@ -78,6 +78,8 @@ pub enum Problem {
     MissingDescription,
     /// An enum value whose meaning the description does not give.
     UndocumentedValue(String),
+    /// A text enum value that is not `snake_case` (ADR 0009 C4).
+    NotSnakeCase(String),
     /// `additionalProperties` in an output, written by the derive (for example
     /// `deny_unknown_fields`, or a map flattened beside declared members): an output is open
     /// (ADR 0009 C5). A pure map, which declares no member, keeps the schema of its values.
@@ -112,6 +114,9 @@ impl fmt::Display for ContractError {
                 f,
                 "at {place}: the description gives no meaning for the value {value}"
             ),
+            Problem::NotSnakeCase(value) => {
+                write!(f, "at {place}: the enum value {value} is not snake_case")
+            }
             Problem::ClosedOutput => write!(
                 f,
                 "at {place}: `additionalProperties` that closes an output, which is open"

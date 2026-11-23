@@ -229,7 +229,7 @@ fn from_project(
 ) -> Result<Ran, Failure> {
     let root = Path::new(".");
     let loaded = if paths.is_empty() {
-        project::discovered(root)
+        project::discovered_input(root)
     } else {
         let named = paths.iter().map(|p| project::segments(Path::new(p)));
         match locations::given(named) {

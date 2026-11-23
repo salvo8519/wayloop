@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 97766b2bd4ed
+source_hash: 356a7370ca02
 ---
 # wayloop validate
 
@@ -30,7 +30,7 @@ $ wayloop validate --input - [--command-version <n>]
 Senza `--input`, il comando legge il progetto nella cartella corrente, che deve essere la
 radice del progetto. Indica in `locations` le cartelle delle posizioni che ha trovato; eseguito
 da una sottocartella, non ne trova nessuna e valida un insieme vuoto, con codice di uscita 0 e
-l'avviso `no_artifact_location`. Senza percorsi legge ogni artefatto
+l'avviso `artifact_location_missing`. Senza percorsi legge ogni artefatto
 salvato: `plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` e
 `specs/<NNNN>-<capability>/spec.md` (quindi non `specs/_templates/`). Una posizione raggiunta
 attraverso un link simbolico è trattata come assente, e dentro una posizione i link, i file
@@ -110,7 +110,7 @@ un membro assente. Lo schema di input è chiuso: un membro che non elenca è rif
 | `base` | lista di `{id, status}` | no | Stati sul branch predefinito degli artefatti dell'insieme |
 | `policy` | oggetto `{types, scopes, areas}`, ciascuno una lista di nomi della policy, identificativi di almeno un carattere | no | La parte della policy del progetto che il modello legge |
 | `adrs` | lista di interi da 1 | no | Numeri degli ADR del progetto |
-| `locations` | lista di `plan/briefs`, `plan/council`, `plan/items`, `specs` | no | Le cartelle delle posizioni che esistono nel progetto, quando i documenti vi sono stati scoperti; `[]` significa nessuna, e dà l'avviso `no_artifact_location`. Assente: i documenti sono stati indicati per nome o inviati direttamente, e il controllo `artifact_locations` non è eseguito |
+| `locations` | lista di `plan_briefs`, `plan_council`, `plan_items`, `specs`, per le cartelle `plan/briefs`, `plan/council`, `plan/items` e `specs` | no | Le cartelle delle posizioni che esistono nel progetto, quando i documenti vi sono stati scoperti; il loro ordine e una cartella ripetuta non hanno significato, non sono confrontate con le origini `file` dei documenti, e `[]` significa nessuna, e dà l'avviso `artifact_location_missing`. Assente: i documenti sono stati indicati per nome o inviati direttamente, e il controllo `artifact_locations` non è eseguito |
 | `language` | tag BCP 47, per esempio `it` o `en-GB` | no | La lingua del progetto. Nessun controllo di questa versione la legge, quindi quando è assente nessun default viene applicato né riportato; un controllo che ne ha bisogno elenca il default in `meta.defaults_applied` |
 
 Una voce di `documents`:
@@ -219,7 +219,7 @@ Gli avvisi sono elencati in `diagnostics.warnings`, nella forma di un errore; il
 
 | Codice | Motivo | Puntatore | Significato |
 | --- | --- | --- | --- |
-| `no_artifact_location` | `missing` | `/locations` | Nel progetto in cui i documenti sono stati scoperti non esiste alcuna cartella di una posizione, per esempio perché il comando è stato eseguito in una sottocartella del progetto; l'insieme è vuoto |
+| `artifact_location_missing` | `missing` | `/locations` | Nel progetto in cui i documenti sono stati scoperti non esiste alcuna cartella di una posizione, per esempio perché il comando è stato eseguito in una sottocartella del progetto |
 
 Un membro sconosciuto riceve in `fix` il membro più vicino dello schema, per esempio `problem`
 per `problema`.
