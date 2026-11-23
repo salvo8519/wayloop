@@ -1088,6 +1088,69 @@ fn an_open_object_checks_its_declared_members_and_accepts_the_others() {
 }
 
 #[test]
+fn a_map_checks_every_member_by_its_name_and_its_value() {
+    // #307: `additionalProperties` as a schema and `propertyNames`, as the `lines` of
+    // `validate` use them; a declared member is checked by its own schema, not the map's.
+    let map = json!({
+        "type": "object",
+        "properties": {"own": {"type": "string"}},
+        "propertyNames": {"type": "string", "format": "json-pointer"},
+        "additionalProperties": {"type": "integer", "minimum": 1},
+    });
+    assert_eq!(check(&map, &json!({"/a": 1, "": 2, "/b": null})), []);
+    let errors = check(&map, &json!({"/a": 0, "x": 1, "y": "z", "own": "t"}));
+    assert_eq!(
+        found(&errors),
+        [
+            ("/~1a".to_owned(), Reason::Range),
+            ("/own".to_owned(), Reason::Syntax),
+            ("/x".to_owned(), Reason::Syntax),
+            ("/y".to_owned(), Reason::Syntax),
+            ("/y".to_owned(), Reason::Type),
+        ]
+    );
+    let name = errors
+        .iter()
+        .find(|e| e.reason() == Reason::Syntax)
+        .unwrap();
+    assert_eq!(
+        name.message(),
+        "The name of the member is not in the form of the format `json-pointer`."
+    );
+    // A value is checked as a value even beside a name check.
+    let text = json!({"type": "object", "additionalProperties": {"type": "string", "format": "json-pointer"}});
+    assert_eq!(
+        check(&text, &json!({"k": "v"}))[0].message(),
+        "The text is not in the form of the format `json-pointer`."
+    );
+}
+
+#[test]
+fn the_keywords_of_a_map_take_a_schema() {
+    for (schema, pointer) in [
+        (json!({"additionalProperties": 1}), "/additionalProperties"),
+        (json!({"propertyNames": false}), "/propertyNames"),
+    ] {
+        let error = refused(&schema);
+        assert!(error.to_string().contains(pointer), "{error}");
+    }
+}
+
+#[test]
+fn the_schemas_of_a_map_count_in_the_depth_of_the_schema() {
+    let mut nested = json!({"type": "string"});
+    for _ in 0..=MAX_DEPTH {
+        nested = json!({"type": "object", "propertyNames": nested});
+    }
+    assert!(matches!(refused(&nested), LoadError::TooDeep { .. }));
+    let mut nested = json!({"type": "string"});
+    for _ in 0..=MAX_DEPTH {
+        nested = json!({"type": "object", "additionalProperties": nested});
+    }
+    assert!(matches!(refused(&nested), LoadError::TooDeep { .. }));
+}
+
+#[test]
 fn an_object_without_properties_is_open_and_a_closed_empty_one_takes_no_key() {
     assert_eq!(check(&json!({"type": "object"}), &json!({"any": 1})), []);
     let closed = json!({"type": "object", "additionalProperties": false});
@@ -1207,10 +1270,6 @@ fn malformed_values_of_keywords_are_refused_with_their_place() {
         ),
         (
             json!({"type": "object", "additionalProperties": true}),
-            "/additionalProperties",
-        ),
-        (
-            json!({"type": "object", "additionalProperties": {}}),
             "/additionalProperties",
         ),
         (

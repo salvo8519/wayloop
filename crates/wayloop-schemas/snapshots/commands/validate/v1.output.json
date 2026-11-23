@@ -336,6 +336,7 @@
     },
     "Pointer": {
       "description": "An RFC 6901 JSON pointer; its root is stated where it is used. Empty for the whole value, or a sequence of `/`-prefixed reference tokens in which `~` is written `~0` and `/` is written `~1`. It serialises as its string.",
+      "format": "json-pointer",
       "type": "string"
     },
     "Reason": {

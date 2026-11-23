@@ -264,6 +264,18 @@ with its tests and the architecture page.
   raises the minimum engine version of the ledger (SPEC-0003 R53). An older engine therefore
   stops on a version it does not know instead of refusing an unknown member of a known version
   as a broken chain. Before that release, the amendment of 2026-11-20 applies.
+- 2026-11-23, choice 8 of #288, approved by the maintainer on 2026-11-20, with #307 (G2,
+  G3): the subset of the interpreter takes a schema as the value of `additionalProperties`,
+  which checks every member not declared in `properties`, and `propertyNames`, which checks the
+  name of every member as a string. A map is therefore typed: in an input it is closed when the
+  schema of its values states a type or a reference, and a map whose values may be anything
+  stays an open object, refused. In an output a map keeps the schema of its values; only
+  `additionalProperties: false` is refused there. The named format `json-pointer` is the form of
+  `wayloop_schemas::Pointer`, checked by the core with `Pointer::parse`, decision of the
+  maintainer on 2026-11-23: every `pointer` of the contracts carries it. The `lines` of
+  `validate` are generated from `BTreeMap<Pointer, Line>`, leave `FREE_OBJECTS`, and the rules
+  of the core that repeated them are removed; `commands/validate` v1 and `envelope/result` v1,
+  which no release holds, change under the amendment of 2026-11-20.
 
 ## Consequences
 

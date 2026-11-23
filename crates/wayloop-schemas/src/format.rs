@@ -50,6 +50,9 @@ crate::closed_enum! {
         DecisionId = "decision-id",
         /// `Q` and a number from 1.
         QuestionId = "question-id",
+        /// An RFC 6901 JSON pointer: empty, or `/`-prefixed reference tokens in which `~` is
+        /// followed by `0` or `1`.
+        JsonPointer = "json-pointer",
     }
 }
 
@@ -80,6 +83,7 @@ mod tests {
             Format::CriterionId => 16,
             Format::DecisionId => 17,
             Format::QuestionId => 18,
+            Format::JsonPointer => 19,
         }
     }
 
@@ -118,6 +122,7 @@ mod tests {
                 "criterion-id",
                 "decision-id",
                 "question-id",
+                "json-pointer",
             ]
         );
         for unknown in ["email", "uint32", "", "Date"] {

@@ -10,13 +10,14 @@
 //! (C2). The codes themselves are constants of the core (C8).
 
 use core::fmt;
-use std::borrow::Cow;
+use std::borrow::{Borrow, Cow};
 
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
+use crate::Format;
 use crate::contract::rules;
 use crate::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
 
@@ -63,12 +64,37 @@ crate::static_id! {
     pub struct Code;
 }
 
-/// An RFC 6901 JSON pointer; its root is stated where it is used. Empty for the whole value,
-/// or a sequence of `/`-prefixed reference tokens in which `~` is written `~0` and `/` is
-/// written `~1`. It serialises as its string.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, JsonSchema)]
+/// The description of [`Pointer`], its doc comment and the description of its schema.
+macro_rules! pointer_doc {
+    () => {
+        "An RFC 6901 JSON pointer; its root is stated where it is used. Empty for the whole \
+         value, or a sequence of `/`-prefixed reference tokens in which `~` is written `~0` and \
+         `/` is written `~1`. It serialises as its string."
+    };
+}
+
+#[doc = pointer_doc!()]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize)]
 #[serde(transparent)]
 pub struct Pointer(String);
+
+/// A string in the named format `json-pointer`, which the core checks with [`Pointer::parse`].
+impl JsonSchema for Pointer {
+    fn schema_name() -> Cow<'static, str> {
+        "Pointer".into()
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        rules::formatted(Format::JsonPointer, pointer_doc!())
+    }
+}
+
+/// A pointer is ordered as its text, so a map keyed by pointers is searched by text.
+impl Borrow<str> for Pointer {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
 
 /// Reads the text of a pointer and refuses one out of the form of RFC 6901.
 impl<'de> Deserialize<'de> for Pointer {

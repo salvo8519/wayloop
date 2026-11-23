@@ -15,12 +15,14 @@
 //!     appended to the description (ADR 0024);
 //!   - the boolean schema `true`, any JSON value, becomes an object schema with a description;
 //!   - an integer `format` such as `uint32` is removed: the type and the bounds remain;
-//!   - in the input direction every object is closed with `additionalProperties: false`; in
-//!     the output direction objects stay open (ADR 0009 C5, as amended on 2026-11-20).
+//!   - in the input direction every object that declares its members is closed with
+//!     `additionalProperties: false`, and a map keeps the schema of its values; in the output
+//!     direction objects stay open (ADR 0009 C5, as amended on 2026-11-20).
 //! - The checks of the generator, after the transform, for the rules that are not rules of the
 //!   subset: a description on the root, on every definition and on every member (one of
 //!   blanks only is none), the meaning of every enum value in its description, no
-//!   `additionalProperties` in an output, and at most four levels of objects (ADR 0009 C4).
+//!   `additionalProperties: false` in an output, and at most four levels of objects (ADR 0009
+//!   C4).
 //!
 //! [`snapshot`] writes the text of a snapshot under `schemas/`, with its published `$id`; it
 //! writes no file either. [`CONTRACTS`] is the registry of the contracts, with the area, the
@@ -76,13 +78,15 @@ pub enum Problem {
     MissingDescription,
     /// An enum value whose meaning the description does not give.
     UndocumentedValue(String),
-    /// `additionalProperties` in an output, written by the derive (for example
-    /// `deny_unknown_fields`) or by a map: an output is open (ADR 0009 C5).
+    /// `additionalProperties: false` in an output, written by the derive (for example
+    /// `deny_unknown_fields`): an output is open (ADR 0009 C5). A map keeps the schema of its
+    /// values.
     ClosedOutput,
     /// Objects nested deeper than [`MAX_OBJECT_LEVELS`].
     TooDeep,
-    /// An object of an input without `additionalProperties: false` that is not a free object
-    /// of the input: an input is closed (ADR 0009 C5, ADR 0030 G2).
+    /// An object of an input with neither `additionalProperties: false` nor a schema of its
+    /// members that is not a free object of the input: an input is closed (ADR 0009 C5, ADR
+    /// 0030 G2).
     OpenInput,
 }
 
@@ -110,7 +114,7 @@ impl fmt::Display for ContractError {
             ),
             Problem::ClosedOutput => write!(
                 f,
-                "at {place}: `additionalProperties` in an output, which is open"
+                "at {place}: `additionalProperties: false` in an output, which is open"
             ),
             Problem::OpenInput => write!(
                 f,

@@ -149,7 +149,7 @@ struct Frame {
 struct Builder {
     frames: Vec<Frame>,
     root: Option<(Value, usize)>,
-    lines: BTreeMap<String, Line>,
+    lines: BTreeMap<Pointer, Line>,
     anchors: BTreeMap<usize, Anchored>,
     /// Every value and byte counted so far, those repeated by aliases included; the fixed
     /// cost of the values is added when the room is checked.
@@ -237,8 +237,7 @@ impl Builder {
         // An entry of the lines: its pointer and its fixed cost, as a value has.
         let bytes = pointer.as_str().len().saturating_add(VALUE_COST_BYTES);
         self.count(Cost { values: 0, bytes }, at)?;
-        self.lines
-            .insert(pointer.as_str().to_owned(), line(line_of));
+        self.lines.insert(pointer.clone(), line(line_of));
         Ok(pointer)
     }
 

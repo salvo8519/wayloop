@@ -107,7 +107,7 @@ An entry of `documents`:
 | --- | --- | --- | --- |
 | `format` | `document`, `markdown` or `unreadable` | yes | `document`: a JSON value in the normalised form of its type; `markdown`: the text of a living specification; `unreadable`: a file that did not parse |
 | `document` | object | with `document` | The document |
-| `lines` | object | no; with `document` and a `file` origin only | The line, from 1, of each value of the document, keyed by its RFC 6901 pointer into the document |
+| `lines` | object | no; with `document` and a `file` origin only | The line, from 1, of each value of the document, keyed by its RFC 6901 pointer into the document; the schema states both rules: keys in the format `json-pointer`, values integers from 1 |
 | `text` | string | with `markdown` | The content of the file |
 | `error` | object `{line, message}` | with `unreadable` | Where the parser stopped, from line 1, and its message |
 | `input_kind` | `pull_request`, `commit` or `handover_input` | no; with `document` only | The type of an input, which has no `kind` member |
@@ -122,8 +122,9 @@ project and names a file one way only.
 
 The command refuses an entry that gives a member of another format (for example `text` with
 the format `document`), `lines` or the format `unreadable` without a `file` origin, an
-`origin` with no member or more than one, a key of `lines` that is not an RFC 6901 pointer,
-and a line that is not an integer from 1.
+`origin` with no member or more than one, a key of `lines` that is not an RFC 6901 pointer
+(`syntax`, at the pointer of the member, with a message about the name of the member), and a
+line that is not an integer from 1 (`type` or `range`).
 
 The JSON text of the input must not repeat a key in one object: JSON parsers keep one of the
 two values, so the engine refuses the text with the reason `duplicate` instead of choosing. A
@@ -171,7 +172,9 @@ Every error found is listed in `error.errors`; the first one is repeated at the 
    the schema pass: the members of an object in the byte order of their keys (`/aa` before
    `/zz`), the elements of an array by index, absent members after present ones.
 
-The `pointer` of an error of the input points into the canonical input, for example
+Every `pointer` of the result is an RFC 6901 pointer; the schemas of the output and of the
+envelope give it the format `json-pointer`. The `pointer` of an error of the input points into
+the canonical input, for example
 `/documents/0/format`. The `pointer` of an error of a document points into that document, for
 example `/problem`; `document` gives the index, from 0, of that document in `documents`, and
 `source` says where it is stored:

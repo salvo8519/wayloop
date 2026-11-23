@@ -7,18 +7,19 @@
 //! refused there, and `wayloop_core::schema::contract_schema` runs both. These checks hold
 //! what a schema of the subset can still break: a description on the root, every definition and
 //! every member; the meaning of every enum value; at most four levels of objects; no
-//! `additionalProperties` in an output; and, in an input, `additionalProperties: false` on
-//! every object but the free objects of [`FREE_OBJECTS`].
+//! `additionalProperties: false` in an output; and, in an input, `additionalProperties` on every
+//! object but the free objects of [`FREE_OBJECTS`]: `false`, or the schema of every member of
+//! a map, such as the `lines` of `validate`.
 
 use serde_json::{Map, Value};
 
 use super::transform::{is_object, meaning_line, value_text};
 use super::{ContractError, Direction, MAX_OBJECT_LEVELS, Problem};
 use crate::Pointer;
-use crate::validate::{FreeDocument, Lines};
+use crate::validate::FreeDocument;
 
 /// Keywords whose value is one subschema that needs no description of its own.
-const SUBSCHEMA: [&str; 2] = ["items", "additionalProperties"];
+const SUBSCHEMA: [&str; 3] = ["items", "additionalProperties", "propertyNames"];
 
 /// Keywords whose value is a condition, or what a condition requires: their members are names
 /// of the members of the object, described where they are declared.
@@ -29,8 +30,18 @@ const SUBSCHEMAS: [&str; 3] = ["allOf", "anyOf", "oneOf"];
 
 /// The definitions that may stay open in an input: documents of another schema, written by
 /// hand with `value::free_object_schema` and checked by the core (ADR 0030 G2, as amended for
-/// #256). Every other object of an input is closed.
-pub(super) const FREE_OBJECTS: [&str; 2] = [FreeDocument::NAME, Lines::NAME];
+/// #256). Every other object of an input is closed, or a map whose members one schema checks.
+pub(super) const FREE_OBJECTS: [&str; 1] = [FreeDocument::NAME];
+
+/// Whether an object of an input is closed: `additionalProperties: false`, or a map whose
+/// schema of values states a type or a reference, so that no member goes unchecked.
+fn is_closed(schema: &Map<String, Value>) -> bool {
+    match schema.get("additionalProperties") {
+        Some(Value::Bool(false)) => true,
+        Some(Value::Object(values)) => values.contains_key("type") || values.contains_key("$ref"),
+        _ => false,
+    }
+}
 
 /// Most references followed on one path. A reference that reaches itself is refused by the
 /// loader of the core; this bound only stops the walk.
@@ -81,7 +92,7 @@ fn walk(
     if direction == Direction::Input
         && need != Need::InCondition
         && is_object(schema)
-        && schema.get("additionalProperties") != Some(&Value::Bool(false))
+        && !is_closed(schema)
         && !FREE_OBJECTS
             .iter()
             .any(|name| *pointer == Pointer::root().join("$defs").join(name))
@@ -133,7 +144,12 @@ fn own_keywords(
     description: &str,
     direction: Direction,
 ) -> Result<(), ContractError> {
-    if direction == Direction::Output && schema.contains_key("additionalProperties") {
+    // A schema of the members of a map describes its values and closes nothing.
+    if direction == Direction::Output
+        && schema
+            .get("additionalProperties")
+            .is_some_and(|v| !v.is_object())
+    {
         let at = pointer.join("additionalProperties");
         return Err(refuse(&at, Problem::ClosedOutput));
     }

@@ -22,8 +22,9 @@
 //! | `minimum`, `maximum` | Inclusive integer bounds, compared by value; the schema must also say `type: integer` | `range` |
 //! | `format` | One of the named formats below, checked on strings | `syntax`, with a corrected value in `fix` when one can be derived |
 //! | `items` | Schema of every element of an array | |
-//! | `properties` | Schema of each declared member; without `additionalProperties: false` the object is open and other members are accepted unchecked (output snapshots, ADR 0009 C5) | |
-//! | `additionalProperties` | Only `false`: a member not in `properties` is refused | `unknown_field`, with the closest declared key in `fix` |
+//! | `properties` | Schema of each declared member; without `additionalProperties` the object is open and other members are accepted unchecked (output snapshots, ADR 0009 C5) | |
+//! | `additionalProperties` | `false`: a member not in `properties` is refused; or a schema: every member not in `properties` is checked by it (a map, such as the `lines` of `validate`) | `unknown_field`, with the closest declared key in `fix`, for `false` |
+//! | `propertyNames` | Schema of the name of every member, checked as a string; its errors are reported at the pointer of the member | the reason of the keyword that failed, usually `syntax` |
 //! | `required` | Declared members that must be present | `missing` |
 //! | `if` and `then` | A conditional requirement: when the value matches the condition of `if`, the members listed in the `required` of `then` must be present | `requires`, with the pointers of the members the condition tested in `pointers` |
 //! | `allOf` | A list of `if` and `then` pairs | |
@@ -66,6 +67,7 @@
 //! | `milestone-id` | `M` then `0` or a number without a leading zero | `M` and the number, from `m2`, `M02` or `Milestone 2` |
 //! | `handover-id` | `HANDOVER-<issue>-<k>`, both numbers from 1 without a leading zero | prefix in upper case, leading zeros removed |
 //! | `requirement-id`, `criterion-id`, `decision-id`, `question-id` | `R`, `AC`, `D` or `Q` then a number from 1 without a leading zero | prefix in upper case, leading zeros removed |
+//! | `json-pointer` | An RFC 6901 pointer: empty, or reference tokens each after `/`, in which `~` is followed by `0` or `1` | none |
 //!
 //! # Order of the errors
 //!
@@ -102,7 +104,7 @@ mod load;
 pub(crate) mod tests;
 
 /// Deepest nesting of subschemas a schema may have, counted through `$ref`: the root is at
-/// depth 0 and each `properties` member, `items`, `if`, `contains` and reference target adds
+/// depth 0 and each `properties` member, `items`, `additionalProperties`, `propertyNames`, `if`, `contains` and reference target adds
 /// one level (an entry of `allOf` and a `then` add none).
 pub const MAX_DEPTH: usize = 32;
 
@@ -235,6 +237,7 @@ impl Schema {
             schema: &self.compiled,
             code,
             errors: Vec::new(),
+            naming: false,
         };
         checker.check(self.compiled.root, document, &Pointer::root());
         checker.errors

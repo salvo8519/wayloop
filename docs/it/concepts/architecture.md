@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: e807cbb9ad6b
+source_hash: 7066631240d2
 ---
 # Architettura
 
@@ -300,7 +300,9 @@ posto, è rifiutato quando viene caricato: nessuna regola di uno schema è ignor
 | `minimum`, `maximum` | Limiti interi inclusi, accanto a `type: integer` | `range` |
 | `format` | Un formato con nome del core, sulle stringhe | `syntax`, con un valore corretto in `fix` quando si può ricavare |
 | `items` | Schema di ogni elemento di un array | |
-| `properties` | Schema di ogni membro dichiarato; con `additionalProperties: false` ogni altro membro è rifiutato, senza l'oggetto è aperto e gli altri membri sono accettati senza controllo, come negli schemi di output (ADR 0009 C5, modificato il 2026-11-20) | `unknown_field`, con la chiave dichiarata più vicina in `fix` |
+| `properties` | Schema di ogni membro dichiarato; con `additionalProperties: false` ogni altro membro è rifiutato, senza `additionalProperties` l'oggetto è aperto e gli altri membri sono accettati senza controllo, come negli schemi di output (ADR 0009 C5, modificato il 2026-11-20) | `unknown_field`, con la chiave dichiarata più vicina in `fix` |
+| `additionalProperties` | `false`, oppure lo schema di ogni membro non dichiarato in `properties`: i valori di una mappa | i motivi di quello schema |
+| `propertyNames` | Schema del nome di ogni membro, controllato come stringa e segnalato al puntatore del membro: le chiavi di una mappa | i motivi di quello schema, di solito `syntax` |
 | `required` | Membri dichiarati che devono essere presenti | `missing` |
 | `if` e `then`, `allOf` | Requisiti condizionali: quando il valore soddisfa la condizione di `if`, i membri del `required` di `then` devono essere presenti; `allOf` elenca coppie di questo tipo | `requires`, con i membri verificati dalla condizione in `pointers` |
 | `$ref`, `$defs` | Un riferimento a una definizione dello stesso file, il cui nome non contiene `/`, `~` o `%` | |
@@ -315,7 +317,8 @@ da `/`, nessuno vuoto, `.` o `..`; nessun `\` e nessuna lettera di unità), gli
 identificativi di ogni tipo di artefatto (`brief-id`, `council-id`, `gate-id`, `epic-id`,
 `story-id`, `spec-id`, `change-id`, `task-id`, `milestone-id`, `handover-id`) e gli
 identificativi delle parti (`requirement-id`, `criterion-id`, `decision-id`, `question-id`),
-con le forme canoniche della SPEC-0001. La documentazione del modulo elenca ogni forma e ogni
+con le forme canoniche della SPEC-0001, e `json-pointer` (un puntatore RFC 6901, la forma di
+ogni `pointer` dei contratti). La documentazione del modulo elenca ogni forma e ogni
 correzione. L'elenco dei formati con nome è un solo enum, `wayloop_schemas::Format`, e il
 controllo dei formati del core lo esamina in modo esaustivo: un formato aggiunto all'enum non
 compila finché il core non lo controlla.
@@ -384,19 +387,19 @@ volta, nel modulo `contract`:
 | Un valore di enum con il suo significato | Un `oneOf` di costanti documentate diventa un `enum`, e ogni valore è aggiunto alla descrizione come riga ``- `valore`: significato`` |
 | Un qualsiasi valore JSON | Lo schema booleano `true` diventa uno schema oggetto con una descrizione |
 | Formati degli interi | Un `format` come `uint32` è rimosso; il tipo e i limiti restano |
-| Input chiusi, output aperti | In un input ogni oggetto che dichiara i suoi membri e non ha `additionalProperties` riceve `additionalProperties: false`; un oggetto che non ne dichiara è un oggetto libero, scritto a mano per un documento di un altro schema, e resta aperto; un output non ne ha |
+| Input chiusi, output aperti | In un input ogni oggetto che dichiara i suoi membri e non ha `additionalProperties` riceve `additionalProperties: false`; un oggetto che non ne dichiara è un oggetto libero, scritto a mano per un documento di un altro schema, e resta aperto; una mappa mantiene lo schema dei suoi valori e delle sue chiavi; un output non ha `additionalProperties: false` |
 
 Le righe di un commento di documentazione sono unite in paragrafi, perché vanno a capo alla
 larghezza del codice. Il generatore poi verifica le regole dei contratti che non sono regole
 del sottoinsieme: una descrizione sulla radice, su ogni definizione e su ogni membro (una fatta
 solo di spazi non conta), il significato di ogni valore di enum nella sua descrizione, nessun
-`additionalProperties` in un output, e al massimo quattro livelli di oggetti (ADR 0009 C4). Il
+`additionalProperties: false` in un output, e al massimo quattro livelli di oggetti (ADR 0009 C4). Il
 sottoinsieme ha una sola definizione, il caricatore dell'interprete (ADR 0030 G3):
 `wayloop_core::schema::contract_schema` esegue i controlli del generatore e poi
 `Schema::load` su un tipo registrato, e fallisce con `ContractFault::Rule` o
 `ContractFault::Subset`. Un tipo `null`, le parole chiave `pattern`, `default` e
-`uniqueItems`, un formato senza nome, uno schema booleano o una mappa in un input sono
-rifiutati lì, al loro posto.
+`uniqueItems`, un formato senza nome, uno schema booleano o, in un input, una mappa i cui
+valori possono essere qualsiasi cosa sono rifiutati lì, al loro posto.
 
 Un tipo la cui forma serializzata la derive non sa descrivere nel sottoinsieme ha un tipo di
 forma privato per il proprio schema e per la lettura: `Source`, le cui forme sono un solo

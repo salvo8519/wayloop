@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: ba2cd5b35f5d
+source_hash: 9339886a1e5d
 ---
 # wayloop validate
 
@@ -113,7 +113,7 @@ Una voce di `documents`:
 | --- | --- | --- | --- |
 | `format` | `document`, `markdown` o `unreadable` | sì | `document`: un valore JSON nella forma normalizzata del suo tipo; `markdown`: il testo di una specifica viva; `unreadable`: un file che non è stato possibile analizzare |
 | `document` | oggetto | con `document` | Il documento |
-| `lines` | oggetto | no; solo con `document` e un'origine `file` | La riga, da 1, di ogni valore del documento, indicizzata dal suo puntatore RFC 6901 nel documento |
+| `lines` | oggetto | no; solo con `document` e un'origine `file` | La riga, da 1, di ogni valore del documento, indicizzata dal suo puntatore RFC 6901 nel documento; lo schema dichiara entrambe le regole: chiavi nel formato `json-pointer`, valori interi da 1 |
 | `text` | stringa | con `markdown` | Il contenuto del file |
 | `error` | oggetto `{line, message}` | con `unreadable` | Dove il parser si è fermato, dalla riga 1, e il suo messaggio |
 | `input_kind` | `pull_request`, `commit` o `handover_input` | no; solo con `document` | Il tipo di un input, che non ha un membro `kind` |
@@ -128,8 +128,9 @@ così che non esca mai dal progetto e nomini un file in un solo modo.
 
 Il comando rifiuta una voce che dà un membro di un altro formato (per esempio `text` con il
 formato `document`), `lines` o il formato `unreadable` senza un'origine `file`, un `origin`
-senza membri o con più di uno, una chiave di `lines` che non è un puntatore RFC 6901 e una riga
-che non è un intero da 1.
+senza membri o con più di uno, una chiave di `lines` che non è un puntatore RFC 6901 (`syntax`,
+al puntatore del membro, con un messaggio sul nome del membro) e una riga che non è un intero
+da 1 (`type` o `range`).
 
 Il testo JSON dell'input non deve ripetere una chiave nello stesso oggetto: i parser JSON
 tengono uno dei due valori, quindi il motore rifiuta il testo con il motivo `duplicate` invece di
@@ -180,7 +181,9 @@ Ogni errore trovato è elencato in `error.errors`; il primo è ripetuto al livel
    passaggio dello schema: i membri di un oggetto nell'ordine dei byte delle loro chiavi (`/aa`
    prima di `/zz`), gli elementi di un array per indice, i membri assenti dopo quelli presenti.
 
-Il `pointer` di un errore dell'input punta nell'input canonico, per esempio
+Ogni `pointer` del risultato è un puntatore RFC 6901; gli schemi dell'output e dell'envelope gli
+danno il formato `json-pointer`. Il `pointer` di un errore dell'input punta nell'input
+canonico, per esempio
 `/documents/0/format`. Il `pointer` di un errore di un documento punta in quel documento, per
 esempio `/problem`; `document` dà l'indice, da 0, di quel documento in `documents`, e `source`
 dice dove è memorizzato:

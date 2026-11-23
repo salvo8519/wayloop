@@ -18,7 +18,7 @@ const ANNOTATIONS: [&str; 3] = ["$comment", "title", "description"];
 
 /// Keywords of a schema that validates a value. `$schema`, `$id` and `$defs` are refused
 /// below the root.
-const RULE_KEYWORDS: [&str; 21] = [
+const RULE_KEYWORDS: [&str; 22] = [
     "$schema",
     "$id",
     "$defs",
@@ -36,6 +36,7 @@ const RULE_KEYWORDS: [&str; 21] = [
     "items",
     "properties",
     "additionalProperties",
+    "propertyNames",
     "required",
     "if",
     "then",
@@ -113,7 +114,12 @@ pub(super) struct Rules {
     pub(super) format: Option<Format>,
     pub(super) items: Option<usize>,
     pub(super) properties: BTreeMap<String, usize>,
+    /// `additionalProperties: false`: a member not in `properties` is refused.
     pub(super) closed: bool,
+    /// `additionalProperties` as a schema: the schema of every member not in `properties`.
+    pub(super) additional: Option<usize>,
+    /// `propertyNames`: the schema of the name of every member.
+    pub(super) names: Option<usize>,
     pub(super) required: Vec<String>,
     pub(super) conditionals: Vec<Conditional>,
 }
@@ -505,12 +511,20 @@ impl Loader {
         match map.get("additionalProperties") {
             None => {}
             Some(Value::Bool(false)) => rules.closed = true,
+            Some(schema @ Value::Object(_)) => {
+                let at = pointer.join("additionalProperties");
+                rules.additional = Some(self.rules(schema, &at, next, false)?);
+            }
             Some(_) => {
                 return Err(invalid(
                     &pointer.join("additionalProperties"),
-                    "`additionalProperties` is only `false`",
+                    "`additionalProperties` is `false` or a schema",
                 ));
             }
+        }
+        if let Some(schema) = map.get("propertyNames") {
+            let at = pointer.join("propertyNames");
+            rules.names = Some(self.rules(schema, &at, next, false)?);
         }
         if let Some((entries, at)) = properties(map, pointer)? {
             for (name, schema) in entries {
@@ -661,7 +675,8 @@ impl Loader {
                 height = self.measure(*target, next, states)?.saturating_add(1);
             }
             Some(Node::Rules(rules)) => {
-                for &child in rules.properties.values().chain(rules.items.iter()) {
+                let single = [rules.items, rules.additional, rules.names];
+                for &child in rules.properties.values().chain(single.iter().flatten()) {
                     height = height.max(self.measure(child, next, states)?.saturating_add(1));
                 }
                 for conditional in &rules.conditionals {

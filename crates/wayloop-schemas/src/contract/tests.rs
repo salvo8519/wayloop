@@ -68,8 +68,14 @@ fn objects_are_open_in_an_output_and_closed_in_an_input() {
         let input = (registered.schema)(Direction::Input).unwrap();
         let mut found = Vec::new();
         objects(&output, &Pointer::root(), &mut found);
+        // An output is open; a map keeps the schema of its values (#307).
         for (pointer, schema) in &found {
-            assert!(schema.get("additionalProperties").is_none(), "{pointer}");
+            assert!(
+                schema
+                    .get("additionalProperties")
+                    .is_none_or(Value::is_object),
+                "{pointer}"
+            );
         }
         let mut found = Vec::new();
         objects(&input, &Pointer::root(), &mut found);
@@ -442,7 +448,7 @@ fn each_problem_is_told_in_words_with_its_place() {
         (
             at("/additionalProperties"),
             Problem::ClosedOutput,
-            "at /additionalProperties: `additionalProperties` in an output, which is open",
+            "at /additionalProperties: `additionalProperties: false` in an output, which is open",
         ),
         (
             at("/$defs/A"),
@@ -537,19 +543,27 @@ fn a_description_of_blanks_only_is_none() {
     );
 }
 
+/// Described.
+#[derive(JsonSchema)]
+struct WithFreeMap {
+    /// A map of any values.
+    a: BTreeMap<String, Value>,
+}
+
 #[test]
-fn a_map_is_refused_in_an_output_and_in_an_input() {
+fn a_typed_map_is_accepted_and_a_map_of_any_value_is_an_open_input() {
+    // #307: a map keeps the schema of its values, which checks every member, in both
+    // directions; a map whose values may be anything stays open, and an input refuses it.
+    for direction in [Direction::Input, Direction::Output] {
+        let schema = schema_for::<WithMap>(direction).unwrap();
+        assert_eq!(
+            schema["properties"]["a"]["additionalProperties"]["type"],
+            "integer"
+        );
+    }
+    assert!(schema_for::<WithFreeMap>(Direction::Output).is_ok());
     assert_eq!(
-        refused::<WithMap>(Direction::Output),
-        ContractError {
-            pointer: at("/properties/a/additionalProperties"),
-            problem: Problem::ClosedOutput
-        }
-    );
-    // In an input the schema of the values is never overwritten by `false`, and the object
-    // stays open: the generator refuses it (contract audit S5).
-    assert_eq!(
-        refused::<WithMap>(Direction::Input),
+        refused::<WithFreeMap>(Direction::Input),
         ContractError {
             pointer: at("/properties/a"),
             problem: Problem::OpenInput
@@ -768,7 +782,7 @@ struct WithFree {
 #[test]
 fn only_a_declared_free_object_stays_open_in_an_input() {
     // Contract audit S5: an open object of an input is refused unless it is listed in
-    // FREE_OBJECTS, as the documents and the lines of `validate` are.
+    // FREE_OBJECTS, as the documents of `validate` are.
     assert_eq!(
         refused::<WithFree>(Direction::Input),
         ContractError {
@@ -778,10 +792,7 @@ fn only_a_declared_free_object_stays_open_in_an_input() {
     );
     assert_eq!(
         super::check::FREE_OBJECTS,
-        [
-            crate::validate::FreeDocument::NAME,
-            crate::validate::Lines::NAME
-        ]
+        [crate::validate::FreeDocument::NAME]
     );
     let schema = schema_for::<crate::validate::ValidateInput>(Direction::Input).unwrap();
     assert_eq!(schema["additionalProperties"], json!(false));
