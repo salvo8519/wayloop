@@ -1,7 +1,7 @@
 //! Tests of the artifact model and of `validate` (SPEC-0001 T5: R1, R5, R6, R12, R14, R16;
-//! AC1, AC8, AC9, AC25; T7: R1, R5, R6, R9; AC1, AC9, AC35; T9: R1, R22; AC1, AC31). The
-//! contract cases of the command are in `tests/contract/validate/v1/` and run in the tests of
-//! `wayloop-cli`; these tests cover the parts the cases cannot reach.
+//! AC1, AC8, AC9, AC25; T7: R1, R5, R6, R9; AC1, AC9, AC35; T8: R1, R5, R6; AC1, AC35; T9: R1,
+//! R22; AC1, AC31). The contract cases of the command are in `tests/contract/validate/v1/` and
+//! run in the tests of `wayloop-cli`; these tests cover the parts the cases cannot reach.
 
 // The helpers take JSON values by value so that a test reads as the document it builds.
 #![allow(clippy::needless_pass_by_value)]
@@ -45,7 +45,10 @@ fn input_schema() -> crate::schema::Schema {
     kinds::load(VALIDATE.embedded(Part::Schema, VALIDATE.version).unwrap()).unwrap()
 }
 
-use wayloop_schemas::examples::{epic, gate, handover, handover_input, milestone, story, task};
+use wayloop_schemas::examples::{
+    change, council_report, epic, gate, handover, handover_input, milestone, specification, story,
+    task,
+};
 
 /// A valid brief with only its required members, smaller than the brief of the examples.
 fn brief() -> Value {
@@ -255,10 +258,9 @@ fn schema_error(pointer: &str, reason: Reason) -> (Code, String, Reason) {
     (codes::ARTIFACT_SCHEMA, pointer.to_owned(), reason)
 }
 
-#[test]
-fn the_valid_plan_items_of_the_examples_pass_and_read_into_their_types() {
-    let kinds = ["gate", "milestone", "epic", "story", "task"];
-    let documents = [gate(), milestone(), epic(), story(), task()];
+/// Asserts that `documents` pass as one set, that the schema of each kind ran, and that each is
+/// read into its contract type and written back as given (ADR 0030 G1).
+fn assert_valid_and_reread(documents: &[Value]) {
     let validation = validate(&read(documents.iter().cloned().map(entry).collect()));
     assert_eq!(validation.errors, []);
     assert_eq!(validation.failures, []);
@@ -267,16 +269,21 @@ fn the_valid_plan_items_of_the_examples_pass_and_read_into_their_types() {
         .iter()
         .map(wayloop_schemas::Check::id)
         .collect();
-    // Each is read into its contract type and written back as given (ADR 0030 G1).
     let built = built();
-    for (kind, document) in kinds.iter().zip(&documents) {
+    for document in documents {
+        let kind = document["kind"].as_str().unwrap();
         assert!(
             checks.contains(&format!("schema_{kind}").as_str()),
             "{kind}"
         );
-        let reread = built.iter().find(|k| k.id == *kind).unwrap().reread;
+        let reread = built.iter().find(|k| k.id == kind).unwrap().reread;
         assert_eq!(&reread(document).unwrap(), document, "{kind}");
     }
+}
+
+#[test]
+fn the_valid_plan_items_of_the_examples_pass_and_read_into_their_types() {
+    assert_valid_and_reread(&[gate(), milestone(), epic(), story(), task()]);
 }
 
 #[test]
@@ -838,6 +845,376 @@ fn the_oracle_agrees_with_the_interpreter_on_hand_overs() {
     oracle_agrees_on(&HANDOVER, Part::Input, variations(handover_input()));
 }
 
+// Council reports, living specifications and change deltas (T8: R1, R5, R6; AC1, AC35) -------
+
+#[test]
+fn the_valid_council_report_specification_and_change_pass_and_read_into_their_types() {
+    // Written back as given: a removed requirement keeps its status, and an active one, whose
+    // status is absent, is not given one.
+    assert_valid_and_reread(&[council_report(), specification(), change()]);
+}
+
+/// The error of `document` alone, which must be the only one, with its `expected`.
+fn only_error(document: Value) -> Error {
+    let validation = validate(&read(vec![entry(document)]));
+    let [error] = &validation.errors[..] else {
+        panic!("{:?}", validation.errors);
+    };
+    error.clone()
+}
+
+#[test]
+fn each_kind_accepts_only_its_own_statuses() {
+    // R5: a living specification has six statuses; `published` is none of them
+    // (`specification.invalid.yaml`). A council report has those of a brief, a change delta
+    // those of a plan item; `blocked` is never a status.
+    let six = [
+        "draft",
+        "approved",
+        "surveyed",
+        "implementing",
+        "done",
+        "superseded",
+    ];
+    let five = ["draft", "approved", "implementing", "done", "superseded"];
+    let three = ["draft", "approved", "superseded"];
+    let cases: [(Value, &str, &[&str]); 5] = [
+        (specification(), "published", &six),
+        (specification(), "blocked", &six),
+        (council_report(), "implementing", &three),
+        (change(), "surveyed", &five),
+        (change(), "blocked", &five),
+    ];
+    for (document, status, expected) in cases {
+        let error = only_error(with(document, "status", json!(status)));
+        assert_eq!(
+            (error.code(), error.pointer().as_str(), error.reason()),
+            (&codes::ARTIFACT_SCHEMA, "/status", Reason::Enum),
+            "{status}"
+        );
+        let expected: Vec<Value> = expected.iter().map(|s| json!(s)).collect();
+        assert_eq!(error.expected(), Some(&expected[..]), "{status}");
+    }
+    // A specification written by the survey starts in `surveyed` (SPEC-0011 R4).
+    assert_eq!(
+        errors_of(with(specification(), "status", json!("surveyed"))),
+        []
+    );
+    for document in [council_report(), specification(), change()] {
+        let superseded = with(document, "status", json!("superseded"));
+        assert_eq!(
+            errors_of(superseded),
+            [schema_error("/superseded_by", Reason::Requires)]
+        );
+    }
+}
+
+#[test]
+fn an_acceptance_criterion_verified_by_a_judge_requires_a_rubric() {
+    // AC35, for the living specification: `rubric` when `verification` contains `judge`.
+    let mut document = specification();
+    document["acceptance_criteria"][2]
+        .as_object_mut()
+        .unwrap()
+        .remove("rubric");
+    let error = only_error(document.clone());
+    assert_eq!(
+        (error.pointer().as_str(), error.reason()),
+        ("/acceptance_criteria/2/rubric", Reason::Requires)
+    );
+    assert_eq!(
+        error.pointers(),
+        Some(&[at("/acceptance_criteria/2/verification")][..])
+    );
+    document["acceptance_criteria"][2]["verification"] = json!(["end_to_end"]);
+    assert_eq!(errors_of(document.clone()), []);
+    // A criterion cites at least one requirement and one technique, each in its form.
+    let criterion = |member: &str, value: Value| {
+        let mut changed = specification();
+        changed["acceptance_criteria"][0][member] = value;
+        errors_of(changed)
+    };
+    let at_first = |member: &str| format!("/acceptance_criteria/0/{member}");
+    assert_eq!(
+        criterion("requirements", json!([])),
+        [schema_error(&at_first("requirements"), Reason::Length)]
+    );
+    assert_eq!(
+        criterion("requirements", json!(["AC1"])),
+        [schema_error(
+            "/acceptance_criteria/0/requirements/0",
+            Reason::Syntax
+        )]
+    );
+    assert_eq!(
+        criterion("verification", json!([])),
+        [schema_error(&at_first("verification"), Reason::Length)]
+    );
+    assert_eq!(
+        criterion("verification", json!(["unit"])),
+        [schema_error(
+            "/acceptance_criteria/0/verification/0",
+            Reason::Enum
+        )]
+    );
+    // A text is not a list: its error of type, and no rubric required.
+    assert_eq!(
+        criterion("verification", json!("judge")),
+        [schema_error(&at_first("verification"), Reason::Type)]
+    );
+}
+
+#[test]
+fn the_operations_of_a_change_require_their_members_by_op() {
+    // SPEC-0001, Change delta: `requirement` for `modified`, `removed` and `renamed`; `text`
+    // for `added` and `modified`; `name` for `renamed`. Each missing member is refused with
+    // `requires` and the pointer of `op`.
+    let operation = |op: Value| errors_of(with(change(), "operations", json!([op])));
+    let requires = |member: &str| {
+        let error = schema_error(&format!("/operations/0/{member}"), Reason::Requires);
+        vec![error]
+    };
+    assert_eq!(
+        operation(json!({"op": "modified", "text": "T"})),
+        requires("requirement")
+    );
+    assert_eq!(
+        operation(json!({"op": "modified", "requirement": "R1"})),
+        requires("text")
+    );
+    assert_eq!(operation(json!({"op": "removed"})), requires("requirement"));
+    assert_eq!(
+        operation(json!({"op": "renamed", "name": "N"})),
+        requires("requirement")
+    );
+    assert_eq!(
+        operation(json!({"op": "renamed", "requirement": "R1"})),
+        requires("name")
+    );
+    assert_eq!(
+        operation(json!({"op": "added", "name": "N"})),
+        requires("text")
+    );
+    let error = only_error(with(change(), "operations", json!([{"op": "added"}])));
+    assert_eq!(error.pointers(), Some(&[at("/operations/0/op")][..]));
+    // What each op needs, and the optional `name` of `added` and `modified`, is accepted.
+    for op in [
+        json!({"op": "added", "text": "T"}),
+        json!({"op": "added", "name": "N", "text": "T"}),
+        json!({"op": "modified", "requirement": "R2", "name": "N", "text": "T"}),
+        json!({"op": "removed", "requirement": "R2"}),
+        json!({"op": "renamed", "requirement": "R2", "name": "N"}),
+    ] {
+        assert_eq!(operation(op.clone()), [], "{op}");
+    }
+    assert_eq!(
+        operation(json!({"op": "deleted", "requirement": "R2"})),
+        [schema_error("/operations/0/op", Reason::Enum)]
+    );
+    assert_eq!(
+        operation(json!({"requirement": "R2"})),
+        [schema_error("/operations/0/op", Reason::Missing)]
+    );
+    assert_eq!(
+        errors_of(with(change(), "operations", json!([]))),
+        [schema_error("/operations", Reason::Length)]
+    );
+}
+
+#[test]
+fn a_council_report_holds_its_parts_in_their_forms() {
+    let part = |member: &str, value: Value| errors_of(with(council_report(), member, value));
+    assert_eq!(
+        part("mode", json!("one-mind")),
+        [schema_error("/mode", Reason::Enum)]
+    );
+    assert_eq!(
+        part("roles", json!([])),
+        [schema_error("/roles", Reason::Length)]
+    );
+    assert_eq!(
+        part("decisions", json!([])),
+        [schema_error("/decisions", Reason::Length)]
+    );
+    assert_eq!(
+        part(
+            "decisions",
+            json!([{"id": "1", "statement": "S", "reason": "R"}])
+        ),
+        [schema_error("/decisions/0/id", Reason::Syntax)]
+    );
+    assert_eq!(
+        part(
+            "dissent",
+            json!([{"role": "critic", "position": "P", "decision": "Q1"}])
+        ),
+        [schema_error("/dissent/0/decision", Reason::Syntax)]
+    );
+    // The lists that may be empty are given, as `[]`.
+    for member in ["rejected_alternatives", "dissent", "risks", "questions"] {
+        assert_eq!(part(member, json!([])), [], "{member}");
+        assert_eq!(
+            errors_of(without(council_report(), member)),
+            [schema_error(&format!("/{member}"), Reason::Missing)],
+            "{member}"
+        );
+    }
+    // A question has at least two options; its answer is absent until decided.
+    let mut question = council_report()["questions"][0].clone();
+    question.as_object_mut().unwrap().remove("answer");
+    assert_eq!(part("questions", json!([question.clone()])), []);
+    question["options"] = json!(["No"]);
+    assert_eq!(
+        part("questions", json!([question])),
+        [schema_error("/questions/0/options", Reason::Length)]
+    );
+    assert_eq!(
+        part("brief", json!("brief 1")),
+        [schema_error("/brief", Reason::Syntax)]
+    );
+}
+
+#[test]
+fn the_members_of_a_living_specification_have_their_forms() {
+    let member = |name: &str, value: Value| errors_of(with(specification(), name, value));
+    // The capability is lower-case words joined by single hyphens, with a fix when one can be
+    // derived.
+    for capability in ["time-entries", "csv-log", "rfc8785", "a"] {
+        assert_eq!(member("capability", json!(capability)), [], "{capability}");
+    }
+    for (capability, fix) in [
+        ("Time entries", Some("time-entries")),
+        ("time_entries", Some("time-entries")),
+        ("time--entries", Some("time-entries")),
+        ("-time", Some("time")),
+        ("time-", Some("time")),
+        ("", None),
+        ("--", None),
+    ] {
+        let error = only_error(with(specification(), "capability", json!(capability)));
+        assert_eq!(
+            (error.pointer().as_str(), error.reason()),
+            ("/capability", Reason::Syntax),
+            "{capability}"
+        );
+        assert_eq!(error.fix(), fix.map(|f| json!(f)).as_ref(), "{capability}");
+    }
+    assert_eq!(
+        member("owner", json!("example-owner")),
+        [schema_error("/owner", Reason::Syntax)]
+    );
+    assert_eq!(
+        member("commit_scope", json!("")),
+        [schema_error("/commit_scope", Reason::Length)]
+    );
+    assert_eq!(
+        member("stories", json!(["STORY-1"])),
+        [schema_error("/stories/0", Reason::Syntax)]
+    );
+    assert_eq!(
+        member("scope_in", json!([])),
+        [schema_error("/scope_in", Reason::Length)]
+    );
+    assert_eq!(
+        member("requirements", json!([])),
+        [schema_error("/requirements", Reason::Length)]
+    );
+    // A requirement is `active` or `removed`; an open question may have no identifier, and
+    // states whether it is resolved.
+    let requirement = |status: &str| {
+        member(
+            "requirements",
+            json!([{"id": "R1", "text": "T", "status": status}]),
+        )
+    };
+    assert_eq!(requirement("active"), []);
+    assert_eq!(requirement("removed"), []);
+    assert_eq!(
+        requirement("deleted"),
+        [schema_error("/requirements/0/status", Reason::Enum)]
+    );
+    assert_eq!(
+        member("open_questions", json!([{"text": "T", "resolved": false}])),
+        []
+    );
+    assert_eq!(
+        member("open_questions", json!([{"id": "Q1", "text": "T"}])),
+        [schema_error("/open_questions/0/resolved", Reason::Missing)]
+    );
+    // An extra section needs a heading that is not empty; its text is absent when the section
+    // has no content (decided by the maintainer on 2026-11-24).
+    assert_eq!(member("extra_sections", json!([{"heading": "Notes"}])), []);
+    assert_eq!(
+        member("extra_sections", json!([{"heading": "", "text": "T"}])),
+        [schema_error("/extra_sections/0/heading", Reason::Length)]
+    );
+    assert_eq!(
+        member("extra_sections", json!([{"text": "T"}])),
+        [schema_error("/extra_sections/0/heading", Reason::Missing)]
+    );
+    // R6: keys are English; an Italian key in place of the English one is unknown, with the
+    // English key, which is then missing, as the fix.
+    let italian = with(without(specification(), "problem"), "problema", json!("x"));
+    let validation = validate(&read(vec![entry(italian)]));
+    assert_eq!(
+        found(&validation.errors),
+        [
+            schema_error("/problema", Reason::UnknownField),
+            schema_error("/problem", Reason::Missing)
+        ]
+    );
+    assert_eq!(validation.errors[0].fix(), Some(&json!("problem")));
+}
+
+#[test]
+fn the_oracle_agrees_with_the_interpreter_on_council_reports_specifications_and_changes() {
+    let mut no_rubric = specification();
+    no_rubric["acceptance_criteria"][2]
+        .as_object_mut()
+        .unwrap()
+        .remove("rubric");
+    let mut text_verification = specification();
+    text_verification["acceptance_criteria"][2]["verification"] = json!("judge");
+    let documents = [
+        (
+            council_report(),
+            with(council_report(), "mode", json!("one-mind")),
+        ),
+        (specification(), no_rubric),
+        (specification(), text_verification),
+        (
+            specification(),
+            with(specification(), "capability", json!("A b")),
+        ),
+        (
+            change(),
+            with(
+                change(),
+                "operations",
+                json!([{"op": "renamed", "requirement": "R1"}]),
+            ),
+        ),
+        (
+            change(),
+            with(change(), "operations", json!([{"op": "removed"}])),
+        ),
+    ];
+    for (document, refused) in documents {
+        let kind = document["kind"].as_str().unwrap().to_owned();
+        let contract = CONTRACTS.iter().find(|c| c.name == kind).unwrap();
+        oracle_agrees(
+            contract,
+            [
+                document.clone(),
+                with(document.clone(), "status", json!("published")),
+                with(document.clone(), "titolo", json!("x")),
+                without(document, "title"),
+                refused,
+            ],
+        );
+    }
+}
+
 // Versions and migrations (R16, AC25) --------------------------------------------------------
 
 const SAMPLE_V1: Embedded = embedded_test(
@@ -1222,38 +1599,25 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     assert_eq!(validation.errors, []);
     // The valid brief is read into its contract type (ADR 0030 G1), not left as a value.
     assert_eq!(validation.failures, []);
+    // Each check not done is listed once, in the order of its identifier.
+    let mut expected_not_done: Vec<String> = checks::NOT_BUILT
+        .iter()
+        .chain([&checks::ARTIFACT_LOCATIONS, &checks::MARKDOWN])
+        .map(|c| c.id().to_owned())
+        .chain(unbuilt.map(|id| kinds::schema_check(id).id().to_owned()))
+        .collect();
+    expected_not_done.sort();
     let not_done: Vec<&str> = validation.not_done.iter().map(|n| n.check().id()).collect();
-    assert_eq!(
-        not_done,
-        [
-            "areas",
-            "artifact_locations",
-            "identifier_duplicate",
-            "links",
-            "markdown",
-            "naming",
-            "parts",
-            "schema_handover_input",
-            "schema_task",
-            "statuses",
-        ]
-    );
+    assert_eq!(not_done, expected_not_done);
     // The locations were not given: the documents were not discovered (AC37). Every other
     // check is not built.
-    let reason = |id: &str| {
-        validation
-            .not_done
-            .iter()
-            .find(|n| n.check().id() == id)
-            .map(NotDone::reason)
-    };
-    for id in not_done.iter().copied() {
-        let expected = if id == checks::ARTIFACT_LOCATIONS.id() {
+    for not in &validation.not_done {
+        let expected = if not.check() == &checks::ARTIFACT_LOCATIONS {
             NotDoneReason::InputAbsent
         } else {
             NotDoneReason::NotBuilt
         };
-        assert_eq!(reason(id), Some(expected), "{id}");
+        assert_eq!(not.reason(), expected, "{}", not.check().id());
     }
     // One check identifier per schema (S6): the schemas of the built types and inputs ran, in
     // their order, those left out did not.
@@ -1819,5 +2183,18 @@ fn a_file_origin_outside_the_project_is_refused() {
             )],
             "{file}"
         );
+    }
+}
+
+#[test]
+fn every_artifact_type_has_its_schema_built() {
+    // After T7 to T9 every type of SPEC-0001 has a schema; a type declared without one would
+    // give `not_built` to its documents, which the reference no longer documents as possible.
+    let built = kinds::built().unwrap();
+    for kind in ArtifactKind::ALL {
+        let found = built
+            .iter()
+            .filter(|k| k.input.is_none() && k.id == kind.id());
+        assert_eq!(found.count(), 1, "{}", kind.id());
     }
 }

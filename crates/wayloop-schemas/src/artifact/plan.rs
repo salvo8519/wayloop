@@ -82,6 +82,17 @@ crate::contract_enum! {
     }
 }
 
+/// The rule of a task and of an acceptance criterion of a living specification: `rubric` is
+/// required when `verification` contains `judge` (SPEC-0009 R8).
+pub(super) fn rubric_when_judged(schema: &mut Schema) {
+    rules::require_if_contains(
+        schema,
+        "verification",
+        Verification::Judge.id(),
+        &["rubric"],
+    );
+}
+
 crate::positive_integer! {
     /// Complexity score of a task, from 1 to 10 (SPEC-0013 R3).
     pub struct Complexity <= 10;
@@ -281,16 +292,10 @@ fn story_rules(schema: &mut Schema) {
     rules::require_if_in(schema, STATUS, &specified, &["specification"]);
 }
 
-/// The rules of a task: those of a plan item, and `rubric` when `verification` contains
-/// `judge` (SPEC-0009 R8).
+/// The rules of a task: those of a plan item, and the rubric of a judge.
 fn task_rules(schema: &mut Schema) {
     plan_item_rules(schema, &TASK, "issue");
-    rules::require_if_contains(
-        schema,
-        "verification",
-        Verification::Judge.id(),
-        &["rubric"],
-    );
+    rubric_when_judged(schema);
 }
 
 #[cfg(test)]

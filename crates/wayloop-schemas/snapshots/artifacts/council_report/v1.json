@@ -1,0 +1,296 @@
+{
+  "$defs": {
+    "CouncilMode": {
+      "description": "How the council ran (SPEC-0012 R6).\n\n- `one_mind`: Every role in a single context.\n- `independent`: One executor per role, each reading only the brief in the first round.",
+      "enum": [
+        "one_mind",
+        "independent"
+      ],
+      "type": "string"
+    },
+    "CouncilQuestion": {
+      "additionalProperties": false,
+      "description": "An unresolved conflict of the council, for the maintainer to decide.",
+      "properties": {
+        "answer": {
+          "description": "The answer of the maintainer, one of `options`; absent until decided.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "description": "Identifier within the report, `Q<k>`, cited as `COUNCIL-<seq> Q<k>`.",
+          "format": "question-id",
+          "type": "string"
+        },
+        "options": {
+          "description": "The possible answers; at least two.",
+          "items": {
+            "description": "A prose text of at least one character, in the language of the document.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 2,
+          "type": "array"
+        },
+        "question": {
+          "description": "The question.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "recommendation": {
+          "description": "The answer the council recommends, one of `options`.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "question",
+        "options",
+        "recommendation"
+      ],
+      "type": "object"
+    },
+    "CouncilStatus": {
+      "description": "Status of a council report (SPEC-0001 R5); `draft` is its initial status.\n\n- `draft`: Written by the moderator, not approved.\n- `approved`: Approved by a person on its gate issue, every question answered; the roadmap may be generated from it.\n- `superseded`: Replaced by the council reports in `superseded_by`; terminal.",
+      "enum": [
+        "draft",
+        "approved",
+        "superseded"
+      ],
+      "type": "string"
+    },
+    "Decision": {
+      "additionalProperties": false,
+      "description": "A decision of a council report.",
+      "properties": {
+        "id": {
+          "description": "Identifier within the report, `D<k>`, cited as `COUNCIL-<seq> D<k>`.",
+          "format": "decision-id",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "statement": {
+          "description": "What is decided.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "statement",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "Dissent": {
+      "additionalProperties": false,
+      "description": "The position of a role that disagrees with a decision of the report.",
+      "properties": {
+        "decision": {
+          "description": "The decision of this report it disagrees with, `D<k>`.",
+          "format": "decision-id",
+          "type": "string"
+        },
+        "position": {
+          "description": "Its position.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "role": {
+          "description": "The role that disagrees.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "position",
+        "decision"
+      ],
+      "type": "object"
+    },
+    "RejectedAlternative": {
+      "additionalProperties": false,
+      "description": "An option the council considered and rejected.",
+      "properties": {
+        "option": {
+          "description": "The option.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why it was rejected.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "option",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "Risk": {
+      "additionalProperties": false,
+      "description": "A risk and its mitigation.",
+      "properties": {
+        "description": {
+          "description": "The risk.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "mitigation": {
+          "description": "How it is mitigated.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "description",
+        "mitigation"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://salvo8519.github.io/wayloop/schemas/artifacts/council_report/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "superseded"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "superseded_by"
+        ]
+      }
+    }
+  ],
+  "description": "A council report (SPEC-0001, Council report): the moderator report on a brief (ADR 0016, SPEC-0012 R4). Stored as `plan/council/COUNCIL-<seq>.yaml` in this normalised form.",
+  "properties": {
+    "brief": {
+      "description": "The brief the council answered.",
+      "format": "brief-id",
+      "type": "string"
+    },
+    "decisions": {
+      "description": "The decisions; at least one.",
+      "items": {
+        "$ref": "#/$defs/Decision"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "dissent": {
+      "description": "Positions that disagree with a decision; `[]` means none.",
+      "items": {
+        "$ref": "#/$defs/Dissent"
+      },
+      "type": "array"
+    },
+    "id": {
+      "description": "Stable identifier, in the canonical form of the type; assigned by the engine and never reused (SPEC-0001 R2, R14).",
+      "format": "council-id",
+      "type": "string"
+    },
+    "kind": {
+      "const": "council_report",
+      "description": "Artifact type; selects the schema."
+    },
+    "language": {
+      "description": "Language of the prose, a BCP 47 tag; when absent, the language of the project.",
+      "format": "language-tag",
+      "type": "string"
+    },
+    "mode": {
+      "$ref": "#/$defs/CouncilMode",
+      "description": "How the council ran."
+    },
+    "questions": {
+      "description": "Unresolved conflicts for the maintainer; `[]` means none.",
+      "items": {
+        "$ref": "#/$defs/CouncilQuestion"
+      },
+      "type": "array"
+    },
+    "rejected_alternatives": {
+      "description": "Options considered and rejected; `[]` means none.",
+      "items": {
+        "$ref": "#/$defs/RejectedAlternative"
+      },
+      "type": "array"
+    },
+    "risks": {
+      "description": "Risks and their mitigation; `[]` means none.",
+      "items": {
+        "$ref": "#/$defs/Risk"
+      },
+      "type": "array"
+    },
+    "roles": {
+      "description": "The roles that gave an opinion; at least one.",
+      "items": {
+        "description": "The name of a role of the council, as the project configures it, for example `critic`; an identifier rather than prose, of at least one character.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of the schema of the type the document was written against (SPEC-0001 R16).",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/CouncilStatus",
+      "description": "Current status (SPEC-0001 R5), not the issue-cycle state of SPEC-0002."
+    },
+    "superseded_by": {
+      "description": "Identifiers of the artifacts of the same type that replace this one, at least one; required when `status` is `superseded`.",
+      "items": {
+        "description": "Identifier of a council report: `COUNCIL-` and four digits, or five or more without a leading zero, for example `COUNCIL-0001`.",
+        "format": "council-id",
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "title": {
+      "description": "Outcome or name, in sentence case without a final full stop; 1 to 120 characters (Unicode code points).",
+      "maxLength": 120,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "title",
+    "status",
+    "brief",
+    "mode",
+    "roles",
+    "decisions",
+    "rejected_alternatives",
+    "dissent",
+    "risks",
+    "questions"
+  ],
+  "title": "CouncilReport",
+  "type": "object"
+}

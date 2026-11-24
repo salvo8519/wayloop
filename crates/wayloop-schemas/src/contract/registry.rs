@@ -9,7 +9,8 @@ use core::num::NonZeroU32;
 use super::{Direction, ENVELOPE, Registered, VALIDATE_OUTPUT, reread, schema_for};
 use crate::ENVELOPE_VERSION;
 use crate::artifact::{
-    ArtifactKind, Brief, Epic, Gate, Handover, HandoverInput, Milestone, Story, Task,
+    ArtifactKind, Brief, Change, CouncilReport, Epic, Gate, Handover, HandoverInput, Milestone,
+    Specification, Story, Task,
 };
 use crate::validate::ValidateInput;
 
@@ -129,6 +130,15 @@ macro_rules! artifact {
 /// The brief (SPEC-0001, Brief).
 pub const BRIEF: Contract = artifact!(Brief, NonZeroU32::MIN);
 
+/// The council report (SPEC-0001, Council report).
+pub const COUNCIL_REPORT: Contract = artifact!(CouncilReport, NonZeroU32::MIN);
+
+/// The living specification (SPEC-0001, Living specification), in normalised form.
+pub const SPECIFICATION: Contract = artifact!(Specification, NonZeroU32::MIN);
+
+/// The change delta (SPEC-0001, Change delta).
+pub const CHANGE: Contract = artifact!(Change, NonZeroU32::MIN);
+
 /// The gate issue (SPEC-0001, Gate issue).
 pub const GATE: Contract = artifact!(Gate, NonZeroU32::MIN);
 
@@ -184,7 +194,18 @@ const RESULT: Contract = Contract {
 /// Every contract, in the byte order of their folders. A contract is never removed and its
 /// version never goes back (ADR 0030 G5).
 pub const CONTRACTS: &[Contract] = &[
-    BRIEF, EPIC, GATE, HANDOVER, MILESTONE, STORY, TASK, VALIDATE, RESULT,
+    BRIEF,
+    CHANGE,
+    COUNCIL_REPORT,
+    EPIC,
+    GATE,
+    HANDOVER,
+    MILESTONE,
+    SPECIFICATION,
+    STORY,
+    TASK,
+    VALIDATE,
+    RESULT,
 ];
 
 /// A snapshot embedded in this crate: its path under `schemas/` and its text, byte for byte.

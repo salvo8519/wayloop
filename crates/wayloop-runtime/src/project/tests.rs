@@ -332,50 +332,43 @@ fn the_examples_load_into_the_committed_golden_inputs() {
     );
 }
 
-#[test]
-fn the_examples_of_the_plan_items_load_into_the_documents_of_their_cases() {
-    // T7: the cases of gates, milestones, epics, stories and tasks send the examples
-    // directly; each document of a case is the example read as `wayloop validate` reads it, so
-    // that the examples and the cases cannot drift.
-    let valid = [
-        "brief",
-        "council_report",
-        "specification",
-        "gate",
-        "milestone",
-        "epic",
-        "story",
-        "task",
-    ]
-    .map(|kind| format!("{kind}.valid.yaml"));
-    let invalid = [
-        ("gate-invalid", "gate.invalid.yaml"),
-        ("task-invalid", "task.invalid.yaml"),
-        ("milestone-invalid", "milestone.invalid.yaml"),
-    ];
-    let names: Vec<&str> = valid
+/// The examples of the valid set of the plan items, by file name.
+const PLAN_SET: [&str; 8] = [
+    "brief.valid.yaml",
+    "council_report.valid.yaml",
+    "specification.valid.yaml",
+    "gate.valid.yaml",
+    "milestone.valid.yaml",
+    "epic.valid.yaml",
+    "story.valid.yaml",
+    "task.valid.yaml",
+];
+
+/// Asserts that the case `valid` sends the examples `set`, each read as `wayloop validate`
+/// reads it; that each case of `invalid` sends that set, then its example; and that each case
+/// of `others` sends that set, then the one document it checks. The examples and the cases
+/// therefore cannot drift.
+fn assert_cases_send_the_examples(
+    valid: &str,
+    set: &[&str],
+    invalid: &[(&str, &str)],
+    others: &[&str],
+) {
+    let names: Vec<&str> = set
         .iter()
-        .map(String::as_str)
+        .copied()
         .chain(invalid.iter().map(|(_, name)| *name))
         .collect();
     let mut read = examples_read(&names);
-    let checked = read.split_off(valid.len());
+    let checked = read.split_off(set.len());
     let set = read;
-    assert_eq!(case_documents("plan-valid"), set);
-    for ((case, _), document) in invalid.into_iter().zip(checked) {
+    assert_eq!(case_documents(valid), set, "{valid}");
+    for ((case, _), document) in invalid.iter().zip(checked) {
         let mut expected = set.clone();
         expected.push(document);
         assert_eq!(case_documents(case), expected, "{case}");
     }
-    // Every other case of a plan item sends the valid set first, then the document it checks.
-    for case in [
-        "story-italian-prose",
-        "story-key-in-italian",
-        "story-approved-without-specification",
-        "task-judge-without-rubric",
-        "epic-implementing-without-issue",
-        "gate-done-without-issue",
-    ] {
+    for case in others {
         let given = case_documents(case);
         assert_eq!(given.get(..set.len()), Some(&set[..]), "{case}");
         assert_eq!(given.len(), set.len() + 1, "{case}");
@@ -383,16 +376,98 @@ fn the_examples_of_the_plan_items_load_into_the_documents_of_their_cases() {
 }
 
 #[test]
+fn the_examples_of_the_plan_items_load_into_the_documents_of_their_cases() {
+    // T7: the cases of gates, milestones, epics, stories and tasks send the examples directly.
+    assert_cases_send_the_examples(
+        "plan-valid",
+        &PLAN_SET,
+        &[
+            ("gate-invalid", "gate.invalid.yaml"),
+            ("task-invalid", "task.invalid.yaml"),
+            ("milestone-invalid", "milestone.invalid.yaml"),
+        ],
+        &[
+            "story-italian-prose",
+            "story-key-in-italian",
+            "story-approved-without-specification",
+            "task-judge-without-rubric",
+            "epic-implementing-without-issue",
+            "gate-done-without-issue",
+        ],
+    );
+}
+
+#[test]
+fn the_examples_of_the_council_reports_specifications_and_changes_load_into_their_cases() {
+    // T8: the valid set of the plan items, then the superseded living specification and the
+    // change delta, which no plan item links to.
+    let mut set = PLAN_SET.to_vec();
+    set.extend(["specification.superseded.valid.yaml", "change.valid.yaml"]);
+    assert_cases_send_the_examples(
+        "design-valid",
+        &set,
+        &[("specification-invalid", "specification.invalid.yaml")],
+        &[
+            "specification-judge-without-rubric",
+            "change-operation-fields-by-op",
+            "council-report-schema",
+        ],
+    );
+}
+
+#[test]
+fn the_invalid_examples_of_later_checks_pass_the_schema() {
+    // These examples break links and operations of change deltas, checked by later tasks
+    // (T12, T13), not the schema: with the valid set they give no `artifact_schema` error,
+    // whichever checks are built.
+    let mut names = PLAN_SET.to_vec();
+    names.extend([
+        "specification.superseded.valid.yaml",
+        "change.valid.yaml",
+        "council_report.invalid.yaml",
+        "change.invalid.yaml",
+        "change.conflict.invalid.yaml",
+    ]);
+    let texts: Vec<(String, String)> = names
+        .iter()
+        .map(|name| (format!("plan/items/{name}"), example(name)))
+        .collect();
+    let files: Vec<(&str, &[u8])> = texts
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_bytes()))
+        .collect();
+    let project = Project::new("later-checks", &files);
+    assert_eq!(project.input().documents.len(), names.len());
+    let envelope = project.envelope();
+    // One error is the `error` itself; several are its `errors`.
+    let error = &envelope["error"];
+    let errors: Vec<&Value> = match error["errors"].as_array() {
+        Some(errors) => errors.iter().collect(),
+        None if error.is_null() => Vec::new(),
+        None => vec![error],
+    };
+    let schema_errors: Vec<&Value> = errors
+        .into_iter()
+        .filter(|e| e["code"] == "artifact_schema")
+        .collect();
+    assert_eq!(schema_errors, Vec::<&Value>::new(), "{envelope}");
+}
+
+#[test]
 fn the_examples_of_the_schemas_crate_are_those_of_the_valid_case() {
-    // `wayloop_schemas::examples` holds a deliberate copy of the documents of `plan-valid`
-    // for the tests of the core, which embed no file outside their crate; this keeps it equal.
+    // `wayloop_schemas::examples` holds a deliberate copy of documents of `design-valid`, the
+    // valid set of `plan-valid` and two more, for the tests of the core, which embed no file
+    // outside their crate; this keeps it equal. The first document of a kind is the copy.
     use wayloop_schemas::examples;
-    let documents = case_documents("plan-valid");
+    let documents = case_documents("design-valid");
     let of_kind = |kind: &str| {
         let found = documents.iter().find(|d| d["kind"] == kind);
-        found.unwrap_or_else(|| panic!("no {kind} in plan-valid"))
+        found.unwrap_or_else(|| panic!("no {kind} in design-valid"))
     };
     let copies = [
+        ("council_report", examples::council_report()),
+        ("specification", examples::specification()),
+        ("change", examples::change()),
         ("gate", examples::gate()),
         ("milestone", examples::milestone()),
         ("epic", examples::epic()),

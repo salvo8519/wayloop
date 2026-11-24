@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 9128bed7a0ca
+source_hash: 216c4d636819
 ---
 # wayloop validate
 
@@ -9,11 +9,12 @@ altri tipi del modello degli artefatti) e di input (pull request, commit, passag
 rispetto ai loro schemi, in un solo passaggio, e riporta ogni errore con il puntatore del valore
 errato e il luogo in cui è memorizzato. Non modifica nulla.
 
-Oggi brief, issue di gate, milestone, epic, user story, task, record di passaggio di mano e
-input di passaggio di mano sono validati rispetto ai loro schemi. Un verbale del comitato, una
-specifica viva, una modifica a delta, una pull request e un commit sono accettati senza
-controllo, e i controlli non eseguiti sono elencati in `diagnostics.not_done`; così anche i
-controlli tra documenti (identificativi, collegamenti, parti, stati, nomi, aree).
+Oggi brief, verbali del comitato, issue di gate, milestone, epic, user story, specifiche vive in
+forma normalizzata, modifiche a delta, task, record di passaggio di mano e input di passaggio di
+mano sono validati rispetto ai loro schemi. Una specifica viva inviata in Markdown, una pull
+request e un commit sono accettati senza controllo, e i controlli non eseguiti sono elencati in
+`diagnostics.not_done`; così anche i controlli tra documenti (identificativi, collegamenti,
+parti, stati, nomi, aree).
 
 Questa pagina descrive la versione 1 del comando, compilata dai sorgenti. Il suo contratto è la
 coppia di snapshot di schema `schemas/commands/validate/v1.json` (input) e
@@ -76,7 +77,7 @@ letto; il messaggio per una persona, con il percorso, va sullo standard error.
 | --- | --- |
 | `document_kind` | Ogni documento ha un `kind` tra `brief`, `council_report`, `gate`, `milestone`, `epic`, `story`, `specification`, `change`, `task` e `handover`, oppure è un input con `input_kind` |
 | `schema_version` | Lo `schema_version` di ogni documento è una versione che il suo tipo conosce; un documento di una versione precedente viene migrato alla versione corrente dopo aver superato lo schema della propria versione |
-| `schema_<kind>`: `schema_brief`, `schema_epic`, `schema_gate`, `schema_handover`, `schema_milestone`, `schema_story`, `schema_task` | Ogni documento del tipo supera lo schema della sua versione (`schemas/artifacts/<kind>/v1.json`): membri obbligatori, membri sconosciuti, tipi, valori ammessi, lunghezze, formati, e i membri che uno stato o una verifica richiedono (vedi sotto) |
+| `schema_<kind>`: `schema_brief`, `schema_change`, `schema_council_report`, `schema_epic`, `schema_gate`, `schema_handover`, `schema_milestone`, `schema_specification`, `schema_story`, `schema_task` | Ogni documento del tipo supera lo schema della sua versione (`schemas/artifacts/<kind>/v1.json`): membri obbligatori, membri sconosciuti, tipi, valori ammessi, lunghezze, formati, e i membri che uno stato, una verifica o un'operazione richiedono (vedi sotto) |
 | `schema_handover_input` | Ogni input di passaggio di mano supera lo schema di input della sua versione (`schemas/artifacts/handover/v1.input.json`), come fa un record di passaggio di mano (vedi sotto) |
 | `identifier_format` | L'`id` è nella forma canonica del suo tipo, per esempio `BRIEF-0001` |
 | `artifact_locations` | Nel progetto in cui i documenti sono stati scoperti esiste almeno una cartella di una posizione; solo con `locations`, dopo i controlli precedenti |
@@ -87,7 +88,6 @@ che il motore non ha eseguito non è mai saltato in silenzio:
 
 | Controllo | Non eseguito su |
 | --- | --- |
-| `schema_<kind>`, per esempio `schema_council_report` | Un documento di un tipo il cui schema non è in questa versione |
 | `schema_<input_kind>`: `schema_pull_request`, `schema_commit` | Un input il cui schema non è in questa versione |
 | `markdown` | Una specifica viva inviata in Markdown |
 | `identifier_duplicate` | L'insieme: due artefatti con lo stesso identificativo |
@@ -97,9 +97,9 @@ che il motore non ha eseguito non è mai saltato in silenzio:
 | `naming` | L'insieme: titoli, nomi dei branch, intestazioni dei commit e collegamenti delle pull request |
 | `areas` | L'insieme: l'`area` di ogni epic e di ogni task rispetto alle aree della policy del progetto |
 
-Uno schema indica anche i membri che uno stato o una verifica richiedono; un documento che ne è
-privo è rifiutato con il motivo `requires`, il membro mancante in `pointer` e il membro della
-condizione in `pointers`:
+Uno schema indica anche i membri che uno stato, una verifica o un'operazione richiedono; un
+documento che ne è privo è rifiutato con il motivo `requires`, il membro mancante in `pointer` e
+il membro della condizione in `pointers`:
 
 | Tipo | Membro | Richiesto quando |
 | --- | --- | --- |
@@ -109,6 +109,10 @@ condizione in `pointers`:
 | Epic, user story, task | `issue` | `status` è `implementing` o `done` |
 | User story | `specification` | `status` è `approved`, `implementing` o `done` |
 | Task | `rubric` | `verification` contiene `judge` |
+| Specifica viva, ciascuno degli `acceptance_criteria` | `rubric` | la sua `verification` contiene `judge` |
+| Modifica a delta, ciascuna delle `operations` | `requirement` | il suo `op` è `modified`, `removed` o `renamed` |
+| Modifica a delta, ciascuna delle `operations` | `text` | il suo `op` è `added` o `modified` |
+| Modifica a delta, ciascuna delle `operations` | `name` | il suo `op` è `renamed` |
 
 Un task o una user story senza la sua epic, o un'epic, una user story o un task senza la sua
 milestone, riceve un solo errore, `missing` in `/epic` o `/milestone`, e nessun errore di
@@ -116,6 +120,25 @@ collegamento. Lo schema controlla la forma di un collegamento (per esempio `EPIC
 che il suo destinatario esista: questo è il controllo `links`. L'oggetto di una issue di gate
 è un brief o un verbale del comitato, nella forma `BRIEF-<seq>` o `COUNCIL-<seq>`. `blocked`
 non è lo stato di alcun artefatto: è uno stato del ciclo della issue.
+
+Ogni tipo accetta solo i propri stati. Un verbale del comitato ha `draft`, `approved` e
+`superseded`; una modifica a delta `draft`, `approved`, `implementing`, `done` e `superseded`;
+una specifica viva ne ha sei, `draft`, `approved`, `surveyed`, `implementing`, `done` e
+`superseded`, e ogni altro, per esempio `published`, è rifiutato con `enum` e i sei in
+`expected`. La `capability` di una specifica viva è formata da parole minuscole di `a`-`z` e
+`0`-`9` unite da un solo trattino, per esempio `time-entries`; un requisito è `active` o
+`removed`, e assente significa `active`. Lo schema controlla la forma delle parti di un
+artefatto (`D<k>`, `Q<k>`, `R<k>`, `AC<k>`) e che una domanda di un verbale del comitato abbia
+almeno due opzioni, non che una parte sia unica, che un dissenso nomini una decisione del suo
+verbale, che una raccomandazione o una risposta sia una delle opzioni o che una modifica a delta
+abbia una sola operazione per requisito: questo è il controllo `parts`.
+
+Un'operazione di una modifica a delta non deve portare un membro che il suo `op` rifiuta:
+`requirement` con `added`, `text` con `removed` e `renamed` (una rinomina con un nuovo testo è
+una sola operazione `modified`), e `name` con `removed`. Lo schema non può indicare l'assenza di
+un membro sotto una condizione, quindi questa versione accetta questi membri; il controllo
+`parts` dovrà rifiutare ciascuno con `artifact_schema`, `unknown_field` e `/operations/<i>/op`
+in `pointers`.
 
 Un passaggio di mano ha due forme di una stessa versione. L'input è ciò che un agente invia alla
 fine di una sessione, con `input_kind: handover_input` e senza `kind`: `schema_version`,

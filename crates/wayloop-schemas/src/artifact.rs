@@ -2,8 +2,9 @@
 //! G1): [`Header`] (version and language, shared with the hand-over input), [`Identity`] (type,
 //! header and identifier) and [`Common`] (identity, title, status, replacements), and each
 //! artifact type built on them: the brief here, the gate issue and the plan items (milestone,
-//! epic, user story, task) in `plan`. The hand-over record, built on [`Identity`] since it has
-//! no title and no status, and its input are in `handover`.
+//! epic, user story, task) in `plan`, the council report, the living specification and the
+//! change delta in `design`. The hand-over record, built on [`Identity`] since it has no title
+//! and no status, and its input are in `handover`.
 //!
 //! An artifact is read by the engine, so its schema is an input: closed, an unknown member is
 //! refused with `unknown_field` (SPEC-0001 R6). Keys, enum values and status words are
@@ -18,9 +19,15 @@ use serde::{Deserialize, Serialize};
 use crate::contract::{BRIEF, rules};
 use crate::value::{BriefId, LanguageTag, SchemaVersion, Text, TrackerHandle};
 
+mod design;
 mod handover;
 mod plan;
 
+pub use design::{
+    Change, ChangeStatus, CouncilMode, CouncilQuestion, CouncilReport, CouncilStatus, Decision,
+    Dissent, ExtraSection, OpenQuestion, Operation, OperationKind, RejectedAlternative,
+    Requirement, RequirementStatus, Risk, SpecCriterion, Specification, SpecificationStatus,
+};
 pub use handover::{Handover, HandoverInput, HandoverReport, Ruling, Tokens};
 pub use plan::{
     Complexity, Epic, Gate, GateStatus, Milestone, PlanItemStatus, SpecReference, Story,

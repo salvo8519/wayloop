@@ -21,6 +21,8 @@ enum Shape {
     TrackerHandle,
     /// A path relative to the root of the project, in one spelling.
     ProjectPath,
+    /// Lower-case words of ASCII letters and digits joined by single hyphens.
+    HyphenatedWords,
     /// `<PREFIX>-<seq>`, with one of the prefixes: four digits, or five or more without a
     /// leading zero.
     Sequence(&'static [&'static str]),
@@ -42,6 +44,7 @@ const fn shape(format: Format) -> Shape {
         Format::LanguageTag => Shape::LanguageTag,
         Format::TrackerHandle => Shape::TrackerHandle,
         Format::ProjectPath => Shape::ProjectPath,
+        Format::Capability => Shape::HyphenatedWords,
         Format::BriefId => Shape::Sequence(&["BRIEF"]),
         Format::CouncilId => Shape::Sequence(&["COUNCIL"]),
         Format::BriefOrCouncilId => Shape::Sequence(&["BRIEF", "COUNCIL"]),
@@ -80,6 +83,7 @@ impl Shape {
             Shape::LanguageTag => is_language_tag(text),
             Shape::TrackerHandle => is_tracker_handle(text),
             Shape::ProjectPath => is_project_path(text),
+            Shape::HyphenatedWords => is_hyphenated_words(text),
             Shape::Sequence(prefixes) => prefixes.iter().any(|prefix| {
                 text.strip_prefix(prefix)
                     .and_then(|rest| rest.strip_prefix('-'))
@@ -104,6 +108,7 @@ impl Shape {
             Shape::LanguageTag => Some(text.replace('_', "-")),
             Shape::TrackerHandle => (!text.starts_with('@')).then(|| format!("@{text}")),
             Shape::ProjectPath => project_path_fix(text),
+            Shape::HyphenatedWords => hyphenated_words_fix(text),
             Shape::Sequence(prefixes) => prefixes.iter().find_map(|prefix| {
                 after_prefix(text, &[prefix])
                     .and_then(number)
@@ -146,6 +151,31 @@ fn project_path_fix(text: &str) -> Option<String> {
         .filter(|segment| !matches!(*segment, "" | "."))
         .collect();
     Some(segments.join("/"))
+}
+
+/// Whether `text` is one or more words of `[a-z0-9]+` joined by single hyphens.
+fn is_hyphenated_words(text: &str) -> bool {
+    text.split('-').all(|word| {
+        !word.is_empty()
+            && word
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+    })
+}
+
+/// The words of an ASCII `text` in lower case, every run of other characters written as one
+/// hyphen, none at either end. None for a text with a character outside ASCII, which a fix
+/// would drop and so change its meaning.
+fn hyphenated_words_fix(text: &str) -> Option<String> {
+    if !text.is_ascii() {
+        return None;
+    }
+    let lower = text.to_ascii_lowercase();
+    let words: Vec<&str> = lower
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .collect();
+    Some(words.join("-"))
 }
 
 /// What follows the first of `prefixes` that starts `text`, ignoring ASCII case, and one

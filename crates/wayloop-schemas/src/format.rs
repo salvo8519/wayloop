@@ -22,6 +22,9 @@ crate::closed_enum! {
         /// none empty, `.` or `..`; no `\` and no drive letter, so that it never leaves the
         /// project.
         ProjectPath = "project-path",
+        /// Lower-case words of ASCII letters and digits joined by single hyphens: the
+        /// capability of a living specification, the slug of its folder.
+        Capability = "capability",
         /// `BRIEF-` and a sequence.
         BriefId = "brief-id",
         /// `COUNCIL-` and a sequence.
@@ -71,22 +74,23 @@ mod tests {
             Format::LanguageTag => 2,
             Format::TrackerHandle => 3,
             Format::ProjectPath => 4,
-            Format::BriefId => 5,
-            Format::CouncilId => 6,
-            Format::BriefOrCouncilId => 7,
-            Format::GateId => 8,
-            Format::EpicId => 9,
-            Format::StoryId => 10,
-            Format::SpecId => 11,
-            Format::ChangeId => 12,
-            Format::TaskId => 13,
-            Format::MilestoneId => 14,
-            Format::HandoverId => 15,
-            Format::RequirementId => 16,
-            Format::CriterionId => 17,
-            Format::DecisionId => 18,
-            Format::QuestionId => 19,
-            Format::JsonPointer => 20,
+            Format::Capability => 5,
+            Format::BriefId => 6,
+            Format::CouncilId => 7,
+            Format::BriefOrCouncilId => 8,
+            Format::GateId => 9,
+            Format::EpicId => 10,
+            Format::StoryId => 11,
+            Format::SpecId => 12,
+            Format::ChangeId => 13,
+            Format::TaskId => 14,
+            Format::MilestoneId => 15,
+            Format::HandoverId => 16,
+            Format::RequirementId => 17,
+            Format::CriterionId => 18,
+            Format::DecisionId => 19,
+            Format::QuestionId => 20,
+            Format::JsonPointer => 21,
         }
     }
 
@@ -111,6 +115,7 @@ mod tests {
                 "language-tag",
                 "tracker-handle",
                 "project-path",
+                "capability",
                 "brief-id",
                 "council-id",
                 "brief-or-council-id",

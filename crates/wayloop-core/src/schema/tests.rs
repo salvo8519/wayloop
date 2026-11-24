@@ -78,6 +78,12 @@ fn oracle_format(name: &str, text: &str) -> bool {
                     .split('/')
                     .all(|s| segment.is_match(s) && s != "." && s != "..")
         }
+        "capability" => {
+            static CAPABILITY: OnceLock<Regex> = OnceLock::new();
+            CAPABILITY
+                .get_or_init(|| full("[a-z0-9]+(-[a-z0-9]+)*"))
+                .is_match(text)
+        }
         "tracker-handle" => {
             HANDLE
                 .get_or_init(|| full("@[A-Za-z0-9](-?[A-Za-z0-9])*"))
@@ -88,12 +94,13 @@ fn oracle_format(name: &str, text: &str) -> bool {
     }
 }
 
-const FORMATS: [&str; 21] = [
+const FORMATS: [&str; 22] = [
     "date",
     "utc-date-time",
     "language-tag",
     "tracker-handle",
     "project-path",
+    "capability",
     "brief-id",
     "council-id",
     "brief-or-council-id",
@@ -803,7 +810,7 @@ fn every_named_format_is_known_to_the_interpreter_and_to_the_oracle() {
 }
 
 /// Accepted and refused examples of each named format.
-const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 21] = [
+const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 22] = [
     (
         "project-path",
         &[
@@ -892,6 +899,27 @@ const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 21] = [
             "en-1a",
             "en-abc",
             "en-ab.de",
+        ],
+    ),
+    (
+        "capability",
+        &[
+            "a",
+            "time-entries",
+            "csv-log",
+            "rfc8785-canonical-json",
+            "0",
+        ],
+        &[
+            "",
+            "-",
+            "Time-entries",
+            "time entries",
+            "time_entries",
+            "time--entries",
+            "-time",
+            "time-",
+            "citt\u{e0}",
         ],
     ),
     (
@@ -1027,6 +1055,11 @@ fn fixes_of_formats() {
         ("project-path", "\\etc", None),
         ("project-path", "../a.yaml", None),
         ("project-path", "C:/a.yaml", None),
+        ("capability", "Time Entries", Some("time-entries")),
+        ("capability", "time_entries", Some("time-entries")),
+        ("capability", " time -- entries ", Some("time-entries")),
+        ("capability", "--", None),
+        ("capability", "citt\u{e0}", None),
         ("tracker-handle", "example", Some("@example")),
         ("tracker-handle", "@@example", None),
         ("language-tag", "en_GB", Some("en-GB")),

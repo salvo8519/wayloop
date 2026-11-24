@@ -55,10 +55,13 @@ of each version and their SHA-256, is in `schemas/index.json` at the same addres
 | Contract | History, with the current version and the file of each version |
 | --- | --- |
 | Brief ([wayloop validate](validate.md)) | `schemas/artifacts/brief/index.json` |
+| Council report ([wayloop validate](validate.md)) | `schemas/artifacts/council_report/index.json` |
 | Gate issue ([wayloop validate](validate.md)) | `schemas/artifacts/gate/index.json` |
 | Milestone ([wayloop validate](validate.md)) | `schemas/artifacts/milestone/index.json` |
 | Epic ([wayloop validate](validate.md)) | `schemas/artifacts/epic/index.json` |
 | User story ([wayloop validate](validate.md)) | `schemas/artifacts/story/index.json` |
+| Living specification, in normalised form ([wayloop validate](validate.md)) | `schemas/artifacts/specification/index.json` |
+| Change delta ([wayloop validate](validate.md)) | `schemas/artifacts/change/index.json` |
 | Task ([wayloop validate](validate.md)) | `schemas/artifacts/task/index.json` |
 | Hand-over record and hand-over input ([wayloop validate](validate.md)) | `schemas/artifacts/handover/index.json` |
 | Input and result of `wayloop validate` ([wayloop validate](validate.md)) | `schemas/commands/validate/index.json` |

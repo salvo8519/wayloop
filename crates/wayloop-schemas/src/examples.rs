@@ -1,12 +1,120 @@
-//! The valid plan items and the valid hand-over record and input of the examples of SPEC-0001,
-//! for the tests of the crates that read them. A deliberate copy of the documents of the
-//! contract cases `plan-valid` and `handover-valid`: a crate does not embed a file outside its
+//! Valid documents of the examples of SPEC-0001, for the tests of the crates that read them: the
+//! council report, the living specification and the change delta, the gate issue and the plan
+//! items, the hand-over record and its input. A deliberate copy of the documents of the
+//! contract cases `design-valid` and `handover-valid`: a crate does not embed a file outside its
 //! folder, so two tests of `wayloop-runtime` keep them equal:
-//! `the_examples_of_the_schemas_crate_are_those_of_the_valid_case` for the plan items, and
-//! `the_examples_of_the_hand_over_load_into_the_documents_of_their_cases` for the hand-over
-//! record and input.
+//! `the_examples_of_the_schemas_crate_are_those_of_the_valid_case` for the design artifacts and
+//! the plan items, and `the_examples_of_the_hand_over_load_into_the_documents_of_their_cases`
+//! for the hand-over record and input.
 
 use serde_json::{Value, json};
+
+/// The valid council report of the examples.
+#[must_use]
+pub fn council_report() -> Value {
+    json!({
+        "kind": "council_report", "schema_version": 1, "id": "COUNCIL-0001",
+        "title": "Council report on terminal time tracking", "status": "approved",
+        "brief": "BRIEF-0001", "mode": "one_mind",
+        "roles": ["product_and_business", "software_architecture", "critic"],
+        "decisions": [{
+            "id": "D1", "statement": "Store entries in a local file, one line per entry.",
+            "reason": "Works offline and stays readable without the tool."
+        }],
+        "rejected_alternatives": [
+            {"option": "A hosted service", "reason": "Breaks the offline constraint."}
+        ],
+        "dissent": [{
+            "role": "product_and_business",
+            "position": "Synchronisation between devices matters from the first release.",
+            "decision": "D1"
+        }],
+        "risks": [{
+            "description": "Concurrent writes from two terminals.",
+            "mitigation": "Append-only writes with a lock."
+        }],
+        "questions": [{
+            "id": "Q1", "question": "Is synchronisation in the first milestone?",
+            "options": ["Yes", "No"], "recommendation": "No", "answer": "No"
+        }]
+    })
+}
+
+/// The valid living specification of the examples, in normalised form.
+#[must_use]
+pub fn specification() -> Value {
+    json!({
+        "kind": "specification", "schema_version": 1, "id": "SPEC-0001",
+        "title": "Time entries", "status": "implementing", "capability": "time-entries",
+        "owner": "@example-owner", "milestone": "M1", "commit_scope": "core",
+        "related": ["COUNCIL-0001"],
+        "problem": "Freelancers need to record time without leaving the terminal.",
+        "scope_in": ["Recording and listing time entries"],
+        "scope_out": ["Export (a later specification)"],
+        "stories": ["STORY-0001"],
+        "user_stories": [
+            "As a freelance developer, I want to see the total of a day, so that I check my timesheet."
+        ],
+        "requirements": [
+            {
+                "id": "R1", "name": "Record",
+                "text": "WHEN the user runs the record command, THE TOOL SHALL append one entry to the log."
+            },
+            {"id": "R2", "text": "THE TOOL SHALL store durations in minutes."},
+            {"id": "R3", "text": "IF the duration is not positive, THEN THE TOOL SHALL refuse the entry."},
+            {
+                "id": "R4", "text": "THE TOOL SHALL ask for a project when none is given.",
+                "status": "removed"
+            }
+        ],
+        "acceptance_criteria": [
+            {
+                "id": "AC1", "requirements": ["R1", "R2"],
+                "text": "Given an empty log, when an entry of 90 minutes is recorded, then the log holds one entry of 90 minutes.",
+                "verification": ["tdd"]
+            },
+            {
+                "id": "AC2", "requirements": ["R3"],
+                "text": "Given any duration of zero or less, when recorded, then it is refused.",
+                "verification": ["property"]
+            },
+            {
+                "id": "AC3", "requirements": ["R1"],
+                "text": "Given the help of the record command, when read by a new user, then it explains duration and project.",
+                "verification": ["judge"],
+                "rubric": "Score 1 to 5; 4 or more when duration format, project and one example are all stated."
+            }
+        ],
+        "interfaces": ["timesheet record <duration> <project>"],
+        "open_questions": [
+            {"id": "Q1", "text": "Is a project required for every entry?", "resolved": true}
+        ],
+        "extra_sections": [
+            {"heading": "Notes", "text": "The log format follows COUNCIL-0001 D1."}
+        ]
+    })
+}
+
+/// The valid change delta of the examples.
+#[must_use]
+pub fn change() -> Value {
+    json!({
+        "kind": "change", "schema_version": 1, "id": "CHANGE-0001",
+        "title": "Durations in seconds", "status": "draft", "specification": "SPEC-0001",
+        "proposal": "Short tasks need a finer unit than minutes.",
+        "design": "Convert existing entries once, when the log is first read.",
+        "operations": [
+            {
+                "op": "modified", "requirement": "R2",
+                "text": "THE TOOL SHALL store durations in seconds."
+            },
+            {
+                "op": "added",
+                "text": "WHEN a log in minutes is read, THE TOOL SHALL convert it to seconds."
+            }
+        ]
+    })
+}
 
 /// The valid gate issue of the examples.
 #[must_use]
