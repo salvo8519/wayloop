@@ -1,6 +1,7 @@
 # Invalid commit input. Breaks SPEC-0001 R11 (AC21): the scope is not in the policy.
 # Expected: pointer /header, code commit_header, reason enum, expected the scopes of
 # policy.yaml.
+schema_version: 1
 header: "feat(kernel): store durations in seconds"
 body: |
   Signed-off-by: Example Owner <owner@example.org>

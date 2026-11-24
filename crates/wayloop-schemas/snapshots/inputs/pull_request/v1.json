@@ -1,0 +1,43 @@
+{
+  "$id": "https://salvo8519.github.io/wayloop/schemas/inputs/pull_request/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A pull request (SPEC-0001 R10), as the adapter of the tracker reads it.",
+  "properties": {
+    "body": {
+      "description": "Pull request body, where the issue is linked; may be empty.",
+      "type": "string"
+    },
+    "branch": {
+      "description": "Head branch.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "labels": {
+      "description": "Labels, in the spelling of the tracker; `[]` means none.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of the schema of the input the document was written against (SPEC-0001 R16).",
+      "type": "integer"
+    },
+    "title": {
+      "description": "Pull request title, a commit header under SPEC-0001 R11.",
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "title",
+    "body",
+    "branch",
+    "labels"
+  ],
+  "title": "PullRequest",
+  "type": "object"
+}

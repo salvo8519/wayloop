@@ -156,12 +156,17 @@ fn check_entry(
             document,
             input_kind: Some(input_kind),
         } => {
-            if let Some(loaded) = kinds.iter().find(|k| k.input == Some(*input_kind)) {
-                if let Some(read) = checked(loaded, document, validation, located) {
-                    return summary(Some(&read), Some(*input_kind), origin);
+            // Every input kind has its schema built (`kinds::built`); one without is a defect
+            // of the engine, never a check left out.
+            match kinds.iter().find(|k| k.input == Some(*input_kind)) {
+                Some(loaded) => {
+                    if let Some(read) = checked(loaded, document, validation, located) {
+                        return summary(Some(&read), Some(*input_kind), origin);
+                    }
                 }
-            } else {
-                not_built(not_done, kinds::schema_check(input_kind.id()));
+                None => validation.failures.push(Error::internal(format!(
+                    "The input kind {input_kind} has no schema loaded."
+                ))),
             }
             summary(Some(document), Some(*input_kind), origin)
         }

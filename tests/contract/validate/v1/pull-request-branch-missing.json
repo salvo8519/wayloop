@@ -1,0 +1,42 @@
+{
+  "description": "A pull request without branch is refused with missing at /branch.",
+  "covers": [
+    "SPEC-0001 R1"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "title": "feat(core): append one entry per record command [SPEC-0001 R1]",
+          "body": "Records one entry per command.\n\nCloses #12\n",
+          "labels": []
+        },
+        "input_kind": "pull_request"
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "artifact_schema",
+      "/error/document": 0,
+      "/error/errors/0/code": "artifact_schema",
+      "/error/errors/0/pointer": "/branch",
+      "/error/errors/0/reason": "missing",
+      "/error/pointer": "/branch",
+      "/error/reason": "missing",
+      "/meta/input_hash": "a317f374108af6c8cf351461b662584a7eb09552ccfbfc3430abf79c8923a862"
+    },
+    "absent": [
+      "/data",
+      "/error/source"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

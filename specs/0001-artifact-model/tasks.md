@@ -95,10 +95,10 @@ Prerequisites outside this specification:
   - Depends on: T5, #228.
   - Size: S. Maintainer (crates, contract change).
 
-- [ ] **T10 [P] Validate the shape of pull request and commit inputs**
+- [x] **T10 [P] Validate the shape of pull request and commit inputs**
   - Covers: R1 (inputs); AC1 (structural part of these pairs). Issue: #261.
   - Files: `schemas/inputs/pull_request/v1.json`, `schemas/inputs/commit/v1.json`, `crates/wayloop-core/src/artifacts/` (input kinds), `tests/contract/validate/v1/`.
-  - Tests first: `input_kind` selects the schema; a missing `branch` or `header` gives `missing`; an input without `input_kind` and without `kind` gives `missing` at `/kind`.
+  - Tests first: `input_kind` selects the schema; a missing `branch` or `header` gives `missing`; an empty `header` gives `length`; an unknown `schema_version` gives `schema_version_unknown` (decided by the maintainer on 2026-11-24); an input without `input_kind` and without `kind` gives `missing` at `/kind`.
   - Verification: contract test.
   - Depends on: T5.
   - Size: S. Maintainer (crates, contract change).

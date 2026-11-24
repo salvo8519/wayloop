@@ -1,0 +1,40 @@
+{
+  "description": "A commit without header is refused with missing at /header.",
+  "covers": [
+    "SPEC-0001 R1"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "body": "Durations were minutes; short tasks need seconds.\n\nBREAKING CHANGE: logs written in minutes are converted on first read.\n\nRefs: #12\nSigned-off-by: Example Owner <owner@example.org>\n"
+        },
+        "input_kind": "commit"
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "artifact_schema",
+      "/error/document": 0,
+      "/error/errors/0/code": "artifact_schema",
+      "/error/errors/0/pointer": "/header",
+      "/error/errors/0/reason": "missing",
+      "/error/pointer": "/header",
+      "/error/reason": "missing",
+      "/meta/input_hash": "e80e313259c48f6ae5cf9baeb4276f48f47a2e77e87110fe9ea1e210dab06f56"
+    },
+    "absent": [
+      "/data",
+      "/error/source"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

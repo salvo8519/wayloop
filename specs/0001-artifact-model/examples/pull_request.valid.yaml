@@ -1,5 +1,6 @@
 # Valid pull_request input (SPEC-0001 R10, R11). Part of the example project validated
 # as one set: issue 12 is the issue of TASK-0001.
+schema_version: 1
 title: "feat(core): append one entry per record command [SPEC-0001 R1]"
 body: |
   Records one entry per command.

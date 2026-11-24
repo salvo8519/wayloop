@@ -512,24 +512,38 @@ with a migration of older records (R16).
 
 ## Inputs
 
-These inputs are not artifacts: they have no identifier and no status. Adapters assemble them
-from the tracker or from git (SPEC-0021 R3); the core validates them.
+These inputs are not artifacts: they have no `kind`, no identifier and no status; the
+`input_kind` of their entry selects their schema. Adapters assemble them from the tracker or
+from git (SPEC-0021 R3); the core validates them.
+
+Every input carries `schema_version`, like the artifacts: the version of the schema of the input
+it was written against, required, an integer from 1 (decided by the maintainer on 2026-11-24).
+An input is checked against the schema of its own version and migrated to the current one, as
+an artifact is, so R16 holds for inputs too. The hand-over input carries it already (Hand-over
+record).
+
+The texts `title`, `branch` and `header`, and `body` of a commit when present, have at least
+one character; the `body` of a pull request may be empty and `labels` may be an empty list. An
+optional text is left out when it has no value, never written empty (decided by the maintainer
+on 2026-11-24). An empty text where one is required is refused with the reason `length`.
 
 `pull_request` (R10):
 
 | Name | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `title` | string | yes | Pull request title, a commit header under R11 |
+| `schema_version` | integer, at least 1 | yes | Version of the schema of the input (R16) |
+| `title` | string, at least 1 character | yes | Pull request title, a commit header under R11 |
 | `body` | string | yes, may be empty | Pull request body, where the issue is linked |
-| `branch` | string | yes | Head branch |
+| `branch` | string, at least 1 character | yes | Head branch |
 | `labels` | list of strings | yes, may be empty | Labels, in the spelling of the tracker |
 
 `commit` (R11):
 
 | Name | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `header` | string | yes | First line of the message |
-| `body` | string | no | Lines after the blank line, trailers included |
+| `schema_version` | integer, at least 1 | yes | Version of the schema of the input (R16) |
+| `header` | string, at least 1 character | yes | First line of the message |
+| `body` | string, at least 1 character | no | Lines after the blank line, trailers included; absent when the message has one line |
 
 Issue links in the body (R10). A closing keyword (`Closes`, `Fixes`, `Resolves` and their
 forms, without regard to case) followed by `#<n>` links an issue the pull request completes;

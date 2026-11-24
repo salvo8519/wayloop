@@ -6,9 +6,9 @@ schemas, in one pass, and reports every error with the pointer of the faulty val
 place where it is stored. It changes nothing.
 
 Today briefs, council reports, gate issues, milestones, epics, user stories, living
-specifications in normalised form, change deltas, tasks, hand-over records and hand-over inputs
-are validated against their schemas. A living specification sent as Markdown, a pull request
-and a commit are accepted unchecked, and the checks not run are listed in
+specifications in normalised form, change deltas, tasks, hand-over records and the inputs (pull
+requests, commits and hand-over inputs) are validated against their schemas. A living
+specification sent as Markdown is accepted unchecked, and the checks not run are listed in
 `diagnostics.not_done`; so are the checks across documents
 (identifiers, links, parts, statuses, naming, areas).
 
@@ -17,7 +17,9 @@ of schema snapshots `schemas/commands/validate/v1.json` (input) and
 `schemas/commands/validate/v1.output.json` (output), generated from the types of
 `wayloop-schemas` (ADR 0030); the schema of each artifact type is
 `schemas/artifacts/<kind>/v1.json`, for example `schemas/artifacts/task/v1.json`, and the schema
-of the hand-over input is `schemas/artifacts/handover/v1.input.json`. This page explains them.
+of each input is `schemas/inputs/<input_kind>/v1.json`, for example
+`schemas/inputs/commit/v1.json`, except the hand-over input, whose schema is
+`schemas/artifacts/handover/v1.input.json`. This page explains them.
 
 ## Usage
 
@@ -72,17 +74,17 @@ path, goes to standard error.
 | `document_kind` | Each document has a `kind` among `brief`, `council_report`, `gate`, `milestone`, `epic`, `story`, `specification`, `change`, `task` and `handover`, or is an input with `input_kind` |
 | `schema_version` | The `schema_version` of each document is a version its type knows; a document of an earlier version is migrated to the current one after it passes the schema of its own version |
 | `schema_<kind>`: `schema_brief`, `schema_change`, `schema_council_report`, `schema_epic`, `schema_gate`, `schema_handover`, `schema_milestone`, `schema_specification`, `schema_story`, `schema_task` | Each document of the type passes the schema of its version (`schemas/artifacts/<kind>/v1.json`): required members, unknown members, types, accepted values, lengths, formats, and the members a status, a verification or an operation requires (see below) |
+| `schema_<input_kind>`: `schema_commit`, `schema_pull_request` | Each input of the type passes the schema of its version (`schemas/inputs/<input_kind>/v1.json`): required members, unknown members, types and lengths (see Pull request and commit inputs below) |
 | `schema_handover_input` | Each hand-over input passes the input schema of its version (`schemas/artifacts/handover/v1.input.json`), as a hand-over record does (see below) |
 | `identifier_format` | The `id` is in the canonical form of its type, for example `BRIEF-0001` |
 | `artifact_locations` | Some folder of a location exists in the project the documents were discovered in; with `locations` only, after the checks above |
 
-Each schema is one check, `schema_<kind>`: in `diagnostics.checks` when it ran, in
-`diagnostics.not_done` with the reason `not_built` when it is not in this version. A check the
-engine did not run is never skipped silently:
+Each schema is one check, `schema_<kind>` or `schema_<input_kind>`, listed in
+`diagnostics.checks` when it ran; every artifact type and input has its schema in this version.
+A check the engine did not run is never skipped silently:
 
 | Check | Not run on |
 | --- | --- |
-| `schema_<input_kind>`: `schema_pull_request`, `schema_commit` | An input whose schema is not in this version |
 | `markdown` | A living specification sent as Markdown |
 | `identifier_duplicate` | The set: two artifacts with one identifier |
 | `links` | The set: links between artifacts, hierarchy, ADR citations |
@@ -152,6 +154,31 @@ hand-over has no title and no status; the summary of an input in `data.documents
 
 When the input itself is refused, or the command line is not understood, or the input cannot
 be read, no check runs: `diagnostics.checks` and `diagnostics.not_done` are then empty.
+
+### Pull request and commit inputs
+
+An input is not an artifact: it has no `kind`, no identifier and no status, and the
+`input_kind` of its entry selects its schema. Like an artifact, it carries the `schema_version`
+of its schema: it is checked against the schema of that version and migrated to the current
+one, and an unknown version is refused with `schema_version_unknown`. A member of an artifact
+such as `kind` is refused as `unknown_field`. A document with neither `kind` nor `input_kind`
+is refused with the reason `missing` at `/kind`; the name of an input in `kind`, for example
+`kind: commit`, is refused with the reason `enum`, since `kind` names artifact types only. The
+command line reads stored artifacts only; inputs are sent with `--input`.
+
+| Input | Member | Type | Required |
+| --- | --- | --- | --- |
+| `pull_request`, `commit` | `schema_version` | integer, the version of the schema, today `1` | yes |
+| `pull_request` | `title` | string of at least one character, the pull request title | yes |
+| `pull_request` | `body` | string, where the issue is linked; may be empty | yes |
+| `pull_request` | `branch` | string of at least one character, the head branch | yes |
+| `pull_request` | `labels` | list of strings, in the spelling of the tracker; `[]` means none | yes |
+| `commit` | `header` | string of at least one character, the first line of the message | yes |
+| `commit` | `body` | string of at least one character, the lines after the blank line, trailers included; absent when the message has one line | no |
+
+An empty text where one is required is refused with the reason `length`. The schema checks the
+shape only. The grammar of a branch name and of a commit header, and the issue links of a pull
+request, are the check `naming`, which this version does not run.
 
 ## Input
 
@@ -236,8 +263,9 @@ Every error found is listed in `error.errors`; the first one is repeated at the 
 2. Otherwise, the errors of the documents, in the order of the documents; within a document,
    by stage (kind, version and schema first, then identifier); within a stage, in the order of
    the schema pass: the members of an object in the byte order of their keys (`/aa` before
-   `/zz`), the elements of an array by index, absent members after present ones. The errors of
-   the name of a member come before the errors of its value, at the same pointer.
+   `/zz`), the elements of an array by index, absent members after present ones, in the order
+   in which the schema lists them as required. The errors of the name of a member come before
+   the errors of its value, at the same pointer.
 
 Every `pointer` of the result is an RFC 6901 pointer; the schemas of the output and of the
 envelope give it the format `json-pointer`, which a JSON Schema validator checks when format
@@ -257,7 +285,7 @@ it is stored:
 | Code | Reasons | Exit code | Meaning |
 | --- | --- | --- | --- |
 | `command_input` | `syntax`, `duplicate`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `conflict` | 1 | The canonical input is refused: it is not JSON, repeats a key, holds a number beyond a double, or breaks its schema or a rule of the section Input; or `--command-version` requests a version the engine does not run (`enum`, the known versions in `expected`) |
-| `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | A document breaks the schema of its type; also a document without a `kind`, or with a `kind` outside the list (`enum`, with the types in `expected`), a `schema_version` that is missing, not an integer (reported with every other error against the current version) or beyond plus or minus (2^53 - 1) (`range`), and a file that did not parse (`syntax`, at the pointer of the whole document, with its line in `source`) |
+| `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | A document breaks the schema of its type or of its input (a pull request, a commit); also a document without a `kind`, or with a `kind` outside the list (`enum`, with the types in `expected`), a `schema_version` that is missing, not an integer (reported with every other error against the current version) or beyond plus or minus (2^53 - 1) (`range`), and a file that did not parse (`syntax`, at the pointer of the whole document, with its line in `source`) |
 | `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | A hand-over input breaks its schema, for example by setting a member that only the engine sets (`unknown_field`) |
 | `schema_version_unknown` | `enum` | 1 | The `schema_version` is not a version of the type or of the input; `expected` lists the known versions |
 | `identifier_format` | `syntax` | 1 | The `id` is not in the canonical form of its type; `fix` gives the corrected identifier when one can be derived |

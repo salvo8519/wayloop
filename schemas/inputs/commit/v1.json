@@ -1,0 +1,29 @@
+{
+  "$id": "https://salvo8519.github.io/wayloop/schemas/inputs/commit/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A commit message (SPEC-0001 R11), as the adapter of git reads it.",
+  "properties": {
+    "body": {
+      "description": "Lines after the blank line, trailers included; absent when the message has one line.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "header": {
+      "description": "First line of the message.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of the schema of the input the document was written against (SPEC-0001 R16).",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "header"
+  ],
+  "title": "Commit",
+  "type": "object"
+}

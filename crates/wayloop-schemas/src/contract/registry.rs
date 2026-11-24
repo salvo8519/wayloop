@@ -12,7 +12,8 @@ use crate::artifact::{
     ArtifactKind, Brief, Change, CouncilReport, Epic, Gate, Handover, HandoverInput, Milestone,
     Specification, Story, Task,
 };
-use crate::validate::ValidateInput;
+use crate::input::{Commit, PullRequest};
+use crate::validate::{InputKind, ValidateInput};
 
 crate::closed_enum! {
     /// The area of a contract, the first folder of its path under `schemas/`.
@@ -100,16 +101,18 @@ impl Contract {
     }
 }
 
-/// The contract of an artifact type: read by the engine, so its schema is an input (closed).
-/// Its name is the `kind` of the artifact and its version the `schema_version` a current
-/// document of the type carries. `$t` names both the value of `ArtifactKind` and the contract
-/// type, which share their name. Each further file, `$part => $other`, holds a document the
-/// engine also reads, such as the hand-over input, so it is closed too.
-macro_rules! artifact {
-    ($t:ident, $version:expr $(, $part:ident => $other:ty)*) => {
+/// The contract of a document the engine reads, an artifact type or an input: its schema is an
+/// input (closed). `$kinds::$t` is the value that selects the schema, the `kind` of an artifact
+/// (`ArtifactKind`) or the `input_kind` of the entry of an input (`InputKind`); its spelling is
+/// the name of the contract, and the current version is the `schema_version` a current document
+/// of the type carries. `$t` names both that value and the contract type, which share their
+/// name. Each further file, `$part => $other`, holds a document the engine also reads, such as
+/// the hand-over input, so it is closed too.
+macro_rules! document {
+    ($area:ident, $kinds:ident :: $t:ident, $version:expr $(, $part:ident => $other:ty)*) => {
         Contract {
-            area: Area::Artifacts,
-            name: ArtifactKind::$t.id(),
+            area: Area::$area,
+            name: $kinds::$t.id(),
             version: $version,
             files: &[
                 ContractFile {
@@ -128,35 +131,42 @@ macro_rules! artifact {
 }
 
 /// The brief (SPEC-0001, Brief).
-pub const BRIEF: Contract = artifact!(Brief, NonZeroU32::MIN);
+pub const BRIEF: Contract = document!(Artifacts, ArtifactKind::Brief, NonZeroU32::MIN);
 
 /// The council report (SPEC-0001, Council report).
-pub const COUNCIL_REPORT: Contract = artifact!(CouncilReport, NonZeroU32::MIN);
+pub const COUNCIL_REPORT: Contract = document!(Artifacts, ArtifactKind::CouncilReport, NonZeroU32::MIN);
 
 /// The living specification (SPEC-0001, Living specification), in normalised form.
-pub const SPECIFICATION: Contract = artifact!(Specification, NonZeroU32::MIN);
+pub const SPECIFICATION: Contract = document!(Artifacts, ArtifactKind::Specification, NonZeroU32::MIN);
 
 /// The change delta (SPEC-0001, Change delta).
-pub const CHANGE: Contract = artifact!(Change, NonZeroU32::MIN);
+pub const CHANGE: Contract = document!(Artifacts, ArtifactKind::Change, NonZeroU32::MIN);
 
 /// The gate issue (SPEC-0001, Gate issue).
-pub const GATE: Contract = artifact!(Gate, NonZeroU32::MIN);
+pub const GATE: Contract = document!(Artifacts, ArtifactKind::Gate, NonZeroU32::MIN);
 
 /// The milestone (SPEC-0001, Milestone).
-pub const MILESTONE: Contract = artifact!(Milestone, NonZeroU32::MIN);
+pub const MILESTONE: Contract = document!(Artifacts, ArtifactKind::Milestone, NonZeroU32::MIN);
 
 /// The epic (SPEC-0001, Epic).
-pub const EPIC: Contract = artifact!(Epic, NonZeroU32::MIN);
+pub const EPIC: Contract = document!(Artifacts, ArtifactKind::Epic, NonZeroU32::MIN);
 
 /// The user story (SPEC-0001, User story).
-pub const STORY: Contract = artifact!(Story, NonZeroU32::MIN);
+pub const STORY: Contract = document!(Artifacts, ArtifactKind::Story, NonZeroU32::MIN);
 
 /// The task (SPEC-0001, Task).
-pub const TASK: Contract = artifact!(Task, NonZeroU32::MIN);
+pub const TASK: Contract = document!(Artifacts, ArtifactKind::Task, NonZeroU32::MIN);
+
+/// The pull request input (SPEC-0001, Inputs).
+pub const PULL_REQUEST: Contract = document!(Inputs, InputKind::PullRequest, NonZeroU32::MIN);
+
+/// The commit input (SPEC-0001, Inputs).
+pub const COMMIT: Contract = document!(Inputs, InputKind::Commit, NonZeroU32::MIN);
 
 /// The hand-over (SPEC-0001, Hand-over record): the record, `v<N>.json`, and the input an
 /// agent submits, `v<N>.input.json`, of one version (R22).
-pub const HANDOVER: Contract = artifact!(Handover, NonZeroU32::MIN, Input => HandoverInput);
+pub const HANDOVER: Contract =
+    document!(Artifacts, ArtifactKind::Handover, NonZeroU32::MIN, Input => HandoverInput);
 
 /// The command `validate` (SPEC-0001): its canonical input and its envelope with its data.
 pub const VALIDATE: Contract = Contract {
@@ -206,6 +216,8 @@ pub const CONTRACTS: &[Contract] = &[
     TASK,
     VALIDATE,
     RESULT,
+    COMMIT,
+    PULL_REQUEST,
 ];
 
 /// A snapshot embedded in this crate: its path under `schemas/` and its text, byte for byte.

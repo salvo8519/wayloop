@@ -508,11 +508,10 @@ fn case_entries(case: &str) -> Vec<Value> {
     case_input(case)["documents"].as_array().unwrap().clone()
 }
 
-/// The entry of a contract case that sends the hand-over input `document` directly.
-fn handover_input_entry(document: &Value) -> Value {
-    json!({
-        "format": "document", "input_kind": "handover_input", "document": document
-    })
+/// The entry of a contract case that sends the input `document` of the kind `input_kind`
+/// directly.
+fn input_entry(document: &Value, input_kind: &str) -> Value {
+    json!({"format": "document", "input_kind": input_kind, "document": document})
 }
 
 /// The documents of the entries of the contract case `case`, in their order.
@@ -543,7 +542,7 @@ fn the_examples_of_the_hand_over_load_into_the_documents_of_their_cases() {
     }
     let record = json!({"format": "document", "document": read[0]});
     let mut set = case_entries("plan-valid");
-    set.extend([record, handover_input_entry(&read[1])]);
+    set.extend([record, input_entry(&read[1], "handover_input")]);
     assert_eq!(case_entries("handover-valid"), set);
     let mut kebab = read[1].clone();
     kebab["step"] = json!("counter-review");
@@ -552,10 +551,13 @@ fn the_examples_of_the_hand_over_load_into_the_documents_of_their_cases() {
             "handover-invalid",
             json!({"format": "document", "document": read[2]}),
         ),
-        ("handover-input-invalid", handover_input_entry(&read[3])),
+        (
+            "handover-input-invalid",
+            input_entry(&read[3], "handover_input"),
+        ),
         (
             "handover-input-step-kebab-case",
-            handover_input_entry(&kebab),
+            input_entry(&kebab, "handover_input"),
         ),
     ];
     for (case, entry) in checked {
@@ -566,6 +568,81 @@ fn the_examples_of_the_hand_over_load_into_the_documents_of_their_cases() {
     // The deliberate copies of `wayloop_schemas::examples` are these examples too.
     assert_eq!(wayloop_schemas::examples::handover(), read[0]);
     assert_eq!(wayloop_schemas::examples::handover_input(), read[1]);
+}
+
+#[test]
+fn the_examples_of_the_pull_request_and_the_commit_load_into_the_documents_of_their_cases() {
+    // T10: the cases of the pull request and the commit send the examples, each read as
+    // `wayloop validate` reads it, so that the examples and the cases cannot drift.
+    let read = examples_read(&[
+        "pull_request.valid.yaml",
+        "commit.valid.yaml",
+        "pull_request.invalid.yaml",
+        "commit.invalid.yaml",
+    ]);
+    let (pull_request, commit) = (&read[0], &read[1]);
+    let changed = |document: &Value, member: &str, value: Option<Value>| {
+        let mut document = document.clone();
+        let members = document.as_object_mut().unwrap();
+        match value {
+            Some(value) => members.insert(member.to_owned(), value),
+            None => members.remove(member),
+        };
+        document
+    };
+    let mut set = case_entries("plan-valid");
+    set.extend([
+        input_entry(pull_request, "pull_request"),
+        input_entry(commit, "commit"),
+    ]);
+    assert_eq!(case_entries("inputs-valid"), set);
+    let alone = [
+        (
+            "input-kind-missing",
+            json!({"format": "document", "document": pull_request}),
+        ),
+        (
+            "input-kind-selects-the-schema",
+            input_entry(pull_request, "commit"),
+        ),
+        (
+            "pull-request-branch-missing",
+            input_entry(&changed(pull_request, "branch", None), "pull_request"),
+        ),
+        (
+            "commit-header-missing",
+            input_entry(&changed(commit, "header", None), "commit"),
+        ),
+        (
+            "commit-header-empty",
+            input_entry(&changed(commit, "header", Some(json!(""))), "commit"),
+        ),
+    ];
+    for (case, entry) in alone {
+        assert_eq!(case_entries(case), [entry], "{case}");
+    }
+    // AC1, structural part: the invalid examples, after the valid set, break rules of the set
+    // (R10, R11), not the shape of their schema, so no error has the code `artifact_schema`.
+    let mut invalid = case_entries("plan-valid");
+    invalid.extend([
+        input_entry(&read[2], "pull_request"),
+        input_entry(&read[3], "commit"),
+    ]);
+    let envelope = run(
+        Command::Validate,
+        &json!({"documents": invalid}),
+        &Context::default(),
+    );
+    let envelope = serde_json::to_value(envelope).unwrap();
+    let errors = envelope["error"]["errors"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let schema_errors: Vec<&Value> = errors
+        .iter()
+        .filter(|e| e["code"] == "artifact_schema")
+        .collect();
+    assert_eq!(schema_errors, Vec::<&Value>::new(), "{envelope}");
 }
 
 #[test]

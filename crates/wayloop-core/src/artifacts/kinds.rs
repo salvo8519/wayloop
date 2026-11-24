@@ -1,13 +1,14 @@
 //! The artifact types and inputs of SPEC-0001, the versions of their schemas and the
 //! migrations between them (R1, R16).
 //!
-//! The types whose schema is built are the contracts of the area `artifacts` in the registry of
-//! `wayloop-schemas` (ADR 0030 G5), and the inputs of [`INPUTS`], each the file of a contract;
-//! the schema of each version is its snapshot embedded in that crate. Each type has one
-//! migration per step `v<N>` to `v<N+1>`: a pure function on the document, which also sets
-//! `schema_version` to the next version. A document of an earlier version is checked against
-//! the schema of its own version, then migrated to the current one, which is the version the
-//! later checks read.
+//! The types whose schema is built are the contracts of the areas `artifacts` and `inputs` in
+//! the registry of `wayloop-schemas` (ADR 0030 G5), and the inputs of [`INPUTS`], each a further
+//! file of the contract of an artifact; the schema of each version is its snapshot embedded in
+//! that crate. Every input carries its `schema_version`, as an artifact does (SPEC-0001,
+//! Inputs). Each type has one migration per step `v<N>` to `v<N+1>`: a pure function on the
+//! document, which also sets `schema_version` to the next version. A document of an earlier
+//! version is checked against the schema of its own version, then migrated to the current one,
+//! which is the version the later checks read.
 
 use core::num::NonZeroU32;
 
@@ -49,8 +50,9 @@ pub struct InputSchema {
     pub code: Code,
 }
 
-/// The inputs whose schema is built, after the artifacts. The hand-over input is a
-/// file of the hand-over contract, and its errors have their own code (SPEC-0001 R22).
+/// The inputs whose schema is a further file of the contract of an artifact, built after the
+/// inputs of the area `inputs`. The hand-over input is a file of the hand-over contract, and its
+/// errors have their own code (SPEC-0001 R22).
 pub const INPUTS: [InputSchema; 1] = [InputSchema {
     kind: InputKind::HandoverInput,
     contract: &HANDOVER,
@@ -83,19 +85,30 @@ pub struct Kind {
     pub reread: Reread,
 }
 
-/// The types whose schema is built: the artifacts of the registry, then the inputs of
-/// [`INPUTS`], each with the embedded snapshot of every version and the contract type of its
-/// schema; an internal error when a snapshot is not embedded or the contract registers no file
-/// of that part.
+/// The types whose schema is built: the artifacts of the registry, the inputs of the area
+/// `inputs` (whose schema errors have the code `artifact_schema`, SPEC-0001 R1), then the
+/// inputs of [`INPUTS`], each with the embedded snapshot of every version and the contract
+/// type of its schema; an internal error when a snapshot is not embedded, the contract
+/// registers no file of that part, or a contract of the area `inputs` names no input kind.
 pub(crate) fn built() -> Result<Vec<Kind>, Box<Error>> {
     let artifacts = CONTRACTS
         .iter()
         .filter(|contract| contract.area == Area::Artifacts)
         .map(|contract| kind(contract, Part::Schema, None, ARTIFACT_SCHEMA));
-    let inputs = INPUTS
+    let registered = CONTRACTS
+        .iter()
+        .filter(|contract| contract.area == Area::Inputs)
+        .map(|contract| {
+            let input = InputKind::from_id(contract.name).ok_or_else(|| {
+                let folder = contract.folder();
+                boxed(format!("The contract {folder} names no input kind."))
+            })?;
+            kind(contract, Part::Schema, Some(input), ARTIFACT_SCHEMA)
+        });
+    let files = INPUTS
         .into_iter()
         .map(|input| kind(input.contract, input.part, Some(input.kind), input.code));
-    artifacts.chain(inputs).collect()
+    artifacts.chain(registered).chain(files).collect()
 }
 
 /// The type whose schema is the file `part` of `contract`, an input when `input` is given.
@@ -211,14 +224,23 @@ pub(crate) enum Checked {
 }
 
 impl Loaded {
+    /// The errors of `value` against the schema of the current version, with the code of the
+    /// type.
+    fn against_current(&self, value: &Value) -> Vec<Error> {
+        self.versions
+            .last()
+            .map(|s| s.validate(value, self.code.clone()))
+            .unwrap_or_default()
+    }
+
     /// The known versions, from 1.
     fn known(&self) -> impl Iterator<Item = u64> {
         (1..).take(self.versions.len())
     }
 
     /// Checks `document`, of this type, against the schema of its `schema_version` and
-    /// migrates it to the current version (R16); a schema error has the code of the type,
-    /// `artifact_schema` for an artifact.
+    /// migrates it to the current version (R16), an artifact or an input alike; a schema error
+    /// has the code of the type, `artifact_schema` except for the hand-over input.
     pub(crate) fn check(&self, document: &Map<String, Value>) -> Checked {
         let code = &self.code;
         let at = Pointer::root().join("schema_version");
@@ -227,15 +249,12 @@ impl Loaded {
         let Some(version) = given.and_then(integer) else {
             // Missing or not an integer: the schema of the current version reports it, with
             // every other error of the document, in one pass (ADR 0009 C3).
-            let latest = self
-                .versions
-                .last()
-                .map(|s| s.validate(&value, code.clone()));
-            return Checked::Refused(in_stage_order(latest.unwrap_or_default()));
+            return Checked::Refused(in_stage_order(self.against_current(&value)));
         };
         if !is_safe(version) {
             let message = format!(
-                "The version {version} is beyond the accepted range of integers, plus or minus {SAFE_INTEGER}."
+                "The version {version} is beyond the accepted range of integers, \
+                 plus or minus {SAFE_INTEGER}."
             );
             return Checked::Refused(vec![Error::new(code.clone(), message, at, Reason::Range)]);
         }
@@ -273,13 +292,11 @@ impl Loaded {
         }
         // The current schema checks the migrated document: a migration that breaks it is a
         // defect of the engine, never a refusal of the input.
-        let latest = self
-            .versions
-            .last()
-            .map(|s| s.validate(&Value::Object(current.clone()), code.clone()));
-        if let Some(first) = latest.and_then(|e| e.into_iter().next()) {
+        let latest = self.against_current(&Value::Object(current.clone()));
+        if let Some(first) = latest.into_iter().next() {
             return Checked::Failed(Error::internal(format!(
-                "The migration of a {} from version {version} gives a document that the current schema refuses: {first}",
+                "The migration of a {} from version {version} gives a document that the \
+                 current schema refuses: {first}",
                 self.id
             )));
         }

@@ -58,6 +58,7 @@ use crate::artifact::{
     Ruling, SpecCriterion, SpecReference, Specification, SpecificationStatus, Story,
     StoryCriterion, Task, Verification,
 };
+use crate::input::{Commit, PullRequest};
 use crate::validate::{
     BaseStatus, DocumentEntry, DocumentSummary, EntryFormat, InputKind, Origin, ParseError, Policy,
     Status, ValidateData, ValidateInput,
@@ -267,12 +268,12 @@ mod registry;
 
 pub use embedded::EMBEDDED;
 pub use registry::{
-    Area, BRIEF, CHANGE, CONTRACTS, COUNCIL_REPORT, Contract, ContractFile, EPIC, Embedded, GATE,
-    HANDOVER, MILESTONE, Part, SPECIFICATION, STORY, TASK, VALIDATE,
+    Area, BRIEF, CHANGE, COMMIT, CONTRACTS, COUNCIL_REPORT, Contract, ContractFile, EPIC, Embedded,
+    GATE, HANDOVER, MILESTONE, PULL_REQUEST, Part, SPECIFICATION, STORY, TASK, VALIDATE,
 };
 
 /// Every contract type of this crate whose schema is derived, in the byte order of their names.
-pub const TYPES: [Registered; 65] = [
+pub const TYPES: [Registered; 67] = [
     registered!(ArtifactKind),
     registered!(BaseStatus),
     registered!(Brief),
@@ -282,6 +283,7 @@ pub const TYPES: [Registered; 65] = [
     registered!(ChangeStatus),
     registered!(Check),
     registered!(Code),
+    registered!(Commit),
     registered!(CouncilMode),
     registered!(CouncilQuestion),
     registered!(CouncilReport),
@@ -320,6 +322,7 @@ pub const TYPES: [Registered; 65] = [
     registered!(PlanItemStatus),
     registered!(Pointer),
     registered!(Policy),
+    registered!(PullRequest),
     registered!(Reason),
     registered!(RejectedAlternative),
     registered!(Requirement),

@@ -1,6 +1,6 @@
 ---
 source: reference/index.md
-source_hash: 42eb9b8e5de7
+source_hash: 8e386d97a559
 ---
 # Riferimento
 
@@ -11,8 +11,8 @@ di Wayloop. Non c'è ancora una release; ciò che viene dopo è nella [roadmap](
 
 Il binario `wayloop` costruito da `crates/wayloop-cli` risponde ai comandi qui sotto. Ognuno
 stampa una riga di JSON sullo standard output. `version` e `steps` escono con codice 0; la
-versione è quella del manifest del workspace. `validate` controlla gli artefatti rispetto ai loro
-schemi ed è descritto in una pagina propria, [wayloop validate](validate.md).
+versione è quella del manifest del workspace. `validate` controlla gli artefatti e gli input
+rispetto ai loro schemi ed è descritto in una pagina propria, [wayloop validate](validate.md).
 
 | Comando | Uscita |
 | --- | --- |
@@ -69,6 +69,8 @@ nella cartella di ciascun contratto.
 | Modifica a delta ([wayloop validate](validate.md)) | `schemas/artifacts/change/index.json` |
 | Task ([wayloop validate](validate.md)) | `schemas/artifacts/task/index.json` |
 | Record e input di passaggio di mano ([wayloop validate](validate.md)) | `schemas/artifacts/handover/index.json` |
+| Input pull request ([wayloop validate](validate.md#input-pull-request-e-commit)) | `schemas/inputs/pull_request/index.json` |
+| Input commit ([wayloop validate](validate.md#input-pull-request-e-commit)) | `schemas/inputs/commit/index.json` |
 | Input e risultato di `wayloop validate` ([wayloop validate](validate.md)) | `schemas/commands/validate/index.json` |
 | Envelope del risultato di ogni comando ([ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/), C1) | `schemas/envelope/result/index.json` |
 
