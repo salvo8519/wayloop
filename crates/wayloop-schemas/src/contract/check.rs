@@ -283,11 +283,12 @@ fn named_values(
     pointer: &Pointer,
 ) -> Result<(), ContractError> {
     let member = resolved(root, member);
-    if let (Some(tested), Some(declared)) = (test.get("type"), member.get("type"))
-        && tested != declared
-    {
-        let detail = format!("the type {}, which its member is not", value_text(tested));
-        return Err(refuse(&pointer.join("type"), Problem::Unmatchable(detail)));
+    // No `let` chain: the minimum supported Rust version is 1.85.
+    if let (Some(tested), Some(declared)) = (test.get("type"), member.get("type")) {
+        if tested != declared {
+            let detail = format!("the type {}, which its member is not", value_text(tested));
+            return Err(refuse(&pointer.join("type"), Problem::Unmatchable(detail)));
+        }
     }
     if let Some(value) = test.get("const") {
         accepted(member, value, &pointer.join("const"))?;
