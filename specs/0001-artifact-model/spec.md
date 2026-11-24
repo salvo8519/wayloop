@@ -503,9 +503,11 @@ field, so an agent that sends one, for example `tokens`, is refused with `unknow
 - Required links: `issue`, a planned issue; `task`, when present, must exist and carry the same `issue`.
 
 The `step` values are the identifiers of `IssueStep` of `wayloop-schemas`, re-exported by
-`wayloop-core` (decided by the maintainer on 2026-11-24), written in `snake_case`, for example `counter_review` and `pull_request` (#228). Adding a step is an
-additive change of the enum; removing or renaming a step is a breaking change and a new version
-of both hand-over schemas, with a migration of older records (R16).
+`wayloop-core` (decided by the maintainer on 2026-11-24), written in `snake_case`, for example
+`counter_review` and `pull_request` (#228). Adding a step is an additive change of the enum;
+removing or renaming a step is a breaking change and a new version of both hand-over schemas,
+with a migration of older records (R16).
+
 
 ## Inputs
 

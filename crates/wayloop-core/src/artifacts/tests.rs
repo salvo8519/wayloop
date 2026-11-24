@@ -1821,15 +1821,3 @@ fn a_file_origin_outside_the_project_is_refused() {
         );
     }
 }
-
-#[test]
-fn the_tokens_of_the_hand_over_example_follow_the_rule_that_never_depends_on_itself() {
-    // SPEC-0001 Hand-over record, `tokens`, decided by the maintainer on 2026-11-24: the
-    // canonical JSON of the record without the member `tokens`, in bytes, divided by four and
-    // rounded up. The example once carried a value no rule gave; this keeps it honest.
-    let mut record = wayloop_schemas::examples::handover();
-    let written = record["tokens"].as_u64().unwrap();
-    record.as_object_mut().unwrap().remove("tokens");
-    let bytes = crate::canonical::canonical_json(&record).len() as u64;
-    assert_eq!(written, bytes.div_ceil(4));
-}

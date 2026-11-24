@@ -382,8 +382,8 @@ i valori del suo schema leggano la stessa grafia; `Format`, il cui valore è scr
 `contract::rules::formatted` tramite `id()`, usa `closed_enum!`; `ExitCode`, un numero per
 contratto (ADR 0009 C7), non ha grafia. Un identificativo statico (`Code`, `Check`,
 `DefaultReason`) è scritto con `static_id!`: le costanti del motore prendono in prestito il
-loro testo, un valore letto da un documento lo possiede. Ciò che la derive non scrive è scritto una sola
-volta, nel modulo `contract`:
+loro testo, un valore letto da un documento lo possiede. Ciò che la derive non scrive è scritto
+una sola volta, nel modulo `contract`:
 
 | Esigenza | Come è scritta |
 | --- | --- |

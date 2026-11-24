@@ -5,9 +5,9 @@
 //! `wayloop-schemas` (ADR 0030 G5), and the inputs of [`INPUTS`], each the file of a contract;
 //! the schema of each version is its snapshot embedded in that crate. Each type has one
 //! migration per step `v<N>` to `v<N+1>`: a pure function on the document, which also sets
-//! `schema_version` to the next version. A document of an earlier
-//! version is checked against the schema of its own version, then migrated to the current one,
-//! which is the version the later checks read.
+//! `schema_version` to the next version. A document of an earlier version is checked against
+//! the schema of its own version, then migrated to the current one, which is the version the
+//! later checks read.
 
 use core::num::NonZeroU32;
 

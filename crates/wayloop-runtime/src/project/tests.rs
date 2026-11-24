@@ -457,6 +457,15 @@ fn the_examples_of_the_hand_over_load_into_the_documents_of_their_cases() {
         "handover.invalid.yaml",
         "handover.input.invalid.yaml",
     ]);
+    // SPEC-0001 Hand-over record, `tokens`, decided by the maintainer on 2026-11-24: the
+    // canonical JSON of the record without the member `tokens`, in bytes, divided by four and
+    // rounded up. The examples once carried values no rule gave; this keeps both records honest.
+    for written in [&read[0], &read[2]] {
+        let mut record = written.clone();
+        let tokens = record.as_object_mut().unwrap().remove("tokens").unwrap();
+        let bytes = wayloop_core::canonical::canonical_json(&record).len() as u64;
+        assert_eq!(tokens.as_u64(), Some(bytes.div_ceil(4)), "{written}");
+    }
     let record = json!({"format": "document", "document": read[0]});
     let mut set = case_entries("plan-valid");
     set.extend([record, handover_input_entry(&read[1])]);
