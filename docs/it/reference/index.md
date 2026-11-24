@@ -47,7 +47,8 @@ enumerato dei contratti JSON
 e si scrivono allo stesso modo in ogni canale. Le altre grafie, come le etichette del tracker
 delle issue, sono prodotte dagli adattatori a partire da questi valori. Aggiungere un passo è una
 modifica additiva; rinominare o rimuovere un passo è una modifica incompatibile del contratto.
-Sono i valori di `step` nel record e nell'input di passaggio di mano. I passi sono descritti in [Il loop](../concepts/the-loop.md#il-ciclo-di-unissue).
+Sono i valori di `step` nel record e nell'input di passaggio di mano. I passi sono descritti in
+[Il loop](../concepts/the-loop.md#il-ciclo-di-unissue).
 
 ## Contratti JSON
 

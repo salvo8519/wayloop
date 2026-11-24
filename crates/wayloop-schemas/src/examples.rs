@@ -1,8 +1,10 @@
 //! The valid plan items and the valid hand-over record and input of the examples of SPEC-0001,
 //! for the tests of the crates that read them. A deliberate copy of the documents of the
 //! contract cases `plan-valid` and `handover-valid`: a crate does not embed a file outside its
-//! folder, so the test of `wayloop-runtime`
-//! `the_examples_of_the_schemas_crate_are_those_of_the_valid_case` keeps them equal.
+//! folder, so two tests of `wayloop-runtime` keep them equal:
+//! `the_examples_of_the_schemas_crate_are_those_of_the_valid_case` for the plan items, and
+//! `the_examples_of_the_hand_over_load_into_the_documents_of_their_cases` for the hand-over
+//! record and input.
 
 use serde_json::{Value, json};
 
@@ -79,7 +81,7 @@ pub fn handover() -> Value {
         "kind": "handover", "id": "HANDOVER-12-1", "issue": 12, "task": "TASK-0001",
         "session": "session-2027-01-15-01", "holder": "agent-lane-1",
         "executor": "claude_code", "branch": "feat/12-record-time-entry",
-        "recorded_at": "2027-01-15T17:42:00Z", "tokens": 412
+        "recorded_at": "2027-01-15T17:42:00Z", "tokens": 157
     });
     if let (Some(record), Value::Object(engine)) = (record.as_object_mut(), engine) {
         record.extend(engine);

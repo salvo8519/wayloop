@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: ed4e37a96df8
+source_hash: 9128bed7a0ca
 ---
 # wayloop validate
 
@@ -119,17 +119,18 @@ non è lo stato di alcun artefatto: è uno stato del ciclo della issue.
 
 Un passaggio di mano ha due forme di una stessa versione. L'input è ciò che un agente invia alla
 fine di una sessione, con `input_kind: handover_input` e senza `kind`: `schema_version`,
-`step`, `files_touched`, `not_done`, `open_questions`, `rulings` (ciascuna `{decision, reason,
-cost_if_wrong}`) e `next_step`, tutti obbligatori, le liste anche `[]`. Il record è ciò che il
+`step`, `files_touched` (percorsi del progetto), `not_done`, `open_questions`, `rulings`
+(ciascuna `{decision, reason, cost_if_wrong}`) e `next_step`, tutti obbligatori, le liste anche
+`[]`, e `language`, facoltativo, come in ogni artefatto. Il record è ciò che il
 motore scrive a partire dall'input: gli stessi membri, con `kind: handover`, `id`
 (`HANDOVER-<issue>-<k>`), `issue`, `task` (facoltativo), `session`, `holder`, `executor`,
 `branch`, `recorded_at` (una data e ora UTC con `Z`) e `tokens` (un intero da 1). Un membro del
 motore in un input, per esempio `tokens`, è rifiutato con `unknown_field`. Ogni errore di un
 input ha il codice `handover_input`; gli errori di un record hanno il codice `artifact_schema`.
-`step` è un passo del ciclo della issue, scritto in `snake_case`: `claim`, `reanalysis`,
-`counter_review`, `checklist`, `build`, `verify`, `review`, `pull_request` o `merge`. Un
-passaggio di mano non ha titolo né stato; il riepilogo di un input in `data.documents` contiene
-solo il suo `input_kind`.
+`step` è un passo del ciclo della issue, scritto in `snake_case`, come lo stampa
+[`wayloop steps`](index.md#comandi-di-una-build-dai-sorgenti). Un passaggio di mano non ha
+titolo né stato; il riepilogo di un input in `data.documents` contiene il suo `input_kind` e,
+quando è noto, la sua `origin`; nessun `kind`, `id` o `status`.
 
 `artifact_locations` è elencato in `diagnostics.not_done` con il motivo `input_absent` quando
 `locations` non è dato: i documenti sono stati indicati per nome o inviati direttamente.

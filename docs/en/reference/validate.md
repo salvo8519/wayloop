@@ -113,16 +113,17 @@ the issue cycle.
 
 A hand-over comes in two forms of one version. The input is what an agent submits at the end of
 a session, with `input_kind: handover_input` and no `kind`: `schema_version`, `step`,
-`files_touched`, `not_done`, `open_questions`, `rulings` (each `{decision, reason,
-cost_if_wrong}`) and `next_step`, all required, the lists possibly `[]`. The record is what the
-engine writes from it: the same members, with `kind: handover`, `id` (`HANDOVER-<issue>-<k>`),
-`issue`, `task` (optional), `session`, `holder`, `executor`, `branch`, `recorded_at` (a UTC
-date-time with `Z`) and `tokens` (an integer from 1). A member of the engine in an input, for
-example `tokens`, is refused with `unknown_field`. Every error of an input has the code
-`handover_input`; the errors of a record have the code `artifact_schema`. `step` is a step of
-the issue cycle, spelt in `snake_case`: `claim`, `reanalysis`, `counter_review`, `checklist`,
-`build`, `verify`, `review`, `pull_request` or `merge`. A hand-over has no title and no status;
-the summary of an input in `data.documents` holds its `input_kind` only.
+`files_touched` (project paths), `not_done`, `open_questions`, `rulings` (each `{decision,
+reason, cost_if_wrong}`) and `next_step`, all required, the lists possibly `[]`, and
+`language`, optional, as in every artifact. The record is what the engine writes from it: the
+same members, with `kind: handover`, `id` (`HANDOVER-<issue>-<k>`), `issue`, `task`
+(optional), `session`, `holder`, `executor`, `branch`, `recorded_at` (a UTC date-time with `Z`)
+and `tokens` (an integer from 1). A member of the engine in an input, for example `tokens`, is
+refused with `unknown_field`. Every error of an input has the code `handover_input`; the errors
+of a record have the code `artifact_schema`. `step` is a step of the issue cycle, spelt in
+`snake_case`, as printed by [`wayloop steps`](index.md#commands-of-a-build-from-source). A
+hand-over has no title and no status; the summary of an input in `data.documents` holds its
+`input_kind` and, when known, its `origin`; no `kind`, `id` or `status`.
 
 `artifact_locations` is listed in `diagnostics.not_done` with the reason `input_absent` when
 `locations` is not given: the documents were named or sent directly.

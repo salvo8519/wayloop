@@ -319,7 +319,7 @@
           ],
           "next_step": "Make the test for AC1 of SPEC-0001 pass.",
           "recorded_at": "2027-01-15T17:42:00Z",
-          "tokens": 412
+          "tokens": 157
         }
       },
       {
@@ -356,7 +356,7 @@
       "/data/documents/8/kind": "handover",
       "/data/documents/8/id": "HANDOVER-12-1",
       "/data/documents/9/input_kind": "handover_input",
-      "/meta/input_hash": "01314239bb16d7144d36121e8797ab41c3465c6dec4bc8a93f2e268d017f91fd"
+      "/meta/input_hash": "86403ff8059f26ce0f1a7deb3681c605e6b9e3ff16d4dc7713a93cacddfc772f"
     },
     "absent": [
       "/error",

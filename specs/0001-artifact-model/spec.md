@@ -482,6 +482,7 @@ field, so an agent that sends one, for example `tokens`, is refused with `unknow
 | `kind` | `handover` | yes | engine | Artifact type |
 | `schema_version` | integer | yes | agent in the input, engine in the record | Version of the input schema, then of the record schema |
 | `id` | `HANDOVER-<issue>-<k>` | yes | engine | Identifier |
+| `language` | BCP 47 tag | no | agent | Language of the prose fields (`not_done`, `open_questions`, `rulings`, `next_step`), as in every artifact (Common rules); when absent, the language of the project (decided by the maintainer on 2026-11-24) |
 | `issue` | integer | yes | engine | Tracker number of the issue worked, from the checkout |
 | `task` | `TASK` identifier | no | engine | Task of the issue, when it has one |
 | `session` | string | yes | engine | Session identifier in the ledger |
@@ -489,20 +490,20 @@ field, so an agent that sends one, for example `tokens`, is refused with `unknow
 | `executor` | string | yes | engine | Executor that ran the session, for example `claude_code` |
 | `branch` | string | yes | engine | Branch of the checkout, valid under R11 |
 | `step` | enum: `claim`, `reanalysis`, `counter_review`, `checklist`, `build`, `verify`, `review`, `pull_request`, `merge` | yes | agent | Step reached in the issue cycle |
-| `files_touched` | list of strings | yes, may be empty | agent | Paths changed by the session |
+| `files_touched` | list of project paths, in the format `project-path` of `origin.file` (plan, Canonical input of `wayloop validate`) | yes, may be empty | agent | Paths changed by the session, relative to the root of the project; a path with `..` or `\` is refused (decided by the maintainer on 2026-11-24) |
 | `not_done` | list of strings | yes, may be empty | agent | Work left |
 | `open_questions` | list of strings | yes, may be empty | agent | Questions raised |
 | `rulings` | list of objects `{decision, reason, cost_if_wrong}` | yes, may be empty | agent | Rulings of the session (SPEC-0003 R5) |
 | `next_step` | string | yes | agent | First action of the next session |
 | `recorded_at` | date-time in UTC, with the suffix `Z` | yes | engine | When the engine recorded it |
-| `tokens` | integer | yes | engine | Size of the record, within the budget of SPEC-0003 R12; counted by the engine as the length in bytes of the canonical JSON (RFC 8785) divided by four, rounded up (Q6) |
+| `tokens` | integer | yes | engine | Size of the record, within the budget of SPEC-0003 R12; counted by the engine as the length in bytes of the canonical JSON (RFC 8785) of the record without the member `tokens`, divided by four, rounded up (Q6), as SPEC-0003 counts a summary; the count never depends on itself (decided by the maintainer on 2026-11-24) |
 
 - Identifier: `HANDOVER-<issue>-<k>`, assigned by the engine when it records the event.
 - Statuses: none. A hand-over is immutable; a later one for the same issue takes its place in the next brief.
 - Required links: `issue`, a planned issue; `task`, when present, must exist and carry the same `issue`.
 
-The `step` values are the identifiers of `IssueStep` in `crates/wayloop-core` written in
-`snake_case`, for example `counter_review` and `pull_request` (#228). Adding a step is an
+The `step` values are the identifiers of `IssueStep` of `wayloop-schemas`, re-exported by
+`wayloop-core` (decided by the maintainer on 2026-11-24), written in `snake_case`, for example `counter_review` and `pull_request` (#228). Adding a step is an
 additive change of the enum; removing or renaming a step is a breaking change and a new version
 of both hand-over schemas, with a migration of older records (R16).
 

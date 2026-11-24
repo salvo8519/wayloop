@@ -59,10 +59,10 @@
       "type": "string"
     },
     "files_touched": {
-      "description": "Paths changed by the session; `[]` means none.",
+      "description": "Project paths changed by the session; `[]` means none.",
       "items": {
-        "description": "A prose text of at least one character, in the language of the document.",
-        "minLength": 1,
+        "description": "Path of a repository file relative to the root of the project, in one spelling: segments joined by `/`, none empty, `.` or `..`; no leading `/`, no `\\` and no drive letter, so that it never leaves the project.",
+        "format": "project-path",
         "type": "string"
       },
       "type": "array"
@@ -73,7 +73,7 @@
       "type": "string"
     },
     "id": {
-      "description": "Identifier, assigned by the engine when it records the hand-over.",
+      "description": "Stable identifier, in the canonical form of the type; assigned by the engine and never reused (SPEC-0001 R2, R14).",
       "format": "handover-id",
       "type": "string"
     },
@@ -85,6 +85,11 @@
     "kind": {
       "const": "handover",
       "description": "Artifact type; selects the schema."
+    },
+    "language": {
+      "description": "Language of the prose, a BCP 47 tag; when absent, the language of the project.",
+      "format": "language-tag",
+      "type": "string"
     },
     "next_step": {
       "description": "First action of the next session.",
@@ -123,7 +128,7 @@
     },
     "schema_version": {
       "const": 1,
-      "description": "Version of the record schema, set by the engine (SPEC-0001 R16).",
+      "description": "Version of the schema of the type the document was written against (SPEC-0001 R16).",
       "type": "integer"
     },
     "session": {
@@ -141,7 +146,7 @@
       "type": "string"
     },
     "tokens": {
-      "description": "Size of the record.",
+      "description": "Size of the record in tokens, from 1: the length in bytes of the canonical JSON (RFC 8785) of the record without the member `tokens`, divided by four, rounded up, so that the count never depends on itself; counted by the engine, within the budget of SPEC-0003 R12.",
       "minimum": 1,
       "type": "integer"
     }

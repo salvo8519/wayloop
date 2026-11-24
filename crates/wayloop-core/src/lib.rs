@@ -15,10 +15,10 @@
 //!
 //! The crate decides on the steps of the issue cycle ([`IssueStep`], a contract type of
 //! `wayloop-schemas` re-exported here, since the hand-over records it; [`is_approval`]), and
-//! holds the parts of the envelope of ADR 0009 that the entry point needs: the canonical JSON of RFC 8785 ([`canonical`]), a
-//! hand-written SHA-256 ([`sha256`]) and the hash of the input with the meta of a result
-//! ([`envelope`]). The envelope types themselves are contract types of `wayloop-schemas`,
-//! re-exported here; [`Envelope`] is generic over the data of a command.
+//! holds the parts of the envelope of ADR 0009 that the entry point needs: the canonical JSON
+//! of RFC 8785 ([`canonical`]), a hand-written SHA-256 ([`sha256`]) and the hash of the input
+//! with the meta of a result ([`envelope`]). The envelope types themselves are contract types
+//! of `wayloop-schemas`, re-exported here; [`Envelope`] is generic over the data of a command.
 
 // I/O is refused by the compiler: these lints read the clippy.toml of the workspace, and
 // forbid, unlike deny, cannot be lifted by an inner allow. `scripts/check_core_io.py` keeps
@@ -258,49 +258,6 @@ mod tests {
             );
             assert!(first.message().contains("mixes"), "{first:?}");
         }
-    }
-
-    #[test]
-    fn identifiers_are_unique_and_ordered() {
-        let ids: Vec<&str> = IssueStep::ALL.iter().map(|s| s.id()).collect();
-        let mut unique = ids.clone();
-        unique.sort_unstable();
-        unique.dedup();
-        assert_eq!(unique.len(), ids.len());
-        assert!(IssueStep::ALL.windows(2).all(|w| w[0] < w[1]));
-    }
-
-    /// Whether `id` matches `^[a-z][a-z0-9_]*$`, the spelling of contract enum values
-    /// (ADR 0009 C4).
-    fn is_snake_case(id: &str) -> bool {
-        let mut chars = id.chars();
-        chars.next().is_some_and(|c| c.is_ascii_lowercase())
-            && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
-    }
-
-    #[test]
-    fn identifiers_are_snake_case_contract_values() {
-        for step in IssueStep::ALL {
-            assert!(is_snake_case(step.id()), "{:?} -> {}", step, step.id());
-        }
-        assert_eq!(IssueStep::CounterReview.id(), "counter_review");
-        assert_eq!(IssueStep::PullRequest.id(), "pull_request");
-    }
-
-    #[test]
-    fn the_snake_case_check_refuses_other_spellings() {
-        for id in [
-            "",
-            "_claim",
-            "1claim",
-            "Claim",
-            "counter-review",
-            "pull request",
-            "\u{e9}tape",
-        ] {
-            assert!(!is_snake_case(id), "{id}");
-        }
-        assert!(is_snake_case("a1_b"));
     }
 
     #[test]

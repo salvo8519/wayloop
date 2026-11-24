@@ -222,7 +222,7 @@ fn checked(
     located: impl Fn(Error) -> Error,
 ) -> Option<Map<String, Value>> {
     match loaded.check(document) {
-        Checked::Valid(current) => match read_artifact(loaded, current) {
+        Checked::Valid(current) => match read_document(loaded, current) {
             Ok(read) => return Some(read),
             Err(failure) => validation.failures.push(*failure),
         },
@@ -232,10 +232,10 @@ fn checked(
     None
 }
 
-/// The document `current`, accepted by the current schema of its type `loaded`, read into the
-/// contract type of that type and written again: the form the later checks read. A failure is
+/// The document `current`, an artifact or an input accepted by the current schema of `loaded`,
+/// read into its contract type and written again: the form the later checks read. A failure is
 /// a defect of the engine (ADR 0030 G1).
-fn read_artifact(
+fn read_document(
     loaded: &Loaded,
     current: Map<String, Value>,
 ) -> Result<Map<String, Value>, Box<Error>> {
@@ -260,16 +260,14 @@ fn summary(
     input_kind: Option<InputKind>,
     origin: Option<Origin>,
 ) -> DocumentSummary {
-    let kind = if input_kind.is_some() {
-        None
-    } else {
-        text(document, "kind").and_then(|k| ArtifactKind::from_id(&k))
-    };
+    // An input has no `kind`, `id` or `status`: members of those names in it are refused, never
+    // summarised.
+    let artifact = if input_kind.is_some() { None } else { document };
     DocumentSummary {
-        kind,
+        kind: text(artifact, "kind").and_then(|k| ArtifactKind::from_id(&k)),
         input_kind,
-        id: text(document, "id"),
-        status: text(document, "status"),
+        id: text(artifact, "id"),
+        status: text(artifact, "status"),
         origin,
     }
 }

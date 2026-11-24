@@ -379,10 +379,10 @@ suo schema accetta si deserializza nel tipo, che riscrive lo stesso JSON
 (`Reason`, `NotDoneReason`, e `IssueStep`, lo `step` di un passaggio di mano, che il core
 riesporta e su cui decide) è scritto con `contract_enum!`, così che la sua forma serializzata e
 i valori del suo schema leggano la stessa grafia; `Format`, il cui valore è scritto da
-`contract::rules::formatted` tramite `id()`, usa `closed_enum!`; `ExitCode`, un numero per contratto (ADR 0009 C7), non ha
-grafia. Un identificativo statico (`Code`, `Check`, `DefaultReason`) è
-scritto con `static_id!`: le costanti del motore prendono in prestito il loro testo, un
-valore letto da un documento lo possiede. Ciò che la derive non scrive è scritto una sola
+`contract::rules::formatted` tramite `id()`, usa `closed_enum!`; `ExitCode`, un numero per
+contratto (ADR 0009 C7), non ha grafia. Un identificativo statico (`Code`, `Check`,
+`DefaultReason`) è scritto con `static_id!`: le costanti del motore prendono in prestito il
+loro testo, un valore letto da un documento lo possiede. Ciò che la derive non scrive è scritto una sola
 volta, nel modulo `contract`:
 
 | Esigenza | Come è scritta |

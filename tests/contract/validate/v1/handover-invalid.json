@@ -318,7 +318,7 @@
           ],
           "next_step": "Make the test for AC1 of SPEC-0001 pass.",
           "recorded_at": "2027-01-15T17:42:00Z",
-          "tokens": 412
+          "tokens": 157
         }
       },
       {
@@ -363,7 +363,7 @@
           "open_questions": [],
           "rulings": [],
           "recorded_at": "2027-01-16T09:10:00Z",
-          "tokens": 120
+          "tokens": 82
         }
       }
     ]
@@ -377,7 +377,7 @@
       "/error/pointer": "/next_step",
       "/error/reason": "missing",
       "/error/document": 10,
-      "/meta/input_hash": "73ab439398614171bc6a63d5e95eb2ebdaef847125f98b701eb643171850e4f1"
+      "/meta/input_hash": "593643e473e9dc883fd50c8bbaecf3be3701b22abbd6c2f444172dd76b9acb73"
     },
     "absent": [
       "/data",

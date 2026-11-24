@@ -319,7 +319,7 @@
           ],
           "next_step": "Make the test for AC1 of SPEC-0001 pass.",
           "recorded_at": "2027-01-15T17:42:00Z",
-          "tokens": 412
+          "tokens": 157
         }
       },
       {
@@ -371,7 +371,7 @@
       "/error/pointer": "/tokens",
       "/error/reason": "unknown_field",
       "/error/document": 10,
-      "/meta/input_hash": "87edffc00d63cd4c16a1aacdee10025ec50293495686288e9e93f75c7a94f6ed"
+      "/meta/input_hash": "7322fca1a4b17ffdeb2c0b0b2d7f8fd2a4ce91bbc5d204eb834fd7bf43bdbcf1"
     },
     "absent": [
       "/data",

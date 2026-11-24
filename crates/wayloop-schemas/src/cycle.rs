@@ -29,3 +29,17 @@ crate::contract_enum! {
         Merge = "merge",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::IssueStep;
+
+    #[test]
+    fn the_steps_are_listed_in_the_order_of_the_cycle() {
+        // The spelling of every value is checked by the generator for every contract enum, and
+        // a repeated one is refused at compile time by the macro of the enum.
+        assert!(IssueStep::ALL.windows(2).all(|w| w[0] < w[1]));
+        assert_eq!(IssueStep::ALL.first(), Some(&IssueStep::Claim));
+        assert_eq!(IssueStep::ALL.last(), Some(&IssueStep::Merge));
+    }
+}

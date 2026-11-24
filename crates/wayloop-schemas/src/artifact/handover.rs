@@ -2,24 +2,23 @@
 //! session, and the record the engine writes from it.
 //!
 //! The members the agent writes are one type, [`HandoverReport`], flattened into both: the
-//! input holds them with its `schema_version` and nothing else, so an agent that sends a member
-//! of the engine, for example `tokens`, is refused with `unknown_field` (SPEC-0001 R22). The
-//! record adds the members the engine sets. A hand-over has no status and no title: it is
-//! immutable, and a later one of the same issue takes its place in the next brief. Its links
-//! (`issue`, `task`) and its branch are checked across the set.
+//! input holds them with its [`Header`] (`schema_version`, `language`) and nothing else, so an
+//! agent that sends a member of the engine, for example `tokens`, is refused with
+//! `unknown_field` (SPEC-0001 R22). The record adds the members the engine sets, its
+//! [`Identity`] among them. A hand-over has no status and no title: it is immutable, and a later
+//! one of the same issue takes its place in the next brief. Its links (`issue`, `task`) and its
+//! branch are checked across the set.
 
 use schemars::{JsonSchema, Schema};
 use serde::{Deserialize, Serialize};
 
-use super::ArtifactKind;
+use super::{Header, Identity};
 use crate::IssueStep;
 use crate::contract::{HANDOVER, rules};
-use crate::value::{HandoverId, IssueNumber, SchemaVersion, TaskId, Text, UtcDateTime};
+use crate::value::{HandoverId, IssueNumber, ProjectPath, TaskId, Text, UtcDateTime};
 
 crate::positive_integer! {
-    /// Size of a hand-over record in tokens, from 1: the length in bytes of the canonical JSON
-    /// of the record (RFC 8785) divided by four, rounded up; counted by the engine, within the
-    /// budget of SPEC-0003 R12.
+    /// A count of tokens, from 1; the member `tokens` of the record states how it is counted.
     pub struct Tokens;
 }
 
@@ -41,8 +40,8 @@ pub struct Ruling {
 pub struct HandoverReport {
     /// Step reached in the issue cycle.
     pub step: IssueStep,
-    /// Paths changed by the session; `[]` means none.
-    pub files_touched: Vec<Text>,
+    /// Project paths changed by the session; `[]` means none.
+    pub files_touched: Vec<ProjectPath>,
     /// Work left; `[]` means none.
     pub not_done: Vec<Text>,
     /// Questions raised; `[]` means none.
@@ -59,8 +58,9 @@ pub struct HandoverReport {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[schemars(transform = handover_input_rules)]
 pub struct HandoverInput {
-    /// Version of the input schema the agent wrote against (SPEC-0001 R16).
-    pub schema_version: SchemaVersion,
+    /// The version of the input schema and the language of the prose.
+    #[serde(flatten)]
+    pub header: Header,
     /// The members the agent writes.
     #[serde(flatten)]
     pub report: HandoverReport,
@@ -71,12 +71,10 @@ pub struct HandoverInput {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[schemars(transform = handover_rules)]
 pub struct Handover {
-    /// Artifact type; selects the schema.
-    pub kind: ArtifactKind,
-    /// Version of the record schema, set by the engine (SPEC-0001 R16).
-    pub schema_version: SchemaVersion,
-    /// Identifier, assigned by the engine when it records the hand-over.
-    pub id: HandoverId,
+    /// The type, the version of the record schema, the language and the identifier, which the
+    /// engine assigns when it records the hand-over.
+    #[serde(flatten)]
+    pub identity: Identity<HandoverId>,
     /// Tracker number of the issue worked, from the checkout.
     pub issue: IssueNumber,
     /// Task of the issue, when it has one; it carries the same `issue`.
@@ -95,7 +93,10 @@ pub struct Handover {
     pub report: HandoverReport,
     /// When the engine recorded the hand-over.
     pub recorded_at: UtcDateTime,
-    /// Size of the record.
+    /// Size of the record in tokens, from 1: the length in bytes of the canonical JSON (RFC
+    /// 8785) of the record without the member `tokens`, divided by four, rounded up, so that
+    /// the count never depends on itself; counted by the engine, within the budget of
+    /// SPEC-0003 R12.
     pub tokens: Tokens,
 }
 
@@ -164,21 +165,20 @@ mod tests {
             "utc-date-time"
         );
         assert_eq!(record["properties"]["tokens"]["minimum"], 1);
-        // Every member is required, except `task`; no status, so no rule on it.
-        let required = |schema: &Value| -> Vec<String> {
-            let mut names: Vec<String> = schema["required"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|v| v.as_str().unwrap().to_owned())
-                .collect();
-            names.sort_unstable();
+        // Every member is required, except `language` and `task`; no status, so no rule on it.
+        let optional = |schema: &Value| -> Vec<String> {
+            let required = schema["required"].as_array().unwrap();
+            let mut names = members(schema);
+            names.retain(|m| !required.contains(&Value::from(m.as_str())));
             names
         };
-        assert_eq!(required(&input), members(&input));
-        let mut optional = members(&record);
-        optional.retain(|m| !required(&record).contains(m));
-        assert_eq!(optional, ["task"]);
+        assert_eq!(optional(&input), ["language"]);
+        assert_eq!(optional(&record), ["language", "task"]);
+        assert_eq!(input["properties"]["language"]["format"], "language-tag");
+        assert_eq!(
+            input["properties"]["files_touched"]["items"]["format"],
+            "project-path"
+        );
         assert!(record.get("allOf").is_none());
     }
 

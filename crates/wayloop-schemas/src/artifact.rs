@@ -1,6 +1,8 @@
-//! The artifacts of SPEC-0001: the members every artifact has, written once in [`Common`],
-//! and each artifact type built on it (ADR 0030 G1): the brief here, the gate issue and the
-//! plan items (milestone, epic, user story, task) in `plan`. The hand-over record, which has
+//! The artifacts of SPEC-0001: the members every artifact has, each written once (ADR 0030
+//! G1): [`Header`] (version and language, shared with the hand-over input), [`Identity`] (type,
+//! header and identifier) and [`Common`] (identity, title, status, replacements), and each
+//! artifact type built on them: the brief here, the gate issue and the plan items (milestone,
+//! epic, user story, task) in `plan`. The hand-over record, built on [`Identity`] since it has
 //! no title and no status, and its input are in `handover`.
 //!
 //! An artifact is read by the engine, so its schema is an input: closed, an unknown member is
@@ -74,26 +76,47 @@ crate::contract_enum! {
     }
 }
 
-/// The members every artifact has (SPEC-0001, Common rules), with the identifier type `Id`
-/// and the status enum `S` of its kind. It is flattened into each artifact type.
+/// The members every versioned document has, an artifact or an input written by an agent (ADR
+/// 0030 G1): the version of its schema and the language of its prose. It is flattened into
+/// [`Identity`] and into the hand-over input.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct Common<Id, S> {
-    /// Artifact type; selects the schema.
-    pub kind: ArtifactKind,
+pub struct Header {
     /// Version of the schema of the type the document was written against (SPEC-0001 R16).
     pub schema_version: SchemaVersion,
+    /// Language of the prose, a BCP 47 tag; when absent, the language of the project.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<LanguageTag>,
+}
+
+/// The members that identify an artifact (SPEC-0001, Common rules): its type, its [`Header`]
+/// and its identifier of type `Id`. It is flattened into [`Common`] and into the hand-over
+/// record, which has no title and no status.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Identity<Id> {
+    /// Artifact type; selects the schema.
+    pub kind: ArtifactKind,
+    /// The version of the schema and the language of the prose.
+    #[serde(flatten)]
+    pub header: Header,
     /// Stable identifier, in the canonical form of the type; assigned by the engine and never
     /// reused (SPEC-0001 R2, R14).
     pub id: Id,
+}
+
+/// The members every artifact with a title and a status has (SPEC-0001, Common rules): its
+/// [`Identity`] with the identifier type `Id`, and the status enum `S` of its kind. It is
+/// flattened into each artifact type but the hand-over record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Common<Id, S> {
+    /// The type, the version, the language and the identifier.
+    #[serde(flatten)]
+    pub identity: Identity<Id>,
     /// Outcome or name, in sentence case without a final full stop; 1 to 120 characters
     /// (Unicode code points).
     #[schemars(length(min = 1, max = 120))]
     pub title: String,
     /// Current status (SPEC-0001 R5), not the issue-cycle state of SPEC-0002.
     pub status: S,
-    /// Language of the prose, a BCP 47 tag; when absent, the language of the project.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub language: Option<LanguageTag>,
     /// Identifiers of the artifacts of the same type that replace this one, at least one;
     /// required when `status` is `superseded`.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -165,9 +188,9 @@ mod tests {
     #[test]
     fn a_brief_reads_and_writes_itself() {
         let read: Brief = serde_json::from_value(brief()).unwrap();
-        assert_eq!(read.common.kind, ArtifactKind::Brief);
+        assert_eq!(read.common.identity.kind, ArtifactKind::Brief);
         assert_eq!(read.common.status, BriefStatus::Approved);
-        assert_eq!(read.common.id.as_str(), "BRIEF-0001");
+        assert_eq!(read.common.identity.id.as_str(), "BRIEF-0001");
         assert_eq!(serde_json::to_value(&read).unwrap(), brief());
     }
 

@@ -22,4 +22,4 @@ rulings:
     cost_if_wrong: One migration of the log format.
 next_step: Make the test for AC1 of SPEC-0001 pass.
 recorded_at: "2027-01-15T17:42:00Z"
-tokens: 412
+tokens: 157
