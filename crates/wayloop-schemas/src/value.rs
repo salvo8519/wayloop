@@ -7,7 +7,8 @@
 //! - An integer from 1 ([`IssueNumber`], [`MilestoneNumber`], [`Line`], [`AdrNumber`],
 //!   [`SchemaVersion`]) is written with [`positive_integer!`](crate::positive_integer!): it is
 //!   read by value, so `3.0` is `3` (see [`crate::number`]), as the interpreter reads it.
-//! - [`Text`] is a prose text of at least one character.
+//! - [`Text`] is a prose text of at least one character; a name rather than prose has its own
+//!   type ([`RoleName`], [`PolicyName`], [`ToolName`]), with no language.
 //!
 //! Their schemas are inlined where they are used, with the description of the member that uses
 //! them; the description of the type is kept for the elements of a list. A value read into
@@ -483,6 +484,13 @@ non_empty_text! {
     pub struct PolicyName;
 }
 
+non_empty_text! {
+    /// A name or identifier given by a tool such as the tracker or git, for example a label or a
+    /// branch, spelt as the tool spells it; not prose and in no language, of at least one
+    /// character.
+    pub struct ToolName;
+}
+
 /// The schema of an object whose members the contract does not describe, with its
 /// `description`: a document of another schema. It stays open in an input too, since it declares
 /// no member (ADR 0030 G2, as amended for #256); the core checks its content. A map is not one:
@@ -498,7 +506,7 @@ pub fn free_object_schema(description: &str) -> Schema {
 
 #[cfg(test)]
 mod tests {
-    use super::{BriefId, IssueNumber, Line, PolicyName, ProjectPath, Text};
+    use super::{BriefId, IssueNumber, Line, PolicyName, ProjectPath, Text, ToolName};
     use core::num::NonZeroU64;
     use schemars::JsonSchema;
     use serde_json::json;
@@ -561,6 +569,15 @@ mod tests {
         );
         assert!(name["description"].as_str().unwrap().contains("identifier"));
         assert_eq!(PolicyName::new("feat").as_str(), "feat");
+        // A name given by a tool is not prose: its description says so, and names no language.
+        let tool = ToolName::json_schema(&mut generator).to_value();
+        assert_eq!(
+            (tool["minLength"].clone(), tool["type"].clone()),
+            (json!(1), json!("string"))
+        );
+        let described = tool["description"].as_str().unwrap();
+        assert!(described.contains("not prose") && !described.contains("language of"));
+        assert_eq!(ToolName::new("feat/12-x").as_str(), "feat/12-x");
         let read: Text = serde_json::from_value(json!("x")).unwrap();
         assert_eq!(read, Text::new("x"));
         assert_eq!(read.as_str(), "x");

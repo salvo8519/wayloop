@@ -1,0 +1,52 @@
+{
+  "description": "The valid pull request sent with input_kind commit is checked against the commit schema: its branch, labels and title are unknown to a commit, whose header is missing.",
+  "covers": [
+    "SPEC-0001 R1"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "title": "feat(core): append one entry per record command [SPEC-0001 R1]",
+          "body": "Records one entry per command.\n\nCloses #12\n",
+          "branch": "feat/12-record-time-entry",
+          "labels": []
+        },
+        "input_kind": "commit"
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "artifact_schema",
+      "/error/document": 0,
+      "/error/errors/0/code": "artifact_schema",
+      "/error/errors/0/pointer": "/branch",
+      "/error/errors/0/reason": "unknown_field",
+      "/error/errors/1/code": "artifact_schema",
+      "/error/errors/1/pointer": "/labels",
+      "/error/errors/1/reason": "unknown_field",
+      "/error/errors/2/code": "artifact_schema",
+      "/error/errors/2/pointer": "/title",
+      "/error/errors/2/reason": "unknown_field",
+      "/error/errors/3/code": "artifact_schema",
+      "/error/errors/3/pointer": "/header",
+      "/error/errors/3/reason": "missing",
+      "/error/pointer": "/branch",
+      "/error/reason": "unknown_field",
+      "/meta/input_hash": "8f0c226dd6c9f693536012a47ae5384d405761552cb6fa572cfc7551214691ac"
+    },
+    "absent": [
+      "/data",
+      "/error/source"
+    ],
+    "lengths": {
+      "/error/errors": 4
+    }
+  }
+}

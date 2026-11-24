@@ -1,11 +1,14 @@
 //! Valid documents of the examples of SPEC-0001, for the tests of the crates that read them: the
 //! council report, the living specification and the change delta, the gate issue and the plan
-//! items, the hand-over record and its input. A deliberate copy of the documents of the
-//! contract cases `design-valid` and `handover-valid`: a crate does not embed a file outside its
-//! folder, so two tests of `wayloop-runtime` keep them equal:
+//! items, the hand-over record and its input, the pull request and the commit. A deliberate copy
+//! of the documents of the examples and of the contract cases `design-valid`, `handover-valid`
+//! and `inputs-valid`: a crate does not embed a file outside its folder, so three tests of
+//! `wayloop-runtime` keep them equal:
 //! `the_examples_of_the_schemas_crate_are_those_of_the_valid_case` for the design artifacts and
-//! the plan items, and `the_examples_of_the_hand_over_load_into_the_documents_of_their_cases`
-//! for the hand-over record and input.
+//! the plan items, `the_examples_of_the_hand_over_load_into_the_documents_of_their_cases` for
+//! the hand-over record and input, and
+//! `the_examples_of_the_pull_request_and_the_commit_load_into_the_documents_of_their_cases` for
+//! the pull request and the commit.
 
 use serde_json::{Value, json};
 
@@ -210,5 +213,30 @@ pub fn handover_input() -> Value {
             "cost_if_wrong": "One migration of the log format."
         }],
         "next_step": "Make the test for AC1 of SPEC-0001 pass."
+    })
+}
+
+/// The valid pull request input of the examples, as the adapter of the tracker reads it.
+#[must_use]
+pub fn pull_request() -> Value {
+    json!({
+        "schema_version": 1,
+        "title": "feat(core): append one entry per record command [SPEC-0001 R1]",
+        "body": "Records one entry per command.\n\nCloses #12\n",
+        "branch": "feat/12-record-time-entry",
+        "labels": []
+    })
+}
+
+/// The valid commit input of the examples, as the adapter of git reads it: a breaking change
+/// with its paragraph and its trailers.
+#[must_use]
+pub fn commit() -> Value {
+    json!({
+        "schema_version": 1,
+        "header": "feat(core)!: store durations in seconds [SPEC-0001 R2]",
+        "body": "Durations were minutes; short tasks need seconds.\n\n\
+                 BREAKING CHANGE: logs written in minutes are converted on first read.\n\n\
+                 Refs: #12\nSigned-off-by: Example Owner <owner@example.org>\n"
     })
 }

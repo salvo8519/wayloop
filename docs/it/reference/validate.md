@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 216c4d636819
+source_hash: 662e06b41639
 ---
 # wayloop validate
 
@@ -10,18 +10,20 @@ rispetto ai loro schemi, in un solo passaggio, e riporta ogni errore con il punt
 errato e il luogo in cui è memorizzato. Non modifica nulla.
 
 Oggi brief, verbali del comitato, issue di gate, milestone, epic, user story, specifiche vive in
-forma normalizzata, modifiche a delta, task, record di passaggio di mano e input di passaggio di
-mano sono validati rispetto ai loro schemi. Una specifica viva inviata in Markdown, una pull
-request e un commit sono accettati senza controllo, e i controlli non eseguiti sono elencati in
-`diagnostics.not_done`; così anche i controlli tra documenti (identificativi, collegamenti,
-parti, stati, nomi, aree).
+forma normalizzata, modifiche a delta, task, record di passaggio di mano e gli input (pull
+request, commit e input di passaggio di mano) sono validati rispetto ai loro schemi. Una
+specifica viva inviata in Markdown è accettata senza controllo, e i controlli non eseguiti sono
+elencati in `diagnostics.not_done`; così anche i controlli tra documenti (identificativi,
+collegamenti, parti, stati, nomi, aree).
 
 Questa pagina descrive la versione 1 del comando, compilata dai sorgenti. Il suo contratto è la
 coppia di snapshot di schema `schemas/commands/validate/v1.json` (input) e
 `schemas/commands/validate/v1.output.json` (output), generati dai tipi di `wayloop-schemas`
 (ADR 0030); lo schema di ogni tipo di artefatto è `schemas/artifacts/<kind>/v1.json`, per
-esempio `schemas/artifacts/task/v1.json`, e lo schema dell'input di passaggio di mano è
-`schemas/artifacts/handover/v1.input.json`. Questa pagina li spiega.
+esempio `schemas/artifacts/task/v1.json`, e lo schema di ogni input è
+`schemas/inputs/<input_kind>/v1.json`, per esempio `schemas/inputs/commit/v1.json`, tranne
+l'input di passaggio di mano, il cui schema è `schemas/artifacts/handover/v1.input.json`.
+Questa pagina li spiega.
 
 ## Uso
 
@@ -78,17 +80,20 @@ letto; il messaggio per una persona, con il percorso, va sullo standard error.
 | `document_kind` | Ogni documento ha un `kind` tra `brief`, `council_report`, `gate`, `milestone`, `epic`, `story`, `specification`, `change`, `task` e `handover`, oppure è un input con `input_kind` |
 | `schema_version` | Lo `schema_version` di ogni documento è una versione che il suo tipo conosce; un documento di una versione precedente viene migrato alla versione corrente dopo aver superato lo schema della propria versione |
 | `schema_<kind>`: `schema_brief`, `schema_change`, `schema_council_report`, `schema_epic`, `schema_gate`, `schema_handover`, `schema_milestone`, `schema_specification`, `schema_story`, `schema_task` | Ogni documento del tipo supera lo schema della sua versione (`schemas/artifacts/<kind>/v1.json`): membri obbligatori, membri sconosciuti, tipi, valori ammessi, lunghezze, formati, e i membri che uno stato, una verifica o un'operazione richiedono (vedi sotto) |
+| `schema_<input_kind>`: `schema_commit`, `schema_pull_request` | Ogni input del tipo supera lo schema della sua versione (`schemas/inputs/<input_kind>/v1.json`): membri obbligatori, membri sconosciuti, tipi e lunghezze (vedi Input pull request e commit più sotto) |
 | `schema_handover_input` | Ogni input di passaggio di mano supera lo schema di input della sua versione (`schemas/artifacts/handover/v1.input.json`), come fa un record di passaggio di mano (vedi sotto) |
 | `identifier_format` | L'`id` è nella forma canonica del suo tipo, per esempio `BRIEF-0001` |
 | `artifact_locations` | Nel progetto in cui i documenti sono stati scoperti esiste almeno una cartella di una posizione; solo con `locations`, dopo i controlli precedenti |
 
-Ogni schema è un controllo, `schema_<kind>`: in `diagnostics.checks` quando è stato eseguito, in
-`diagnostics.not_done` con il motivo `not_built` quando non è in questa versione. Un controllo
-che il motore non ha eseguito non è mai saltato in silenzio:
+Ogni schema è un controllo, `schema_<kind>` o `schema_<input_kind>`, elencato in
+`diagnostics.checks` quando è stato eseguito; ogni tipo di artefatto e ogni input ha il suo
+schema in questa versione. Un documento di un tipo il cui schema il motore non ha caricato è un
+errore del motore, l'errore `internal_error` che nomina il controllo che non ha potuto eseguire
+(codice di uscita 5), mai un controllo non eseguito. Ogni altro controllo che il motore non ha
+eseguito non è mai saltato in silenzio:
 
 | Controllo | Non eseguito su |
 | --- | --- |
-| `schema_<input_kind>`: `schema_pull_request`, `schema_commit` | Un input il cui schema non è in questa versione |
 | `markdown` | Una specifica viva inviata in Markdown |
 | `identifier_duplicate` | L'insieme: due artefatti con lo stesso identificativo |
 | `links` | L'insieme: collegamenti tra artefatti, gerarchia, citazioni di ADR |
@@ -162,6 +167,32 @@ Quando l'input stesso è rifiutato, o la riga di comando non è compresa, o l'in
 essere letto, nessun controllo viene eseguito: `diagnostics.checks` e `diagnostics.not_done`
 sono allora vuoti.
 
+### Input pull request e commit
+
+Un input non è un artefatto: non ha `kind`, identificativo né stato, e l'`input_kind` della sua
+voce ne sceglie lo schema. Come un artefatto, porta lo `schema_version` del suo schema: è
+controllato rispetto allo schema di quella versione e migrato alla versione corrente, e una
+versione sconosciuta è rifiutata con `schema_version_unknown`. Un membro di un artefatto come
+`kind` è rifiutato come `unknown_field`. Un documento privo sia di `kind` sia di `input_kind` è
+rifiutato con il motivo `missing` in `/kind`; il nome di un input in `kind`, per esempio
+`kind: commit`, è rifiutato con il motivo `enum`, perché `kind` nomina solo tipi di artefatto.
+La riga di comando legge solo artefatti memorizzati; gli input si inviano con `--input`.
+
+| Input | Membro | Tipo | Obbligatorio |
+| --- | --- | --- | --- |
+| `pull_request`, `commit` | `schema_version` | intero, la versione dello schema, oggi `1` | sì |
+| `pull_request` | `title` | stringa di almeno un carattere, il titolo della pull request | sì |
+| `pull_request` | `body` | stringa, dove è collegata la issue; può essere vuota | sì |
+| `pull_request` | `branch` | nome di almeno un carattere, il branch di partenza come lo scrive git; non è prosa | sì |
+| `pull_request` | `labels` | lista di nomi, ciascuno di almeno un carattere, come li scrive il tracker; non sono prosa; `[]` significa nessuna | sì |
+| `commit` | `header` | stringa di almeno un carattere, la prima riga del messaggio | sì |
+| `commit` | `body` | stringa di almeno un carattere, le righe dopo la riga vuota, trailer compresi; assente quando il messaggio ha una sola riga | no |
+
+Un testo vuoto dove ne è richiesto uno è rifiutato con il motivo `length`. Lo schema controlla
+solo la forma. La grammatica di un nome di branch e di un'intestazione di commit, e i
+collegamenti alle issue di una pull request, sono il controllo `naming`, che questa versione
+non esegue.
+
 ## Input
 
 L'input canonico è un oggetto JSON. Un membro impostato a `null` non è dato, esattamente come
@@ -227,8 +258,8 @@ che non conosce e accetta i valori di enum che non conosce.
   motore non esegue, anche il rifiuto ha il puntatore `""`, e `meta.command_version` è la
   versione corrente, di cui l'envelope ha la forma; quando l'input è anche un testo che il
   motore non può leggere come JSON, lo stesso rapporto elenca prima la versione, poi l'errore
-  del testo. Un errore d'uso riporta la versione corrente
-  del comando che indica, e 1 quando non indica un comando noto.
+  del testo. Un errore d'uso riporta la versione corrente del comando che indica, e 1 quando
+  non indica un comando noto.
 - `meta.input_hash` è lo SHA-256 del JSON canonico (RFC 8785) dell'input senza i suoi membri
   impostati a `null`, quindi un input con `"base": null` ha l'hash dell'input senza `base`. Per
   un testo che il motore rifiuta di leggere come JSON (non JSON, una chiave ripetuta in un
@@ -248,8 +279,8 @@ Ogni errore trovato è elencato in `error.errors`; il primo è ripetuto al livel
 2. Altrimenti, gli errori dei documenti, nell'ordine dei documenti; dentro un documento, per
    fase (prima tipo, versione e schema, poi identificativo); dentro una fase, nell'ordine del
    passaggio dello schema: i membri di un oggetto nell'ordine dei byte delle loro chiavi (`/aa`
-   prima di `/zz`), gli elementi di un array per indice, i membri assenti dopo quelli presenti.
-   Gli errori del nome di un membro vengono prima degli errori del suo valore, allo stesso
+   prima di `/zz`), gli elementi di un array per indice, i membri assenti dopo quelli presenti,
+   nell'ordine in cui lo schema li elenca come obbligatori. Gli errori del nome di un membro vengono prima degli errori del suo valore, allo stesso
    puntatore.
 
 Ogni `pointer` del risultato è un puntatore RFC 6901; gli schemi dell'output e dell'envelope gli
@@ -270,7 +301,7 @@ memorizzato:
 | Codice | Motivi | Codice di uscita | Significato |
 | --- | --- | --- | --- |
 | `command_input` | `syntax`, `duplicate`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `conflict` | 1 | L'input canonico è rifiutato: non è JSON, ripete una chiave, contiene un numero oltre un double, o viola il suo schema o una regola della sezione Input; oppure `--command-version` richiede una versione che il motore non esegue (`enum`, le versioni note in `expected`) |
-| `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | Un documento viola lo schema del suo tipo; anche un documento senza `kind`, o con un `kind` fuori dalla lista (`enum`, con i tipi in `expected`), uno `schema_version` assente, non intero (riportato con ogni altro errore rispetto alla versione corrente) od oltre più o meno (2^53 - 1) (`range`), e un file che non è stato possibile analizzare (`syntax`, al puntatore dell'intero documento, con la sua riga in `source`) |
+| `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | Un documento viola lo schema del suo tipo o del suo input (una pull request, un commit); anche un documento senza `kind`, o con un `kind` fuori dalla lista (`enum`, con i tipi in `expected`), uno `schema_version` assente, non intero (riportato con ogni altro errore rispetto alla versione corrente) od oltre più o meno (2^53 - 1) (`range`), e un file che non è stato possibile analizzare (`syntax`, al puntatore dell'intero documento, con la sua riga in `source`) |
 | `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | Un input di passaggio di mano viola il suo schema, per esempio impostando un membro che solo il motore imposta (`unknown_field`) |
 | `schema_version_unknown` | `enum` | 1 | Lo `schema_version` non è una versione del tipo o dell'input; `expected` elenca le versioni note |
 | `identifier_format` | `syntax` | 1 | L'`id` non è nella forma canonica del suo tipo; `fix` dà l'identificativo corretto quando è possibile ricavarlo |

@@ -1,7 +1,8 @@
 //! Tests of the artifact model and of `validate` (SPEC-0001 T5: R1, R5, R6, R12, R14, R16;
 //! AC1, AC8, AC9, AC25; T7: R1, R5, R6, R9; AC1, AC9, AC35; T8: R1, R5, R6; AC1, AC35; T9: R1,
-//! R22; AC1, AC31). The contract cases of the command are in `tests/contract/validate/v1/` and
-//! run in the tests of `wayloop-cli`; these tests cover the parts the cases cannot reach.
+//! R22; AC1, AC31; T10: R1, R16; AC1). The contract cases of the command are in
+//! `tests/contract/validate/v1/` and run in the tests of `wayloop-cli`; these tests cover the
+//! parts the cases cannot reach.
 
 // The helpers take JSON values by value so that a test reads as the document it builds.
 #![allow(clippy::needless_pass_by_value)]
@@ -11,7 +12,8 @@ use core::num::{NonZeroU32, NonZeroU64};
 use serde_json::{Map, Value, json};
 use wayloop_schemas::artifact::ArtifactKind;
 use wayloop_schemas::contract::{
-    Area, BRIEF, CONTRACTS, Contract, Embedded, HANDOVER, Part, VALIDATE, reread,
+    Area, BRIEF, COMMIT, CONTRACTS, Contract, Embedded, HANDOVER, PULL_REQUEST, Part, VALIDATE,
+    reread,
 };
 use wayloop_schemas::validate::{ArtifactFolder, InputKind};
 use wayloop_schemas::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
@@ -46,8 +48,8 @@ fn input_schema() -> crate::schema::Schema {
 }
 
 use wayloop_schemas::examples::{
-    change, council_report, epic, gate, handover, handover_input, milestone, specification, story,
-    task,
+    change, commit, council_report, epic, gate, handover, handover_input, milestone, pull_request,
+    specification, story, task,
 };
 
 /// A valid brief with only its required members, smaller than the brief of the examples.
@@ -102,32 +104,63 @@ fn line(n: u64) -> Line {
 // The registry against the files ------------------------------------------------------------
 
 #[test]
-fn the_built_kinds_are_the_artifacts_of_the_registry_with_every_version() {
-    // ADR 0030 G5: the kinds of the core are built from the registry.
+fn the_built_kinds_are_the_documents_of_the_registry_with_every_version() {
+    // ADR 0030 G5: the kinds of the core are built from the registry: the artifacts, the inputs
+    // of the area `inputs` (T10), then the inputs that are a further file of an artifact (T9).
     let built = built();
-    let artifacts: Vec<&str> = CONTRACTS
-        .iter()
-        .filter(|c| c.area == Area::Artifacts)
-        .map(|c| c.name)
-        .collect();
-    let (inputs, built): (Vec<Kind>, Vec<Kind>) =
+    let contracts = |area: Area| CONTRACTS.iter().filter(move |c| c.area == area);
+    let (inputs, artifacts): (Vec<Kind>, Vec<Kind>) =
         built.into_iter().partition(|k| k.input.is_some());
-    assert_eq!(built.iter().map(|k| k.id).collect::<Vec<_>>(), artifacts);
-    // The inputs whose schema is a file of an artifact contract follow, named by their kind.
-    let named: Vec<(Option<InputKind>, &str)> = inputs.iter().map(|k| (k.input, k.id)).collect();
-    assert_eq!(named, [(Some(InputKind::HandoverInput), "handover_input")]);
-    let paths: Vec<&str> = inputs[0].versions.iter().map(|e| e.path).collect();
-    assert_eq!(paths, ["artifacts/handover/v1.input.json"]);
-    assert_eq!(inputs[0].code, codes::HANDOVER_INPUT);
-    assert!(built.iter().all(|k| k.code == codes::ARTIFACT_SCHEMA));
-    for (kind, contract) in built.iter().zip(CONTRACTS) {
-        assert!(ArtifactKind::from_id(kind.id).is_some(), "{}", kind.id);
+    let artifact_names: Vec<&str> = contracts(Area::Artifacts).map(|c| c.name).collect();
+    assert_eq!(
+        artifacts.iter().map(|k| k.id).collect::<Vec<_>>(),
+        artifact_names
+    );
+    assert!(artifacts.iter().all(|k| k.code == codes::ARTIFACT_SCHEMA));
+    let named: Vec<(Option<InputKind>, &str, Code)> = inputs
+        .iter()
+        .map(|k| (k.input, k.id, k.code.clone()))
+        .collect();
+    assert_eq!(
+        named,
+        [
+            (Some(InputKind::Commit), "commit", codes::ARTIFACT_SCHEMA),
+            (
+                Some(InputKind::PullRequest),
+                "pull_request",
+                codes::ARTIFACT_SCHEMA
+            ),
+            (
+                Some(InputKind::HandoverInput),
+                "handover_input",
+                codes::HANDOVER_INPUT
+            ),
+        ]
+    );
+    // Each kind holds the file of its part for every version of its contract.
+    let files = artifacts
+        .iter()
+        .zip(contracts(Area::Artifacts))
+        .chain(inputs.iter().zip(contracts(Area::Inputs)))
+        .map(|(kind, contract)| (kind, contract, Part::Schema))
+        .chain(inputs.last().map(|kind| (kind, &HANDOVER, Part::Input)));
+    for (kind, contract, part) in files {
         let paths: Vec<&str> = kind.versions.iter().map(|e| e.path).collect();
         let expected: Vec<String> = (1..=contract.version.get())
-            .map(|v| contract.path(Part::Schema, core::num::NonZeroU32::new(v).unwrap()))
+            .map(|v| contract.path(part, NonZeroU32::new(v).unwrap()))
             .collect();
-        assert_eq!(paths, expected);
+        assert_eq!(paths, expected, "{}", kind.id);
         assert_eq!(kind.migrations.len() + 1, kind.versions.len());
+    }
+}
+
+#[test]
+fn every_input_kind_is_built_exactly_once() {
+    // T10: every input has its schema; none is left out as not built.
+    let built = built();
+    for input in InputKind::ALL {
+        let count = built.iter().filter(|k| k.input == Some(input)).count();
+        assert_eq!(count, 1, "{input}");
     }
 }
 
@@ -597,16 +630,55 @@ fn the_oracle_agrees_with_the_interpreter_on_plan_items() {
 
 // Hand-over records and inputs (T9: R1, R22; AC1, AC31) --------------------------------------
 
-/// The entry of a hand-over input holding `document`.
-fn input_entry(document: Value) -> Value {
-    json!({"format": "document", "input_kind": "handover_input", "document": document})
+/// The entry of the input `document` of the kind `input_kind`.
+fn input_entry(document: Value, input_kind: InputKind) -> Value {
+    json!({"format": "document", "input_kind": input_kind.id(), "document": document})
+}
+
+/// The errors of validating the input `document` of the kind `input_kind` alone.
+fn input_errors(document: Value, input_kind: InputKind) -> Vec<(Code, String, Reason)> {
+    let validation = validate(&read(vec![input_entry(document, input_kind)]));
+    assert_eq!(validation.failures, []);
+    found(&validation.errors)
+}
+
+/// Asserts that `validation` has no error and no failure, and that each of `ran` ran.
+fn passed_with(validation: &super::Validation, ran: &[&str]) {
+    assert_eq!(validation.errors, []);
+    assert_eq!(validation.failures, []);
+    let checks: Vec<&str> = validation
+        .checks
+        .iter()
+        .map(wayloop_schemas::Check::id)
+        .collect();
+    for check in ran {
+        assert!(checks.contains(check), "{check}");
+        assert!(
+            validation.not_done.iter().all(|n| n.check().id() != *check),
+            "{check}"
+        );
+    }
+}
+
+/// Asserts that the input `document` of the kind `input_kind`, whose version the engine does
+/// not know, is refused with the known versions, `1` only (R16).
+fn version_unknown(document: Value, input_kind: InputKind) {
+    let validation = validate(&read(vec![input_entry(document, input_kind)]));
+    let error = validation.errors.first().unwrap();
+    assert_eq!(
+        (error.code(), error.pointer().as_str(), error.reason()),
+        (
+            &codes::SCHEMA_VERSION_UNKNOWN,
+            "/schema_version",
+            Reason::Enum
+        )
+    );
+    assert_eq!(error.expected(), Some(&[json!(1)][..]));
 }
 
 /// The errors of validating the hand-over input `document` alone.
 fn input_errors_of(document: Value) -> Vec<(Code, String, Reason)> {
-    let validation = validate(&read(vec![input_entry(document)]));
-    assert_eq!(validation.failures, []);
-    found(&validation.errors)
+    input_errors(document, InputKind::HandoverInput)
 }
 
 /// The accepted values of the member `step` in the file `part` of the hand-over contract, its
@@ -639,22 +711,9 @@ fn the_step_of_both_hand_over_schemas_is_the_issue_step_of_the_core() {
 fn the_valid_hand_over_record_and_input_pass_and_read_into_their_types() {
     let validation = validate(&read(vec![
         entry(handover()),
-        input_entry(handover_input()),
+        input_entry(handover_input(), InputKind::HandoverInput),
     ]));
-    assert_eq!(validation.errors, []);
-    assert_eq!(validation.failures, []);
-    let checks: Vec<&str> = validation
-        .checks
-        .iter()
-        .map(wayloop_schemas::Check::id)
-        .collect();
-    for check in ["schema_handover", "schema_handover_input"] {
-        assert!(checks.contains(&check), "{check}");
-        assert!(
-            validation.not_done.iter().all(|n| n.check().id() != check),
-            "{check}"
-        );
-    }
+    passed_with(&validation, &["schema_handover", "schema_handover_input"]);
     let built = built();
     let reread_of = |id: &str| built.iter().find(|k| k.id == id).unwrap().reread;
     assert_eq!(reread_of("handover")(&handover()).unwrap(), handover());
@@ -676,7 +735,7 @@ fn the_valid_hand_over_record_and_input_pass_and_read_into_their_types() {
 fn the_summary_of_an_input_never_holds_a_kind_an_identifier_or_a_status() {
     let mut document = with(handover_input(), "id", json!("HANDOVER-12-1"));
     document = with(document, "status", json!("done"));
-    let validation = validate(&read(vec![input_entry(document)]));
+    let validation = validate(&read(vec![input_entry(document, InputKind::HandoverInput)]));
     assert_eq!(
         serde_json::to_value(&validation.documents).unwrap(),
         json!([{"input_kind": "handover_input"}])
@@ -754,21 +813,10 @@ fn every_error_of_a_hand_over_input_has_its_code_and_the_record_that_of_artifact
         [(codes::IDENTIFIER_FORMAT, "/id".to_owned(), Reason::Syntax)]
     );
     // R16: an input of a version the engine does not know is refused with its known versions.
-    let validation = validate(&read(vec![input_entry(with(
-        handover_input(),
-        "schema_version",
-        json!(2),
-    ))]));
-    let error = validation.errors.first().unwrap();
-    assert_eq!(
-        (error.code(), error.pointer().as_str(), error.reason()),
-        (
-            &codes::SCHEMA_VERSION_UNKNOWN,
-            "/schema_version",
-            Reason::Enum
-        )
+    version_unknown(
+        with(handover_input(), "schema_version", json!(2)),
+        InputKind::HandoverInput,
     );
-    assert_eq!(error.expected(), Some(&[json!(1)][..]));
 }
 
 #[test]
@@ -1433,7 +1481,9 @@ fn a_version_beyond_the_safe_integers_is_refused_with_range() {
         );
     }
     assert!(matches!(
-        check_sample(json!({"kind": "sample", "schema_version": 9_007_199_254_740_991_u64, "name": "x"})),
+        check_sample(json!({
+            "kind": "sample", "schema_version": 9_007_199_254_740_991_u64, "name": "x"
+        })),
         Checked::Refused(errors) if *errors[0].code() == codes::SCHEMA_VERSION_UNKNOWN
     ));
 }
@@ -1582,17 +1632,12 @@ fn the_folders_of_the_contract_are_those_of_the_locations() {
 
 #[test]
 fn checks_not_built_are_listed_once_with_their_reason() {
-    // The schemas of a task and of a hand-over input are left out of the types built here, so
-    // that the test holds whichever types the engine builds.
-    let unbuilt = ["task", "handover_input"];
-    let mut types = built();
-    types.retain(|k| !unbuilt.contains(&k.id));
-    assert_eq!(types.len(), built().len() - unbuilt.len());
+    // Every type has its schema built: a missing one is a failure of the engine, never a check
+    // not built (decided by the maintainer on 2026-11-25).
+    let types = built();
     let input = read(vec![
-        entry(json!({"kind": "task", "id": "TASK-0012"})),
-        entry(json!({"kind": "task"})),
         json!({"format": "markdown", "text": "# SPEC-0001: x"}),
-        json!({"format": "document", "document": {"header": "x"}, "input_kind": "handover_input"}),
+        json!({"format": "markdown", "text": "# SPEC-0002: y"}),
         entry(brief()),
     ]);
     let validation = super::validate(&input, &types);
@@ -1604,7 +1649,6 @@ fn checks_not_built_are_listed_once_with_their_reason() {
         .iter()
         .chain([&checks::ARTIFACT_LOCATIONS, &checks::MARKDOWN])
         .map(|c| c.id().to_owned())
-        .chain(unbuilt.map(|id| kinds::schema_check(id).id().to_owned()))
         .collect();
     expected_not_done.sort();
     let not_done: Vec<&str> = validation.not_done.iter().map(|n| n.check().id()).collect();
@@ -1620,7 +1664,7 @@ fn checks_not_built_are_listed_once_with_their_reason() {
         assert_eq!(not.reason(), expected, "{}", not.check().id());
     }
     // One check identifier per schema (S6): the schemas of the built types and inputs ran, in
-    // their order, those left out did not.
+    // their order.
     let schemas = types.iter().map(|k| kinds::schema_check(k.id));
     let mut expected = vec![checks::DOCUMENT_KIND, checks::SCHEMA_VERSION];
     expected.extend(schemas);
@@ -1640,10 +1684,8 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     assert_eq!(
         summaries,
         [
-            (Some("task"), None, Some("TASK-0012")),
-            (Some("task"), None, None),
             (None, None, None),
-            (None, Some("handover_input"), None),
+            (None, None, None),
             (Some("brief"), None, Some("BRIEF-0001")),
         ]
     );
@@ -1849,7 +1891,10 @@ fn a_member_of_another_format_is_a_conflict_with_the_format() {
     let input = json!({"documents": [
         {"format": "document", "document": {}, "text": "x", "error": {"line": 1, "message": "m"}},
         {"format": "markdown", "text": "x", "lines": {}, "input_kind": "commit"},
-        {"format": "unreadable", "error": {"line": 1, "message": "m"}, "document": {}, "text": null},
+        {
+            "format": "unreadable", "error": {"line": 1, "message": "m"}, "document": {},
+            "text": null
+        },
     ]});
     let format = |i: usize| Some(vec![format!("/documents/{i}/format")]);
     assert_eq!(
@@ -2188,13 +2233,246 @@ fn a_file_origin_outside_the_project_is_refused() {
 
 #[test]
 fn every_artifact_type_has_its_schema_built() {
-    // After T7 to T9 every type of SPEC-0001 has a schema; a type declared without one would
-    // give `not_built` to its documents, which the reference no longer documents as possible.
+    // After T7 to T10 every type of SPEC-0001 has a schema; a type declared without one would
+    // make every run with a document of that type a failure of the engine.
     let built = kinds::built().unwrap();
     for kind in ArtifactKind::ALL {
         let found = built
             .iter()
             .filter(|k| k.input.is_none() && k.id == kind.id());
         assert_eq!(found.count(), 1, "{}", kind.id());
+    }
+}
+
+// Pull request and commit inputs (T10: R1, R16; AC1, structural part) -----------------------
+
+#[test]
+fn valid_inputs_pass_and_their_schemas_run() {
+    let validation = validate(&read(vec![
+        input_entry(pull_request(), InputKind::PullRequest),
+        input_entry(commit(), InputKind::Commit),
+        // A commit of one line has no body.
+        input_entry(without(commit(), "body"), InputKind::Commit),
+    ]));
+    passed_with(&validation, &["schema_commit", "schema_pull_request"]);
+    // The grammar of branches and headers and the links of a pull request are later checks.
+    assert!(
+        validation
+            .not_done
+            .iter()
+            .any(|n| n.check() == &checks::NAMING)
+    );
+    let kinds: Vec<Option<InputKind>> = validation.documents.iter().map(|d| d.input_kind).collect();
+    assert_eq!(
+        kinds,
+        [
+            Some(InputKind::PullRequest),
+            Some(InputKind::Commit),
+            Some(InputKind::Commit)
+        ]
+    );
+    assert!(validation.documents.iter().all(|d| d.kind.is_none()));
+}
+
+#[test]
+fn the_oracle_agrees_with_the_interpreter_on_inputs() {
+    oracle_agrees(
+        &PULL_REQUEST,
+        [
+            pull_request(),
+            with(pull_request(), "body", json!("")),
+            with(pull_request(), "title", json!("")),
+            without(pull_request(), "branch"),
+            without(pull_request(), "schema_version"),
+            with(pull_request(), "labels", json!(["ok", 7])),
+            with(pull_request(), "labels", json!([""])),
+            with(pull_request(), "kind", json!("pull_request")),
+            commit(),
+        ],
+    );
+    oracle_agrees(
+        &COMMIT,
+        [
+            commit(),
+            with(commit(), "body", json!("Refs: #12")),
+            with(commit(), "body", json!("")),
+            with(commit(), "body", json!(1)),
+            with(commit(), "header", json!("")),
+            with(commit(), "schema_version", json!("1")),
+            without(commit(), "header"),
+            pull_request(),
+        ],
+    );
+}
+
+#[test]
+fn input_kind_selects_the_schema() {
+    // The pull request sent as a commit: its members other than the body are unknown to the
+    // commit, which misses its header. Present members in byte order, then absent ones in the order of `required`.
+    assert_eq!(
+        input_errors(pull_request(), InputKind::Commit),
+        [
+            schema_error("/branch", Reason::UnknownField),
+            schema_error("/labels", Reason::UnknownField),
+            schema_error("/title", Reason::UnknownField),
+            schema_error("/header", Reason::Missing),
+        ]
+    );
+    // The commit of one line sent as a pull request.
+    assert_eq!(
+        input_errors(without(commit(), "body"), InputKind::PullRequest),
+        [
+            schema_error("/header", Reason::UnknownField),
+            schema_error("/title", Reason::Missing),
+            schema_error("/body", Reason::Missing),
+            schema_error("/branch", Reason::Missing),
+            schema_error("/labels", Reason::Missing),
+        ]
+    );
+}
+
+#[test]
+fn a_missing_branch_or_header_is_missing() {
+    assert_eq!(
+        input_errors(without(pull_request(), "branch"), InputKind::PullRequest),
+        [schema_error("/branch", Reason::Missing)]
+    );
+    assert_eq!(
+        input_errors(without(commit(), "header"), InputKind::Commit),
+        [schema_error("/header", Reason::Missing)]
+    );
+    // A member set to null is not given (ADR 0009 C2).
+    assert_eq!(
+        input_errors(with(commit(), "header", Value::Null), InputKind::Commit),
+        [schema_error("/header", Reason::Missing)]
+    );
+}
+
+#[test]
+fn the_texts_of_an_input_are_not_empty_except_the_body_of_a_pull_request() {
+    // Decided by the maintainer on 2026-11-24 (SPEC-0001, Inputs).
+    for member in ["title", "branch"] {
+        assert_eq!(
+            input_errors(
+                with(pull_request(), member, json!("")),
+                InputKind::PullRequest
+            ),
+            [schema_error(&format!("/{member}"), Reason::Length)]
+        );
+    }
+    for member in ["header", "body"] {
+        assert_eq!(
+            input_errors(with(commit(), member, json!("")), InputKind::Commit),
+            [schema_error(&format!("/{member}"), Reason::Length)]
+        );
+    }
+    assert_eq!(
+        input_errors(
+            with(pull_request(), "body", json!("")),
+            InputKind::PullRequest
+        ),
+        []
+    );
+    // A label is a non-empty text; the list may be empty (decided by the maintainer on
+    // 2026-11-25).
+    assert_eq!(
+        input_errors(
+            with(pull_request(), "labels", json!([""])),
+            InputKind::PullRequest
+        ),
+        [schema_error("/labels/0", Reason::Length)]
+    );
+}
+
+#[test]
+fn the_members_of_an_input_have_their_types() {
+    assert_eq!(
+        input_errors(
+            with(pull_request(), "labels", json!(["ok", 7])),
+            InputKind::PullRequest
+        ),
+        [schema_error("/labels/1", Reason::Type)]
+    );
+    assert_eq!(
+        input_errors(with(commit(), "body", json!(["x"])), InputKind::Commit),
+        [schema_error("/body", Reason::Type)]
+    );
+}
+
+#[test]
+fn an_input_carries_its_schema_version_and_no_kind() {
+    // Decided by the maintainer on 2026-11-24: every input carries `schema_version` (R16).
+    for (document, input_kind) in [
+        (pull_request(), InputKind::PullRequest),
+        (commit(), InputKind::Commit),
+    ] {
+        assert_eq!(
+            input_errors(without(document.clone(), "schema_version"), input_kind),
+            [schema_error("/schema_version", Reason::Missing)]
+        );
+        // An input has no kind, identifier or status (SPEC-0001, Inputs).
+        assert_eq!(
+            input_errors(with(document.clone(), "kind", json!("commit")), input_kind),
+            [schema_error("/kind", Reason::UnknownField)]
+        );
+        // R16: a version the engine does not know is refused with the known versions.
+        version_unknown(with(document, "schema_version", json!(99)), input_kind);
+    }
+}
+
+#[test]
+fn an_input_without_input_kind_and_without_kind_is_missing_at_kind() {
+    for document in [pull_request(), commit()] {
+        assert_eq!(
+            errors_of(document),
+            [schema_error("/kind", Reason::Missing)]
+        );
+    }
+}
+
+#[test]
+fn a_kind_naming_an_input_is_not_an_artifact_type() {
+    // `kind` selects artifacts only: the name of an input there is outside the list.
+    for name in ["commit", "pull_request"] {
+        let validation = validate(&read(vec![entry(with(commit(), "kind", json!(name)))]));
+        assert_eq!(
+            found(&validation.errors),
+            [schema_error("/kind", Reason::Enum)]
+        );
+        let expected: Vec<Value> = kinds::kinds().into_iter().map(Value::from).collect();
+        assert_eq!(validation.errors[0].expected(), Some(&expected[..]));
+    }
+}
+
+#[test]
+fn a_type_without_its_schema_is_a_failure_of_the_engine() {
+    // Every artifact type and input kind is built; a set of types without one is a defect, never
+    // a check left out as not built (decided by the maintainer on 2026-11-25).
+    let cases = [
+        (
+            "task",
+            entry(task()),
+            "The artifact type task has no schema loaded, so the check schema_task cannot run.",
+        ),
+        (
+            "commit",
+            input_entry(commit(), InputKind::Commit),
+            "The input kind commit has no schema loaded, so the check schema_commit cannot run.",
+        ),
+    ];
+    for (id, document, message) in cases {
+        let mut types = built();
+        types.retain(|k| k.id != id);
+        assert_eq!(types.len(), built().len() - 1, "{id}");
+        let validation = super::validate(&read(vec![document]), &types);
+        assert_eq!(validation.errors, [], "{id}");
+        assert_eq!(validation.failures.len(), 1, "{id}");
+        assert_eq!(validation.failures[0].reason(), Reason::Internal, "{id}");
+        assert_eq!(validation.failures[0].message(), message);
+        let check = kinds::schema_check(id);
+        assert!(
+            validation.not_done.iter().all(|n| n.check() != &check),
+            "{id}"
+        );
     }
 }

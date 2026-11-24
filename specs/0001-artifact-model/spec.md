@@ -512,24 +512,49 @@ with a migration of older records (R16).
 
 ## Inputs
 
-These inputs are not artifacts: they have no identifier and no status. Adapters assemble them
-from the tracker or from git (SPEC-0021 R3); the core validates them.
+These inputs are not artifacts: they have no `kind`, no identifier and no status; the
+`input_kind` of their entry selects their schema. Adapters assemble them from the tracker or
+from git (SPEC-0021 R3); the core validates them.
+
+Every input carries `schema_version`, like the artifacts: the version of the schema of the input
+it was written against, required, an integer from 1 (decided by the maintainer on 2026-11-24).
+An input is checked against the schema of its own version and migrated to the current one, as
+an artifact is, so R16 holds for inputs too. The hand-over input carries it already (Hand-over
+record).
+
+Pull request and commit inputs carry no `language` (decided by the maintainer on 2026-11-25):
+adapters build them from the tracker and from git, which give none, and their prose is in the
+language of the project (R6). They therefore do not share the `Header` of the artifacts, and
+`schema_version` is a member of each input type on purpose.
+
+The texts `title`, `branch` and `header`, and `body` of a commit when present, have at least
+one character; the `body` of a pull request may be empty and `labels` may be an empty list. An
+optional text is left out when it has no value, never written empty (decided by the maintainer
+on 2026-11-24). Each label is a non-empty text (decided by the maintainer on 2026-11-25). An
+empty text where one is required is refused with the reason `length`.
+
+Names are kept apart from prose (decided by the maintainer on 2026-11-25). The `branch` and each
+label are names given by a tool, git or the tracker, spelt as the tool spells it: they are not
+prose and have no language, and their type says so. The `title`, the `header` and the bodies are
+prose, in the language of the project.
 
 `pull_request` (R10):
 
 | Name | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `title` | string | yes | Pull request title, a commit header under R11 |
+| `schema_version` | integer, at least 1 | yes | Version of the schema of the input (R16) |
+| `title` | string, at least 1 character | yes | Pull request title, a commit header under R11 |
 | `body` | string | yes, may be empty | Pull request body, where the issue is linked |
-| `branch` | string | yes | Head branch |
-| `labels` | list of strings | yes, may be empty | Labels, in the spelling of the tracker |
+| `branch` | name, at least 1 character | yes | Head branch, a name given by git |
+| `labels` | list of names, each at least 1 character | yes, may be empty | Labels, names given by the tracker, in its spelling |
 
 `commit` (R11):
 
 | Name | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `header` | string | yes | First line of the message |
-| `body` | string | no | Lines after the blank line, trailers included |
+| `schema_version` | integer, at least 1 | yes | Version of the schema of the input (R16) |
+| `header` | string, at least 1 character | yes | First line of the message |
+| `body` | string, at least 1 character | no | Lines after the blank line, trailers included; absent when the message has one line |
 
 Issue links in the body (R10). A closing keyword (`Closes`, `Fixes`, `Resolves` and their
 forms, without regard to case) followed by `#<n>` links an issue the pull request completes;
@@ -618,6 +643,12 @@ C8).
 | R20 | `delta_conflict` | `conflict` |
 | R22 | `handover_input` | `unknown_field`, and the reasons of `artifact_schema` |
 | R26 | `artifact_location_missing` (warning) | `missing` |
+
+Every artifact type and input kind of this specification has its schema built. A document of a
+type whose schema the engine has not loaded is a failure of the engine, the internal error of
+ADR 0009 naming the check `schema_<kind>` or `schema_<input_kind>` it could not run, never a
+check listed as not built; one rule holds for artifacts and inputs (decided by the maintainer on
+2026-11-25).
 
 ## Examples
 

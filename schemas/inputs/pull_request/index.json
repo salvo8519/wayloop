@@ -1,0 +1,11 @@
+{
+  "current": "1",
+  "format": 1,
+  "versions": {
+    "1": {
+      "file": "inputs/pull_request/v1.json",
+      "introduced_in": "unreleased",
+      "sha256": "e020d31fe302fd3c91bc81dd60c3c32a37a7b8fc33593c42b6f40db26fce8d40"
+    }
+  }
+}

@@ -2,6 +2,7 @@
 # the body links issue 12.
 # Expected: pointer /branch, code pull_request_link, reason conflict, pointers /branch
 # and /body.
+schema_version: 1
 title: "feat(core): append one entry per record command"
 body: Closes #12
 branch: feat/11-record-time-entry

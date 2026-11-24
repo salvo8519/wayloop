@@ -11,7 +11,8 @@
 //! It holds the error report of ADR 0009 C3 and the envelope of C1, generic over the data of a
 //! command, with the exit codes of C7; the artifacts of SPEC-0001 built on one common type
 //! ([`artifact`]), with the steps of the issue cycle that the hand-over records ([`IssueStep`]);
-//! the input and the data of the command `validate` ([`validate`]); and the value
+//! the inputs pull request and commit ([`input`]); the input and the data of the command
+//! `validate` ([`validate`]); and the value
 //! forms they share, one type each ([`value`]), with numbers read by value ([`number`]). Every
 //! contract type derives its JSON Schema; [`contract`] generates it inside the subset that the
 //! core interprets, with the named formats of [`Format`] (ADR 0030). Closed enums and static
@@ -34,12 +35,13 @@ pub mod contract;
 mod cycle;
 mod envelope;
 mod error;
-#[cfg(feature = "examples")]
+#[cfg(any(test, feature = "examples"))]
 pub mod examples;
 #[cfg(test)]
 mod fixtures;
 mod format;
 pub mod ident;
+pub mod input;
 pub mod number;
 pub mod validate;
 pub mod value;

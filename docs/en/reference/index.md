@@ -7,8 +7,8 @@ Wayloop. There is no release yet; what comes next is in the [roadmap](../project
 
 The `wayloop` binary built from `crates/wayloop-cli` answers the commands below. Each prints one
 line of JSON on standard output. `version` and `steps` exit with code 0; the version is the one
-of the workspace manifest. `validate` checks artifacts against their schemas and is described on
-its own page, [wayloop validate](validate.md).
+of the workspace manifest. `validate` checks artifacts and inputs against their schemas and is
+described on its own page, [wayloop validate](validate.md).
 
 | Command | Output |
 | --- | --- |
@@ -64,6 +64,8 @@ of each version and their SHA-256, is in `schemas/index.json` at the same addres
 | Change delta ([wayloop validate](validate.md)) | `schemas/artifacts/change/index.json` |
 | Task ([wayloop validate](validate.md)) | `schemas/artifacts/task/index.json` |
 | Hand-over record and hand-over input ([wayloop validate](validate.md)) | `schemas/artifacts/handover/index.json` |
+| Pull request input ([wayloop validate](validate.md#pull-request-and-commit-inputs)) | `schemas/inputs/pull_request/index.json` |
+| Commit input ([wayloop validate](validate.md#pull-request-and-commit-inputs)) | `schemas/inputs/commit/index.json` |
 | Input and result of `wayloop validate` ([wayloop validate](validate.md)) | `schemas/commands/validate/index.json` |
 | Envelope of every command result ([ADR 0009](../project/adr/0009-contract-guidelines.md), C1) | `schemas/envelope/result/index.json` |
 

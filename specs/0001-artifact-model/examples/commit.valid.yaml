@@ -1,4 +1,5 @@
 # Valid commit input (SPEC-0001 R11): a breaking change with its paragraph.
+schema_version: 1
 header: "feat(core)!: store durations in seconds [SPEC-0001 R2]"
 body: |
   Durations were minutes; short tasks need seconds.

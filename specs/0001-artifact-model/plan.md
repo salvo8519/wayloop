@@ -113,9 +113,13 @@ pub struct Validation {
 
 ### Schemas and their interpreter (D5)
 
-Schemas are hand-written JSON Schema files (draft 2020-12) under `schemas/`, the snapshots of
-ADR 0009 C5 and of the Interfaces of SPEC-0001. They are the source of the contract (ADR 0028)
-and of the tool definitions generated from it (ADR 0024).
+Superseded in part by ADR 0030 (contracts generated from Rust types): the schemas are no longer
+hand-written. The types of `wayloop-schemas` are the one source; the snapshots under `schemas/`
+(draft 2020-12, the snapshots of ADR 0009 C5 and of the Interfaces of SPEC-0001) are generated
+from them by `wayloop-schemagen`, with the history of each contract, and are never edited by
+hand (ADR 0030 G1, G5). The tool definitions of ADR 0024 are generated from the same snapshots.
+What still holds is written below: the interpreter of a subset in the core, which keeps
+reporting every error in one pass, and the validator crate as a test-only oracle (ADR 0030 G3).
 
 The core validates documents with a small interpreter of a documented subset of JSON Schema:
 `type`, `properties`, `required`, `additionalProperties: false`, `enum`, `const`, `items`,
@@ -141,9 +145,9 @@ Numbers (decided by the maintainer on 2026-11-20, for T4 and T5): a schema integ
 no fractional part, so `4364.0` is the integer `4364`, as JSON Schema and the canonical JSON of
 RFC 8785 both read it. The same input therefore has one verdict and one `input_hash`.
 
-The schema files are embedded in `wayloop-schemas` with `include_str!` at build time. A test
-checks that every file under `schemas/artifacts/` and `schemas/inputs/` is embedded and that
-the kinds of the core match the folders.
+The snapshots are embedded in `wayloop-schemas` with `include_str!` at build time. A test
+checks that every snapshot of a contract of the registry is embedded and that the kinds of the
+core are built from the registry (ADR 0030 G5).
 
 Schema versions (R16): each kind has a list of known versions and a chain of migrations
 `v<N>` to `v<N+1>`, pure functions on the JSON value. Only `v1` exists; the mechanism is
@@ -232,7 +236,10 @@ D2 (a), D3 (a), D4 (a) and (i), D5 (a), D6 (a), D7 (a), D8 (a)). The full templa
   NFC, which differs from case folding for a few characters (for example the sharp s and the
   final sigma) and needs an edit of SPEC-0001 to say so. Recommendation: (a) and (i), each
   crate checked for I/O and licence by the security-reviewer role in T16.
-- **D5. How schemas are written and checked.** (a) Hand-written JSON Schema snapshots,
+- **D5. How schemas are written and checked.** Option (a) is superseded by ADR 0030: the
+  schemas are generated from the Rust types of `wayloop-schemas`, inside the subset of the
+  interpreter of the core; the interpreter and the test-only oracle of the recommendation still
+  hold. The original options: (a) Hand-written JSON Schema snapshots,
   interpreted by the core over a documented subset. (b) Rust types as the source, with schemas
   generated from them: the contract would change with a refactor of a type, against ADR 0028,
   and the generated shapes would follow the generator, not C4. (c) Hand-written snapshots

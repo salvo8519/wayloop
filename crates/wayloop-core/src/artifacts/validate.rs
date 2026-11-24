@@ -116,6 +116,18 @@ fn not_built(not_done: &mut BTreeSet<NotDone>, check: Check) {
     not_done.insert(NotDone::new(check, NotDoneReason::NotBuilt));
 }
 
+/// The failure of the engine when the type `id`, an artifact type or an input kind named by
+/// `what`, has no schema loaded: every type of SPEC-0001 has its schema built (`kinds::built`),
+/// so one without is a defect of the engine, never a check left out (decided by the maintainer
+/// on 2026-11-25).
+fn no_schema(what: &str, id: &str) -> Error {
+    let check = kinds::schema_check(id);
+    Error::internal(format!(
+        "The {what} {id} has no schema loaded, so the check {} cannot run.",
+        check.id()
+    ))
+}
+
 /// Checks one entry, adding what it found to `validation`, and gives its summary.
 fn check_entry(
     entry: &Entry,
@@ -161,7 +173,8 @@ fn check_entry(
                     return summary(Some(&read), Some(*input_kind), origin);
                 }
             } else {
-                not_built(not_done, kinds::schema_check(input_kind.id()));
+                let failure = no_schema("input kind", input_kind.id());
+                validation.failures.push(failure);
             }
             summary(Some(document), Some(*input_kind), origin)
         }
@@ -199,7 +212,7 @@ fn check_entry(
                     return summary(Some(&read), None, origin);
                 }
             } else if ArtifactKind::from_id(kind).is_some() {
-                not_built(not_done, kinds::schema_check(kind));
+                validation.failures.push(no_schema("artifact type", kind));
             } else {
                 let message = format!("The type `{kind}` is not an artifact type.");
                 validation.errors.push(located(
