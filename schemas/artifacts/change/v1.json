@@ -76,7 +76,7 @@
       "description": "An operation of a change delta on one requirement of its living specification.",
       "properties": {
         "name": {
-          "description": "The name of the requirement; required for `renamed`, optional for `added` and `modified`.",
+          "description": "The name of the requirement; required for `renamed`, optional for `added` and `modified`, refused for `removed`.",
           "minLength": 1,
           "type": "string"
         },
@@ -85,12 +85,12 @@
           "description": "What the operation does."
         },
         "requirement": {
-          "description": "The existing requirement, `R<k>`; required for `modified`, `removed` and `renamed`. An added requirement gets its identifier when the delta is merged.",
+          "description": "The existing requirement, `R<k>`; required for `modified`, `removed` and `renamed`, refused for `added`: an added requirement gets its identifier when the delta is merged.",
           "format": "requirement-id",
           "type": "string"
         },
         "text": {
-          "description": "The text of the requirement; required for `added` and `modified`.",
+          "description": "The text of the requirement; required for `added` and `modified`, refused for `removed` and `renamed`: a rename with a new text is one `modified` operation.",
           "minLength": 1,
           "type": "string"
         }

@@ -5,19 +5,18 @@
       "description": "A section of a living specification outside its template, kept as prose and not validated.",
       "properties": {
         "heading": {
-          "description": "The heading of the section, as written.",
+          "description": "The heading of the section, as written; not empty.",
           "minLength": 1,
           "type": "string"
         },
         "text": {
-          "description": "The content of the section, as written.",
+          "description": "The content of the section, as written; absent when the section has no content.",
           "minLength": 1,
           "type": "string"
         }
       },
       "required": [
-        "heading",
-        "text"
+        "heading"
       ],
       "type": "object"
     },
@@ -62,7 +61,7 @@
         },
         "status": {
           "$ref": "#/$defs/RequirementStatus",
-          "description": "Whether the requirement is in force; absent means `active`."
+          "description": "Whether the requirement is in force; absent means `active`, which is not a default applied by the engine."
         },
         "text": {
           "description": "The requirement, in EARS form.",

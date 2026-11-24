@@ -1141,9 +1141,16 @@ fn the_members_of_a_living_specification_have_their_forms() {
         member("open_questions", json!([{"id": "Q1", "text": "T"}])),
         [schema_error("/open_questions/0/resolved", Reason::Missing)]
     );
+    // An extra section needs a heading that is not empty; its text is absent when the section
+    // has no content (decided by the maintainer on 2026-11-24).
+    assert_eq!(member("extra_sections", json!([{"heading": "Notes"}])), []);
     assert_eq!(
-        member("extra_sections", json!([{"heading": "Notes"}])),
-        [schema_error("/extra_sections/0/text", Reason::Missing)]
+        member("extra_sections", json!([{"heading": "", "text": "T"}])),
+        [schema_error("/extra_sections/0/heading", Reason::Length)]
+    );
+    assert_eq!(
+        member("extra_sections", json!([{"text": "T"}])),
+        [schema_error("/extra_sections/0/heading", Reason::Missing)]
     );
     // R6: keys are English; an Italian key in place of the English one is unknown, with the
     // English key, which is then missing, as the fix.
@@ -1592,38 +1599,25 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     assert_eq!(validation.errors, []);
     // The valid brief is read into its contract type (ADR 0030 G1), not left as a value.
     assert_eq!(validation.failures, []);
+    // Each check not done is listed once, in the order of its identifier.
+    let mut expected_not_done: Vec<String> = checks::NOT_BUILT
+        .iter()
+        .chain([&checks::ARTIFACT_LOCATIONS, &checks::MARKDOWN])
+        .map(|c| c.id().to_owned())
+        .chain(unbuilt.map(|id| kinds::schema_check(id).id().to_owned()))
+        .collect();
+    expected_not_done.sort();
     let not_done: Vec<&str> = validation.not_done.iter().map(|n| n.check().id()).collect();
-    assert_eq!(
-        not_done,
-        [
-            "areas",
-            "artifact_locations",
-            "identifier_duplicate",
-            "links",
-            "markdown",
-            "naming",
-            "parts",
-            "schema_handover_input",
-            "schema_task",
-            "statuses",
-        ]
-    );
+    assert_eq!(not_done, expected_not_done);
     // The locations were not given: the documents were not discovered (AC37). Every other
     // check is not built.
-    let reason = |id: &str| {
-        validation
-            .not_done
-            .iter()
-            .find(|n| n.check().id() == id)
-            .map(NotDone::reason)
-    };
-    for id in not_done.iter().copied() {
-        let expected = if id == checks::ARTIFACT_LOCATIONS.id() {
+    for not in &validation.not_done {
+        let expected = if not.check() == &checks::ARTIFACT_LOCATIONS {
             NotDoneReason::InputAbsent
         } else {
             NotDoneReason::NotBuilt
         };
-        assert_eq!(reason(id), Some(expected), "{id}");
+        assert_eq!(not.reason(), expected, "{}", not.check().id());
     }
     // One check identifier per schema (S6): the schemas of the built types and inputs ran, in
     // their order, those left out did not.

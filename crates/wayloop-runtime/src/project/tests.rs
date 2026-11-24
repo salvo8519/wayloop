@@ -416,6 +416,44 @@ fn the_examples_of_the_council_reports_specifications_and_changes_load_into_thei
 }
 
 #[test]
+fn the_invalid_examples_of_later_checks_pass_the_schema() {
+    // These examples break links and operations of change deltas, checked by later tasks
+    // (T12, T13), not the schema: with the valid set they give no `artifact_schema` error,
+    // whichever checks are built.
+    let mut names = PLAN_SET.to_vec();
+    names.extend([
+        "specification.superseded.valid.yaml",
+        "change.valid.yaml",
+        "council_report.invalid.yaml",
+        "change.invalid.yaml",
+        "change.conflict.invalid.yaml",
+    ]);
+    let texts: Vec<(String, String)> = names
+        .iter()
+        .map(|name| (format!("plan/items/{name}"), example(name)))
+        .collect();
+    let files: Vec<(&str, &[u8])> = texts
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_bytes()))
+        .collect();
+    let project = Project::new("later-checks", &files);
+    assert_eq!(project.input().documents.len(), names.len());
+    let envelope = project.envelope();
+    // One error is the `error` itself; several are its `errors`.
+    let error = &envelope["error"];
+    let errors: Vec<&Value> = match error["errors"].as_array() {
+        Some(errors) => errors.iter().collect(),
+        None if error.is_null() => Vec::new(),
+        None => vec![error],
+    };
+    let schema_errors: Vec<&Value> = errors
+        .into_iter()
+        .filter(|e| e["code"] == "artifact_schema")
+        .collect();
+    assert_eq!(schema_errors, Vec::<&Value>::new(), "{envelope}");
+}
+
+#[test]
 fn the_examples_of_the_schemas_crate_are_those_of_the_valid_case() {
     // `wayloop_schemas::examples` holds a deliberate copy of documents of `design-valid`, the
     // valid set of `plan-valid` and two more, for the tests of the core, which embed no file

@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 3b9bbf2a0cda
+source_hash: 216c4d636819
 ---
 # wayloop validate
 
@@ -98,8 +98,8 @@ che il motore non ha eseguito non è mai saltato in silenzio:
 | `areas` | L'insieme: l'`area` di ogni epic e di ogni task rispetto alle aree della policy del progetto |
 
 Uno schema indica anche i membri che uno stato, una verifica o un'operazione richiedono; un
-documento che ne è privo è rifiutato con il motivo `requires`, il membro mancante in `pointer` e il membro della
-condizione in `pointers`:
+documento che ne è privo è rifiutato con il motivo `requires`, il membro mancante in `pointer` e
+il membro della condizione in `pointers`:
 
 | Tipo | Membro | Richiesto quando |
 | --- | --- | --- |
@@ -127,11 +127,18 @@ una specifica viva ne ha sei, `draft`, `approved`, `surveyed`, `implementing`, `
 `superseded`, e ogni altro, per esempio `published`, è rifiutato con `enum` e i sei in
 `expected`. La `capability` di una specifica viva è formata da parole minuscole di `a`-`z` e
 `0`-`9` unite da un solo trattino, per esempio `time-entries`; un requisito è `active` o
-`removed`, e assente significa `active`. Lo schema controlla la forma delle parti di un artefatto
-(`D<k>`, `Q<k>`, `R<k>`, `AC<k>`) e che una domanda di un verbale del comitato abbia almeno due
-opzioni, non che una parte sia unica, che un dissenso nomini una decisione del suo verbale, che
-una risposta sia una delle opzioni o che una modifica a delta abbia una sola operazione per
-requisito: questo è il controllo `parts`.
+`removed`, e assente significa `active`. Lo schema controlla la forma delle parti di un
+artefatto (`D<k>`, `Q<k>`, `R<k>`, `AC<k>`) e che una domanda di un verbale del comitato abbia
+almeno due opzioni, non che una parte sia unica, che un dissenso nomini una decisione del suo
+verbale, che una raccomandazione o una risposta sia una delle opzioni o che una modifica a delta
+abbia una sola operazione per requisito: questo è il controllo `parts`.
+
+Un'operazione di una modifica a delta non deve portare un membro che il suo `op` rifiuta:
+`requirement` con `added`, `text` con `removed` e `renamed` (una rinomina con un nuovo testo è
+una sola operazione `modified`), e `name` con `removed`. Lo schema non può indicare l'assenza di
+un membro sotto una condizione, quindi questa versione accetta questi membri; il controllo
+`parts` dovrà rifiutare ciascuno con `artifact_schema`, `unknown_field` e `/operations/<i>/op`
+in `pointers`.
 
 Un passaggio di mano ha due forme di una stessa versione. L'input è ciò che un agente invia alla
 fine di una sessione, con `input_kind: handover_input` e senza `kind`: `schema_version`,

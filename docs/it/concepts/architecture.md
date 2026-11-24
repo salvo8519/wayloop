@@ -317,17 +317,17 @@ La condizione di un `if` usa `type`, `properties`, `required`, `enum`, `const` e
 `fix` preciso. I formati con nome sono `date`, `utc-date-time` (con il suffisso `Z`),
 `language-tag` (lingua, scrittura, regione e varianti di BCP 47), `tracker-handle`,
 `project-path` (un percorso relativo alla radice del progetto in una sola grafia: segmenti uniti
-da `/`, nessuno vuoto, `.` o `..`; nessun `\` e nessuna lettera di unità), `capability`
-(parole minuscole di lettere e cifre unite da un solo trattino, lo slug della cartella di una
-specifica viva), gli identificativi di ogni tipo di artefatto (`brief-id`, `council-id`, `gate-id`, `epic-id`,
-`story-id`, `spec-id`, `change-id`, `task-id`, `milestone-id`, `handover-id`),
+da `/`, nessuno vuoto, `.` o `..`; nessun `\` e nessuna lettera di unità), `capability` (parole
+minuscole di lettere e cifre unite da un solo trattino, lo slug della cartella di una specifica
+viva), gli identificativi di ogni tipo di artefatto (`brief-id`, `council-id`, `gate-id`,
+`epic-id`, `story-id`, `spec-id`, `change-id`, `task-id`, `milestone-id`, `handover-id`),
 `brief-or-council-id` (l'uno o l'altro dei primi due, l'oggetto di una issue di gate) e gli
-identificativi delle parti (`requirement-id`, `criterion-id`, `decision-id`, `question-id`),
-con le forme canoniche della SPEC-0001, e `json-pointer` (un puntatore RFC 6901, la forma di
-ogni `pointer` dei contratti). La documentazione del modulo elenca ogni forma e ogni
-correzione. L'elenco dei formati con nome è un solo enum, `wayloop_schemas::Format`, e il
-controllo dei formati del core lo esamina in modo esaustivo: un formato aggiunto all'enum non
-compila finché il core non lo controlla.
+identificativi delle parti (`requirement-id`, `criterion-id`, `decision-id`, `question-id`), con
+le forme canoniche della SPEC-0001, e `json-pointer` (un puntatore RFC 6901, la forma di ogni
+`pointer` dei contratti). La documentazione del modulo elenca ogni forma e ogni correzione.
+L'elenco dei formati con nome è un solo enum, `wayloop_schemas::Format`, e il controllo dei
+formati del core lo esamina in modo esaustivo: un formato aggiunto all'enum non compila finché
+il core non lo controlla.
 
 - **Null.** Un membro di un oggetto impostato a `null` non è dato, esattamente come un membro
   assente (ADR 0009 C2): accettato se facoltativo, `missing` se obbligatorio, mai un campo

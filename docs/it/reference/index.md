@@ -1,6 +1,6 @@
 ---
 source: reference/index.md
-source_hash: 7ff328828692
+source_hash: 42eb9b8e5de7
 ---
 # Riferimento
 
@@ -65,9 +65,9 @@ nella cartella di ciascun contratto.
 | Milestone ([wayloop validate](validate.md)) | `schemas/artifacts/milestone/index.json` |
 | Epic ([wayloop validate](validate.md)) | `schemas/artifacts/epic/index.json` |
 | User story ([wayloop validate](validate.md)) | `schemas/artifacts/story/index.json` |
-| Task ([wayloop validate](validate.md)) | `schemas/artifacts/task/index.json` |
 | Specifica viva, in forma normalizzata ([wayloop validate](validate.md)) | `schemas/artifacts/specification/index.json` |
 | Modifica a delta ([wayloop validate](validate.md)) | `schemas/artifacts/change/index.json` |
+| Task ([wayloop validate](validate.md)) | `schemas/artifacts/task/index.json` |
 | Record e input di passaggio di mano ([wayloop validate](validate.md)) | `schemas/artifacts/handover/index.json` |
 | Input e risultato di `wayloop validate` ([wayloop validate](validate.md)) | `schemas/commands/validate/index.json` |
 | Envelope del risultato di ogni comando ([ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/), C1) | `schemas/envelope/result/index.json` |

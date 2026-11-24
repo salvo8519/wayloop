@@ -7,13 +7,15 @@
 //! normalised into the document described here, and a change delta a folder of its change
 //! (SPEC-0001, Where artifacts live). The schema states what one document can state: the
 //! members, their forms and the members required by a status, a verification or an operation.
-//! Links to other artifacts, unique parts, a dissent that names a decision of the report, an
-//! answer among the options, requirements that are active and one operation per requirement
-//! are checked across the set.
+//! Links to other artifacts, unique parts, a dissent that names a decision of the report, a
+//! recommendation or an answer among the options, requirements that are active and one
+//! operation per requirement are checked across the set. A member that the `op` of an
+//! operation refuses cannot be stated by the schema: it is refused by the check of parts.
 
 use schemars::{JsonSchema, Schema};
 use serde::{Deserialize, Serialize};
 
+use super::plan::rubric_when_judged;
 use super::{Common, Verification};
 use crate::contract::rules;
 use crate::contract::{CHANGE, COUNCIL_REPORT, SPECIFICATION};
@@ -211,14 +213,15 @@ pub struct Requirement {
     pub name: Option<Text>,
     /// The requirement, in EARS form.
     pub text: Text,
-    /// Whether the requirement is in force; absent means `active`.
+    /// Whether the requirement is in force; absent means `active`, which is not a default
+    /// applied by the engine.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<RequirementStatus>,
 }
 
 /// An acceptance criterion of a living specification.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[schemars(transform = criterion_rules)]
+#[schemars(transform = rubric_when_judged)]
 pub struct SpecCriterion {
     /// Identifier within the specification, `AC<k>`, cited as `SPEC-<seq> AC<k>`.
     pub id: CriterionId,
@@ -251,10 +254,11 @@ pub struct OpenQuestion {
 /// A section of a living specification outside its template, kept as prose and not validated.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ExtraSection {
-    /// The heading of the section, as written.
+    /// The heading of the section, as written; not empty.
     pub heading: Text,
-    /// The content of the section, as written.
-    pub text: Text,
+    /// The content of the section, as written; absent when the section has no content.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<Text>,
 }
 
 /// A living specification (SPEC-0001, Living specification): the current behaviour of one
@@ -315,15 +319,16 @@ pub struct Specification {
 pub struct Operation {
     /// What the operation does.
     pub op: OperationKind,
-    /// The existing requirement, `R<k>`; required for `modified`, `removed` and `renamed`. An
-    /// added requirement gets its identifier when the delta is merged.
+    /// The existing requirement, `R<k>`; required for `modified`, `removed` and `renamed`,
+    /// refused for `added`: an added requirement gets its identifier when the delta is merged.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requirement: Option<RequirementId>,
     /// The name of the requirement; required for `renamed`, optional for `added` and
-    /// `modified`.
+    /// `modified`, refused for `removed`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<Text>,
-    /// The text of the requirement; required for `added` and `modified`.
+    /// The text of the requirement; required for `added` and `modified`, refused for `removed`
+    /// and `renamed`: a rename with a new text is one `modified` operation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<Text>,
 }
@@ -364,17 +369,6 @@ fn specification_rules(schema: &mut Schema) {
 
 fn change_rules(schema: &mut Schema) {
     rules::artifact(schema, &CHANGE, ChangeStatus::Superseded.id());
-}
-
-/// The rule of an acceptance criterion: `rubric` when `verification` contains `judge`
-/// (SPEC-0009 R8), as for a task.
-fn criterion_rules(schema: &mut Schema) {
-    rules::require_if_contains(
-        schema,
-        "verification",
-        Verification::Judge.id(),
-        &["rubric"],
-    );
 }
 
 /// The rules of an operation: the members its `op` requires.

@@ -360,7 +360,7 @@ One per capability (ADR 0014). The Markdown layout is the template in
 
 | Name | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `capability` | string, lower-case words separated by hyphens | yes | Capability described; the folder slug |
+| `capability` | string, words of `[a-z0-9]+` joined by single hyphens, as the `<slug>` of a branch (Naming grammar), with no limit on the number of words (decided by the maintainer on 2026-11-24) | yes | Capability described; the folder slug |
 | `owner` | string, tracker handle | yes | Person who approves changes |
 | `milestone` | milestone identifier | no | Milestone of the first delivery |
 | `commit_scope` | string, a scope of the project policy | yes | Scope used by commits that implement it |
@@ -370,11 +370,11 @@ One per capability (ADR 0014). The Markdown layout is the template in
 | `scope_out` | list of strings | no | What is left to other specifications |
 | `stories` | list of `STORY` identifiers | no | Stories covered, by identifier |
 | `user_stories` | list of strings | no | Stories written as prose, before or without a story artifact |
-| `requirements` | list of objects `{id, name, text, status}`, at least 1 | yes | EARS requirements; `id` is `R<k>`; `name` optional, changed by a rename (ADR 0008); `status` is `active` or `removed`, default `active` |
+| `requirements` | list of objects `{id, name, text, status}`, at least 1 | yes | EARS requirements; `id` is `R<k>`; `name` optional, changed by a rename (ADR 0008); `status` is `active` or `removed`; absent means `active`, which is not a default and gives no entry in `meta.defaults_applied` (decided by the maintainer on 2026-11-24) |
 | `acceptance_criteria` | list of objects `{id, requirements, text, verification, rubric}`, at least 1 | yes | `id` is `AC<k>`; `requirements` lists at least one `R<k>` of an active requirement; `verification` is a list of at least one of `tdd`, `bdd`, `end_to_end`, `property`, `contract`, `benchmark`, `judge`, `none`; `rubric` is a string, required when `verification` contains `judge` (SPEC-0009 R8) |
 | `interfaces` | list of strings | no | Commands, schemas and events, with versions |
 | `open_questions` | list of objects `{id, text, resolved}` | no | `id` is `Q<k>`, optional; `resolved` is a boolean |
-| `extra_sections` | list of objects `{heading, text}` | no | Sections outside the template, kept as prose and not validated |
+| `extra_sections` | list of objects `{heading, text}` | no | Sections outside the template, kept as prose and not validated; `heading` required and not empty, `text` optional, absent when the section has no content (decided by the maintainer on 2026-11-24) |
 
 - Identifier: `SPEC-<seq>`; the folder number is not the identity, and a folder whose number differs from the identifier gives a warning.
 - Statuses: `draft`, `approved`, `surveyed`, `implementing`, `done`, `superseded`.
@@ -437,7 +437,7 @@ A reviewable change of a living specification (ADR 0014, SPEC-0009 R2).
 | `specification` | `SPEC` identifier | yes | Living specification the delta changes |
 | `proposal` | string | yes | Why the change is made |
 | `design` | string | no | How the change is made, when the proposal does not say it |
-| `operations` | list of objects `{op, requirement, name, text}`, at least 1 | yes | `op` is `added`, `modified`, `removed` or `renamed`; `requirement` is the `R<k>` of an existing requirement, required for `modified`, `removed` and `renamed`, absent for `added`; `text` required for `added` and `modified`; `name` required for `renamed`, optional for `added` and `modified` |
+| `operations` | list of objects `{op, requirement, name, text}`, at least 1 | yes | `op` is `added`, `modified`, `removed` or `renamed`; `requirement` is the `R<k>` of an existing requirement, required for `modified`, `removed` and `renamed`, refused for `added`; `text` required for `added` and `modified`, refused for `removed` and `renamed`; `name` required for `renamed`, optional for `added` and `modified`, refused for `removed` (decided by the maintainer on 2026-11-24) |
 | `tasks` | list of `TASK` identifiers | no | Tasks that implement the change |
 | `issue` | integer | no | Tracker issue that requested the change |
 
@@ -445,6 +445,7 @@ A reviewable change of a living specification (ADR 0014, SPEC-0009 R2).
 - Statuses: `draft`, `approved`, `implementing`, `done`, `superseded`.
 - Transitions: `draft` to `approved` (person); `approved` to `implementing` (engine); `implementing` to `done` (engine: delta merged and change archived, SPEC-0009 R3); any non-terminal status to `superseded` (person).
 - Required links: `specification`, not superseded; for `modified`, `removed` and `renamed`, an active requirement of it. At most one operation per requirement (R20): a rename with a new text is one `modified` operation with `name`.
+- A member refused by the `op` of an operation is an error at that member, `/operations/<i>/<member>`, with the code `artifact_schema`, the reason `unknown_field` and `/operations/<i>/op` in `pointers`. The schema cannot state the absence of a member under a condition, so the check of parts enforces it (decided by the maintainer on 2026-11-24).
 - An `added` requirement gets its `R<k>` when the delta is merged, after the highest identifier of the specification, removed ones included (R20). Two deltas open at the same time therefore never claim the same number.
 
 ### Task

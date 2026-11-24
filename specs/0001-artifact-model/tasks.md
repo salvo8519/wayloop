@@ -122,9 +122,9 @@ Prerequisites outside this specification:
   - Size: M. Maintainer (crates).
 
 - [ ] **T13 Check parts of artifacts and change deltas**
-  - Covers: R18, R20; AC27, AC29 (first half; and the pure function that gives the next requirement identifier, used by the merge of SPEC-0009). Issue: #264.
+  - Covers: R18, R20; AC27, AC29 (first half; and the pure function that gives the next requirement identifier, used by the merge of SPEC-0009); the members of an operation refused by its `op` (Change delta: `requirement` on `added`, `text` on `removed` and `renamed`, `name` on `removed`; decided by the maintainer on 2026-11-24), which the schema cannot refuse. Issue: #264.
   - Files: `crates/wayloop-core/src/artifacts/parts.rs`, `tests/contract/validate/v1/`.
-  - Tests first: duplicate `D1`, dissent naming `D4`, answer outside the options, task depending on itself, on a superseded task, and a cycle of three tasks; `change.conflict.invalid.yaml` with `pointers` to both operations; with R1 to R3 and R4 removed, the next identifier is R5; a task whose `verification` holds `none` together with another value is refused (decided by the maintainer on 2026-11-23; the schema states that the order of the values and a repeated value carry no meaning).
+  - Tests first: duplicate `D1`, dissent naming `D4`, answer outside the options, task depending on itself, on a superseded task, and a cycle of three tasks; `change.conflict.invalid.yaml` with `pointers` to both operations; with R1 to R3 and R4 removed, the next identifier is R5; a task whose `verification` holds `none` together with another value is refused (decided by the maintainer on 2026-11-23; the schema states that the order of the values and a repeated value carry no meaning). Each member refused by the `op` of an operation, with the code `artifact_schema`, the reason `unknown_field`, the pointer of the member and `/operations/<i>/op` in `pointers` (check `parts`).
   - Verification: TDD, contract test.
   - Depends on: T12.
   - Size: M. Maintainer (crates).

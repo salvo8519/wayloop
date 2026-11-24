@@ -123,9 +123,15 @@ living specification has six, `draft`, `approved`, `surveyed`, `implementing`, `
 `0` to `9` joined by single hyphens, for example `time-entries`; a requirement is `active` or
 `removed`, and absent means `active`. The schema checks the form of the parts of an artifact
 (`D<k>`, `Q<k>`, `R<k>`, `AC<k>`) and that a question of a council report has at least two
-options, not that a part is unique, that a dissent names a decision of its report, that an
-answer is one of the options or that a change delta has one operation per requirement: that is
-the check `parts`.
+options, not that a part is unique, that a dissent names a decision of its report, that a
+recommendation or an answer is one of the options or that a change delta has one operation per
+requirement: that is the check `parts`.
+
+An operation of a change delta must not carry a member its `op` refuses: `requirement` on
+`added`, `text` on `removed` and `renamed` (a rename with a new text is one `modified`
+operation), and `name` on `removed`. The schema cannot state the absence of a member under a
+condition, so this version accepts these members; the check `parts` is to refuse each with
+`artifact_schema`, `unknown_field` and `/operations/<i>/op` in `pointers`.
 
 A hand-over comes in two forms of one version. The input is what an agent submits at the end of
 a session, with `input_kind: handover_input` and no `kind`: `schema_version`, `step`,
