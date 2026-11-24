@@ -112,7 +112,8 @@ macro_rules! formatted_text {
 }
 
 /// An integer from 1 of the contracts, from its doc comment, with an optional inclusive upper
-/// bound written `<= <max>`.
+/// bound written `<= <max>`, a plain decimal literal such as `10`: the message of a refusal
+/// copies it as written.
 ///
 /// ```
 /// wayloop_schemas::positive_integer! {

@@ -486,6 +486,12 @@ fn each_problem_is_told_in_words_with_its_place() {
              its member does not accept",
         ),
         (
+            at("/allOf/0/if/properties/status/contains"),
+            Problem::Unmatchable("`contains` on a member that is not a list".into()),
+            "at /allOf/0/if/properties/status/contains: the condition tests `contains` on a \
+             member that is not a list, so it never holds",
+        ),
+        (
             at("/additionalProperties"),
             Problem::ClosedOutput,
             "at /additionalProperties: `additionalProperties` that closes an output, which is open",
@@ -805,8 +811,32 @@ fn a_condition_names_only_values_its_member_accepts() {
             "{test}"
         );
     }
+    // Second review of T7: a condition that can never hold is refused too.
+    for (test, pointer, detail) in [
+        (
+            json!({"status": {"contains": {"const": "accepted"}}}),
+            "/status/contains",
+            "`contains` on a member that is not a list",
+        ),
+        (
+            json!({"status": {"type": "array", "contains": {"const": "accepted"}}}),
+            "/status/type",
+            "the type array, which its member is not",
+        ),
+    ] {
+        assert_eq!(
+            super::check::check(&schema(test.clone()), Direction::Output),
+            Err(ContractError {
+                pointer: at(&format!("{at_if}{pointer}")),
+                problem: Problem::Unmatchable(detail.into())
+            }),
+            "{test}"
+        );
+    }
     for test in [
         json!({"status": {"enum": ["accepted", "superseded"]}}),
+        // An integer written with a fraction of zero is an integer, as the core reads it.
+        json!({"count": {"const": 3.0}}),
         json!({"labels": {"type": "array", "contains": {"const": "superseded"}}}),
         json!({"kind": {"const": "task"}}),
         json!({"count": {"const": 3}}),

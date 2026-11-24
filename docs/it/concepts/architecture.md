@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 007f39fb55aa
+source_hash: c46f26c0e144
 ---
 # Architettura
 
@@ -401,7 +401,9 @@ del sottoinsieme: una descrizione sulla radice, su ogni definizione e su ogni me
 solo di spazi non conta); il significato di ogni valore di enum nella sua descrizione, fuori da
 una condizione (`if`, `then`, `contains`), che nomina valori di un membro descritto dove il
 membro è dichiarato; ogni valore nominato da una condizione, accettato dallo schema dichiarato
-del suo membro; ogni valore testuale di enum in `snake_case`; nessun `additionalProperties`
+del suo membro, e nessuna condizione che non possa mai valere (`contains` su un membro che non è
+una lista, un `type` che il suo membro non dichiara); ogni valore testuale di enum in
+`snake_case`; nessun `additionalProperties`
 che chiuda un output (una mappa pura mantiene lo schema dei suoi valori); e al massimo quattro
 livelli di oggetti, compresi i valori di una mappa (ADR 0009 C4).
 Il sottoinsieme ha una sola definizione, il caricatore dell'interprete (ADR 0030 G3):

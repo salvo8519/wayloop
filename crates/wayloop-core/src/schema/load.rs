@@ -334,8 +334,6 @@ fn ordered<T: PartialOrd>(
     }
 }
 
-/// `enum` or `const`, each value a string, an integer within plus or minus 2^53 - 1, a
-/// boolean or `null`.
 /// The `type` of `map`, one of the subset; `None` when it has none.
 fn kind(map: &Map<String, Value>, pointer: &Pointer) -> Result<Option<Type>, LoadError> {
     map.get("type")
@@ -350,6 +348,8 @@ fn kind(map: &Map<String, Value>, pointer: &Pointer) -> Result<Option<Type>, Loa
         .transpose()
 }
 
+/// `enum` or `const`, each value a string, an integer within plus or minus 2^53 - 1, a
+/// boolean or `null`.
 fn values(map: &Map<String, Value>, pointer: &Pointer) -> Result<Option<Values>, LoadError> {
     let scalar = |v: &Value| {
         v.is_string()

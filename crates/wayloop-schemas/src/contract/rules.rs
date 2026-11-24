@@ -14,6 +14,10 @@ use super::Contract;
 use crate::Format;
 use crate::ident::string_schema;
 
+/// The name of the member that holds the status of an artifact (SPEC-0001, Common rules), the
+/// member the conditions on a status test.
+pub const STATUS: &str = "status";
+
 /// Requires the members `then` whenever the member `when` is present.
 pub fn require_if_present(schema: &mut Schema, when: &str, then: &[&str]) {
     push(schema, json!({"required": [when]}), then);
@@ -27,20 +31,16 @@ pub fn require_if_absent(schema: &mut Schema, when: &str, then: &[&str]) {
     push(schema, json!({"properties": {when: {"const": null}}}), then);
 }
 
-/// The name of the member that holds the status of an artifact (SPEC-0001, Common rules), the
-/// member the conditions on a status test.
-pub const STATUS: &str = "status";
-
 /// Requires the members `then` whenever the member `when` equals `value`, for example
 /// `superseded_by` when `status` is `superseded`.
 pub fn require_if_equals(schema: &mut Schema, when: &str, value: impl Into<Value>, then: &[&str]) {
-    require_if_member(schema, when, json!({"const": value.into()}), then);
+    require_if_member(schema, when, &json!({"const": value.into()}), then);
 }
 
 /// Requires the members `then` whenever the member `when` equals one of `values`, for example
 /// `issue` when `status` is `implementing` or `done`.
 pub fn require_if_in(schema: &mut Schema, when: &str, values: &[&str], then: &[&str]) {
-    require_if_member(schema, when, json!({"enum": values}), then);
+    require_if_member(schema, when, &json!({"enum": values}), then);
 }
 
 /// Requires the members `then` whenever the member `when` is a list that holds `value`, for
@@ -54,17 +54,13 @@ pub fn require_if_contains(
     then: &[&str],
 ) {
     let test = json!({"type": "array", "contains": {"const": value.into()}});
-    require_if_member(schema, when, test, then);
+    require_if_member(schema, when, &test, then);
 }
 
 /// Requires the members `then` whenever the member `when` is present and passes `test`.
-fn require_if_member(schema: &mut Schema, when: &str, test: Value, then: &[&str]) {
-    let mut tests = Map::new();
-    tests.insert(when.to_owned(), test);
-    let mut condition = Map::new();
-    condition.insert("properties".to_owned(), Value::Object(tests));
-    condition.insert("required".to_owned(), json!([when]));
-    push(schema, Value::Object(condition), then);
+fn require_if_member(schema: &mut Schema, when: &str, test: &Value, then: &[&str]) {
+    let condition = json!({"properties": {when: test}, "required": [when]});
+    push(schema, condition, then);
 }
 
 /// The rules of an artifact the derive does not write (SPEC-0001, Common rules): `kind` is the

@@ -32,7 +32,7 @@ pub mod artifact;
 pub mod contract;
 mod envelope;
 mod error;
-#[cfg(any(test, feature = "examples"))]
+#[cfg(feature = "examples")]
 pub mod examples;
 #[cfg(test)]
 mod fixtures;

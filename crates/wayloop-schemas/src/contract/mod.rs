@@ -88,6 +88,9 @@ pub enum Problem {
     /// A value named by a condition that the declared schema of the member it tests does not
     /// accept, such as a misspelt status: the condition would never hold.
     UnacceptedValue(String),
+    /// A condition that no value of its member can meet, so the rule it guards would be lost:
+    /// `contains` on a member that is not a list, or a `type` its member does not declare.
+    Unmatchable(String),
     /// `additionalProperties` in an output, written by the derive (for example
     /// `deny_unknown_fields`, or a map flattened beside declared members): an output is open
     /// (ADR 0009 C5). A pure map, which declares no member, keeps the schema of its values.
@@ -124,6 +127,12 @@ impl fmt::Display for ContractError {
             ),
             Problem::NotSnakeCase(value) => {
                 write!(f, "at {place}: the enum value {value} is not snake_case")
+            }
+            Problem::Unmatchable(detail) => {
+                write!(
+                    f,
+                    "at {place}: the condition tests {detail}, so it never holds"
+                )
             }
             Problem::UnacceptedValue(value) => write!(
                 f,

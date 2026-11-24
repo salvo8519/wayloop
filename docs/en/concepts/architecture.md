@@ -373,11 +373,13 @@ code. The generator then checks the rules of the contracts that are not rules of
 a description on the root, every definition and every member (one of blanks only is none),
 the meaning of every enum value in its description, outside a condition (`if`, `then`,
 `contains`), which names values of a member described where the member is declared; every
-value a condition names, accepted by the declared schema of its member; every text enum value
-in `snake_case`; no `additionalProperties` that closes an output (a pure map keeps the schema
-of its values); and at most four levels of objects, the values of a map included (ADR 0009
-C4). The subset itself has one definition, the loader of the interpreter (ADR 0030 G3): `wayloop_core::schema::contract_schema` runs the
-checks of the generator and then `Schema::load` on a registered type, and fails with
+value a condition names, accepted by the declared schema of its member, and no condition that
+can never hold (`contains` on a member that is not a list, a `type` its member does not
+declare); every text enum value in `snake_case`; no `additionalProperties` that closes an
+output (a pure map keeps the schema of its values); and at most four levels of objects, the
+values of a map included (ADR 0009 C4). The subset itself has one definition, the loader of the
+interpreter (ADR 0030 G3): `wayloop_core::schema::contract_schema` runs the checks of the
+generator and then `Schema::load` on a registered type, and fails with
 `ContractFault::Rule` or `ContractFault::Subset`. A `null` type, the keywords `pattern`,
 `default` and `uniqueItems`, a format that is not named, a boolean schema or, in an input, a map
 whose values may be anything are refused there, at their place.

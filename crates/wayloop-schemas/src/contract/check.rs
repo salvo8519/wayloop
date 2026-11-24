@@ -55,14 +55,10 @@ pub(super) fn is_snake_case(text: &str) -> bool {
 fn is_closed(root: &Value, schema: &Map<String, Value>) -> bool {
     match schema.get("additionalProperties") {
         Some(Value::Bool(false)) => true,
-        Some(values @ Value::Object(_)) => {
-            let target = values
-                .get("$ref")
-                .and_then(Value::as_str)
-                .and_then(|r| r.strip_prefix("#/$defs/"))
-                .and_then(|name| root.get("$defs")?.get(name));
-            target.unwrap_or(values).get("type").is_some()
-        }
+        Some(values @ Value::Object(_)) => definition(root, values)
+            .unwrap_or(values)
+            .get("type")
+            .is_some(),
         _ => false,
     }
 }
@@ -287,6 +283,12 @@ fn named_values(
     pointer: &Pointer,
 ) -> Result<(), ContractError> {
     let member = resolved(root, member);
+    if let (Some(tested), Some(declared)) = (test.get("type"), member.get("type"))
+        && tested != declared
+    {
+        let detail = format!("the type {}, which its member is not", value_text(tested));
+        return Err(refuse(&pointer.join("type"), Problem::Unmatchable(detail)));
+    }
     if let Some(value) = test.get("const") {
         accepted(member, value, &pointer.join("const"))?;
     }
@@ -298,20 +300,26 @@ fn named_values(
     }
     match (test.get("contains"), member.get("items")) {
         (Some(inner), Some(items)) => named_values(root, inner, items, &pointer.join("contains")),
-        _ => Ok(()),
+        // `contains` never holds on a member that is not a list: the rule would be lost.
+        (Some(_), None) => Err(refuse(
+            &pointer.join("contains"),
+            Problem::Unmatchable("`contains` on a member that is not a list".to_owned()),
+        )),
+        (None, _) => Ok(()),
     }
 }
 
-/// `schema`, or the definition its `$ref` reaches within `#/$defs/`.
+/// The definition the `$ref` of `schema` names within `#/$defs/` of `root`, if any.
+fn definition<'a>(root: &'a Value, schema: &Value) -> Option<&'a Value> {
+    let name = schema.get("$ref")?.as_str()?.strip_prefix("#/$defs/")?;
+    root.get("$defs")?.get(name)
+}
+
+/// `schema`, or the definition its references reach, `MAX_HOPS` at most.
 fn resolved<'a>(root: &'a Value, schema: &'a Value) -> &'a Value {
     let mut current = schema;
     for _ in 0..MAX_HOPS {
-        let target = current
-            .get("$ref")
-            .and_then(Value::as_str)
-            .and_then(|r| r.strip_prefix("#/$defs/"))
-            .and_then(|name| root.get("$defs")?.get(name));
-        match target {
+        match definition(root, current) {
             Some(next) => current = next,
             None => break,
         }
@@ -342,7 +350,7 @@ fn accepted(member: &Value, value: &Value, pointer: &Pointer) -> Result<(), Cont
 fn has_type(kind: &str, value: &Value) -> bool {
     match kind {
         "boolean" => value.is_boolean(),
-        "integer" => value.is_i64() || value.is_u64(),
+        "integer" => crate::number::integer(value).is_some(),
         "string" => value.is_string(),
         "array" => value.is_array(),
         "object" => value.is_object(),
@@ -365,8 +373,7 @@ fn levels(
     };
     if let Some(target) = schema.get("$ref").and_then(Value::as_str) {
         let name = target.strip_prefix("#/$defs/").unwrap_or_default();
-        let definition = root.get("$defs").and_then(|defs| defs.get(name));
-        return match definition {
+        return match definition(root, node) {
             Some(definition) if hops < MAX_HOPS => {
                 let at = Pointer::root().join("$defs").join(name);
                 levels(root, definition, &at, level, hops.saturating_add(1))
