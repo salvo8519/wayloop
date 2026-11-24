@@ -156,7 +156,13 @@ fn check_entry(
             document,
             input_kind: Some(input_kind),
         } => {
-            not_built(not_done, kinds::schema_check(input_kind.id()));
+            if let Some(loaded) = kinds.iter().find(|k| k.input == Some(*input_kind)) {
+                if let Some(read) = checked(loaded, document, validation, located) {
+                    return summary(Some(&read), Some(*input_kind), origin);
+                }
+            } else {
+                not_built(not_done, kinds::schema_check(input_kind.id()));
+            }
             summary(Some(document), Some(*input_kind), origin)
         }
         Body::Document {
@@ -187,16 +193,10 @@ fn check_entry(
                     return summary(Some(document), None, origin);
                 }
             };
-            if let Some(loaded) = kinds.iter().find(|k| k.id == kind) {
-                match loaded.check(document) {
-                    Checked::Valid(current) => match read_artifact(loaded, current) {
-                        Ok(read) => return summary(Some(&read), None, origin),
-                        Err(failure) => validation.failures.push(*failure),
-                    },
-                    Checked::Refused(errors) => {
-                        validation.errors.extend(errors.into_iter().map(located));
-                    }
-                    Checked::Failed(failure) => validation.failures.push(failure),
+            let artifact = kinds.iter().find(|k| k.input.is_none() && k.id == kind);
+            if let Some(loaded) = artifact {
+                if let Some(read) = checked(loaded, document, validation, located) {
+                    return summary(Some(&read), None, origin);
                 }
             } else if ArtifactKind::from_id(kind).is_some() {
                 not_built(not_done, kinds::schema_check(kind));
@@ -212,10 +212,30 @@ fn check_entry(
     }
 }
 
-/// The document `current`, accepted by the current schema of its type `loaded`, read into the
-/// contract type of that type and written again: the form the later checks read. A failure is
+/// Checks `document` against the schemas of its type `loaded`, adding its errors, located by
+/// `located`, or the failure of the engine to `validation`; gives the document read into its
+/// contract type when it is valid.
+fn checked(
+    loaded: &Loaded,
+    document: &Map<String, Value>,
+    validation: &mut Validation,
+    located: impl Fn(Error) -> Error,
+) -> Option<Map<String, Value>> {
+    match loaded.check(document) {
+        Checked::Valid(current) => match read_document(loaded, current) {
+            Ok(read) => return Some(read),
+            Err(failure) => validation.failures.push(*failure),
+        },
+        Checked::Refused(errors) => validation.errors.extend(errors.into_iter().map(located)),
+        Checked::Failed(failure) => validation.failures.push(failure),
+    }
+    None
+}
+
+/// The document `current`, an artifact or an input accepted by the current schema of `loaded`,
+/// read into its contract type and written again: the form the later checks read. A failure is
 /// a defect of the engine (ADR 0030 G1).
-fn read_artifact(
+fn read_document(
     loaded: &Loaded,
     current: Map<String, Value>,
 ) -> Result<Map<String, Value>, Box<Error>> {
@@ -240,16 +260,14 @@ fn summary(
     input_kind: Option<InputKind>,
     origin: Option<Origin>,
 ) -> DocumentSummary {
-    let kind = if input_kind.is_some() {
-        None
-    } else {
-        text(document, "kind").and_then(|k| ArtifactKind::from_id(&k))
-    };
+    // An input has no `kind`, `id` or `status`: members of those names in it are refused, never
+    // summarised.
+    let artifact = if input_kind.is_some() { None } else { document };
     DocumentSummary {
-        kind,
+        kind: text(artifact, "kind").and_then(|k| ArtifactKind::from_id(&k)),
         input_kind,
-        id: text(document, "id"),
-        status: text(document, "status"),
+        id: text(artifact, "id"),
+        status: text(artifact, "status"),
         origin,
     }
 }

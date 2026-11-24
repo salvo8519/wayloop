@@ -2,21 +2,24 @@
 //! migrations between them (R1, R16).
 //!
 //! The types whose schema is built are the contracts of the area `artifacts` in the registry of
-//! `wayloop-schemas` (ADR 0030 G5); the schema of each version is its snapshot embedded in that
-//! crate. Each type has one migration per step `v<N>` to `v<N+1>`: a pure function on the
-//! document, which also sets `schema_version` to the next version. A document of an earlier
-//! version is checked against the schema of its own version, then migrated to the current one,
-//! which is the version the later checks read.
+//! `wayloop-schemas` (ADR 0030 G5), and the inputs of [`INPUTS`], each the file of a contract;
+//! the schema of each version is its snapshot embedded in that crate. Each type has one
+//! migration per step `v<N>` to `v<N+1>`: a pure function on the document, which also sets
+//! `schema_version` to the next version. A document of an earlier version is checked against
+//! the schema of its own version, then migrated to the current one, which is the version the
+//! later checks read.
 
 use core::num::NonZeroU32;
 
 use serde_json::{Map, Value};
 use wayloop_schemas::artifact::ArtifactKind;
-use wayloop_schemas::contract::{Area, CONTRACTS, Embedded, Part, Reread};
+use wayloop_schemas::contract::{Area, CONTRACTS, Contract, Embedded, HANDOVER, Part, Reread};
 use wayloop_schemas::number::{SAFE_INTEGER, integer, is_safe};
+use wayloop_schemas::validate::InputKind;
 
+use super::codes::{ARTIFACT_SCHEMA, HANDOVER_INPUT};
 use crate::schema::Schema;
-use crate::{Check, Error, Pointer, Reason};
+use crate::{Check, Code, Error, Pointer, Reason};
 
 /// The spellings of the artifact types, the accepted values of `kind`, in the order of the
 /// enum of the contract.
@@ -32,18 +35,46 @@ pub fn schema_check(kind: &str) -> Check {
     Check::owned(format!("schema_{kind}"))
 }
 
+/// An input whose schema is built (SPEC-0001, Inputs): the file `part` of `contract`, of every
+/// version of the contract, with the `code` of its schema errors.
+#[derive(Debug, Clone)]
+pub struct InputSchema {
+    /// The value of `input_kind` that selects it.
+    pub kind: InputKind,
+    /// The contract that holds its schema.
+    pub contract: &'static Contract,
+    /// The file of the contract that holds its schema.
+    pub part: Part,
+    /// The code of its schema errors.
+    pub code: Code,
+}
+
+/// The inputs whose schema is built, after the artifacts. The hand-over input is a
+/// file of the hand-over contract, and its errors have their own code (SPEC-0001 R22).
+pub const INPUTS: [InputSchema; 1] = [InputSchema {
+    kind: InputKind::HandoverInput,
+    contract: &HANDOVER,
+    part: Part::Input,
+    code: HANDOVER_INPUT,
+}];
+
 /// A migration from one version of a document to the next.
 pub type Migration = fn(Map<String, Value>) -> Map<String, Value>;
 
-/// The migrations of each built type, by its `kind`; a type absent here has one version.
+/// The migrations of each built type, by its `kind` or its `input_kind`; a type absent here has
+/// one version.
 const MIGRATIONS: &[(&str, &[Migration])] = &[];
 
 /// A type whose schema is built: its versions, `v1` first, and the migrations between them,
 /// one fewer than the versions.
 #[derive(Debug, Clone)]
 pub struct Kind {
-    /// The value of `kind`.
+    /// The value of `kind`, or of `input_kind` for an input.
     pub id: &'static str,
+    /// The input kind, for an input; `None` for an artifact.
+    pub input: Option<InputKind>,
+    /// The code of its schema errors.
+    pub code: Code,
     /// The snapshot of the schema of each version, from `v1`.
     pub versions: Vec<Embedded>,
     /// The migration of each step, from `v1` to `v2`.
@@ -52,54 +83,69 @@ pub struct Kind {
     pub reread: Reread,
 }
 
-/// The types whose schema is built: the artifacts of the registry, each with the embedded
-/// snapshot of every version and the contract type of its schema; an internal error when a
-/// snapshot is not embedded or the contract registers no schema.
+/// The types whose schema is built: the artifacts of the registry, then the inputs of
+/// [`INPUTS`], each with the embedded snapshot of every version and the contract type of its
+/// schema; an internal error when a snapshot is not embedded or the contract registers no file
+/// of that part.
 pub(crate) fn built() -> Result<Vec<Kind>, Box<Error>> {
-    CONTRACTS
+    let artifacts = CONTRACTS
         .iter()
         .filter(|contract| contract.area == Area::Artifacts)
-        .map(|contract| {
-            let versions = (1..=contract.version.get())
-                .filter_map(NonZeroU32::new)
-                .map(|version| {
-                    contract.embedded(Part::Schema, version).ok_or_else(|| {
-                        let path = contract.path(Part::Schema, version);
-                        Box::new(Error::internal(format!(
-                            "The schema {path} is not embedded."
-                        )))
-                    })
-                })
-                .collect::<Result<_, _>>()?;
-            let migrations = MIGRATIONS
-                .iter()
-                .find(|(kind, _)| *kind == contract.name)
-                .map_or(&[][..], |(_, migrations)| *migrations);
-            let reread = contract
-                .files
-                .iter()
-                .find(|file| file.part == Part::Schema)
-                .map(|file| file.registered.reread)
-                .ok_or_else(|| {
-                    boxed(format!(
-                        "The contract {} registers no schema.",
-                        contract.folder()
-                    ))
-                })?;
-            Ok(Kind {
-                id: contract.name,
-                versions,
-                migrations,
-                reread,
+        .map(|contract| kind(contract, Part::Schema, None, ARTIFACT_SCHEMA));
+    let inputs = INPUTS
+        .into_iter()
+        .map(|input| kind(input.contract, input.part, Some(input.kind), input.code));
+    artifacts.chain(inputs).collect()
+}
+
+/// The type whose schema is the file `part` of `contract`, an input when `input` is given.
+fn kind(
+    contract: &Contract,
+    part: Part,
+    input: Option<InputKind>,
+    code: Code,
+) -> Result<Kind, Box<Error>> {
+    let id = input.map_or(contract.name, InputKind::id);
+    let versions = (1..=contract.version.get())
+        .filter_map(NonZeroU32::new)
+        .map(|version| {
+            contract.embedded(part, version).ok_or_else(|| {
+                let path = contract.path(part, version);
+                boxed(format!("The schema {path} is not embedded."))
             })
         })
-        .collect()
+        .collect::<Result<_, _>>()?;
+    let migrations = MIGRATIONS
+        .iter()
+        .find(|(kind, _)| *kind == id)
+        .map_or(&[][..], |(_, migrations)| *migrations);
+    let reread = contract
+        .files
+        .iter()
+        .find(|file| file.part == part)
+        .map(|file| file.registered.reread)
+        .ok_or_else(|| {
+            boxed(format!(
+                "The contract {} registers no file {part}.",
+                contract.folder()
+            ))
+        })?;
+    Ok(Kind {
+        id,
+        input,
+        code,
+        versions,
+        migrations,
+        reread,
+    })
 }
 
 /// A type with its schemas loaded.
 #[derive(Debug, Clone)]
 pub struct Loaded {
     pub(super) id: &'static str,
+    pub(super) input: Option<InputKind>,
+    code: Code,
     versions: Vec<Schema>,
     migrations: &'static [Migration],
     pub(super) reread: Reread,
@@ -143,6 +189,8 @@ pub(crate) fn load_all(kinds: &[Kind]) -> Result<Vec<Loaded>, Box<Error>> {
                 .collect::<Result<_, _>>()?;
             Ok(Loaded {
                 id: kind.id,
+                input: kind.input,
+                code: kind.code.clone(),
                 versions,
                 migrations: kind.migrations,
                 reread: kind.reread,
@@ -169,9 +217,10 @@ impl Loaded {
     }
 
     /// Checks `document`, of this type, against the schema of its `schema_version` and
-    /// migrates it to the current version (R16); a schema error has the code `artifact_schema`.
+    /// migrates it to the current version (R16); a schema error has the code of the type,
+    /// `artifact_schema` for an artifact.
     pub(crate) fn check(&self, document: &Map<String, Value>) -> Checked {
-        let code = &super::codes::ARTIFACT_SCHEMA;
+        let code = &self.code;
         let at = Pointer::root().join("schema_version");
         let value = Value::Object(document.clone());
         let given = document.get("schema_version").filter(|v| !v.is_null());

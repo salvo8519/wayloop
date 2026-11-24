@@ -353,41 +353,19 @@ fn the_examples_of_the_plan_items_load_into_the_documents_of_their_cases() {
         ("task-invalid", "task.invalid.yaml"),
         ("milestone-invalid", "milestone.invalid.yaml"),
     ];
-    let texts: Vec<(String, String)> = valid
+    let names: Vec<&str> = valid
         .iter()
         .map(String::as_str)
         .chain(invalid.iter().map(|(_, name)| *name))
-        .map(|name| (format!("plan/items/{name}"), example(name)))
         .collect();
-    let files: Vec<(&str, &[u8])> = texts
-        .iter()
-        .map(|(path, text)| (path.as_str(), text.as_bytes()))
-        .collect();
-    let input = serde_json::to_value(Project::new("plan-examples", &files).input()).unwrap();
-    let loaded = |name: &str| -> Value {
-        let file = format!("plan/items/{name}");
-        let documents = input["documents"].as_array().unwrap();
-        let found = documents
-            .iter()
-            .find(|d| d["origin"]["file"] == file.as_str())
-            .unwrap_or_else(|| panic!("{file} was not read"));
-        found["document"].clone()
-    };
-    let set: Vec<Value> = valid.iter().map(|name| loaded(name)).collect();
-    let documents = |case: &str| -> Vec<Value> {
-        let input = case_input(case);
-        input["documents"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|entry| entry["document"].clone())
-            .collect()
-    };
-    assert_eq!(documents("plan-valid"), set);
-    for (case, name) in invalid {
+    let mut read = examples_read(&names);
+    let checked = read.split_off(valid.len());
+    let set = read;
+    assert_eq!(case_documents("plan-valid"), set);
+    for ((case, _), document) in invalid.into_iter().zip(checked) {
         let mut expected = set.clone();
-        expected.push(loaded(name));
-        assert_eq!(documents(case), expected, "{case}");
+        expected.push(document);
+        assert_eq!(case_documents(case), expected, "{case}");
     }
     // Every other case of a plan item sends the valid set first, then the document it checks.
     for case in [
@@ -398,7 +376,7 @@ fn the_examples_of_the_plan_items_load_into_the_documents_of_their_cases() {
         "epic-implementing-without-issue",
         "gate-done-without-issue",
     ] {
-        let given = documents(case);
+        let given = case_documents(case);
         assert_eq!(given.get(..set.len()), Some(&set[..]), "{case}");
         assert_eq!(given.len(), set.len() + 1, "{case}");
     }
@@ -409,14 +387,10 @@ fn the_examples_of_the_schemas_crate_are_those_of_the_valid_case() {
     // `wayloop_schemas::examples` holds a deliberate copy of the documents of `plan-valid`
     // for the tests of the core, which embed no file outside their crate; this keeps it equal.
     use wayloop_schemas::examples;
-    let input = case_input("plan-valid");
-    let of_kind = |kind: &str| -> Value {
-        let entries = input["documents"].as_array().unwrap();
-        let entry = entries
-            .iter()
-            .find(|e| e["document"]["kind"] == kind)
-            .unwrap_or_else(|| panic!("no {kind} in plan-valid"));
-        entry["document"].clone()
+    let documents = case_documents("plan-valid");
+    let of_kind = |kind: &str| {
+        let found = documents.iter().find(|d| d["kind"] == kind);
+        found.unwrap_or_else(|| panic!("no {kind} in plan-valid"))
     };
     let copies = [
         ("gate", examples::gate()),
@@ -426,8 +400,97 @@ fn the_examples_of_the_schemas_crate_are_those_of_the_valid_case() {
         ("task", examples::task()),
     ];
     for (kind, copy) in copies {
-        assert_eq!(copy, of_kind(kind), "{kind}");
+        assert_eq!(&copy, of_kind(kind), "{kind}");
     }
+}
+
+/// The examples of SPEC-0001 called `names`, each read as `wayloop validate` reads a file, in
+/// the order of `names`.
+fn examples_read(names: &[&str]) -> Vec<Value> {
+    let texts: Vec<(String, String)> = names
+        .iter()
+        .map(|name| (format!("plan/items/{name}"), example(name)))
+        .collect();
+    let files: Vec<(&str, &[u8])> = texts
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_bytes()))
+        .collect();
+    let input = serde_json::to_value(Project::new("read-examples", &files).input()).unwrap();
+    let entries = input["documents"].as_array().unwrap();
+    texts
+        .iter()
+        .map(|(path, _)| {
+            let entry = entries
+                .iter()
+                .find(|e| e["origin"]["file"] == path.as_str());
+            entry.unwrap_or_else(|| panic!("{path} was not read"))["document"].clone()
+        })
+        .collect()
+}
+
+/// The entries of the input of the contract case `case`.
+fn case_entries(case: &str) -> Vec<Value> {
+    case_input(case)["documents"].as_array().unwrap().clone()
+}
+
+/// The entry of a contract case that sends the hand-over input `document` directly.
+fn handover_input_entry(document: &Value) -> Value {
+    json!({
+        "format": "document", "input_kind": "handover_input", "document": document
+    })
+}
+
+/// The documents of the entries of the contract case `case`, in their order.
+fn case_documents(case: &str) -> Vec<Value> {
+    let entries = case_entries(case);
+    entries.into_iter().map(|e| e["document"].clone()).collect()
+}
+
+#[test]
+fn the_examples_of_the_hand_over_load_into_the_documents_of_their_cases() {
+    // T9: the cases of the hand-over send the valid set of `plan-valid`, then the valid record
+    // and the valid input, then the document each checks; each is the example read as
+    // `wayloop validate` reads it, so that the examples and the cases cannot drift.
+    let read = examples_read(&[
+        "handover.valid.yaml",
+        "handover.input.valid.yaml",
+        "handover.invalid.yaml",
+        "handover.input.invalid.yaml",
+    ]);
+    // SPEC-0001 Hand-over record, `tokens`, decided by the maintainer on 2026-11-24: the
+    // canonical JSON of the record without the member `tokens`, in bytes, divided by four and
+    // rounded up. The examples once carried values no rule gave; this keeps both records honest.
+    for written in [&read[0], &read[2]] {
+        let mut record = written.clone();
+        let tokens = record.as_object_mut().unwrap().remove("tokens").unwrap();
+        let bytes = wayloop_core::canonical::canonical_json(&record).len() as u64;
+        assert_eq!(tokens.as_u64(), Some(bytes.div_ceil(4)), "{written}");
+    }
+    let record = json!({"format": "document", "document": read[0]});
+    let mut set = case_entries("plan-valid");
+    set.extend([record, handover_input_entry(&read[1])]);
+    assert_eq!(case_entries("handover-valid"), set);
+    let mut kebab = read[1].clone();
+    kebab["step"] = json!("counter-review");
+    let checked = [
+        (
+            "handover-invalid",
+            json!({"format": "document", "document": read[2]}),
+        ),
+        ("handover-input-invalid", handover_input_entry(&read[3])),
+        (
+            "handover-input-step-kebab-case",
+            handover_input_entry(&kebab),
+        ),
+    ];
+    for (case, entry) in checked {
+        let mut expected = set.clone();
+        expected.push(entry);
+        assert_eq!(case_entries(case), expected, "{case}");
+    }
+    // The deliberate copies of `wayloop_schemas::examples` are these examples too.
+    assert_eq!(wayloop_schemas::examples::handover(), read[0]);
+    assert_eq!(wayloop_schemas::examples::handover_input(), read[1]);
 }
 
 #[test]

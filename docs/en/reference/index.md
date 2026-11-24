@@ -41,7 +41,8 @@ The step identifiers are `snake_case` values of the contract, as every enum valu
 contracts ([ADR 0009](../project/adr/0009-contract-guidelines.md), C4), and have the same
 spelling in every channel. Other spellings, such as the labels of the issue tracker, are
 produced by the adapters from these values. Adding a step is an additive change; renaming or
-removing a step is a breaking change of the contract. The steps themselves are described in
+removing a step is a breaking change of the contract. They are the values of `step` in the
+hand-over record and the hand-over input. The steps themselves are described in
 [The loop](../concepts/the-loop.md#the-issue-cycle).
 
 ## JSON contracts
@@ -59,6 +60,7 @@ of each version and their SHA-256, is in `schemas/index.json` at the same addres
 | Epic ([wayloop validate](validate.md)) | `schemas/artifacts/epic/index.json` |
 | User story ([wayloop validate](validate.md)) | `schemas/artifacts/story/index.json` |
 | Task ([wayloop validate](validate.md)) | `schemas/artifacts/task/index.json` |
+| Hand-over record and hand-over input ([wayloop validate](validate.md)) | `schemas/artifacts/handover/index.json` |
 | Input and result of `wayloop validate` ([wayloop validate](validate.md)) | `schemas/commands/validate/index.json` |
 | Envelope of every command result ([ADR 0009](../project/adr/0009-contract-guidelines.md), C1) | `schemas/envelope/result/index.json` |
 

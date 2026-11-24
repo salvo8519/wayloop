@@ -1,0 +1,116 @@
+{
+  "$defs": {
+    "IssueStep": {
+      "description": "Step of the issue cycle, in order. The identifier of a step is its spelling in the contract: in the ledger, in hand-overs and in the JSON output of every channel, a `snake_case` value as every enum value of the contract (ADR 0009 C4, SPEC-0001), with one spelling everywhere. Other spellings, such as the kebab-case labels of a tracker, are produced by the adapters from it; the core never spells them.\n\n- `claim`: The issue is assigned to one agent session and labelled as in progress.\n- `reanalysis`: The agent re-reads the issue, its story, its specification and the code involved.\n- `counter_review`: A second agent looks for gaps, edge cases and contradictions.\n- `checklist`: The task checklist is generated from the specification and published on the issue.\n- `build`: Tests where they pay, then the code.\n- `verify`: Deterministic checks decide whether the step succeeded.\n- `review`: Review proportional to risk.\n- `pull_request`: The pull request is open and linked to the issue.\n- `merge`: Approval state: only a person merges.",
+      "enum": [
+        "claim",
+        "reanalysis",
+        "counter_review",
+        "checklist",
+        "build",
+        "verify",
+        "review",
+        "pull_request",
+        "merge"
+      ],
+      "type": "string"
+    },
+    "Ruling": {
+      "additionalProperties": false,
+      "description": "A ruling of a session (SPEC-0003 R5): a decision the agent took, why, and what it costs if it is wrong.",
+      "properties": {
+        "cost_if_wrong": {
+          "description": "What it costs to undo if it proves wrong.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "decision": {
+          "description": "The decision taken.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why it was taken.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "reason",
+        "cost_if_wrong"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://salvo8519.github.io/wayloop/schemas/artifacts/handover/v1.input.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A hand-over input (SPEC-0001 R22): what an agent submits at the end of a session, before the engine adds the members it owns. It has no `kind`: the entry that carries it names it with `input_kind`.",
+  "properties": {
+    "files_touched": {
+      "description": "Project paths changed by the session; `[]` means none.",
+      "items": {
+        "description": "Path of a repository file relative to the root of the project, in one spelling: segments joined by `/`, none empty, `.` or `..`; no leading `/`, no `\\` and no drive letter, so that it never leaves the project.",
+        "format": "project-path",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "language": {
+      "description": "Language of the prose, a BCP 47 tag; when absent, the language of the project.",
+      "format": "language-tag",
+      "type": "string"
+    },
+    "next_step": {
+      "description": "First action of the next session.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "not_done": {
+      "description": "Work left; `[]` means none.",
+      "items": {
+        "description": "A prose text of at least one character, in the language of the document.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "open_questions": {
+      "description": "Questions raised; `[]` means none.",
+      "items": {
+        "description": "A prose text of at least one character, in the language of the document.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "rulings": {
+      "description": "Rulings of the session; `[]` means none.",
+      "items": {
+        "$ref": "#/$defs/Ruling"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of the schema of the type the document was written against (SPEC-0001 R16).",
+      "type": "integer"
+    },
+    "step": {
+      "$ref": "#/$defs/IssueStep",
+      "description": "Step reached in the issue cycle."
+    }
+  },
+  "required": [
+    "schema_version",
+    "step",
+    "files_touched",
+    "not_done",
+    "open_questions",
+    "rulings",
+    "next_step"
+  ],
+  "title": "HandoverInput",
+  "type": "object"
+}

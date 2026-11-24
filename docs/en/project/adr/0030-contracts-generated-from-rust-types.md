@@ -280,6 +280,12 @@ with its tests and the architecture page.
   `validate` are generated from `BTreeMap<Pointer, Line>`, leave `FREE_OBJECTS`, and the rules
   of the core that repeated them are removed; `commands/validate` v1 and `envelope/result` v1,
   which no release holds, change under the amendment of 2026-11-20.
+- 2026-11-24, with #260 (G1): the members every document of the artifact model has are split
+  so that the hand-over, which has no `title` and no `status`, declares none of them again:
+  `Header` holds `schema_version` and `language`, `Identity<Id>` holds `kind`, the header and
+  `id`, and `Common<Id, Status>` flattens `Identity` beside `title`, `status` and
+  `superseded_by`. The hand-over record flattens `Identity`, its input flattens `Header`. The
+  snapshots of the other artifacts are unchanged.
 
 ## Consequences
 

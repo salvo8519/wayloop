@@ -1,7 +1,7 @@
 //! Tests of the artifact model and of `validate` (SPEC-0001 T5: R1, R5, R6, R12, R14, R16;
-//! AC1, AC8, AC9, AC25; T7: R1, R5, R6, R9; AC1, AC9, AC35). The contract cases of the
-//! command are in `tests/contract/validate/v1/` and run in the tests of `wayloop-cli`; these
-//! tests cover the parts the cases cannot reach.
+//! AC1, AC8, AC9, AC25; T7: R1, R5, R6, R9; AC1, AC9, AC35; T9: R1, R22; AC1, AC31). The
+//! contract cases of the command are in `tests/contract/validate/v1/` and run in the tests of
+//! `wayloop-cli`; these tests cover the parts the cases cannot reach.
 
 // The helpers take JSON values by value so that a test reads as the document it builds.
 #![allow(clippy::needless_pass_by_value)]
@@ -11,7 +11,7 @@ use core::num::{NonZeroU32, NonZeroU64};
 use serde_json::{Map, Value, json};
 use wayloop_schemas::artifact::ArtifactKind;
 use wayloop_schemas::contract::{
-    Area, BRIEF, CONTRACTS, Contract, Embedded, Part, VALIDATE, reread,
+    Area, BRIEF, CONTRACTS, Contract, Embedded, HANDOVER, Part, VALIDATE, reread,
 };
 use wayloop_schemas::validate::{ArtifactFolder, InputKind};
 use wayloop_schemas::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
@@ -24,7 +24,9 @@ use super::{checks, codes, run_with, validate_with};
 use crate::command::COMMAND_INPUT;
 use crate::envelope::without_nulls;
 use crate::schema::tests::oracle;
-use crate::{Code, Command, Context, Error, INTERNAL_ERROR, Pointer, Reason, run, run_json};
+use crate::{
+    Code, Command, Context, Error, INTERNAL_ERROR, IssueStep, Pointer, Reason, run, run_json,
+};
 
 // Helpers -------------------------------------------------------------------------------------
 
@@ -43,7 +45,7 @@ fn input_schema() -> crate::schema::Schema {
     kinds::load(VALIDATE.embedded(Part::Schema, VALIDATE.version).unwrap()).unwrap()
 }
 
-use wayloop_schemas::examples::{epic, gate, milestone, story, task};
+use wayloop_schemas::examples::{epic, gate, handover, handover_input, milestone, story, task};
 
 /// A valid brief with only its required members, smaller than the brief of the examples.
 fn brief() -> Value {
@@ -105,7 +107,16 @@ fn the_built_kinds_are_the_artifacts_of_the_registry_with_every_version() {
         .filter(|c| c.area == Area::Artifacts)
         .map(|c| c.name)
         .collect();
+    let (inputs, built): (Vec<Kind>, Vec<Kind>) =
+        built.into_iter().partition(|k| k.input.is_some());
     assert_eq!(built.iter().map(|k| k.id).collect::<Vec<_>>(), artifacts);
+    // The inputs whose schema is a file of an artifact contract follow, named by their kind.
+    let named: Vec<(Option<InputKind>, &str)> = inputs.iter().map(|k| (k.input, k.id)).collect();
+    assert_eq!(named, [(Some(InputKind::HandoverInput), "handover_input")]);
+    let paths: Vec<&str> = inputs[0].versions.iter().map(|e| e.path).collect();
+    assert_eq!(paths, ["artifacts/handover/v1.input.json"]);
+    assert_eq!(inputs[0].code, codes::HANDOVER_INPUT);
+    assert!(built.iter().all(|k| k.code == codes::ARTIFACT_SCHEMA));
     for (kind, contract) in built.iter().zip(CONTRACTS) {
         assert!(ArtifactKind::from_id(kind.id).is_some(), "{}", kind.id);
         let paths: Vec<&str> = kind.versions.iter().map(|e| e.path).collect();
@@ -175,7 +186,12 @@ fn the_kinds_and_their_checks_are_snake_case_and_unique() {
 /// Asserts that the oracle and the interpreter agree on the verdict of every document against
 /// the schema `v1` of `contract`.
 fn oracle_agrees(contract: &Contract, documents: impl IntoIterator<Item = Value>) {
-    let snapshot = contract.embedded(Part::Schema, NonZeroU32::MIN).unwrap();
+    oracle_agrees_on(contract, Part::Schema, documents);
+}
+
+/// [`oracle_agrees`] against the file `part` of the contract.
+fn oracle_agrees_on(contract: &Contract, part: Part, documents: impl IntoIterator<Item = Value>) {
+    let snapshot = contract.embedded(part, NonZeroU32::MIN).unwrap();
     let schema: Value = serde_json::from_str(snapshot.text).unwrap();
     let loaded = kinds::load(snapshot).unwrap();
     let oracle = oracle(&schema);
@@ -572,6 +588,256 @@ fn the_oracle_agrees_with_the_interpreter_on_plan_items() {
     }
 }
 
+// Hand-over records and inputs (T9: R1, R22; AC1, AC31) --------------------------------------
+
+/// The entry of a hand-over input holding `document`.
+fn input_entry(document: Value) -> Value {
+    json!({"format": "document", "input_kind": "handover_input", "document": document})
+}
+
+/// The errors of validating the hand-over input `document` alone.
+fn input_errors_of(document: Value) -> Vec<(Code, String, Reason)> {
+    let validation = validate(&read(vec![input_entry(document)]));
+    assert_eq!(validation.failures, []);
+    found(&validation.errors)
+}
+
+/// The accepted values of the member `step` in the file `part` of the hand-over contract, its
+/// reference followed.
+fn step_values(part: Part) -> Vec<String> {
+    let snapshot = HANDOVER.embedded(part, HANDOVER.version).unwrap();
+    let schema: Value = serde_json::from_str(snapshot.text).unwrap();
+    let mut step = &schema["properties"]["step"];
+    if let Some(reference) = step["$ref"].as_str() {
+        step = schema.pointer(reference.trim_start_matches('#')).unwrap();
+    }
+    step["enum"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap().to_owned())
+        .collect()
+}
+
+#[test]
+fn the_step_of_both_hand_over_schemas_is_the_issue_step_of_the_core() {
+    // SPEC-0001, Hand-over record: the `step` values are the identifiers of `IssueStep` (#228).
+    let steps: Vec<&str> = IssueStep::ALL.iter().map(|s| s.id()).collect();
+    for part in [Part::Schema, Part::Input] {
+        assert_eq!(step_values(part), steps, "{part}");
+    }
+}
+
+#[test]
+fn the_valid_hand_over_record_and_input_pass_and_read_into_their_types() {
+    let validation = validate(&read(vec![
+        entry(handover()),
+        input_entry(handover_input()),
+    ]));
+    assert_eq!(validation.errors, []);
+    assert_eq!(validation.failures, []);
+    let checks: Vec<&str> = validation
+        .checks
+        .iter()
+        .map(wayloop_schemas::Check::id)
+        .collect();
+    for check in ["schema_handover", "schema_handover_input"] {
+        assert!(checks.contains(&check), "{check}");
+        assert!(
+            validation.not_done.iter().all(|n| n.check().id() != check),
+            "{check}"
+        );
+    }
+    let built = built();
+    let reread_of = |id: &str| built.iter().find(|k| k.id == id).unwrap().reread;
+    assert_eq!(reread_of("handover")(&handover()).unwrap(), handover());
+    assert_eq!(
+        reread_of("handover_input")(&handover_input()).unwrap(),
+        handover_input()
+    );
+    // The record is summarised by its kind and identifier, the input by its input kind only.
+    assert_eq!(
+        serde_json::to_value(&validation.documents).unwrap(),
+        json!([
+            {"kind": "handover", "id": "HANDOVER-12-1"},
+            {"input_kind": "handover_input"}
+        ])
+    );
+}
+
+#[test]
+fn the_summary_of_an_input_never_holds_a_kind_an_identifier_or_a_status() {
+    let mut document = with(handover_input(), "id", json!("HANDOVER-12-1"));
+    document = with(document, "status", json!("done"));
+    let validation = validate(&read(vec![input_entry(document)]));
+    assert_eq!(
+        serde_json::to_value(&validation.documents).unwrap(),
+        json!([{"input_kind": "handover_input"}])
+    );
+}
+
+#[test]
+fn ac31_an_engine_field_in_a_hand_over_input_is_refused_with_unknown_field() {
+    // SPEC-0001 R22: every member the engine sets, given by the agent, is refused at its place
+    // with the code of the hand-over input, before any engine field is filled.
+    let record = handover();
+    for field in [
+        "kind",
+        "id",
+        "issue",
+        "task",
+        "session",
+        "holder",
+        "executor",
+        "branch",
+        "recorded_at",
+        "tokens",
+    ] {
+        let document = with(handover_input(), field, record[field].clone());
+        assert_eq!(
+            input_errors_of(document),
+            [(
+                codes::HANDOVER_INPUT,
+                format!("/{field}"),
+                Reason::UnknownField
+            )],
+            "{field}"
+        );
+    }
+}
+
+#[test]
+fn every_error_of_a_hand_over_input_has_its_code_and_the_record_that_of_artifacts() {
+    // SPEC-0001, Errors: `handover_input` with `unknown_field` and the reasons of
+    // `artifact_schema`; the record is an artifact and keeps `artifact_schema`.
+    let document = with(
+        without(handover_input(), "next_step"),
+        "step",
+        json!("counter-review"),
+    );
+    assert_eq!(
+        input_errors_of(document),
+        [
+            (codes::HANDOVER_INPUT, "/step".to_owned(), Reason::Enum),
+            (
+                codes::HANDOVER_INPUT,
+                "/next_step".to_owned(),
+                Reason::Missing
+            ),
+        ]
+    );
+    assert_eq!(
+        input_errors_of(with(
+            handover_input(),
+            "rulings",
+            json!([{"decision": "x", "reason": "y"}])
+        )),
+        [(
+            codes::HANDOVER_INPUT,
+            "/rulings/0/cost_if_wrong".to_owned(),
+            Reason::Missing
+        )]
+    );
+    assert_eq!(
+        errors_of(without(handover(), "next_step")),
+        [schema_error("/next_step", Reason::Missing)]
+    );
+    assert_eq!(
+        errors_of(with(handover(), "id", json!("HANDOVER-012-1"))),
+        [(codes::IDENTIFIER_FORMAT, "/id".to_owned(), Reason::Syntax)]
+    );
+    // R16: an input of a version the engine does not know is refused with its known versions.
+    let validation = validate(&read(vec![input_entry(with(
+        handover_input(),
+        "schema_version",
+        json!(2),
+    ))]));
+    let error = validation.errors.first().unwrap();
+    assert_eq!(
+        (error.code(), error.pointer().as_str(), error.reason()),
+        (
+            &codes::SCHEMA_VERSION_UNKNOWN,
+            "/schema_version",
+            Reason::Enum
+        )
+    );
+    assert_eq!(error.expected(), Some(&[json!(1)][..]));
+}
+
+#[test]
+fn the_files_touched_of_a_hand_over_are_project_paths_and_its_prose_may_name_its_language() {
+    // SPEC-0001, Hand-over record (decided by the maintainer on 2026-11-24): `files_touched`
+    // holds project paths, so a path that leaves the project or spells `\` is refused at its
+    // place, in the input and in the record; `language` is accepted in both.
+    for path in ["../x", "src\\x"] {
+        let paths = json!(["src/record.rs", path]);
+        assert_eq!(
+            input_errors_of(with(handover_input(), "files_touched", paths.clone())),
+            [(
+                codes::HANDOVER_INPUT,
+                "/files_touched/1".to_owned(),
+                Reason::Syntax
+            )],
+            "{path}"
+        );
+        assert_eq!(
+            errors_of(with(handover(), "files_touched", paths)),
+            [schema_error("/files_touched/1", Reason::Syntax)],
+            "{path}"
+        );
+    }
+    assert_eq!(
+        input_errors_of(with(handover_input(), "language", json!("it"))),
+        []
+    );
+    assert_eq!(errors_of(with(handover(), "language", json!("it"))), []);
+}
+
+#[test]
+fn an_artifact_document_never_selects_the_schema_of_an_input() {
+    // `kind` selects among artifacts only: the spelling of an input kind is not one.
+    let document = with(handover_input(), "kind", json!("handover_input"));
+    let validation = validate(&read(vec![entry(document)]));
+    let error = validation.errors.first().unwrap();
+    assert_eq!(
+        (error.code(), error.pointer().as_str(), error.reason()),
+        (&codes::ARTIFACT_SCHEMA, "/kind", Reason::Enum)
+    );
+}
+
+#[test]
+fn the_oracle_agrees_with_the_interpreter_on_hand_overs() {
+    let variations = |document: Value| {
+        vec![
+            document.clone(),
+            with(document.clone(), "step", json!("pull-request")),
+            with(document.clone(), "files_touched", json!([""])),
+            with(document.clone(), "files_touched", json!(["../x"])),
+            with(document.clone(), "files_touched", json!(["src\\x"])),
+            with(document.clone(), "language", json!("it")),
+            with(document.clone(), "language", json!("italiano")),
+            with(document.clone(), "rulings", json!([{"decision": "x"}])),
+            with(document.clone(), "tokens", json!(10)),
+            with(document.clone(), "schema_version", json!(2)),
+            without(document, "next_step"),
+        ]
+    };
+    let mut records = variations(handover());
+    records.extend([
+        with(
+            handover(),
+            "recorded_at",
+            json!("2027-01-15T17:42:00+01:00"),
+        ),
+        with(handover(), "tokens", json!(0)),
+        with(handover(), "id", json!("HANDOVER-12")),
+        without(handover(), "task"),
+        with(handover(), "status", json!("done")),
+    ]);
+    oracle_agrees(&HANDOVER, records);
+    oracle_agrees_on(&HANDOVER, Part::Input, variations(handover_input()));
+}
+
 // Versions and migrations (R16, AC25) --------------------------------------------------------
 
 const SAMPLE_V1: Embedded = embedded_test(
@@ -629,6 +895,8 @@ const fn embedded_test(path: &'static str, text: &'static str) -> Embedded {
 fn sample_kind() -> Kind {
     Kind {
         id: "sample",
+        input: None,
+        code: codes::ARTIFACT_SCHEMA,
         versions: vec![SAMPLE_V1, SAMPLE_V2],
         migrations: &RENAME,
         // A test type is read as a JSON value.
@@ -832,24 +1100,32 @@ fn a_type_whose_schemas_cannot_be_loaded_is_a_failure_of_the_engine() {
     for kind in [
         Kind {
             id: "broken",
+            input: None,
+            code: codes::ARTIFACT_SCHEMA,
             versions: vec![NOT_JSON],
             migrations: &[],
             reread: reread::<Value>,
         },
         Kind {
             id: "broken",
+            input: None,
+            code: codes::ARTIFACT_SCHEMA,
             versions: vec![OUTSIDE],
             migrations: &[],
             reread: reread::<Value>,
         },
         Kind {
             id: "broken",
+            input: None,
+            code: codes::ARTIFACT_SCHEMA,
             versions: vec![SAMPLE_V1, SAMPLE_V2],
             migrations: &[],
             reread: reread::<Value>,
         },
         Kind {
             id: "broken",
+            input: None,
+            code: codes::ARTIFACT_SCHEMA,
             versions: vec![],
             migrations: &[],
             reread: reread::<Value>,
@@ -929,13 +1205,20 @@ fn the_folders_of_the_contract_are_those_of_the_locations() {
 
 #[test]
 fn checks_not_built_are_listed_once_with_their_reason() {
-    let validation = validate(&read(vec![
-        entry(json!({"kind": "handover", "id": "HANDOVER-12-3"})),
-        entry(json!({"kind": "handover"})),
+    // The schemas of a task and of a hand-over input are left out of the types built here, so
+    // that the test holds whichever types the engine builds.
+    let unbuilt = ["task", "handover_input"];
+    let mut types = built();
+    types.retain(|k| !unbuilt.contains(&k.id));
+    assert_eq!(types.len(), built().len() - unbuilt.len());
+    let input = read(vec![
+        entry(json!({"kind": "task", "id": "TASK-0012"})),
+        entry(json!({"kind": "task"})),
         json!({"format": "markdown", "text": "# SPEC-0001: x"}),
-        json!({"format": "document", "document": {"header": "x"}, "input_kind": "commit"}),
+        json!({"format": "document", "document": {"header": "x"}, "input_kind": "handover_input"}),
         entry(brief()),
-    ]));
+    ]);
+    let validation = super::validate(&input, &types);
     assert_eq!(validation.errors, []);
     // The valid brief is read into its contract type (ADR 0030 G1), not left as a value.
     assert_eq!(validation.failures, []);
@@ -950,8 +1233,8 @@ fn checks_not_built_are_listed_once_with_their_reason() {
             "markdown",
             "naming",
             "parts",
-            "schema_commit",
-            "schema_handover",
+            "schema_handover_input",
+            "schema_task",
             "statuses",
         ]
     );
@@ -972,26 +1255,13 @@ fn checks_not_built_are_listed_once_with_their_reason() {
         };
         assert_eq!(reason(id), Some(expected), "{id}");
     }
-    // One check identifier per schema (S6): the schemas of the built types ran, the schema
-    // of the hand-over did not.
-    assert_eq!(
-        validation
-            .checks
-            .iter()
-            .map(wayloop_schemas::Check::id)
-            .collect::<Vec<_>>(),
-        [
-            "document_kind",
-            "schema_version",
-            "schema_brief",
-            "schema_epic",
-            "schema_gate",
-            "schema_milestone",
-            "schema_story",
-            "schema_task",
-            "identifier_format"
-        ]
-    );
+    // One check identifier per schema (S6): the schemas of the built types and inputs ran, in
+    // their order, those left out did not.
+    let schemas = types.iter().map(|k| kinds::schema_check(k.id));
+    let mut expected = vec![checks::DOCUMENT_KIND, checks::SCHEMA_VERSION];
+    expected.extend(schemas);
+    expected.push(checks::IDENTIFIER_FORMAT);
+    assert_eq!(validation.checks, expected);
     let summaries: Vec<(Option<&str>, Option<&str>, Option<&str>)> = validation
         .documents
         .iter()
@@ -1006,10 +1276,10 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     assert_eq!(
         summaries,
         [
-            (Some("handover"), None, Some("HANDOVER-12-3")),
-            (Some("handover"), None, None),
+            (Some("task"), None, Some("TASK-0012")),
+            (Some("task"), None, None),
             (None, None, None),
-            (None, Some("commit"), None),
+            (None, Some("handover_input"), None),
             (Some("brief"), None, Some("BRIEF-0001")),
         ]
     );

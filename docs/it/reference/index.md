@@ -1,6 +1,6 @@
 ---
 source: reference/index.md
-source_hash: 37bd2c6297b0
+source_hash: eaa29bdb34e2
 ---
 # Riferimento
 
@@ -47,7 +47,8 @@ enumerato dei contratti JSON
 e si scrivono allo stesso modo in ogni canale. Le altre grafie, come le etichette del tracker
 delle issue, sono prodotte dagli adattatori a partire da questi valori. Aggiungere un passo è una
 modifica additiva; rinominare o rimuovere un passo è una modifica incompatibile del contratto.
-I passi sono descritti in [Il loop](../concepts/the-loop.md#il-ciclo-di-unissue).
+Sono i valori di `step` nel record e nell'input di passaggio di mano. I passi sono descritti in
+[Il loop](../concepts/the-loop.md#il-ciclo-di-unissue).
 
 ## Contratti JSON
 
@@ -64,6 +65,7 @@ nella cartella di ciascun contratto.
 | Epic ([wayloop validate](validate.md)) | `schemas/artifacts/epic/index.json` |
 | User story ([wayloop validate](validate.md)) | `schemas/artifacts/story/index.json` |
 | Task ([wayloop validate](validate.md)) | `schemas/artifacts/task/index.json` |
+| Record e input di passaggio di mano ([wayloop validate](validate.md)) | `schemas/artifacts/handover/index.json` |
 | Input e risultato di `wayloop validate` ([wayloop validate](validate.md)) | `schemas/commands/validate/index.json` |
 | Envelope del risultato di ogni comando ([ADR 0009](https://salvo8519.github.io/wayloop/project/adr/0009-contract-guidelines/), C1) | `schemas/envelope/result/index.json` |
 
