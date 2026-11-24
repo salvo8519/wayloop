@@ -3,8 +3,10 @@
 //! and the `input_kind` of their entry selects their schema (plan of SPEC-0001, Canonical input
 //! of `wayloop validate`). Like every input, they carry the `schema_version` of their schema
 //! (decided by the maintainer on 2026-11-24), checked and migrated as an artifact is (R16).
-//! Adapters assemble them from the tracker or from git; the engine reads them, so their schemas
-//! are closed.
+//! They carry no `language`: adapters assemble them from the tracker or from git, which give
+//! none, and their prose is in the language of the project (R6). So they have no shared
+//! `Header`, and `schema_version` is a member of each type, on purpose (decided by the
+//! maintainer on 2026-11-25). The engine reads them, so their schemas are closed.
 //!
 //! The schema states the shape only. The grammar of a branch name and of a commit header (R11)
 //! and the issue links of a pull request (R10) are checked across the set, with the policy of
@@ -28,8 +30,9 @@ pub struct PullRequest {
     pub body: String,
     /// Head branch.
     pub branch: Text,
-    /// Labels, in the spelling of the tracker; `[]` means none.
-    pub labels: Vec<String>,
+    /// Labels, in the spelling of the tracker, each a non-empty text (decided by the maintainer
+    /// on 2026-11-25); `[]` means none.
+    pub labels: Vec<Text>,
 }
 
 /// A commit message (SPEC-0001 R11), as the adapter of git reads it.
@@ -59,7 +62,8 @@ fn commit_rules(schema: &mut Schema) {
 mod tests {
     use super::{Commit, PullRequest};
     use crate::contract::{Direction, schema_for};
-    use serde_json::{Value, json};
+    use crate::examples;
+    use serde_json::Value;
 
     fn required(schema: &Value) -> Vec<&str> {
         schema["required"]
@@ -72,13 +76,7 @@ mod tests {
 
     #[test]
     fn a_pull_request_reads_and_writes_itself() {
-        let given = json!({
-            "schema_version": 1,
-            "title": "feat(core): append one entry per record command",
-            "body": "",
-            "branch": "feat/12-record-time-entry",
-            "labels": []
-        });
+        let given = examples::pull_request();
         let read: PullRequest = serde_json::from_value(given.clone()).unwrap();
         assert_eq!(read.branch.as_str(), "feat/12-record-time-entry");
         assert_eq!(serde_json::to_value(&read).unwrap(), given);
@@ -86,12 +84,10 @@ mod tests {
 
     #[test]
     fn a_commit_reads_and_writes_itself_with_and_without_a_body() {
-        for given in [
-            json!({"schema_version": 1, "header": "fix(core): keep the order"}),
-            json!({
-                "schema_version": 1, "header": "fix(core): keep the order", "body": "Refs: #12\n"
-            }),
-        ] {
+        let given = examples::commit();
+        let mut one_line = given.clone();
+        one_line.as_object_mut().unwrap().remove("body");
+        for given in [given, one_line] {
             let read: Commit = serde_json::from_value(given.clone()).unwrap();
             assert_eq!(serde_json::to_value(&read).unwrap(), given);
         }
@@ -116,14 +112,16 @@ mod tests {
     }
 
     #[test]
-    fn the_title_and_the_branch_are_not_empty_and_the_body_may_be() {
-        // Decided by the maintainer on 2026-11-24 (SPEC-0001, Inputs).
+    fn the_title_the_branch_and_each_label_are_not_empty_and_the_body_may_be() {
+        // Decided by the maintainer on 2026-11-24, for labels on 2026-11-25 (SPEC-0001,
+        // Inputs). The list of labels may still be empty.
         let schema = schema_for::<PullRequest>(Direction::Input).unwrap();
         let properties = &schema["properties"];
         assert_eq!(properties["title"]["minLength"], 1);
         assert_eq!(properties["branch"]["minLength"], 1);
         assert_eq!(properties["body"].get("minLength"), None);
-        assert_eq!(properties["labels"]["items"].get("minLength"), None);
+        assert_eq!(properties["labels"]["items"]["minLength"], 1);
+        assert_eq!(properties["labels"].get("minItems"), None);
     }
 
     #[test]

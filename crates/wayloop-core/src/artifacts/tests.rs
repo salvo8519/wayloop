@@ -48,8 +48,8 @@ fn input_schema() -> crate::schema::Schema {
 }
 
 use wayloop_schemas::examples::{
-    change, council_report, epic, gate, handover, handover_input, milestone, specification, story,
-    task,
+    change, commit, council_report, epic, gate, handover, handover_input, milestone, pull_request,
+    specification, story, task,
 };
 
 /// A valid brief with only its required members, smaller than the brief of the examples.
@@ -2252,34 +2252,13 @@ fn every_artifact_type_has_its_schema_built() {
 
 // Pull request and commit inputs (T10: R1, R16; AC1, structural part) -----------------------
 
-fn pull_request() -> Value {
-    json!({
-        "schema_version": 1,
-        "title": "feat(core): append one entry per record command",
-        "body": "Closes #12",
-        "branch": "feat/12-record-time-entry",
-        "labels": []
-    })
-}
-
-fn commit() -> Value {
-    json!({"schema_version": 1, "header": "fix(core): keep the order of the entries"})
-}
-
 #[test]
 fn valid_inputs_pass_and_their_schemas_run() {
     let validation = validate(&read(vec![
         input_entry(pull_request(), InputKind::PullRequest),
         input_entry(commit(), InputKind::Commit),
-        input_entry(
-            with(commit(), "body", json!("Refs: #12\n")),
-            InputKind::Commit,
-        ),
-        // SPEC-0001, Inputs: the body of a pull request may be empty, its labels too.
-        input_entry(
-            with(pull_request(), "body", json!("")),
-            InputKind::PullRequest,
-        ),
+        // A commit of one line has no body.
+        input_entry(without(commit(), "body"), InputKind::Commit),
     ]));
     passed_with(&validation, &["schema_commit", "schema_pull_request"]);
     // The grammar of branches and headers and the links of a pull request are later checks.
@@ -2295,8 +2274,7 @@ fn valid_inputs_pass_and_their_schemas_run() {
         [
             Some(InputKind::PullRequest),
             Some(InputKind::Commit),
-            Some(InputKind::Commit),
-            Some(InputKind::PullRequest)
+            Some(InputKind::Commit)
         ]
     );
     assert!(validation.documents.iter().all(|d| d.kind.is_none()));
@@ -2313,6 +2291,7 @@ fn the_oracle_agrees_with_the_interpreter_on_inputs() {
             without(pull_request(), "branch"),
             without(pull_request(), "schema_version"),
             with(pull_request(), "labels", json!(["ok", 7])),
+            with(pull_request(), "labels", json!([""])),
             with(pull_request(), "kind", json!("pull_request")),
             commit(),
         ],
@@ -2334,8 +2313,8 @@ fn the_oracle_agrees_with_the_interpreter_on_inputs() {
 
 #[test]
 fn input_kind_selects_the_schema() {
-    // The pull request sent as a commit: its members are unknown to the commit, which misses
-    // its header. Present members in byte order, then absent ones in the order of `required`.
+    // The pull request sent as a commit: its members other than the body are unknown to the
+    // commit, which misses its header. Present members in byte order, then absent ones in the order of `required`.
     assert_eq!(
         input_errors(pull_request(), InputKind::Commit),
         [
@@ -2345,9 +2324,9 @@ fn input_kind_selects_the_schema() {
             schema_error("/header", Reason::Missing),
         ]
     );
-    // The commit sent as a pull request.
+    // The commit of one line sent as a pull request.
     assert_eq!(
-        input_errors(commit(), InputKind::PullRequest),
+        input_errors(without(commit(), "body"), InputKind::PullRequest),
         [
             schema_error("/header", Reason::UnknownField),
             schema_error("/title", Reason::Missing),
@@ -2399,6 +2378,15 @@ fn the_texts_of_an_input_are_not_empty_except_the_body_of_a_pull_request() {
             InputKind::PullRequest
         ),
         []
+    );
+    // A label is a non-empty text; the list may be empty (decided by the maintainer on
+    // 2026-11-25).
+    assert_eq!(
+        input_errors(
+            with(pull_request(), "labels", json!([""])),
+            InputKind::PullRequest
+        ),
+        [schema_error("/labels/0", Reason::Length)]
     );
 }
 
@@ -2475,6 +2463,10 @@ fn an_input_kind_without_its_schema_is_a_failure_of_the_engine() {
     assert_eq!(validation.errors, []);
     assert_eq!(validation.failures.len(), 1);
     assert_eq!(validation.failures[0].reason(), Reason::Internal);
+    assert_eq!(
+        validation.failures[0].message(),
+        "The input kind commit has no schema loaded, so the check schema_commit cannot run."
+    );
     assert!(
         validation
             .not_done

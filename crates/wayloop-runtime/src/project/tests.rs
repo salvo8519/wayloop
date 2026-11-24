@@ -6,8 +6,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
+use wayloop_core::artifacts::codes;
 use wayloop_core::artifacts::locations::{MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, Stored, StoredFile};
 use wayloop_core::{Command, Context, run};
+use wayloop_schemas::Code;
 use wayloop_schemas::validate::{ArtifactFolder, EntryFormat, ValidateInput};
 use wayloop_schemas::value::ProjectPath;
 
@@ -415,11 +417,43 @@ fn the_examples_of_the_council_reports_specifications_and_changes_load_into_thei
     );
 }
 
+/// Asserts that the run of `envelope` is not a failure of the engine and that every error it
+/// reports, if any, has one of the codes `allowed`; a success carries its data.
+fn assert_errors_only_of(envelope: &Value, allowed: &[Code]) {
+    let error = &envelope["error"];
+    assert_ne!(error["reason"], "internal", "{envelope}");
+    // One error is the `error` itself; several are its `errors`.
+    let errors: Vec<&Value> = match error["errors"].as_array() {
+        Some(errors) => errors.iter().collect(),
+        None if error.is_null() => {
+            assert!(envelope.get("data").is_some(), "{envelope}");
+            Vec::new()
+        }
+        None => vec![error],
+    };
+    for error in errors {
+        let code = error["code"].as_str().unwrap_or_default();
+        let known = allowed.iter().any(|c| c.id() == code);
+        assert!(known, "{error} in {envelope}");
+    }
+}
+
+/// `document` with its `member` set to `value`, or removed when `value` is `None`.
+fn changed(document: &Value, member: &str, value: Option<Value>) -> Value {
+    let mut document = document.clone();
+    let members = document.as_object_mut().unwrap();
+    match value {
+        Some(value) => members.insert(member.to_owned(), value),
+        None => members.remove(member),
+    };
+    document
+}
+
 #[test]
 fn the_invalid_examples_of_later_checks_pass_the_schema() {
     // These examples break links and operations of change deltas, checked by later tasks
-    // (T12, T13), not the schema: with the valid set they give no `artifact_schema` error,
-    // whichever checks are built.
+    // (T12, T13), not the schema: with the valid set they give only errors of those checks
+    // (R3, R4, R20), whichever checks are built.
     let mut names = PLAN_SET.to_vec();
     names.extend([
         "specification.superseded.valid.yaml",
@@ -428,29 +462,17 @@ fn the_invalid_examples_of_later_checks_pass_the_schema() {
         "change.invalid.yaml",
         "change.conflict.invalid.yaml",
     ]);
-    let texts: Vec<(String, String)> = names
-        .iter()
-        .map(|name| (format!("plan/items/{name}"), example(name)))
-        .collect();
-    let files: Vec<(&str, &[u8])> = texts
-        .iter()
-        .map(|(path, text)| (path.as_str(), text.as_bytes()))
-        .collect();
-    let project = Project::new("later-checks", &files);
+    let (project, _) = examples_project("later-checks", &names);
     assert_eq!(project.input().documents.len(), names.len());
+    // An internal failure or an `artifact_schema` error fails the test, as any code other than
+    // those of the checks these examples break.
     let envelope = project.envelope();
-    // One error is the `error` itself; several are its `errors`.
-    let error = &envelope["error"];
-    let errors: Vec<&Value> = match error["errors"].as_array() {
-        Some(errors) => errors.iter().collect(),
-        None if error.is_null() => Vec::new(),
-        None => vec![error],
-    };
-    let schema_errors: Vec<&Value> = errors
-        .into_iter()
-        .filter(|e| e["code"] == "artifact_schema")
-        .collect();
-    assert_eq!(schema_errors, Vec::<&Value>::new(), "{envelope}");
+    let allowed = [
+        codes::LINK_MISSING,
+        codes::LINK_SUPERSEDED,
+        codes::DELTA_CONFLICT,
+    ];
+    assert_errors_only_of(&envelope, &allowed);
 }
 
 #[test]
@@ -479,9 +501,9 @@ fn the_examples_of_the_schemas_crate_are_those_of_the_valid_case() {
     }
 }
 
-/// The examples of SPEC-0001 called `names`, each read as `wayloop validate` reads a file, in
-/// the order of `names`.
-fn examples_read(names: &[&str]) -> Vec<Value> {
+/// A temporary project called `name` with the examples of SPEC-0001 called `names` under
+/// `plan/items/`, and their paths in the order of `names`.
+fn examples_project(name: &str, names: &[&str]) -> (Project, Vec<String>) {
     let texts: Vec<(String, String)> = names
         .iter()
         .map(|name| (format!("plan/items/{name}"), example(name)))
@@ -490,11 +512,19 @@ fn examples_read(names: &[&str]) -> Vec<Value> {
         .iter()
         .map(|(path, text)| (path.as_str(), text.as_bytes()))
         .collect();
-    let input = serde_json::to_value(Project::new("read-examples", &files).input()).unwrap();
+    let project = Project::new(name, &files);
+    (project, texts.into_iter().map(|(path, _)| path).collect())
+}
+
+/// The examples of SPEC-0001 called `names`, each read as `wayloop validate` reads a file, in
+/// the order of `names`.
+fn examples_read(names: &[&str]) -> Vec<Value> {
+    let (project, paths) = examples_project("read-examples", names);
+    let input = serde_json::to_value(project.input()).unwrap();
     let entries = input["documents"].as_array().unwrap();
-    texts
+    paths
         .iter()
-        .map(|(path, _)| {
+        .map(|path| {
             let entry = entries
                 .iter()
                 .find(|e| e["origin"]["file"] == path.as_str());
@@ -544,8 +574,7 @@ fn the_examples_of_the_hand_over_load_into_the_documents_of_their_cases() {
     let mut set = case_entries("plan-valid");
     set.extend([record, input_entry(&read[1], "handover_input")]);
     assert_eq!(case_entries("handover-valid"), set);
-    let mut kebab = read[1].clone();
-    kebab["step"] = json!("counter-review");
+    let kebab = changed(&read[1], "step", Some(json!("counter-review")));
     let checked = [
         (
             "handover-invalid",
@@ -581,15 +610,6 @@ fn the_examples_of_the_pull_request_and_the_commit_load_into_the_documents_of_th
         "commit.invalid.yaml",
     ]);
     let (pull_request, commit) = (&read[0], &read[1]);
-    let changed = |document: &Value, member: &str, value: Option<Value>| {
-        let mut document = document.clone();
-        let members = document.as_object_mut().unwrap();
-        match value {
-            Some(value) => members.insert(member.to_owned(), value),
-            None => members.remove(member),
-        };
-        document
-    };
     let mut set = case_entries("plan-valid");
     set.extend([
         input_entry(pull_request, "pull_request"),
@@ -622,7 +642,8 @@ fn the_examples_of_the_pull_request_and_the_commit_load_into_the_documents_of_th
         assert_eq!(case_entries(case), [entry], "{case}");
     }
     // AC1, structural part: the invalid examples, after the valid set, break rules of the set
-    // (R10, R11), not the shape of their schema, so no error has the code `artifact_schema`.
+    // (R10, R11), not the shape of their schema: every error of the run has a code of R10 or
+    // R11 (SPEC-0001, Errors), so an `artifact_schema` or an internal error fails the test.
     let mut invalid = case_entries("plan-valid");
     invalid.extend([
         input_entry(&read[2], "pull_request"),
@@ -634,15 +655,15 @@ fn the_examples_of_the_pull_request_and_the_commit_load_into_the_documents_of_th
         &Context::default(),
     );
     let envelope = serde_json::to_value(envelope).unwrap();
-    let errors = envelope["error"]["errors"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
-    let schema_errors: Vec<&Value> = errors
-        .iter()
-        .filter(|e| e["code"] == "artifact_schema")
-        .collect();
-    assert_eq!(schema_errors, Vec::<&Value>::new(), "{envelope}");
+    let allowed = [
+        codes::PULL_REQUEST_LINK,
+        codes::BRANCH_NAME,
+        codes::COMMIT_HEADER,
+    ];
+    assert_errors_only_of(&envelope, &allowed);
+    // The deliberate copies of `wayloop_schemas::examples` are these examples too.
+    assert_eq!(wayloop_schemas::examples::pull_request(), *pull_request);
+    assert_eq!(wayloop_schemas::examples::commit(), *commit);
 }
 
 #[test]

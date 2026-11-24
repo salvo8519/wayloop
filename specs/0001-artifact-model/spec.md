@@ -522,10 +522,16 @@ An input is checked against the schema of its own version and migrated to the cu
 an artifact is, so R16 holds for inputs too. The hand-over input carries it already (Hand-over
 record).
 
+Pull request and commit inputs carry no `language` (decided by the maintainer on 2026-11-25):
+adapters build them from the tracker and from git, which give none, and their prose is in the
+language of the project (R6). They therefore do not share the `Header` of the artifacts, and
+`schema_version` is a member of each input type on purpose.
+
 The texts `title`, `branch` and `header`, and `body` of a commit when present, have at least
 one character; the `body` of a pull request may be empty and `labels` may be an empty list. An
 optional text is left out when it has no value, never written empty (decided by the maintainer
-on 2026-11-24). An empty text where one is required is refused with the reason `length`.
+on 2026-11-24). Each label is a non-empty text (decided by the maintainer on 2026-11-25). An
+empty text where one is required is refused with the reason `length`.
 
 `pull_request` (R10):
 
@@ -535,7 +541,7 @@ on 2026-11-24). An empty text where one is required is refused with the reason `
 | `title` | string, at least 1 character | yes | Pull request title, a commit header under R11 |
 | `body` | string | yes, may be empty | Pull request body, where the issue is linked |
 | `branch` | string, at least 1 character | yes | Head branch |
-| `labels` | list of strings | yes, may be empty | Labels, in the spelling of the tracker |
+| `labels` | list of strings, each at least 1 character | yes, may be empty | Labels, in the spelling of the tracker |
 
 `commit` (R11):
 

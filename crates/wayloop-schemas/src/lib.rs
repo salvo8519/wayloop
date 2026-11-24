@@ -35,7 +35,7 @@ pub mod contract;
 mod cycle;
 mod envelope;
 mod error;
-#[cfg(feature = "examples")]
+#[cfg(any(test, feature = "examples"))]
 pub mod examples;
 #[cfg(test)]
 mod fixtures;

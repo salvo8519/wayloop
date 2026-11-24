@@ -134,10 +134,12 @@ macro_rules! document {
 pub const BRIEF: Contract = document!(Artifacts, ArtifactKind::Brief, NonZeroU32::MIN);
 
 /// The council report (SPEC-0001, Council report).
-pub const COUNCIL_REPORT: Contract = document!(Artifacts, ArtifactKind::CouncilReport, NonZeroU32::MIN);
+pub const COUNCIL_REPORT: Contract =
+    document!(Artifacts, ArtifactKind::CouncilReport, NonZeroU32::MIN);
 
 /// The living specification (SPEC-0001, Living specification), in normalised form.
-pub const SPECIFICATION: Contract = document!(Artifacts, ArtifactKind::Specification, NonZeroU32::MIN);
+pub const SPECIFICATION: Contract =
+    document!(Artifacts, ArtifactKind::Specification, NonZeroU32::MIN);
 
 /// The change delta (SPEC-0001, Change delta).
 pub const CHANGE: Contract = document!(Artifacts, ArtifactKind::Change, NonZeroU32::MIN);

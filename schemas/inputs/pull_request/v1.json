@@ -14,8 +14,10 @@
       "type": "string"
     },
     "labels": {
-      "description": "Labels, in the spelling of the tracker; `[]` means none.",
+      "description": "Labels, in the spelling of the tracker, each a non-empty text (decided by the maintainer on 2026-11-25); `[]` means none.",
       "items": {
+        "description": "A prose text of at least one character, in the language of the document.",
+        "minLength": 1,
         "type": "string"
       },
       "type": "array"

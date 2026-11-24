@@ -172,7 +172,7 @@ command line reads stored artifacts only; inputs are sent with `--input`.
 | `pull_request` | `title` | string of at least one character, the pull request title | yes |
 | `pull_request` | `body` | string, where the issue is linked; may be empty | yes |
 | `pull_request` | `branch` | string of at least one character, the head branch | yes |
-| `pull_request` | `labels` | list of strings, in the spelling of the tracker; `[]` means none | yes |
+| `pull_request` | `labels` | list of strings, each of at least one character, in the spelling of the tracker; `[]` means none | yes |
 | `commit` | `header` | string of at least one character, the first line of the message | yes |
 | `commit` | `body` | string of at least one character, the lines after the blank line, trailers included; absent when the message has one line | no |
 

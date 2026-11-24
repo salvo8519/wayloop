@@ -19,7 +19,8 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json.workspace = true
 
 [features]
-# The valid plan items of the examples of SPEC-0001, for the tests of other crates only.
+# The valid documents of the examples of SPEC-0001, for the tests of other crates; the tests of
+# this crate always have them.
 examples = []
 
 [lints]
