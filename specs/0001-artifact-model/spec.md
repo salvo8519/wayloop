@@ -533,6 +533,11 @@ optional text is left out when it has no value, never written empty (decided by 
 on 2026-11-24). Each label is a non-empty text (decided by the maintainer on 2026-11-25). An
 empty text where one is required is refused with the reason `length`.
 
+Names are kept apart from prose (decided by the maintainer on 2026-11-25). The `branch` and each
+label are names given by a tool, git or the tracker, spelt as the tool spells it: they are not
+prose and have no language, and their type says so. The `title`, the `header` and the bodies are
+prose, in the language of the project.
+
 `pull_request` (R10):
 
 | Name | Type | Required | Meaning |
@@ -540,8 +545,8 @@ empty text where one is required is refused with the reason `length`.
 | `schema_version` | integer, at least 1 | yes | Version of the schema of the input (R16) |
 | `title` | string, at least 1 character | yes | Pull request title, a commit header under R11 |
 | `body` | string | yes, may be empty | Pull request body, where the issue is linked |
-| `branch` | string, at least 1 character | yes | Head branch |
-| `labels` | list of strings, each at least 1 character | yes, may be empty | Labels, in the spelling of the tracker |
+| `branch` | name, at least 1 character | yes | Head branch, a name given by git |
+| `labels` | list of names, each at least 1 character | yes, may be empty | Labels, names given by the tracker, in its spelling |
 
 `commit` (R11):
 
@@ -638,6 +643,12 @@ C8).
 | R20 | `delta_conflict` | `conflict` |
 | R22 | `handover_input` | `unknown_field`, and the reasons of `artifact_schema` |
 | R26 | `artifact_location_missing` (warning) | `missing` |
+
+Every artifact type and input kind of this specification has its schema built. A document of a
+type whose schema the engine has not loaded is a failure of the engine, the internal error of
+ADR 0009 naming the check `schema_<kind>` or `schema_<input_kind>` it could not run, never a
+check listed as not built; one rule holds for artifacts and inputs (decided by the maintainer on
+2026-11-25).
 
 ## Examples
 

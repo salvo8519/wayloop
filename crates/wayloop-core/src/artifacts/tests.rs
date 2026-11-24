@@ -1632,16 +1632,12 @@ fn the_folders_of_the_contract_are_those_of_the_locations() {
 
 #[test]
 fn checks_not_built_are_listed_once_with_their_reason() {
-    // The schema of a task is left out of the types built here, so that the test holds
-    // whichever artifact types the engine builds. Every input kind is built (T10).
-    let unbuilt = ["task"];
-    let mut types = built();
-    types.retain(|k| !unbuilt.contains(&k.id));
-    assert_eq!(types.len(), built().len() - unbuilt.len());
+    // Every type has its schema built: a missing one is a failure of the engine, never a check
+    // not built (decided by the maintainer on 2026-11-25).
+    let types = built();
     let input = read(vec![
-        entry(json!({"kind": "task", "id": "TASK-0012"})),
-        entry(json!({"kind": "task"})),
         json!({"format": "markdown", "text": "# SPEC-0001: x"}),
+        json!({"format": "markdown", "text": "# SPEC-0002: y"}),
         entry(brief()),
     ]);
     let validation = super::validate(&input, &types);
@@ -1653,7 +1649,6 @@ fn checks_not_built_are_listed_once_with_their_reason() {
         .iter()
         .chain([&checks::ARTIFACT_LOCATIONS, &checks::MARKDOWN])
         .map(|c| c.id().to_owned())
-        .chain(unbuilt.map(|id| kinds::schema_check(id).id().to_owned()))
         .collect();
     expected_not_done.sort();
     let not_done: Vec<&str> = validation.not_done.iter().map(|n| n.check().id()).collect();
@@ -1669,7 +1664,7 @@ fn checks_not_built_are_listed_once_with_their_reason() {
         assert_eq!(not.reason(), expected, "{}", not.check().id());
     }
     // One check identifier per schema (S6): the schemas of the built types and inputs ran, in
-    // their order, the one left out did not.
+    // their order.
     let schemas = types.iter().map(|k| kinds::schema_check(k.id));
     let mut expected = vec![checks::DOCUMENT_KIND, checks::SCHEMA_VERSION];
     expected.extend(schemas);
@@ -1689,8 +1684,7 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     assert_eq!(
         summaries,
         [
-            (Some("task"), None, Some("TASK-0012")),
-            (Some("task"), None, None),
+            (None, None, None),
             (None, None, None),
             (Some("brief"), None, Some("BRIEF-0001")),
         ]
@@ -2239,8 +2233,8 @@ fn a_file_origin_outside_the_project_is_refused() {
 
 #[test]
 fn every_artifact_type_has_its_schema_built() {
-    // After T7 to T9 every type of SPEC-0001 has a schema; a type declared without one would
-    // give `not_built` to its documents, which the reference no longer documents as possible.
+    // After T7 to T10 every type of SPEC-0001 has a schema; a type declared without one would
+    // make every run with a document of that type a failure of the engine.
     let built = kinds::built().unwrap();
     for kind in ArtifactKind::ALL {
         let found = built
@@ -2451,26 +2445,34 @@ fn a_kind_naming_an_input_is_not_an_artifact_type() {
 }
 
 #[test]
-fn an_input_kind_without_its_schema_is_a_failure_of_the_engine() {
-    // Every input kind is built; a set of types without one is a defect, never a check left
-    // out as not built.
-    let mut types = built();
-    types.retain(|k| k.input != Some(InputKind::Commit));
-    let validation = super::validate(
-        &read(vec![input_entry(commit(), InputKind::Commit)]),
-        &types,
-    );
-    assert_eq!(validation.errors, []);
-    assert_eq!(validation.failures.len(), 1);
-    assert_eq!(validation.failures[0].reason(), Reason::Internal);
-    assert_eq!(
-        validation.failures[0].message(),
-        "The input kind commit has no schema loaded, so the check schema_commit cannot run."
-    );
-    assert!(
-        validation
-            .not_done
-            .iter()
-            .all(|n| n.check().id() != "schema_commit")
-    );
+fn a_type_without_its_schema_is_a_failure_of_the_engine() {
+    // Every artifact type and input kind is built; a set of types without one is a defect, never
+    // a check left out as not built (decided by the maintainer on 2026-11-25).
+    let cases = [
+        (
+            "task",
+            entry(task()),
+            "The artifact type task has no schema loaded, so the check schema_task cannot run.",
+        ),
+        (
+            "commit",
+            input_entry(commit(), InputKind::Commit),
+            "The input kind commit has no schema loaded, so the check schema_commit cannot run.",
+        ),
+    ];
+    for (id, document, message) in cases {
+        let mut types = built();
+        types.retain(|k| k.id != id);
+        assert_eq!(types.len(), built().len() - 1, "{id}");
+        let validation = super::validate(&read(vec![document]), &types);
+        assert_eq!(validation.errors, [], "{id}");
+        assert_eq!(validation.failures.len(), 1, "{id}");
+        assert_eq!(validation.failures[0].reason(), Reason::Internal, "{id}");
+        assert_eq!(validation.failures[0].message(), message);
+        let check = kinds::schema_check(id);
+        assert!(
+            validation.not_done.iter().all(|n| n.check() != &check),
+            "{id}"
+        );
+    }
 }

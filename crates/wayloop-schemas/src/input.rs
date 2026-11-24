@@ -16,7 +16,7 @@ use schemars::{JsonSchema, Schema};
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{COMMIT, PULL_REQUEST, rules};
-use crate::value::{SchemaVersion, Text};
+use crate::value::{SchemaVersion, Text, ToolName};
 
 /// A pull request (SPEC-0001 R10), as the adapter of the tracker reads it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -28,11 +28,10 @@ pub struct PullRequest {
     pub title: Text,
     /// Pull request body, where the issue is linked; may be empty.
     pub body: String,
-    /// Head branch.
-    pub branch: Text,
-    /// Labels, in the spelling of the tracker, each a non-empty text (decided by the maintainer
-    /// on 2026-11-25); `[]` means none.
-    pub labels: Vec<Text>,
+    /// Head branch, a name given by git.
+    pub branch: ToolName,
+    /// Labels, each a name given by the tracker, in its spelling; `[]` means none.
+    pub labels: Vec<ToolName>,
 }
 
 /// A commit message (SPEC-0001 R11), as the adapter of git reads it.
@@ -122,6 +121,12 @@ mod tests {
         assert_eq!(properties["body"].get("minLength"), None);
         assert_eq!(properties["labels"]["items"]["minLength"], 1);
         assert_eq!(properties["labels"].get("minItems"), None);
+        // A label is a name given by the tracker, not prose (decided by the maintainer on
+        // 2026-11-25); the description of its type is kept for the elements of the list.
+        let label = properties["labels"]["items"]["description"]
+            .as_str()
+            .unwrap();
+        assert!(label.contains("not prose"), "{label}");
     }
 
     #[test]

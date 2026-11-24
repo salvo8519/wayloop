@@ -9,14 +9,14 @@
       "type": "string"
     },
     "branch": {
-      "description": "Head branch.",
+      "description": "Head branch, a name given by git.",
       "minLength": 1,
       "type": "string"
     },
     "labels": {
-      "description": "Labels, in the spelling of the tracker, each a non-empty text (decided by the maintainer on 2026-11-25); `[]` means none.",
+      "description": "Labels, each a name given by the tracker, in its spelling; `[]` means none.",
       "items": {
-        "description": "A prose text of at least one character, in the language of the document.",
+        "description": "A name or identifier given by a tool such as the tracker or git, for example a label or a branch, spelt as the tool spells it; not prose and in no language, of at least one character.",
         "minLength": 1,
         "type": "string"
       },

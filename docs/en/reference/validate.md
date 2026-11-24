@@ -81,7 +81,9 @@ path, goes to standard error.
 
 Each schema is one check, `schema_<kind>` or `schema_<input_kind>`, listed in
 `diagnostics.checks` when it ran; every artifact type and input has its schema in this version.
-A check the engine did not run is never skipped silently:
+A document of a type whose schema the engine has not loaded is a failure of the engine, the
+error `internal_error` naming the check it could not run (exit code 5), never a check not run.
+Any other check the engine did not run is never skipped silently:
 
 | Check | Not run on |
 | --- | --- |
@@ -171,8 +173,8 @@ command line reads stored artifacts only; inputs are sent with `--input`.
 | `pull_request`, `commit` | `schema_version` | integer, the version of the schema, today `1` | yes |
 | `pull_request` | `title` | string of at least one character, the pull request title | yes |
 | `pull_request` | `body` | string, where the issue is linked; may be empty | yes |
-| `pull_request` | `branch` | string of at least one character, the head branch | yes |
-| `pull_request` | `labels` | list of strings, each of at least one character, in the spelling of the tracker; `[]` means none | yes |
+| `pull_request` | `branch` | name of at least one character, the head branch as git spells it; not prose | yes |
+| `pull_request` | `labels` | list of names, each of at least one character, as the tracker spells them; not prose; `[]` means none | yes |
 | `commit` | `header` | string of at least one character, the first line of the message | yes |
 | `commit` | `body` | string of at least one character, the lines after the blank line, trailers included; absent when the message has one line | no |
 

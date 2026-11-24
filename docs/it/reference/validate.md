@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: ccf67c444d69
+source_hash: 662e06b41639
 ---
 # wayloop validate
 
@@ -87,8 +87,10 @@ letto; il messaggio per una persona, con il percorso, va sullo standard error.
 
 Ogni schema è un controllo, `schema_<kind>` o `schema_<input_kind>`, elencato in
 `diagnostics.checks` quando è stato eseguito; ogni tipo di artefatto e ogni input ha il suo
-schema in questa versione. Un controllo che il motore non ha eseguito non è mai saltato in
-silenzio:
+schema in questa versione. Un documento di un tipo il cui schema il motore non ha caricato è un
+errore del motore, l'errore `internal_error` che nomina il controllo che non ha potuto eseguire
+(codice di uscita 5), mai un controllo non eseguito. Ogni altro controllo che il motore non ha
+eseguito non è mai saltato in silenzio:
 
 | Controllo | Non eseguito su |
 | --- | --- |
@@ -181,8 +183,8 @@ La riga di comando legge solo artefatti memorizzati; gli input si inviano con `-
 | `pull_request`, `commit` | `schema_version` | intero, la versione dello schema, oggi `1` | sì |
 | `pull_request` | `title` | stringa di almeno un carattere, il titolo della pull request | sì |
 | `pull_request` | `body` | stringa, dove è collegata la issue; può essere vuota | sì |
-| `pull_request` | `branch` | stringa di almeno un carattere, il branch di partenza | sì |
-| `pull_request` | `labels` | lista di stringhe, ciascuna di almeno un carattere, nella grafia del tracker; `[]` significa nessuna | sì |
+| `pull_request` | `branch` | nome di almeno un carattere, il branch di partenza come lo scrive git; non è prosa | sì |
+| `pull_request` | `labels` | lista di nomi, ciascuno di almeno un carattere, come li scrive il tracker; non sono prosa; `[]` significa nessuna | sì |
 | `commit` | `header` | stringa di almeno un carattere, la prima riga del messaggio | sì |
 | `commit` | `body` | stringa di almeno un carattere, le righe dopo la riga vuota, trailer compresi; assente quando il messaggio ha una sola riga | no |
 
