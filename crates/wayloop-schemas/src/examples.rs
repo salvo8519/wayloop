@@ -1,6 +1,7 @@
-//! The valid plan items of the examples of SPEC-0001, for the tests of the crates that read
-//! them. A deliberate copy of the documents of the contract case `plan-valid`: a crate does not
-//! embed a file outside its folder, so the test of `wayloop-runtime`
+//! The valid plan items and the valid hand-over record and input of the examples of SPEC-0001,
+//! for the tests of the crates that read them. A deliberate copy of the documents of the
+//! contract cases `plan-valid` and `handover-valid`: a crate does not embed a file outside its
+//! folder, so the test of `wayloop-runtime`
 //! `the_examples_of_the_schemas_crate_are_those_of_the_valid_case` keeps them equal.
 
 use serde_json::{Value, json};
@@ -66,5 +67,38 @@ pub fn task() -> Value {
         "specification": [{"spec": "SPEC-0001", "requirements": ["R1", "R2"]}],
         "verification": ["tdd"], "area": "core", "depends_on": [], "complexity": 3,
         "parallel": false, "issue": 12
+    })
+}
+
+/// The valid hand-over record of the examples, as the engine records it: the valid input with
+/// the members the engine sets.
+#[must_use]
+pub fn handover() -> Value {
+    let mut record = handover_input();
+    let engine = json!({
+        "kind": "handover", "id": "HANDOVER-12-1", "issue": 12, "task": "TASK-0001",
+        "session": "session-2027-01-15-01", "holder": "agent-lane-1",
+        "executor": "claude_code", "branch": "feat/12-record-time-entry",
+        "recorded_at": "2027-01-15T17:42:00Z", "tokens": 412
+    });
+    if let (Some(record), Value::Object(engine)) = (record.as_object_mut(), engine) {
+        record.extend(engine);
+    }
+    record
+}
+
+/// The valid hand-over input of the examples, as the agent submits it.
+#[must_use]
+pub fn handover_input() -> Value {
+    json!({
+        "schema_version": 1, "step": "build",
+        "files_touched": ["src/record.rs", "tests/record.rs"],
+        "not_done": ["Error message for a missing project"], "open_questions": [],
+        "rulings": [{
+            "decision": "Store the log as JSON Lines.",
+            "reason": "Append-only writes and one entry per line, as COUNCIL-0001 D1 states.",
+            "cost_if_wrong": "One migration of the log format."
+        }],
+        "next_step": "Make the test for AC1 of SPEC-0001 pass."
     })
 }

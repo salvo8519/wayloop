@@ -51,8 +51,9 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::artifact::{
-    ArtifactKind, Brief, BriefOrigin, BriefStatus, Epic, Gate, GateStatus, Milestone,
-    PlanItemStatus, SpecReference, Story, StoryCriterion, Task, Verification,
+    ArtifactKind, Brief, BriefOrigin, BriefStatus, Epic, Gate, GateStatus, Handover, HandoverInput,
+    HandoverReport, Milestone, PlanItemStatus, Ruling, SpecReference, Story, StoryCriterion, Task,
+    Verification,
 };
 use crate::validate::{
     BaseStatus, DocumentEntry, DocumentSummary, EntryFormat, InputKind, Origin, ParseError, Policy,
@@ -60,7 +61,7 @@ use crate::validate::{
 };
 use crate::{
     Check, Code, DefaultApplied, DefaultReason, Diagnostics, Envelope, Error, ErrorReport,
-    InputHash, Meta, NotDone, NotDoneReason, Pointer, Reason, Source,
+    InputHash, IssueStep, Meta, NotDone, NotDoneReason, Pointer, Reason, Source,
 };
 
 /// Deepest nesting of objects in a contract, the root object included (ADR 0009 C4).
@@ -263,12 +264,12 @@ mod registry;
 
 pub use embedded::EMBEDDED;
 pub use registry::{
-    Area, BRIEF, CONTRACTS, Contract, ContractFile, EPIC, Embedded, GATE, MILESTONE, Part, STORY,
-    TASK, VALIDATE,
+    Area, BRIEF, CONTRACTS, Contract, ContractFile, EPIC, Embedded, GATE, HANDOVER, MILESTONE,
+    Part, STORY, TASK, VALIDATE,
 };
 
 /// Every contract type of this crate whose schema is derived, in the byte order of their names.
-pub const TYPES: [Registered; 41] = [
+pub const TYPES: [Registered; 46] = [
     registered!(ArtifactKind),
     registered!(BaseStatus),
     registered!(Brief),
@@ -289,8 +290,12 @@ pub const TYPES: [Registered; 41] = [
     registered!(ErrorReport),
     registered!(Gate),
     registered!(GateStatus),
+    registered!(Handover),
+    registered!(HandoverInput),
+    registered!(HandoverReport),
     registered!(InputHash),
     registered!(InputKind),
+    registered!(IssueStep),
     registered!(Meta),
     registered!(Milestone),
     registered!(NotDone),
@@ -301,6 +306,7 @@ pub const TYPES: [Registered; 41] = [
     registered!(Pointer),
     registered!(Policy),
     registered!(Reason),
+    registered!(Ruling),
     registered!(Source),
     registered!(SpecReference),
     registered!(Status),

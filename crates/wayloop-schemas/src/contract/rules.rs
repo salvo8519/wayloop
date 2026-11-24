@@ -63,19 +63,32 @@ fn require_if_member(schema: &mut Schema, when: &str, test: &Value, then: &[&str
     push(schema, condition, then);
 }
 
-/// The rules of an artifact the derive does not write (SPEC-0001, Common rules): `kind` is the
-/// constant name of `contract` and `schema_version` the constant of its current version (ADR
-/// 0030 G5); `superseded_by` is required when `status` equals `superseded`, the spelling of the
-/// terminal status of replacement of the type.
+/// The rules of an artifact the derive does not write (SPEC-0001, Common rules): its
+/// [`constants`], and `superseded_by` required when `status` equals `superseded`, the spelling
+/// of the terminal status of replacement of the type.
 pub fn artifact(schema: &mut Schema, contract: &Contract, superseded: &str) {
+    constants(schema, contract);
+    require_if_equals(schema, STATUS, superseded, &["superseded_by"]);
+}
+
+/// The constants of a document of `contract`: `kind` is the constant name of the contract, and
+/// `schema_version` its [`version`]. An artifact without a status, such as the hand-over
+/// record, has these rules only.
+pub fn constants(schema: &mut Schema, contract: &Contract) {
     constant(schema, "kind", contract.name.into(), None);
+    version(schema, contract);
+}
+
+/// `schema_version` is the constant of the current version of `contract` (ADR 0030 G5): the
+/// rule of every versioned document, also of an input without `kind`, such as the hand-over
+/// input, whose file is a part of the same contract and version.
+pub fn version(schema: &mut Schema, contract: &Contract) {
     constant(
         schema,
         "schema_version",
         contract.version.get().into(),
         Some("integer"),
     );
-    require_if_equals(schema, STATUS, superseded, &["superseded_by"]);
 }
 
 /// The member `member` of `schema` becomes the constant `value`, of the JSON type `kind` when

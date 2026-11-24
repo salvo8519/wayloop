@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: c46f26c0e144
+source_hash: e81d0c19534b
 ---
 # Architettura
 
@@ -376,10 +376,10 @@ suo schema accetta si deserializza nel tipo, che riscrive lo stesso JSON
 (`contract::reread`). Un enum chiuso è scritto con la macro `closed_enum!` di
 `wayloop_schemas::ident`, con una sola grafia per valore, letta da `id()`, `from_id()` e
 `Display`; due valori con la stessa grafia non compilano. Un enum chiuso di un contratto
-(`Reason`, `NotDoneReason`) è scritto con `contract_enum!`, così che la sua forma serializzata
-e i valori del suo schema leggano la stessa grafia; `Format`, il cui valore è scritto da
-`contract::rules::formatted` tramite `id()`, e `IssueStep`, che non compare ancora in alcun
-contratto, usano `closed_enum!`; `ExitCode`, un numero per contratto (ADR 0009 C7), non ha
+(`Reason`, `NotDoneReason`, e `IssueStep`, lo `step` di un passaggio di mano, che il core
+riesporta e su cui decide) è scritto con `contract_enum!`, così che la sua forma serializzata e
+i valori del suo schema leggano la stessa grafia; `Format`, il cui valore è scritto da
+`contract::rules::formatted` tramite `id()`, usa `closed_enum!`; `ExitCode`, un numero per contratto (ADR 0009 C7), non ha
 grafia. Un identificativo statico (`Code`, `Check`, `DefaultReason`) è
 scritto con `static_id!`: le costanti del motore prendono in prestito il loro testo, un
 valore letto da un documento lo possiede. Ciò che la derive non scrive è scritto una sola

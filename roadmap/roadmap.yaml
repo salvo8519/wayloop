@@ -109,7 +109,7 @@ milestones:
           - { issue: 257, title: "Load repository files into the canonical input of validate", spec: "0001", status: done }
           - { issue: 258, title: "Validate milestones, epics, stories, tasks and gate issues", spec: "0001", status: done }
           - { issue: 259, title: "Validate council reports, living specifications and change deltas in normalised form", spec: "0001", status: open }
-          - { issue: 260, title: "Validate hand-over records and hand-over inputs", spec: "0001", status: open }
+          - { issue: 260, title: "Validate hand-over records and hand-over inputs", spec: "0001", status: done }
           - { issue: 261, title: "Validate the shape of pull request and commit inputs", spec: "0001", status: open }
           - { issue: 262, title: "Check identifier forms and uniqueness across the set", spec: "0001", status: open }
           - { issue: 263, title: "Check links and the hierarchy between artifacts", spec: "0001", status: open }

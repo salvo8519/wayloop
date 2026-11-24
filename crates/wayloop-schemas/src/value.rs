@@ -326,6 +326,13 @@ crate::formatted_text! {
 }
 
 crate::formatted_text! {
+    /// Identifier of a hand-over record: `HANDOVER-`, the number of the issue worked, `-` and
+    /// the number of the hand-over within that issue, both from 1 without a leading zero, for
+    /// example `HANDOVER-12-3`.
+    pub struct HandoverId = Format::HandoverId;
+}
+
+crate::formatted_text! {
     /// Identifier of a requirement of a living specification: `R` and a number from 1 without
     /// a leading zero, for example `R2`.
     pub struct RequirementId = Format::RequirementId;
@@ -340,6 +347,12 @@ crate::formatted_text! {
 crate::formatted_text! {
     /// A calendar date, `YYYY-MM-DD` (RFC 3339 `full-date`), for example `2027-03-31`.
     pub struct Date = Format::Date;
+}
+
+crate::formatted_text! {
+    /// A date and a time in UTC, RFC 3339 with the suffix `Z`, for example
+    /// `2027-01-15T17:42:00Z`.
+    pub struct UtcDateTime = Format::UtcDateTime;
 }
 
 crate::formatted_text! {

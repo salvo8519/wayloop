@@ -5,17 +5,18 @@ types of the artifact model) and inputs (pull requests, commits, hand-overs) aga
 schemas, in one pass, and reports every error with the pointer of the faulty value and the
 place where it is stored. It changes nothing.
 
-Today briefs, gate issues, milestones, epics, user stories and tasks are validated against
-their schemas. A council report, a living specification, a change delta, a hand-over and an
-input are accepted unchecked, and the checks not run are listed in `diagnostics.not_done`; so
-are the checks across documents (identifiers, links, parts, statuses, naming, areas).
+Today briefs, gate issues, milestones, epics, user stories, tasks, hand-over records and
+hand-over inputs are validated against their schemas. A council report, a living
+specification, a change delta, a pull request and a commit are accepted unchecked, and the
+checks not run are listed in `diagnostics.not_done`; so are the checks across documents
+(identifiers, links, parts, statuses, naming, areas).
 
 This page describes version 1 of the command, as built from source. Its contract is the pair
 of schema snapshots `schemas/commands/validate/v1.json` (input) and
 `schemas/commands/validate/v1.output.json` (output), generated from the types of
 `wayloop-schemas` (ADR 0030); the schema of each artifact type is
-`schemas/artifacts/<kind>/v1.json`, for example `schemas/artifacts/task/v1.json`. This page
-explains them.
+`schemas/artifacts/<kind>/v1.json`, for example `schemas/artifacts/task/v1.json`, and the schema
+of the hand-over input is `schemas/artifacts/handover/v1.input.json`. This page explains them.
 
 ## Usage
 
@@ -69,7 +70,8 @@ path, goes to standard error.
 | --- | --- |
 | `document_kind` | Each document has a `kind` among `brief`, `council_report`, `gate`, `milestone`, `epic`, `story`, `specification`, `change`, `task` and `handover`, or is an input with `input_kind` |
 | `schema_version` | The `schema_version` of each document is a version its type knows; a document of an earlier version is migrated to the current one after it passes the schema of its own version |
-| `schema_<kind>`: `schema_brief`, `schema_epic`, `schema_gate`, `schema_milestone`, `schema_story`, `schema_task` | Each document of the type passes the schema of its version (`schemas/artifacts/<kind>/v1.json`): required members, unknown members, types, accepted values, lengths, formats, and the members a status or a verification requires (see below) |
+| `schema_<kind>`: `schema_brief`, `schema_epic`, `schema_gate`, `schema_handover`, `schema_milestone`, `schema_story`, `schema_task` | Each document of the type passes the schema of its version (`schemas/artifacts/<kind>/v1.json`): required members, unknown members, types, accepted values, lengths, formats, and the members a status or a verification requires (see below) |
+| `schema_handover_input` | Each hand-over input passes the input schema of its version (`schemas/artifacts/handover/v1.input.json`), as a hand-over record does (see below) |
 | `identifier_format` | The `id` is in the canonical form of its type, for example `BRIEF-0001` |
 | `artifact_locations` | Some folder of a location exists in the project the documents were discovered in; with `locations` only, after the checks above |
 
@@ -80,7 +82,7 @@ engine did not run is never skipped silently:
 | Check | Not run on |
 | --- | --- |
 | `schema_<kind>`, for example `schema_council_report` | A document of a type whose schema is not in this version |
-| `schema_<input_kind>`, for example `schema_commit` | An input whose schema is not in this version |
+| `schema_<input_kind>`: `schema_pull_request`, `schema_commit` | An input whose schema is not in this version |
 | `markdown` | A living specification sent as Markdown |
 | `identifier_duplicate` | The set: two artifacts with one identifier |
 | `links` | The set: links between artifacts, hierarchy, ADR citations |
@@ -108,6 +110,19 @@ checks the form of a link (for example `EPIC-0001`), not that its target exists:
 check `links`. The subject of a gate issue is a brief or a council report, in the form
 `BRIEF-<seq>` or `COUNCIL-<seq>`. `blocked` is not a status of any artifact: it is a state of
 the issue cycle.
+
+A hand-over comes in two forms of one version. The input is what an agent submits at the end of
+a session, with `input_kind: handover_input` and no `kind`: `schema_version`, `step`,
+`files_touched`, `not_done`, `open_questions`, `rulings` (each `{decision, reason,
+cost_if_wrong}`) and `next_step`, all required, the lists possibly `[]`. The record is what the
+engine writes from it: the same members, with `kind: handover`, `id` (`HANDOVER-<issue>-<k>`),
+`issue`, `task` (optional), `session`, `holder`, `executor`, `branch`, `recorded_at` (a UTC
+date-time with `Z`) and `tokens` (an integer from 1). A member of the engine in an input, for
+example `tokens`, is refused with `unknown_field`. Every error of an input has the code
+`handover_input`; the errors of a record have the code `artifact_schema`. `step` is a step of
+the issue cycle, spelt in `snake_case`: `claim`, `reanalysis`, `counter_review`, `checklist`,
+`build`, `verify`, `review`, `pull_request` or `merge`. A hand-over has no title and no status;
+the summary of an input in `data.documents` holds its `input_kind` only.
 
 `artifact_locations` is listed in `diagnostics.not_done` with the reason `input_absent` when
 `locations` is not given: the documents were named or sent directly.
@@ -220,7 +235,8 @@ it is stored:
 | --- | --- | --- | --- |
 | `command_input` | `syntax`, `duplicate`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `conflict` | 1 | The canonical input is refused: it is not JSON, repeats a key, holds a number beyond a double, or breaks its schema or a rule of the section Input; or `--command-version` requests a version the engine does not run (`enum`, the known versions in `expected`) |
 | `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | A document breaks the schema of its type; also a document without a `kind`, or with a `kind` outside the list (`enum`, with the types in `expected`), a `schema_version` that is missing, not an integer (reported with every other error against the current version) or beyond plus or minus (2^53 - 1) (`range`), and a file that did not parse (`syntax`, at the pointer of the whole document, with its line in `source`) |
-| `schema_version_unknown` | `enum` | 1 | The `schema_version` is not a version of the type; `expected` lists the known versions |
+| `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | A hand-over input breaks its schema, for example by setting a member that only the engine sets (`unknown_field`) |
+| `schema_version_unknown` | `enum` | 1 | The `schema_version` is not a version of the type or of the input; `expected` lists the known versions |
 | `identifier_format` | `syntax` | 1 | The `id` is not in the canonical form of its type; `fix` gives the corrected identifier when one can be derived |
 | `usage` | `syntax` | 2 | The command line is not understood; `command` is the command named, empty when none |
 | `input_unreadable` | `missing`, `state` | 3 | The input file, a file named or a folder of the project does not exist (`missing`) or cannot be read (`state`); the envelope holds no path |

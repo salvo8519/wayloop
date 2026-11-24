@@ -430,6 +430,71 @@ fn the_examples_of_the_schemas_crate_are_those_of_the_valid_case() {
     }
 }
 
+/// The examples of SPEC-0001 called `names`, each read as `wayloop validate` reads a file, in
+/// the order of `names`.
+fn examples_read(names: &[&str]) -> Vec<Value> {
+    let texts: Vec<(String, String)> = names
+        .iter()
+        .map(|name| (format!("plan/items/{name}"), example(name)))
+        .collect();
+    let files: Vec<(&str, &[u8])> = texts
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_bytes()))
+        .collect();
+    let input = serde_json::to_value(Project::new("read-examples", &files).input()).unwrap();
+    let entries = input["documents"].as_array().unwrap();
+    texts
+        .iter()
+        .map(|(path, _)| {
+            let entry = entries
+                .iter()
+                .find(|e| e["origin"]["file"] == path.as_str());
+            entry.unwrap_or_else(|| panic!("{path} was not read"))["document"].clone()
+        })
+        .collect()
+}
+
+/// The entries of the input of the contract case `case`.
+fn case_entries(case: &str) -> Vec<Value> {
+    case_input(case)["documents"].as_array().unwrap().clone()
+}
+
+#[test]
+fn the_examples_of_the_hand_over_load_into_the_documents_of_their_cases() {
+    // T9: the cases of the hand-over send the valid set of `plan-valid`, then the valid record
+    // and the valid input, then the document each checks; each is the example read as
+    // `wayloop validate` reads it, so that the examples and the cases cannot drift.
+    let read = examples_read(&[
+        "handover.valid.yaml",
+        "handover.input.valid.yaml",
+        "handover.invalid.yaml",
+        "handover.input.invalid.yaml",
+    ]);
+    let record = json!({"format": "document", "document": read[0]});
+    let given = |document: &Value| json!({"format": "document", "input_kind": "handover_input", "document": document});
+    let mut set = case_entries("plan-valid");
+    set.extend([record, given(&read[1])]);
+    assert_eq!(case_entries("handover-valid"), set);
+    let mut kebab = read[1].clone();
+    kebab["step"] = json!("counter-review");
+    let checked = [
+        (
+            "handover-invalid",
+            json!({"format": "document", "document": read[2]}),
+        ),
+        ("handover-input-invalid", given(&read[3])),
+        ("handover-input-step-kebab-case", given(&kebab)),
+    ];
+    for (case, entry) in checked {
+        let mut expected = set.clone();
+        expected.push(entry);
+        assert_eq!(case_entries(case), expected, "{case}");
+    }
+    // The deliberate copies of `wayloop_schemas::examples` are these examples too.
+    assert_eq!(wayloop_schemas::examples::handover(), read[0]);
+    assert_eq!(wayloop_schemas::examples::handover_input(), read[1]);
+}
+
 #[test]
 fn source_carries_the_file_and_the_line_of_the_faulty_value() {
     let text = "# A brief.\nkind: brief\nschema_version: 1\nid: BRIEF-0001\ntitle: Time from the terminal\nstatus: approved\norigin: light_requirements\nowner: \"@example-owner\"\nproblem: Hours are lost.\ngoals:\n  - Record time\n  - 42\nusers:\n  - Freelancers\nscope_in:\n  - Time entries\n";

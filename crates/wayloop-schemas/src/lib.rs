@@ -10,7 +10,8 @@
 //! Clippy lints forbidden below, with the paths listed in the `clippy.toml` of the workspace.
 //! It holds the error report of ADR 0009 C3 and the envelope of C1, generic over the data of a
 //! command, with the exit codes of C7; the artifacts of SPEC-0001 built on one common type
-//! ([`artifact`]); the input and the data of the command `validate` ([`validate`]); and the value
+//! ([`artifact`]), with the steps of the issue cycle that the hand-over records ([`IssueStep`]);
+//! the input and the data of the command `validate` ([`validate`]); and the value
 //! forms they share, one type each ([`value`]), with numbers read by value ([`number`]). Every
 //! contract type derives its JSON Schema; [`contract`] generates it inside the subset that the
 //! core interprets, with the named formats of [`Format`] (ADR 0030). Closed enums and static
@@ -30,6 +31,7 @@
 
 pub mod artifact;
 pub mod contract;
+mod cycle;
 mod envelope;
 mod error;
 #[cfg(feature = "examples")]
@@ -42,6 +44,7 @@ pub mod number;
 pub mod validate;
 pub mod value;
 
+pub use cycle::IssueStep;
 pub use envelope::{
     Check, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope, ExitCode,
     INPUT_UNREADABLE, INTERNAL_ERROR, InputHash, Meta, NotDone, NotDoneReason, Outcome, USAGE,

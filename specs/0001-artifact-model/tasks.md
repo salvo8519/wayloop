@@ -87,7 +87,7 @@ Prerequisites outside this specification:
   - Depends on: T5.
   - Size: M. Maintainer (crates, contract change).
 
-- [ ] **T9 [P] Validate hand-over records and hand-over inputs**
+- [x] **T9 [P] Validate hand-over records and hand-over inputs**
   - Covers: R1, R22 (input refused before engine fields are filled); AC1 (hand-over pairs), AC31 (first half: `tokens` in the input gives `unknown_field` with code `handover_input`). Issue: #260.
   - Files: `schemas/artifacts/handover/v1.json`, `schemas/artifacts/handover/v1.input.json`, `crates/wayloop-core/src/artifacts/` (registry line), `tests/contract/validate/v1/`.
   - Tests first: golden cases from the hand-over examples; the `step` enum of both schemas equals `IssueStep::ALL` of the core.

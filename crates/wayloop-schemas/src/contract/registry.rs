@@ -8,7 +8,9 @@ use core::num::NonZeroU32;
 
 use super::{Direction, ENVELOPE, Registered, VALIDATE_OUTPUT, reread, schema_for};
 use crate::ENVELOPE_VERSION;
-use crate::artifact::{ArtifactKind, Brief, Epic, Gate, Milestone, Story, Task};
+use crate::artifact::{
+    ArtifactKind, Brief, Epic, Gate, Handover, HandoverInput, Milestone, Story, Task,
+};
 use crate::validate::ValidateInput;
 
 crate::closed_enum! {
@@ -100,18 +102,26 @@ impl Contract {
 /// The contract of an artifact type: read by the engine, so its schema is an input (closed).
 /// Its name is the `kind` of the artifact and its version the `schema_version` a current
 /// document of the type carries. `$t` names both the value of `ArtifactKind` and the contract
-/// type, which share their name.
+/// type, which share their name. Each further file, `$part => $other`, holds a document the
+/// engine also reads, such as the hand-over input, so it is closed too.
 macro_rules! artifact {
-    ($t:ident, $version:expr) => {
+    ($t:ident, $version:expr $(, $part:ident => $other:ty)*) => {
         Contract {
             area: Area::Artifacts,
             name: ArtifactKind::$t.id(),
             version: $version,
-            files: &[ContractFile {
-                part: Part::Schema,
-                direction: Direction::Input,
-                registered: registered!($t),
-            }],
+            files: &[
+                ContractFile {
+                    part: Part::Schema,
+                    direction: Direction::Input,
+                    registered: registered!($t),
+                },
+                $(ContractFile {
+                    part: Part::$part,
+                    direction: Direction::Input,
+                    registered: registered!($other),
+                },)*
+            ],
         }
     };
 }
@@ -133,6 +143,10 @@ pub const STORY: Contract = artifact!(Story, NonZeroU32::MIN);
 
 /// The task (SPEC-0001, Task).
 pub const TASK: Contract = artifact!(Task, NonZeroU32::MIN);
+
+/// The hand-over (SPEC-0001, Hand-over record): the record, `v<N>.json`, and the input an
+/// agent submits, `v<N>.input.json`, of one version (R22).
+pub const HANDOVER: Contract = artifact!(Handover, NonZeroU32::MIN, Input => HandoverInput);
 
 /// The command `validate` (SPEC-0001): its canonical input and its envelope with its data.
 pub const VALIDATE: Contract = Contract {
@@ -169,7 +183,9 @@ const RESULT: Contract = Contract {
 
 /// Every contract, in the byte order of their folders. A contract is never removed and its
 /// version never goes back (ADR 0030 G5).
-pub const CONTRACTS: &[Contract] = &[BRIEF, EPIC, GATE, MILESTONE, STORY, TASK, VALIDATE, RESULT];
+pub const CONTRACTS: &[Contract] = &[
+    BRIEF, EPIC, GATE, HANDOVER, MILESTONE, STORY, TASK, VALIDATE, RESULT,
+];
 
 /// A snapshot embedded in this crate: its path under `schemas/` and its text, byte for byte.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

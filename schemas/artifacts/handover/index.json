@@ -1,0 +1,13 @@
+{
+  "current": "1",
+  "format": 1,
+  "versions": {
+    "1": {
+      "file": "artifacts/handover/v1.json",
+      "input_file": "artifacts/handover/v1.input.json",
+      "input_sha256": "d3fc62551a1a88b1973ab1d4f1794a1affb825d5e191b98c3a16bcd40cd9940f",
+      "introduced_in": "unreleased",
+      "sha256": "c44d6e6c2d057c6691e5b166d63b7ae892b95fe6eed1621b4d591963d08a3b18"
+    }
+  }
+}

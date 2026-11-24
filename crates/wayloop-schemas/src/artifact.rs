@@ -1,6 +1,7 @@
 //! The artifacts of SPEC-0001: the members every artifact has, written once in [`Common`],
 //! and each artifact type built on it (ADR 0030 G1): the brief here, the gate issue and the
-//! plan items (milestone, epic, user story, task) in `plan`.
+//! plan items (milestone, epic, user story, task) in `plan`. The hand-over record, which has
+//! no title and no status, and its input are in `handover`.
 //!
 //! An artifact is read by the engine, so its schema is an input: closed, an unknown member is
 //! refused with `unknown_field` (SPEC-0001 R6). Keys, enum values and status words are
@@ -15,8 +16,10 @@ use serde::{Deserialize, Serialize};
 use crate::contract::{BRIEF, rules};
 use crate::value::{BriefId, LanguageTag, SchemaVersion, Text, TrackerHandle};
 
+mod handover;
 mod plan;
 
+pub use handover::{Handover, HandoverInput, HandoverReport, Ruling, Tokens};
 pub use plan::{
     Complexity, Epic, Gate, GateStatus, Milestone, PlanItemStatus, SpecReference, Story,
     StoryCriterion, Task, Verification,

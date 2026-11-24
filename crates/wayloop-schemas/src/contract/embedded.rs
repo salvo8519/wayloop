@@ -22,6 +22,14 @@ pub const EMBEDDED: &[Embedded] = &[
         text: include_str!("../../snapshots/artifacts/gate/v1.json"),
     },
     Embedded {
+        path: "artifacts/handover/v1.input.json",
+        text: include_str!("../../snapshots/artifacts/handover/v1.input.json"),
+    },
+    Embedded {
+        path: "artifacts/handover/v1.json",
+        text: include_str!("../../snapshots/artifacts/handover/v1.json"),
+    },
+    Embedded {
         path: "artifacts/milestone/v1.json",
         text: include_str!("../../snapshots/artifacts/milestone/v1.json"),
     },
