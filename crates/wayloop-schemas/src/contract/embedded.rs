@@ -14,6 +14,14 @@ pub const EMBEDDED: &[Embedded] = &[
         text: include_str!("../../snapshots/artifacts/brief/v1.json"),
     },
     Embedded {
+        path: "artifacts/change/v1.json",
+        text: include_str!("../../snapshots/artifacts/change/v1.json"),
+    },
+    Embedded {
+        path: "artifacts/council_report/v1.json",
+        text: include_str!("../../snapshots/artifacts/council_report/v1.json"),
+    },
+    Embedded {
         path: "artifacts/epic/v1.json",
         text: include_str!("../../snapshots/artifacts/epic/v1.json"),
     },
@@ -32,6 +40,10 @@ pub const EMBEDDED: &[Embedded] = &[
     Embedded {
         path: "artifacts/milestone/v1.json",
         text: include_str!("../../snapshots/artifacts/milestone/v1.json"),
+    },
+    Embedded {
+        path: "artifacts/specification/v1.json",
+        text: include_str!("../../snapshots/artifacts/specification/v1.json"),
     },
     Embedded {
         path: "artifacts/story/v1.json",

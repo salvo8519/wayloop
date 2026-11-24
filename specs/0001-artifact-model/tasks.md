@@ -79,7 +79,7 @@ Prerequisites outside this specification:
   - Depends on: T5, Q2.
   - Size: M. Maintainer (crates, contract change).
 
-- [ ] **T8 [P] Validate council reports, living specifications and change deltas in normalised form**
+- [x] **T8 [P] Validate council reports, living specifications and change deltas in normalised form**
   - Covers: R1, R5, R6; AC1 (these pairs, `specification.invalid.yaml`), AC35 (acceptance criterion with `judge` and no `rubric`). Issue: #259.
   - Files: `schemas/artifacts/{council_report,specification,change}/v1.json`, `crates/wayloop-core/src/artifacts/` (registry line), `tests/contract/validate/v1/`.
   - Tests first: golden cases from these examples, including `specification.superseded.valid.yaml`; `status: published` refused with `enum` and the six statuses; operation fields required by `op` (`requires`).

@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: e81d0c19534b
+source_hash: c8796518067d
 ---
 # Architettura
 
@@ -317,8 +317,9 @@ La condizione di un `if` usa `type`, `properties`, `required`, `enum`, `const` e
 `fix` preciso. I formati con nome sono `date`, `utc-date-time` (con il suffisso `Z`),
 `language-tag` (lingua, scrittura, regione e varianti di BCP 47), `tracker-handle`,
 `project-path` (un percorso relativo alla radice del progetto in una sola grafia: segmenti uniti
-da `/`, nessuno vuoto, `.` o `..`; nessun `\` e nessuna lettera di unità), gli
-identificativi di ogni tipo di artefatto (`brief-id`, `council-id`, `gate-id`, `epic-id`,
+da `/`, nessuno vuoto, `.` o `..`; nessun `\` e nessuna lettera di unità), `capability`
+(parole minuscole di lettere e cifre unite da un solo trattino, lo slug della cartella di una
+specifica viva), gli identificativi di ogni tipo di artefatto (`brief-id`, `council-id`, `gate-id`, `epic-id`,
 `story-id`, `spec-id`, `change-id`, `task-id`, `milestone-id`, `handover-id`),
 `brief-or-council-id` (l'uno o l'altro dei primi due, l'oggetto di una issue di gate) e gli
 identificativi delle parti (`requirement-id`, `criterion-id`, `decision-id`, `question-id`),

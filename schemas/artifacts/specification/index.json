@@ -1,0 +1,11 @@
+{
+  "current": "1",
+  "format": 1,
+  "versions": {
+    "1": {
+      "file": "artifacts/specification/v1.json",
+      "introduced_in": "unreleased",
+      "sha256": "a9877cb43b9501531d488c7dbf1429e33c0d0bff99aaf48badfe0c7eaba0dd73"
+    }
+  }
+}

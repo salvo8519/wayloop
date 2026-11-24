@@ -320,6 +320,12 @@ crate::formatted_text! {
 }
 
 crate::formatted_text! {
+    /// Identifier of a change delta: `CHANGE-` and four digits, or five or more without a
+    /// leading zero, for example `CHANGE-0012`.
+    pub struct ChangeId = Format::ChangeId;
+}
+
+crate::formatted_text! {
     /// Identifier of a task: `TASK-` and four digits, or five or more without a leading zero,
     /// for example `TASK-0107`.
     pub struct TaskId = Format::TaskId;
@@ -342,6 +348,24 @@ crate::formatted_text! {
     /// Identifier of an acceptance criterion within its artifact: `AC` and a number from 1
     /// without a leading zero, for example `AC1`.
     pub struct CriterionId = Format::CriterionId;
+}
+
+crate::formatted_text! {
+    /// Identifier of a decision of a council report: `D` and a number from 1 without a leading
+    /// zero, for example `D3`, cited as `COUNCIL-<seq> D3`.
+    pub struct DecisionId = Format::DecisionId;
+}
+
+crate::formatted_text! {
+    /// Identifier of a question within its artifact: `Q` and a number from 1 without a leading
+    /// zero, for example `Q1`.
+    pub struct QuestionId = Format::QuestionId;
+}
+
+crate::formatted_text! {
+    /// The capability of a living specification, the slug of its folder: lower-case words of
+    /// `a` to `z` and `0` to `9` joined by single hyphens, for example `time-entries`.
+    pub struct Capability = Format::Capability;
 }
 
 crate::formatted_text! {
@@ -445,6 +469,12 @@ macro_rules! non_empty_text {
 non_empty_text! {
     /// A prose text of at least one character, in the language of the document.
     pub struct Text;
+}
+
+non_empty_text! {
+    /// The name of a role of the council, as the project configures it, for example `critic`;
+    /// an identifier rather than prose, of at least one character.
+    pub struct RoleName;
 }
 
 non_empty_text! {

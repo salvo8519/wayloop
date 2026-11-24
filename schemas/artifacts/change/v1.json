@@ -1,0 +1,227 @@
+{
+  "$defs": {
+    "ChangeStatus": {
+      "description": "Status of a change delta (SPEC-0001 R5); `draft` is its initial status.\n\n- `draft`: Proposed, not approved.\n- `approved`: Approved by a person; its tasks may start.\n- `implementing`: Its tasks are under way.\n- `done`: Merged into its living specification and archived; terminal.\n- `superseded`: Replaced by the change deltas in `superseded_by`; terminal.",
+      "enum": [
+        "draft",
+        "approved",
+        "implementing",
+        "done",
+        "superseded"
+      ],
+      "type": "string"
+    },
+    "Operation": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "modified",
+                  "removed",
+                  "renamed"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "requirement"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "added",
+                  "modified"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "text"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "renamed"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "name"
+            ]
+          }
+        }
+      ],
+      "description": "An operation of a change delta on one requirement of its living specification.",
+      "properties": {
+        "name": {
+          "description": "The name of the requirement; required for `renamed`, optional for `added` and `modified`.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "op": {
+          "$ref": "#/$defs/OperationKind",
+          "description": "What the operation does."
+        },
+        "requirement": {
+          "description": "The existing requirement, `R<k>`; required for `modified`, `removed` and `renamed`. An added requirement gets its identifier when the delta is merged.",
+          "format": "requirement-id",
+          "type": "string"
+        },
+        "text": {
+          "description": "The text of the requirement; required for `added` and `modified`.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "op"
+      ],
+      "type": "object"
+    },
+    "OperationKind": {
+      "description": "What an operation of a change delta does to a requirement (ADR 0014, SPEC-0009 R2).\n\n- `added`: Adds a requirement, which gets its identifier when the delta is merged.\n- `modified`: Changes the text of a requirement, and its name when one is given.\n- `removed`: Removes a requirement, which stays recorded with the status `removed`.\n- `renamed`: Changes the name of a requirement only.",
+      "enum": [
+        "added",
+        "modified",
+        "removed",
+        "renamed"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://salvo8519.github.io/wayloop/schemas/artifacts/change/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "superseded"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "superseded_by"
+        ]
+      }
+    }
+  ],
+  "description": "A change delta (SPEC-0001, Change delta): a reviewable change of the requirements of a living specification (ADR 0014, SPEC-0009 R2).",
+  "properties": {
+    "design": {
+      "description": "How the change is made, when the proposal does not say it.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "id": {
+      "description": "Stable identifier, in the canonical form of the type; assigned by the engine and never reused (SPEC-0001 R2, R14).",
+      "format": "change-id",
+      "type": "string"
+    },
+    "issue": {
+      "description": "Tracker issue that requested the change.",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "kind": {
+      "const": "change",
+      "description": "Artifact type; selects the schema."
+    },
+    "language": {
+      "description": "Language of the prose, a BCP 47 tag; when absent, the language of the project.",
+      "format": "language-tag",
+      "type": "string"
+    },
+    "operations": {
+      "description": "The operations, at most one per requirement; at least one.",
+      "items": {
+        "$ref": "#/$defs/Operation"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "proposal": {
+      "description": "Why the change is made.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of the schema of the type the document was written against (SPEC-0001 R16).",
+      "type": "integer"
+    },
+    "specification": {
+      "description": "The living specification the delta changes.",
+      "format": "spec-id",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/ChangeStatus",
+      "description": "Current status (SPEC-0001 R5), not the issue-cycle state of SPEC-0002."
+    },
+    "superseded_by": {
+      "description": "Identifiers of the artifacts of the same type that replace this one, at least one; required when `status` is `superseded`.",
+      "items": {
+        "description": "Identifier of a change delta: `CHANGE-` and four digits, or five or more without a leading zero, for example `CHANGE-0012`.",
+        "format": "change-id",
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "tasks": {
+      "description": "Tasks that implement the change; `[]` means none.",
+      "items": {
+        "description": "Identifier of a task: `TASK-` and four digits, or five or more without a leading zero, for example `TASK-0107`.",
+        "format": "task-id",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "title": {
+      "description": "Outcome or name, in sentence case without a final full stop; 1 to 120 characters (Unicode code points).",
+      "maxLength": 120,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "title",
+    "status",
+    "specification",
+    "proposal",
+    "operations"
+  ],
+  "title": "Change",
+  "type": "object"
+}

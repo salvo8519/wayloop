@@ -5,10 +5,11 @@ types of the artifact model) and inputs (pull requests, commits, hand-overs) aga
 schemas, in one pass, and reports every error with the pointer of the faulty value and the
 place where it is stored. It changes nothing.
 
-Today briefs, gate issues, milestones, epics, user stories, tasks, hand-over records and
-hand-over inputs are validated against their schemas. A council report, a living
-specification, a change delta, a pull request and a commit are accepted unchecked, and the
-checks not run are listed in `diagnostics.not_done`; so are the checks across documents
+Today briefs, council reports, gate issues, milestones, epics, user stories, living
+specifications in normalised form, change deltas, tasks, hand-over records and hand-over inputs
+are validated against their schemas. A living specification sent as Markdown, a pull request
+and a commit are accepted unchecked, and the checks not run are listed in
+`diagnostics.not_done`; so are the checks across documents
 (identifiers, links, parts, statuses, naming, areas).
 
 This page describes version 1 of the command, as built from source. Its contract is the pair
@@ -70,7 +71,7 @@ path, goes to standard error.
 | --- | --- |
 | `document_kind` | Each document has a `kind` among `brief`, `council_report`, `gate`, `milestone`, `epic`, `story`, `specification`, `change`, `task` and `handover`, or is an input with `input_kind` |
 | `schema_version` | The `schema_version` of each document is a version its type knows; a document of an earlier version is migrated to the current one after it passes the schema of its own version |
-| `schema_<kind>`: `schema_brief`, `schema_epic`, `schema_gate`, `schema_handover`, `schema_milestone`, `schema_story`, `schema_task` | Each document of the type passes the schema of its version (`schemas/artifacts/<kind>/v1.json`): required members, unknown members, types, accepted values, lengths, formats, and the members a status or a verification requires (see below) |
+| `schema_<kind>`: `schema_brief`, `schema_change`, `schema_council_report`, `schema_epic`, `schema_gate`, `schema_handover`, `schema_milestone`, `schema_specification`, `schema_story`, `schema_task` | Each document of the type passes the schema of its version (`schemas/artifacts/<kind>/v1.json`): required members, unknown members, types, accepted values, lengths, formats, and the members a status, a verification or an operation requires (see below) |
 | `schema_handover_input` | Each hand-over input passes the input schema of its version (`schemas/artifacts/handover/v1.input.json`), as a hand-over record does (see below) |
 | `identifier_format` | The `id` is in the canonical form of its type, for example `BRIEF-0001` |
 | `artifact_locations` | Some folder of a location exists in the project the documents were discovered in; with `locations` only, after the checks above |
@@ -81,7 +82,6 @@ engine did not run is never skipped silently:
 
 | Check | Not run on |
 | --- | --- |
-| `schema_<kind>`, for example `schema_council_report` | A document of a type whose schema is not in this version |
 | `schema_<input_kind>`: `schema_pull_request`, `schema_commit` | An input whose schema is not in this version |
 | `markdown` | A living specification sent as Markdown |
 | `identifier_duplicate` | The set: two artifacts with one identifier |
@@ -91,9 +91,9 @@ engine did not run is never skipped silently:
 | `naming` | The set: titles, branch names, commit headers and pull request links |
 | `areas` | The set: the `area` of each epic and task against the areas of the project policy |
 
-A schema also states the members that a status or a verification requires; a document
-without one is refused with the reason `requires`, the member missing in `pointer` and the
-member of the condition in `pointers`:
+A schema also states the members that a status, a verification or an operation requires; a
+document without one is refused with the reason `requires`, the member missing in `pointer` and
+the member of the condition in `pointers`:
 
 | Type | Member | Required when |
 | --- | --- | --- |
@@ -103,6 +103,10 @@ member of the condition in `pointers`:
 | Epic, user story, task | `issue` | `status` is `implementing` or `done` |
 | User story | `specification` | `status` is `approved`, `implementing` or `done` |
 | Task | `rubric` | `verification` contains `judge` |
+| Living specification, each of `acceptance_criteria` | `rubric` | its `verification` contains `judge` |
+| Change delta, each of `operations` | `requirement` | its `op` is `modified`, `removed` or `renamed` |
+| Change delta, each of `operations` | `text` | its `op` is `added` or `modified` |
+| Change delta, each of `operations` | `name` | its `op` is `renamed` |
 
 A task or a user story without its epic, or an epic, a story or a task without its milestone,
 gets one error, `missing` at `/epic` or `/milestone`, and no error of a link. The schema
@@ -110,6 +114,18 @@ checks the form of a link (for example `EPIC-0001`), not that its target exists:
 check `links`. The subject of a gate issue is a brief or a council report, in the form
 `BRIEF-<seq>` or `COUNCIL-<seq>`. `blocked` is not a status of any artifact: it is a state of
 the issue cycle.
+
+Each type accepts only its own statuses. A council report has `draft`, `approved` and
+`superseded`; a change delta `draft`, `approved`, `implementing`, `done` and `superseded`; a
+living specification has six, `draft`, `approved`, `surveyed`, `implementing`, `done` and
+`superseded`, and any other, for example `published`, is refused with `enum` and the six in
+`expected`. The `capability` of a living specification is lower-case words of `a` to `z` and
+`0` to `9` joined by single hyphens, for example `time-entries`; a requirement is `active` or
+`removed`, and absent means `active`. The schema checks the form of the parts of an artifact
+(`D<k>`, `Q<k>`, `R<k>`, `AC<k>`) and that a question of a council report has at least two
+options, not that a part is unique, that a dissent names a decision of its report, that an
+answer is one of the options or that a change delta has one operation per requirement: that is
+the check `parts`.
 
 A hand-over comes in two forms of one version. The input is what an agent submits at the end of
 a session, with `input_kind: handover_input` and no `kind`: `schema_version`, `step`,

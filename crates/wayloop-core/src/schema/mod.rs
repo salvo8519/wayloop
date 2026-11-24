@@ -64,6 +64,7 @@
 //! | `language-tag` | A BCP 47 tag of language (2 or 3 letters), optional script (4 letters), optional region (2 letters or 3 digits) and variants (5 to 8 letters or digits, or a digit and 3 letters or digits), any case; no extension, private use or grandfathered tag | `_` written `-` |
 //! | `tracker-handle` | `@` then 1 to 39 letters, digits or single hyphens, not at either end | `@` added |
 //! | `project-path` | A path relative to the root of the project in one spelling: segments joined by `/`, none empty, `.` or `..`; no `\`, no drive letter (`C:`) | `\` written `/`, empty and `.` segments dropped; none for a path that starts with `/` or `\` |
+//! | `capability` | Lower-case words of `a` to `z` and `0` to `9` joined by single hyphens, for example `time-entries`: the capability of a living specification | an ASCII text in lower case with every run of other characters written as one hyphen, none at either end; none for a text outside ASCII |
 //! | `brief-id`, `council-id`, `gate-id`, `epic-id`, `story-id`, `spec-id`, `change-id`, `task-id` | `BRIEF-`, `COUNCIL-`, `GATE-`, `EPIC-`, `STORY-`, `SPEC-`, `CHANGE-` or `TASK-` then four digits, or five or more without a leading zero (SPEC-0001, Identifiers) | prefix in upper case, separator `-`, sequence padded or unpadded |
 //! | `brief-or-council-id` | A `brief-id` or a `council-id`: the subject of a gate issue | as for the identifier it starts with |
 //! | `milestone-id` | `M` then `0` or a number without a leading zero | `M` and the number, from `m2`, `M02` or `Milestone 2` |

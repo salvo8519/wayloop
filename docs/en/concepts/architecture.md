@@ -296,8 +296,9 @@ The condition of an `if` uses `type`, `properties`, `required`, `enum`, `const` 
 `fix`. The named formats are `date`, `utc-date-time` (with the suffix `Z`), `language-tag`
 (language, script, region and variants of BCP 47), `tracker-handle`, `project-path` (a path
 relative to the root of the project in one spelling: segments joined by `/`, none empty, `.`
-or `..`; no `\` and no drive letter), the identifiers of each
-artifact type (`brief-id`, `council-id`, `gate-id`, `epic-id`, `story-id`, `spec-id`,
+or `..`; no `\` and no drive letter), `capability` (lower-case words of letters and digits
+joined by single hyphens, the slug of the folder of a living specification), the identifiers of
+each artifact type (`brief-id`, `council-id`, `gate-id`, `epic-id`, `story-id`, `spec-id`,
 `change-id`, `task-id`, `milestone-id`, `handover-id`), `brief-or-council-id` (either of the
 first two, the subject of a gate issue), the identifiers of parts
 (`requirement-id`, `criterion-id`, `decision-id`, `question-id`), with the canonical forms of

@@ -51,9 +51,12 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::artifact::{
-    ArtifactKind, Brief, BriefOrigin, BriefStatus, Epic, Gate, GateStatus, Handover, HandoverInput,
-    HandoverReport, Milestone, PlanItemStatus, Ruling, SpecReference, Story, StoryCriterion, Task,
-    Verification,
+    ArtifactKind, Brief, BriefOrigin, BriefStatus, Change, ChangeStatus, CouncilMode,
+    CouncilQuestion, CouncilReport, CouncilStatus, Decision, Dissent, Epic, ExtraSection, Gate,
+    GateStatus, Handover, HandoverInput, HandoverReport, Milestone, OpenQuestion, Operation,
+    OperationKind, PlanItemStatus, RejectedAlternative, Requirement, RequirementStatus, Risk,
+    Ruling, SpecCriterion, SpecReference, Specification, SpecificationStatus, Story,
+    StoryCriterion, Task, Verification,
 };
 use crate::validate::{
     BaseStatus, DocumentEntry, DocumentSummary, EntryFormat, InputKind, Origin, ParseError, Policy,
@@ -264,22 +267,30 @@ mod registry;
 
 pub use embedded::EMBEDDED;
 pub use registry::{
-    Area, BRIEF, CONTRACTS, Contract, ContractFile, EPIC, Embedded, GATE, HANDOVER, MILESTONE,
-    Part, STORY, TASK, VALIDATE,
+    Area, BRIEF, CHANGE, CONTRACTS, COUNCIL_REPORT, Contract, ContractFile, EPIC, Embedded, GATE,
+    HANDOVER, MILESTONE, Part, SPECIFICATION, STORY, TASK, VALIDATE,
 };
 
 /// Every contract type of this crate whose schema is derived, in the byte order of their names.
-pub const TYPES: [Registered; 46] = [
+pub const TYPES: [Registered; 65] = [
     registered!(ArtifactKind),
     registered!(BaseStatus),
     registered!(Brief),
     registered!(BriefOrigin),
     registered!(BriefStatus),
+    registered!(Change),
+    registered!(ChangeStatus),
     registered!(Check),
     registered!(Code),
+    registered!(CouncilMode),
+    registered!(CouncilQuestion),
+    registered!(CouncilReport),
+    registered!(CouncilStatus),
+    registered!(Decision),
     registered!(DefaultApplied),
     registered!(DefaultReason),
     registered!(Diagnostics),
+    registered!(Dissent),
     registered!(DocumentEntry),
     registered!(DocumentSummary),
     registered!(EntryFormat),
@@ -288,6 +299,7 @@ pub const TYPES: [Registered; 46] = [
     registered!(Epic),
     registered!(Error),
     registered!(ErrorReport),
+    registered!(ExtraSection),
     registered!(Gate),
     registered!(GateStatus),
     registered!(Handover),
@@ -300,15 +312,25 @@ pub const TYPES: [Registered; 46] = [
     registered!(Milestone),
     registered!(NotDone),
     registered!(NotDoneReason),
+    registered!(OpenQuestion),
+    registered!(Operation),
+    registered!(OperationKind),
     registered!(Origin),
     registered!(ParseError),
     registered!(PlanItemStatus),
     registered!(Pointer),
     registered!(Policy),
     registered!(Reason),
+    registered!(RejectedAlternative),
+    registered!(Requirement),
+    registered!(RequirementStatus),
+    registered!(Risk),
     registered!(Ruling),
     registered!(Source),
+    registered!(SpecCriterion),
     registered!(SpecReference),
+    registered!(Specification),
+    registered!(SpecificationStatus),
     registered!(Status),
     registered!(Story),
     registered!(StoryCriterion),

@@ -1,0 +1,372 @@
+{
+  "$defs": {
+    "ExtraSection": {
+      "additionalProperties": false,
+      "description": "A section of a living specification outside its template, kept as prose and not validated.",
+      "properties": {
+        "heading": {
+          "description": "The heading of the section, as written.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "text": {
+          "description": "The content of the section, as written.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "heading",
+        "text"
+      ],
+      "type": "object"
+    },
+    "OpenQuestion": {
+      "additionalProperties": false,
+      "description": "An open question of a living specification.",
+      "properties": {
+        "id": {
+          "description": "Identifier within the specification, `Q<k>`, when the question has one.",
+          "format": "question-id",
+          "type": "string"
+        },
+        "resolved": {
+          "description": "Whether the question is resolved.",
+          "type": "boolean"
+        },
+        "text": {
+          "description": "The question, and its answer once resolved.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "resolved"
+      ],
+      "type": "object"
+    },
+    "Requirement": {
+      "additionalProperties": false,
+      "description": "An EARS requirement of a living specification.",
+      "properties": {
+        "id": {
+          "description": "Identifier within the specification, `R<k>`, never used again.",
+          "format": "requirement-id",
+          "type": "string"
+        },
+        "name": {
+          "description": "Short name, changed by a rename.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/RequirementStatus",
+          "description": "Whether the requirement is in force; absent means `active`."
+        },
+        "text": {
+          "description": "The requirement, in EARS form.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "type": "object"
+    },
+    "RequirementStatus": {
+      "description": "Status of a requirement within its living specification.\n\n- `active`: In force.\n- `removed`: Removed by a change delta; kept so that its identifier is never used again.",
+      "enum": [
+        "active",
+        "removed"
+      ],
+      "type": "string"
+    },
+    "SpecCriterion": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "verification": {
+                "contains": {
+                  "const": "judge"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "verification"
+            ]
+          },
+          "then": {
+            "required": [
+              "rubric"
+            ]
+          }
+        }
+      ],
+      "description": "An acceptance criterion of a living specification.",
+      "properties": {
+        "id": {
+          "description": "Identifier within the specification, `AC<k>`, cited as `SPEC-<seq> AC<k>`.",
+          "format": "criterion-id",
+          "type": "string"
+        },
+        "requirements": {
+          "description": "The active requirements of this specification it verifies; at least one.",
+          "items": {
+            "description": "Identifier of a requirement of a living specification: `R` and a number from 1 without a leading zero, for example `R2`.",
+            "format": "requirement-id",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "rubric": {
+          "description": "Rubric of the judge; required when `verification` contains `judge`.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "text": {
+          "description": "The criterion.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "verification": {
+          "description": "Verification techniques; at least one. The order of the values and a value repeated carry no meaning.",
+          "items": {
+            "$ref": "#/$defs/Verification"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "requirements",
+        "text",
+        "verification"
+      ],
+      "type": "object"
+    },
+    "SpecificationStatus": {
+      "description": "Status of a living specification (SPEC-0001 R5); `draft` and `surveyed` are its initial statuses.\n\n- `draft`: Written, not approved.\n- `approved`: Approved by a person; tasks may cite it.\n- `surveyed`: Written by the survey of an existing project (SPEC-0011 R4), not approved.\n- `implementing`: A task that cites it is claimed.\n- `done`: Delivered, as a person declares; terminal.\n- `superseded`: Replaced by the specifications in `superseded_by`; terminal.",
+      "enum": [
+        "draft",
+        "approved",
+        "surveyed",
+        "implementing",
+        "done",
+        "superseded"
+      ],
+      "type": "string"
+    },
+    "Verification": {
+      "description": "A verification technique of a task or of an acceptance criterion (SPEC-0009 R7).\n\n- `tdd`: Test-driven development: a test written before the code.\n- `bdd`: Behaviour-driven development: a scenario in the language of the user.\n- `end_to_end`: A test of the whole system, through its interface.\n- `property`: A property test over generated inputs.\n- `contract`: A contract test against a published schema or case.\n- `benchmark`: A measurement against a stated threshold.\n- `judge`: A judgement against a rubric, which is then required (SPEC-0009 R8).\n- `none`: Verified by no technique, stated on purpose.",
+      "enum": [
+        "tdd",
+        "bdd",
+        "end_to_end",
+        "property",
+        "contract",
+        "benchmark",
+        "judge",
+        "none"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://salvo8519.github.io/wayloop/schemas/artifacts/specification/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "superseded"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "superseded_by"
+        ]
+      }
+    }
+  ],
+  "description": "A living specification (SPEC-0001, Living specification): the current behaviour of one capability (ADR 0014), in the normalised form of its file `specs/<NNNN>-<capability>/spec.md`.",
+  "properties": {
+    "acceptance_criteria": {
+      "description": "The acceptance criteria; at least one.",
+      "items": {
+        "$ref": "#/$defs/SpecCriterion"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "capability": {
+      "description": "The capability described, the slug of the folder.",
+      "format": "capability",
+      "type": "string"
+    },
+    "commit_scope": {
+      "description": "Scope of the project policy used by the commits that implement it.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "extra_sections": {
+      "description": "Sections outside the template; `[]` means none.",
+      "items": {
+        "$ref": "#/$defs/ExtraSection"
+      },
+      "type": "array"
+    },
+    "id": {
+      "description": "Stable identifier, in the canonical form of the type; assigned by the engine and never reused (SPEC-0001 R2, R14).",
+      "format": "spec-id",
+      "type": "string"
+    },
+    "interfaces": {
+      "description": "Commands, schemas and events, with their versions; `[]` means none.",
+      "items": {
+        "description": "A prose text of at least one character, in the language of the document.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "kind": {
+      "const": "specification",
+      "description": "Artifact type; selects the schema."
+    },
+    "language": {
+      "description": "Language of the prose, a BCP 47 tag; when absent, the language of the project.",
+      "format": "language-tag",
+      "type": "string"
+    },
+    "milestone": {
+      "description": "Milestone of the first delivery.",
+      "format": "milestone-id",
+      "type": "string"
+    },
+    "open_questions": {
+      "description": "Open and resolved questions; `[]` means none.",
+      "items": {
+        "$ref": "#/$defs/OpenQuestion"
+      },
+      "type": "array"
+    },
+    "owner": {
+      "description": "Person who approves changes.",
+      "format": "tracker-handle",
+      "type": "string"
+    },
+    "problem": {
+      "description": "Who needs this and why.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "related": {
+      "description": "Identifiers of ADRs, issues and specifications, as written, for example `ADR 0014`; `[]` means none.",
+      "items": {
+        "description": "A prose text of at least one character, in the language of the document.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "requirements": {
+      "description": "The requirements, removed ones included; at least one.",
+      "items": {
+        "$ref": "#/$defs/Requirement"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of the schema of the type the document was written against (SPEC-0001 R16).",
+      "type": "integer"
+    },
+    "scope_in": {
+      "description": "What is specified; at least one entry.",
+      "items": {
+        "description": "A prose text of at least one character, in the language of the document.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "scope_out": {
+      "description": "What is left to other specifications; `[]` means nothing.",
+      "items": {
+        "description": "A prose text of at least one character, in the language of the document.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "status": {
+      "$ref": "#/$defs/SpecificationStatus",
+      "description": "Current status (SPEC-0001 R5), not the issue-cycle state of SPEC-0002."
+    },
+    "stories": {
+      "description": "Stories covered, by identifier; `[]` means none.",
+      "items": {
+        "description": "Identifier of a user story: `STORY-` and four digits, or five or more without a leading zero, for example `STORY-0042`.",
+        "format": "story-id",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "superseded_by": {
+      "description": "Identifiers of the artifacts of the same type that replace this one, at least one; required when `status` is `superseded`.",
+      "items": {
+        "description": "Identifier of a living specification: `SPEC-` and four digits, or five or more without a leading zero, for example `SPEC-0003`.",
+        "format": "spec-id",
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "title": {
+      "description": "Outcome or name, in sentence case without a final full stop; 1 to 120 characters (Unicode code points).",
+      "maxLength": 120,
+      "minLength": 1,
+      "type": "string"
+    },
+    "user_stories": {
+      "description": "Stories written as prose, before or without a story artifact; `[]` means none.",
+      "items": {
+        "description": "A prose text of at least one character, in the language of the document.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "title",
+    "status",
+    "capability",
+    "owner",
+    "commit_scope",
+    "problem",
+    "scope_in",
+    "requirements",
+    "acceptance_criteria"
+  ],
+  "title": "Specification",
+  "type": "object"
+}
