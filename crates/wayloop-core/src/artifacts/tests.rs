@@ -2185,3 +2185,16 @@ fn a_file_origin_outside_the_project_is_refused() {
         );
     }
 }
+
+#[test]
+fn every_artifact_type_has_its_schema_built() {
+    // After T7 to T9 every type of SPEC-0001 has a schema; a type declared without one would
+    // give `not_built` to its documents, which the reference no longer documents as possible.
+    let built = kinds::built().unwrap();
+    for kind in ArtifactKind::ALL {
+        let found = built
+            .iter()
+            .filter(|k| k.input.is_none() && k.id == kind.id());
+        assert_eq!(found.count(), 1, "{}", kind.id());
+    }
+}
