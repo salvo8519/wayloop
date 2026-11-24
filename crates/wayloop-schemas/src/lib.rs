@@ -32,6 +32,8 @@ pub mod artifact;
 pub mod contract;
 mod envelope;
 mod error;
+#[cfg(feature = "examples")]
+pub mod examples;
 #[cfg(test)]
 mod fixtures;
 mod format;

@@ -1,0 +1,120 @@
+{
+  "$defs": {
+    "GateStatus": {
+      "description": "Status of a gate issue (SPEC-0001 R5); `draft` is its initial status.\n\n- `draft`: Open: the subject waits for the approval of a person.\n- `done`: A person approved the subject on the issue, as recorded in the ledger; terminal.\n- `superseded`: Replaced by the gates in `superseded_by`, or its subject was superseded; terminal.",
+      "enum": [
+        "draft",
+        "done",
+        "superseded"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://salvo8519.github.io/wayloop/schemas/artifacts/gate/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "superseded"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "superseded_by"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "done"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "approved_by",
+          "issue"
+        ]
+      }
+    }
+  ],
+  "description": "A gate issue (SPEC-0001, Gate issue): the tracker issue on which a person approves a brief or a council report.",
+  "properties": {
+    "approved_by": {
+      "description": "Person who approved, as recorded in the ledger; required when `status` is `done`.",
+      "format": "tracker-handle",
+      "type": "string"
+    },
+    "id": {
+      "description": "Stable identifier, in the canonical form of the type; assigned by the engine and never reused (SPEC-0001 R2, R14).",
+      "format": "gate-id",
+      "type": "string"
+    },
+    "issue": {
+      "description": "Tracker number of the issue, once the issue exists; required when `status` is `done`.",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "kind": {
+      "const": "gate",
+      "description": "Artifact type; selects the schema."
+    },
+    "language": {
+      "description": "Language of the prose, a BCP 47 tag; when absent, the language of the project.",
+      "format": "language-tag",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of the schema of the type the document was written against (SPEC-0001 R16).",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/GateStatus",
+      "description": "Current status (SPEC-0001 R5), not the issue-cycle state of SPEC-0002."
+    },
+    "subject": {
+      "description": "The brief or council report submitted for approval: `BRIEF-<seq>` or `COUNCIL-<seq>`, for example `BRIEF-0001`.",
+      "format": "brief-or-council-id",
+      "type": "string"
+    },
+    "superseded_by": {
+      "description": "Identifiers of the artifacts of the same type that replace this one, at least one; required when `status` is `superseded`.",
+      "items": {
+        "description": "Identifier of a gate issue: `GATE-` and four digits, or five or more without a leading zero, for example `GATE-0001`.",
+        "format": "gate-id",
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "title": {
+      "description": "Outcome or name, in sentence case without a final full stop; 1 to 120 characters (Unicode code points).",
+      "maxLength": 120,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "title",
+    "status",
+    "subject"
+  ],
+  "title": "Gate",
+  "type": "object"
+}

@@ -1,0 +1,327 @@
+{
+  "description": "A gate issue in status done without its issue beside the valid set of the examples: the tracker number is required once the gate is done (decided by the maintainer on 2026-11-23), refused with requires, the condition on status in pointers; the valid set gives no error.",
+  "covers": [
+    "SPEC-0001 R1",
+    "SPEC-0001 AC1"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "council_report",
+          "schema_version": 1,
+          "id": "COUNCIL-0001",
+          "title": "Council report on terminal time tracking",
+          "status": "approved",
+          "brief": "BRIEF-0001",
+          "mode": "one_mind",
+          "roles": [
+            "product_and_business",
+            "software_architecture",
+            "critic"
+          ],
+          "decisions": [
+            {
+              "id": "D1",
+              "statement": "Store entries in a local file, one line per entry.",
+              "reason": "Works offline and stays readable without the tool."
+            }
+          ],
+          "rejected_alternatives": [
+            {
+              "option": "A hosted service",
+              "reason": "Breaks the offline constraint."
+            }
+          ],
+          "dissent": [
+            {
+              "role": "product_and_business",
+              "position": "Synchronisation between devices matters from the first release.",
+              "decision": "D1"
+            }
+          ],
+          "risks": [
+            {
+              "description": "Concurrent writes from two terminals.",
+              "mitigation": "Append-only writes with a lock."
+            }
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "question": "Is synchronisation in the first milestone?",
+              "options": [
+                "Yes",
+                "No"
+              ],
+              "recommendation": "No",
+              "answer": "No"
+            }
+          ]
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "specification",
+          "schema_version": 1,
+          "id": "SPEC-0001",
+          "title": "Time entries",
+          "status": "implementing",
+          "capability": "time-entries",
+          "owner": "@example-owner",
+          "milestone": "M1",
+          "commit_scope": "core",
+          "related": [
+            "COUNCIL-0001"
+          ],
+          "problem": "Freelancers need to record time without leaving the terminal.",
+          "scope_in": [
+            "Recording and listing time entries"
+          ],
+          "scope_out": [
+            "Export (a later specification)"
+          ],
+          "stories": [
+            "STORY-0001"
+          ],
+          "user_stories": [
+            "As a freelance developer, I want to see the total of a day, so that I check my timesheet."
+          ],
+          "requirements": [
+            {
+              "id": "R1",
+              "name": "Record",
+              "text": "WHEN the user runs the record command, THE TOOL SHALL append one entry to the log."
+            },
+            {
+              "id": "R2",
+              "text": "THE TOOL SHALL store durations in minutes."
+            },
+            {
+              "id": "R3",
+              "text": "IF the duration is not positive, THEN THE TOOL SHALL refuse the entry."
+            },
+            {
+              "id": "R4",
+              "text": "THE TOOL SHALL ask for a project when none is given.",
+              "status": "removed"
+            }
+          ],
+          "acceptance_criteria": [
+            {
+              "id": "AC1",
+              "requirements": [
+                "R1",
+                "R2"
+              ],
+              "text": "Given an empty log, when an entry of 90 minutes is recorded, then the log holds one entry of 90 minutes.",
+              "verification": [
+                "tdd"
+              ]
+            },
+            {
+              "id": "AC2",
+              "requirements": [
+                "R3"
+              ],
+              "text": "Given any duration of zero or less, when recorded, then it is refused.",
+              "verification": [
+                "property"
+              ]
+            },
+            {
+              "id": "AC3",
+              "requirements": [
+                "R1"
+              ],
+              "text": "Given the help of the record command, when read by a new user, then it explains duration and project.",
+              "verification": [
+                "judge"
+              ],
+              "rubric": "Score 1 to 5; 4 or more when duration format, project and one example are all stated."
+            }
+          ],
+          "interfaces": [
+            "timesheet record <duration> <project>"
+          ],
+          "open_questions": [
+            {
+              "id": "Q1",
+              "text": "Is a project required for every entry?",
+              "resolved": true
+            }
+          ],
+          "extra_sections": [
+            {
+              "heading": "Notes",
+              "text": "The log format follows COUNCIL-0001 D1."
+            }
+          ]
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "gate",
+          "schema_version": 1,
+          "id": "GATE-0001",
+          "title": "Approve the brief on terminal time tracking",
+          "status": "done",
+          "subject": "BRIEF-0001",
+          "issue": 2,
+          "approved_by": "@example-owner"
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "milestone",
+          "schema_version": 1,
+          "id": "M1",
+          "title": "Time entries",
+          "status": "implementing",
+          "gate": "A user records, lists and exports the entries of a month offline.",
+          "council_report": "COUNCIL-0001",
+          "due": "2027-03-31",
+          "tracker_number": 1
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "epic",
+          "schema_version": 1,
+          "id": "EPIC-0001",
+          "title": "Time entries are recorded from the terminal",
+          "status": "implementing",
+          "milestone": "M1",
+          "outcome": "A user records a time entry with one command and lists the entries of a day.",
+          "area": "core",
+          "issue": 10
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "story",
+          "schema_version": 1,
+          "id": "STORY-0001",
+          "title": "Record a time entry with one command",
+          "status": "implementing",
+          "epic": "EPIC-0001",
+          "as_a": "freelance developer",
+          "i_want": "to record a time entry with one command",
+          "so_that": "I do not leave the terminal",
+          "acceptance_criteria": [
+            {
+              "id": "AC1",
+              "given": "an empty log",
+              "when": "I run the record command with a duration and a project",
+              "then": "the log holds one entry with that duration and project"
+            }
+          ],
+          "specification": [
+            "SPEC-0001"
+          ],
+          "milestone": "M1",
+          "issue": 11
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "task",
+          "schema_version": 1,
+          "id": "TASK-0001",
+          "title": "timesheet record appends one entry to the log",
+          "status": "implementing",
+          "epic": "EPIC-0001",
+          "milestone": "M1",
+          "story": "STORY-0001",
+          "specification": [
+            {
+              "spec": "SPEC-0001",
+              "requirements": [
+                "R1",
+                "R2"
+              ]
+            }
+          ],
+          "verification": [
+            "tdd"
+          ],
+          "area": "core",
+          "depends_on": [],
+          "complexity": 3,
+          "parallel": false,
+          "issue": 12
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "gate",
+          "schema_version": 1,
+          "id": "GATE-0002",
+          "title": "Approve the council report on terminal time tracking",
+          "status": "done",
+          "subject": "COUNCIL-0001",
+          "approved_by": "@example-owner"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "artifact_schema",
+      "/error/pointer": "/issue",
+      "/error/reason": "requires",
+      "/error/document": 8,
+      "/error/pointers": [
+        "/status"
+      ],
+      "/meta/input_hash": "0f1e6003edcd75c7234e98111dd18f384fb61a1c47e7034e316450892b6f6e32"
+    },
+    "absent": [
+      "/data",
+      "/error/source"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 356a7370ca02
+source_hash: ae922dd4d4ba
 ---
 # wayloop validate
 
@@ -9,15 +9,17 @@ altri tipi del modello degli artefatti) e di input (pull request, commit, passag
 rispetto ai loro schemi, in un solo passaggio, e riporta ogni errore con il puntatore del valore
 errato e il luogo in cui è memorizzato. Non modifica nulla.
 
-Oggi solo i brief sono validati rispetto al loro schema. Un documento di qualunque altro tipo,
-una specifica viva inviata in Markdown e un input sono accettati senza controllo, e i controlli
-non eseguiti sono elencati in `diagnostics.not_done`; così anche i controlli tra documenti
-(identificativi, collegamenti, parti, stati, nomi).
+Oggi brief, issue di gate, milestone, epic, user story e task sono validati rispetto ai loro
+schemi. Un verbale del comitato, una specifica viva, una modifica a delta, un passaggio di mano e
+un input sono accettati senza controllo, e i controlli non eseguiti sono elencati in
+`diagnostics.not_done`; così anche i controlli tra documenti (identificativi, collegamenti,
+parti, stati, nomi, aree).
 
 Questa pagina descrive la versione 1 del comando, compilata dai sorgenti. Il suo contratto è la
 coppia di snapshot di schema `schemas/commands/validate/v1.json` (input) e
 `schemas/commands/validate/v1.output.json` (output), generati dai tipi di `wayloop-schemas`
-(ADR 0030); lo schema di un brief è `schemas/artifacts/brief/v1.json`. Questa pagina li spiega.
+(ADR 0030); lo schema di ogni tipo di artefatto è `schemas/artifacts/<kind>/v1.json`, per
+esempio `schemas/artifacts/task/v1.json`. Questa pagina li spiega.
 
 ## Uso
 
@@ -73,7 +75,7 @@ letto; il messaggio per una persona, con il percorso, va sullo standard error.
 | --- | --- |
 | `document_kind` | Ogni documento ha un `kind` tra `brief`, `council_report`, `gate`, `milestone`, `epic`, `story`, `specification`, `change`, `task` e `handover`, oppure è un input con `input_kind` |
 | `schema_version` | Lo `schema_version` di ogni documento è una versione che il suo tipo conosce; un documento di una versione precedente viene migrato alla versione corrente dopo aver superato lo schema della propria versione |
-| `schema_brief` | Ogni brief supera lo schema della sua versione (`schemas/artifacts/brief/v1.json`): membri obbligatori, membri sconosciuti, tipi, valori ammessi, lunghezze, formati |
+| `schema_<kind>`: `schema_brief`, `schema_epic`, `schema_gate`, `schema_milestone`, `schema_story`, `schema_task` | Ogni documento del tipo supera lo schema della sua versione (`schemas/artifacts/<kind>/v1.json`): membri obbligatori, membri sconosciuti, tipi, valori ammessi, lunghezze, formati, e i membri che uno stato o una verifica richiedono (vedi sotto) |
 | `identifier_format` | L'`id` è nella forma canonica del suo tipo, per esempio `BRIEF-0001` |
 | `artifact_locations` | Nel progetto in cui i documenti sono stati scoperti esiste almeno una cartella di una posizione; solo con `locations`, dopo i controlli precedenti |
 
@@ -83,7 +85,7 @@ che il motore non ha eseguito non è mai saltato in silenzio:
 
 | Controllo | Non eseguito su |
 | --- | --- |
-| `schema_<kind>`, per esempio `schema_task` | Un documento di un tipo il cui schema non è in questa versione |
+| `schema_<kind>`, per esempio `schema_council_report` | Un documento di un tipo il cui schema non è in questa versione |
 | `schema_<input_kind>`, per esempio `schema_commit` | Un input il cui schema non è in questa versione |
 | `markdown` | Una specifica viva inviata in Markdown |
 | `identifier_duplicate` | L'insieme: due artefatti con lo stesso identificativo |
@@ -91,6 +93,27 @@ che il motore non ha eseguito non è mai saltato in silenzio:
 | `parts` | L'insieme: parti degli artefatti e operazioni delle modifiche a delta |
 | `statuses` | L'insieme: transizioni e stati iniziali rispetto a `base` |
 | `naming` | L'insieme: titoli, nomi dei branch, intestazioni dei commit e collegamenti delle pull request |
+| `areas` | L'insieme: l'`area` di ogni epic e di ogni task rispetto alle aree della policy del progetto |
+
+Uno schema indica anche i membri che uno stato o una verifica richiedono; un documento che ne è
+privo è rifiutato con il motivo `requires`, il membro mancante in `pointer` e il membro della
+condizione in `pointers`:
+
+| Tipo | Membro | Richiesto quando |
+| --- | --- | --- |
+| Ogni tipo | `superseded_by` | `status` è `superseded` |
+| Issue di gate | `approved_by`, `issue` | `status` è `done` |
+| Milestone | `tracker_number` | `status` è `implementing` o `done` |
+| Epic, user story, task | `issue` | `status` è `implementing` o `done` |
+| User story | `specification` | `status` è `approved`, `implementing` o `done` |
+| Task | `rubric` | `verification` contiene `judge` |
+
+Un task o una user story senza la sua epic, o un'epic, una user story o un task senza la sua
+milestone, riceve un solo errore, `missing` in `/epic` o `/milestone`, e nessun errore di
+collegamento. Lo schema controlla la forma di un collegamento (per esempio `EPIC-0001`), non
+che il suo destinatario esista: questo è il controllo `links`. L'oggetto di una issue di gate
+è un brief o un verbale del comitato, nella forma `BRIEF-<seq>` o `COUNCIL-<seq>`. `blocked`
+non è lo stato di alcun artefatto: è uno stato del ciclo della issue.
 
 `artifact_locations` è elencato in `diagnostics.not_done` con il motivo `input_absent` quando
 `locations` non è dato: i documenti sono stati indicati per nome o inviati direttamente.
@@ -108,7 +131,7 @@ un membro assente. Lo schema di input è chiuso: un membro che non elenca è rif
 | --- | --- | --- | --- |
 | `documents` | lista di oggetti | sì | Una voce per ogni artefatto o input memorizzato; `[]` significa nessuno |
 | `base` | lista di `{id, status}` | no | Stati sul branch predefinito degli artefatti dell'insieme |
-| `policy` | oggetto `{types, scopes, areas}`, ciascuno una lista di nomi della policy, identificativi di almeno un carattere | no | La parte della policy del progetto che il modello legge |
+| `policy` | oggetto `{types, scopes, areas}`, ciascuno una lista di nomi della policy, identificativi di almeno un carattere | no | La parte della policy del progetto che il modello legge. Nessun controllo di questa versione la legge: il controllo `areas` è elencato come non eseguito |
 | `adrs` | lista di interi da 1 | no | Numeri degli ADR del progetto |
 | `locations` | lista di `plan_briefs`, `plan_council`, `plan_items`, `specs`, per le cartelle `plan/briefs`, `plan/council`, `plan/items` e `specs` | no | Le cartelle delle posizioni che esistono nel progetto, quando i documenti vi sono stati scoperti; il loro ordine e una cartella ripetuta non hanno significato, non sono confrontate con le origini `file` dei documenti, e `[]` significa nessuna, e dà l'avviso `artifact_location_missing`. Assente: i documenti sono stati indicati per nome o inviati direttamente, e il controllo `artifact_locations` non è eseguito |
 | `language` | tag BCP 47, per esempio `it` o `en-GB` | no | La lingua del progetto. Nessun controllo di questa versione la legge, quindi quando è assente nessun default viene applicato né riportato; un controllo che ne ha bisogno elenca il default in `meta.defaults_applied` |
@@ -221,8 +244,8 @@ Gli avvisi sono elencati in `diagnostics.warnings`, nella forma di un errore; il
 | --- | --- | --- | --- |
 | `artifact_location_missing` | `missing` | `/locations` | Nel progetto in cui i documenti sono stati scoperti non esiste alcuna cartella di una posizione, per esempio perché il comando è stato eseguito in una sottocartella del progetto |
 
-Un membro sconosciuto riceve in `fix` il membro più vicino dello schema, per esempio `problem`
-per `problema`.
+Un membro sconosciuto riceve in `fix` il membro più vicino, quando ce n'è uno vicino: per
+esempio `problem` per `problema`.
 
 ## Codici di uscita
 

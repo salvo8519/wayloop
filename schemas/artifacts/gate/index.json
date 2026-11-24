@@ -1,0 +1,11 @@
+{
+  "current": "1",
+  "format": 1,
+  "versions": {
+    "1": {
+      "file": "artifacts/gate/v1.json",
+      "introduced_in": "unreleased",
+      "sha256": "9bf2bedb3becec2f5c6507a6882e4c31b1f81d0e534f5eccb5c86c54a8de6524"
+    }
+  }
+}

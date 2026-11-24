@@ -43,8 +43,16 @@ const RULE_KEYWORDS: [&str; 22] = [
     "allOf",
 ];
 
-/// Keywords of the condition of an `if`.
-const CONDITION_KEYWORDS: [&str; 5] = ["properties", "required", "enum", "const", "contains"];
+/// Keywords of the condition of an `if`. `type` lets a `contains` hold only for a list: in JSON
+/// Schema `contains` holds for any value that is not one.
+const CONDITION_KEYWORDS: [&str; 6] = [
+    "type",
+    "properties",
+    "required",
+    "enum",
+    "const",
+    "contains",
+];
 
 /// Keywords of an entry of `allOf`.
 const ALL_OF_KEYWORDS: [&str; 2] = ["if", "then"];
@@ -136,6 +144,7 @@ pub(super) enum Node {
 /// The condition of an `if`.
 #[derive(Debug, Clone, Default)]
 pub(super) struct Condition {
+    pub(super) kind: Option<Type>,
     pub(super) properties: BTreeMap<String, usize>,
     pub(super) required: Vec<String>,
     pub(super) values: Option<Values>,
@@ -325,6 +334,20 @@ fn ordered<T: PartialOrd>(
     }
 }
 
+/// The `type` of `map`, one of the subset; `None` when it has none.
+fn kind(map: &Map<String, Value>, pointer: &Pointer) -> Result<Option<Type>, LoadError> {
+    map.get("type")
+        .map(|kind| {
+            kind.as_str().and_then(Type::named).ok_or_else(|| {
+                invalid(
+                    &pointer.join("type"),
+                    "the type is one of boolean, integer, string, array, object",
+                )
+            })
+        })
+        .transpose()
+}
+
 /// `enum` or `const`, each value a string, an integer within plus or minus 2^53 - 1, a
 /// boolean or `null`.
 fn values(map: &Map<String, Value>, pointer: &Pointer) -> Result<Option<Values>, LoadError> {
@@ -466,15 +489,10 @@ impl Loader {
         pointer: &Pointer,
         depth: usize,
     ) -> Result<Rules, LoadError> {
-        let mut rules = Rules::default();
-        if let Some(kind) = map.get("type") {
-            rules.kind = Some(kind.as_str().and_then(Type::named).ok_or_else(|| {
-                invalid(
-                    &pointer.join("type"),
-                    "the type is one of boolean, integer, string, array, object",
-                )
-            })?);
-        }
+        let mut rules = Rules {
+            kind: kind(map, pointer)?,
+            ..Rules::default()
+        };
         rules.values = values(map, pointer)?;
         rules.min_length = count(map, "minLength", pointer)?;
         rules.max_length = count(map, "maxLength", pointer)?;
@@ -610,6 +628,7 @@ impl Loader {
         only(map, &CONDITION_KEYWORDS, pointer)?;
         let next = depth.saturating_add(1);
         let mut condition = Condition {
+            kind: kind(map, pointer)?,
             values: values(map, pointer)?,
             ..Condition::default()
         };

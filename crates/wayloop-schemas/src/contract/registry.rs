@@ -8,7 +8,7 @@ use core::num::NonZeroU32;
 
 use super::{Direction, ENVELOPE, Registered, VALIDATE_OUTPUT, reread, schema_for};
 use crate::ENVELOPE_VERSION;
-use crate::artifact::{ArtifactKind, Brief};
+use crate::artifact::{ArtifactKind, Brief, Epic, Gate, Milestone, Story, Task};
 use crate::validate::ValidateInput;
 
 crate::closed_enum! {
@@ -97,19 +97,42 @@ impl Contract {
     }
 }
 
-/// The brief (SPEC-0001, Brief): an artifact, read by the engine, so its schema is an input
-/// (closed). Its name is the `kind` of the artifact and its version the `schema_version` a
-/// current brief carries.
-pub const BRIEF: Contract = Contract {
-    area: Area::Artifacts,
-    name: ArtifactKind::Brief.id(),
-    version: NonZeroU32::MIN,
-    files: &[ContractFile {
-        part: Part::Schema,
-        direction: Direction::Input,
-        registered: registered!(Brief),
-    }],
-};
+/// The contract of an artifact type: read by the engine, so its schema is an input (closed).
+/// Its name is the `kind` of the artifact and its version the `schema_version` a current
+/// document of the type carries. `$t` names both the value of `ArtifactKind` and the contract
+/// type, which share their name.
+macro_rules! artifact {
+    ($t:ident, $version:expr) => {
+        Contract {
+            area: Area::Artifacts,
+            name: ArtifactKind::$t.id(),
+            version: $version,
+            files: &[ContractFile {
+                part: Part::Schema,
+                direction: Direction::Input,
+                registered: registered!($t),
+            }],
+        }
+    };
+}
+
+/// The brief (SPEC-0001, Brief).
+pub const BRIEF: Contract = artifact!(Brief, NonZeroU32::MIN);
+
+/// The gate issue (SPEC-0001, Gate issue).
+pub const GATE: Contract = artifact!(Gate, NonZeroU32::MIN);
+
+/// The milestone (SPEC-0001, Milestone).
+pub const MILESTONE: Contract = artifact!(Milestone, NonZeroU32::MIN);
+
+/// The epic (SPEC-0001, Epic).
+pub const EPIC: Contract = artifact!(Epic, NonZeroU32::MIN);
+
+/// The user story (SPEC-0001, User story).
+pub const STORY: Contract = artifact!(Story, NonZeroU32::MIN);
+
+/// The task (SPEC-0001, Task).
+pub const TASK: Contract = artifact!(Task, NonZeroU32::MIN);
 
 /// The command `validate` (SPEC-0001): its canonical input and its envelope with its data.
 pub const VALIDATE: Contract = Contract {
@@ -146,7 +169,7 @@ const RESULT: Contract = Contract {
 
 /// Every contract, in the byte order of their folders. A contract is never removed and its
 /// version never goes back (ADR 0030 G5).
-pub const CONTRACTS: &[Contract] = &[BRIEF, VALIDATE, RESULT];
+pub const CONTRACTS: &[Contract] = &[BRIEF, EPIC, GATE, MILESTONE, STORY, TASK, VALIDATE, RESULT];
 
 /// A snapshot embedded in this crate: its path under `schemas/` and its text, byte for byte.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

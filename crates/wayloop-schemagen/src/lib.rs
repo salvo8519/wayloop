@@ -119,8 +119,8 @@ mod tests {
 
     use serde_json::{Value, json};
     use wayloop_schemas::contract::{
-        Area, Contract, ContractError, ContractFile, Direction, Part, Registered, TYPES, reread,
-        snapshot,
+        Area, CONTRACTS, Contract, ContractError, ContractFile, Direction, Part, Registered, TYPES,
+        reread, snapshot,
     };
 
     use super::{Fault, contract, generate, parts};
@@ -143,11 +143,11 @@ mod tests {
                 )
             })
             .collect();
-        assert_eq!(
-            folders,
-            ["artifacts/brief", "commands/validate", "envelope/result"]
-        );
-        let envelope = &contracts[2];
+        // Every contract of the registry, in its order, which is the byte order of the folders.
+        let registered: Vec<String> = CONTRACTS.iter().map(Contract::folder).collect();
+        assert_eq!(folders, registered);
+        let at = |folder: &str| &contracts[folders.iter().position(|f| f == folder).unwrap()];
+        let envelope = at("envelope/result");
         assert_eq!(envelope["version"], 1);
         let [file] = envelope["files"].as_array().unwrap().as_slice() else {
             panic!("one file")
@@ -160,7 +160,7 @@ mod tests {
             file["text"],
             snapshot(schema, "envelope/result/v1.json").unwrap()
         );
-        let parts: Vec<(&str, &str, &str)> = contracts[1]["files"]
+        let parts: Vec<(&str, &str, &str)> = at("commands/validate")["files"]
             .as_array()
             .unwrap()
             .iter()

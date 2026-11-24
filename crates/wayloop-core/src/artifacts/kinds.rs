@@ -12,7 +12,7 @@ use core::num::NonZeroU32;
 
 use serde_json::{Map, Value};
 use wayloop_schemas::artifact::ArtifactKind;
-use wayloop_schemas::contract::{Area, CONTRACTS, Embedded, Part};
+use wayloop_schemas::contract::{Area, CONTRACTS, Embedded, Part, Reread};
 use wayloop_schemas::number::{SAFE_INTEGER, integer, is_safe};
 
 use crate::schema::Schema;
@@ -48,10 +48,13 @@ pub struct Kind {
     pub versions: Vec<Embedded>,
     /// The migration of each step, from `v1` to `v2`.
     pub migrations: &'static [Migration],
+    /// Reads a document of the current version into the contract type of the kind.
+    pub reread: Reread,
 }
 
 /// The types whose schema is built: the artifacts of the registry, each with the embedded
-/// snapshot of every version; an internal error when a snapshot is not embedded.
+/// snapshot of every version and the contract type of its schema; an internal error when a
+/// snapshot is not embedded or the contract registers no schema.
 pub(crate) fn built() -> Result<Vec<Kind>, Box<Error>> {
     CONTRACTS
         .iter()
@@ -72,10 +75,22 @@ pub(crate) fn built() -> Result<Vec<Kind>, Box<Error>> {
                 .iter()
                 .find(|(kind, _)| *kind == contract.name)
                 .map_or(&[][..], |(_, migrations)| *migrations);
+            let reread = contract
+                .files
+                .iter()
+                .find(|file| file.part == Part::Schema)
+                .map(|file| file.registered.reread)
+                .ok_or_else(|| {
+                    boxed(format!(
+                        "The contract {} registers no schema.",
+                        contract.folder()
+                    ))
+                })?;
             Ok(Kind {
                 id: contract.name,
                 versions,
                 migrations,
+                reread,
             })
         })
         .collect()
@@ -87,6 +102,7 @@ pub struct Loaded {
     pub(super) id: &'static str,
     versions: Vec<Schema>,
     migrations: &'static [Migration],
+    pub(super) reread: Reread,
 }
 
 /// An error of the engine itself, boxed: `what` failed.
@@ -129,6 +145,7 @@ pub(crate) fn load_all(kinds: &[Kind]) -> Result<Vec<Loaded>, Box<Error>> {
                 id: kind.id,
                 versions,
                 migrations: kind.migrations,
+                reread: kind.reread,
             })
         })
         .collect()

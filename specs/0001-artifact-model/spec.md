@@ -281,12 +281,12 @@ issue to close (R10).
 | Name | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | `subject` | `BRIEF` or `COUNCIL` identifier | yes | The brief or council report submitted for approval |
-| `issue` | integer | when the issue exists | Tracker number |
+| `issue` | integer | when `status` is `done`; optional in `draft` and `superseded` (decided by the maintainer on 2026-11-23) | Tracker number |
 | `approved_by` | string, tracker handle | when `status` is `done` | Person who approved, as recorded in the ledger (R17) |
 
 - Identifier: `GATE-<seq>`.
 - Statuses: `draft`, `done`, `superseded`.
-- Transitions: `draft` to `done` (person: approval on the issue, recorded by the engine, R17); `draft` to `superseded` (person, or engine when the subject is superseded).
+- Transitions: `draft` to `done` (person: approval on the issue, recorded by the engine, R17); `draft` to `superseded` (person, or engine when the subject is superseded). When the subject is superseded, the engine always creates a new gate for the replacement subject; a gate still in `draft` becomes `superseded` with `superseded_by` naming the new gate, while a gate in `done` stays `done`, since it records an approval that took place (decided by the maintainer on 2026-11-23).
 - Required links: `subject`, which must exist.
 
 Flow. The pull request that adds the brief or the report closes the gate issue (R10). The

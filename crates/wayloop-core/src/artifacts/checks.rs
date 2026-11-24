@@ -32,6 +32,9 @@ pub const PARTS: Check = Check::new("parts");
 pub const STATUSES: Check = Check::new("statuses");
 /// Titles, branch names, commit headers and pull request links (R7, R8, R10, R11).
 pub const NAMING: Check = Check::new("naming");
+/// The `area` of each epic and task is an area of the project policy, or of the default
+/// policy when none is given (R21).
+pub const AREAS: Check = Check::new("areas");
 
 /// The checks of the whole set that this version of the engine does not run.
-pub const NOT_BUILT: [Check; 5] = [IDENTIFIER_DUPLICATE, LINKS, PARTS, STATUSES, NAMING];
+pub const NOT_BUILT: [Check; 6] = [IDENTIFIER_DUPLICATE, LINKS, PARTS, STATUSES, NAMING, AREAS];

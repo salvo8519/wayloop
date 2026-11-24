@@ -289,14 +289,17 @@ silently ignored.
 | `$ref`, `$defs` | A reference to a definition of the same file, whose name has no `/`, `~` or `%` | |
 | `$schema`, `$id`, `$comment`, `title`, `description` | Annotations, at the root for `$schema` and `$id` | |
 
-The condition of an `if` uses `properties`, `required`, `enum`, `const` and `contains`. There is
-no `pattern`: the core holds no regular expression engine, and a named format gives a precise
+The condition of an `if` uses `type`, `properties`, `required`, `enum`, `const` and `contains`.
+`contains` holds for a value that is not an array, so a condition on a list states
+`type: array`: a member of the wrong type then gives its error of `type` only. There is no
+`pattern`: the core holds no regular expression engine, and a named format gives a precise
 `fix`. The named formats are `date`, `utc-date-time` (with the suffix `Z`), `language-tag`
 (language, script, region and variants of BCP 47), `tracker-handle`, `project-path` (a path
 relative to the root of the project in one spelling: segments joined by `/`, none empty, `.`
 or `..`; no `\` and no drive letter), the identifiers of each
 artifact type (`brief-id`, `council-id`, `gate-id`, `epic-id`, `story-id`, `spec-id`,
-`change-id`, `task-id`, `milestone-id`, `handover-id`), the identifiers of parts
+`change-id`, `task-id`, `milestone-id`, `handover-id`), `brief-or-council-id` (either of the
+first two, the subject of a gate issue), the identifiers of parts
 (`requirement-id`, `criterion-id`, `decision-id`, `question-id`), with the canonical forms of
 SPEC-0001, and `json-pointer` (an RFC 6901 pointer, the form of every `pointer` of the
 contracts). The documentation of the module lists each form and each fix. The list of named
@@ -357,7 +360,7 @@ module `contract`:
 
 | Need | How it is written |
 | --- | --- |
-| A conditional requirement | A function of the type, named in `#[schemars(transform = ...)]`, calls `contract::rules::require_if_present`, `require_if_absent` or `require_if_equals`, which append an `if` and `then` pair to `allOf`; `require_if_absent` tests the member against `const: null`, which holds when it is absent or null, in the interpreter and in draft 2020-12 alike |
+| A conditional requirement | A function of the type, named in `#[schemars(transform = ...)]`, calls `contract::rules::require_if_present`, `require_if_absent`, `require_if_equals`, `require_if_in` or `require_if_contains`, which append an `if` and `then` pair to `allOf`; `require_if_contains` tests a list with `type: array` and `contains`; `require_if_absent` tests the member against `const: null`, which holds when it is absent or null, in the interpreter and in draft 2020-12 alike |
 | A named format | A value form implements `JsonSchema` by hand with `contract::rules::formatted`, from a value of `Format` |
 | Absent, not null | An optional member, out of `required`, loses the `null` type the derive adds to an `Option` |
 | An enum value with its meaning | A `oneOf` of documented constants becomes an `enum`, and each value is appended to the description as a line ``- `value`: meaning`` |
@@ -368,12 +371,15 @@ module `contract`:
 The lines of a doc comment are joined into paragraphs, since they wrap at the width of the
 code. The generator then checks the rules of the contracts that are not rules of the subset:
 a description on the root, every definition and every member (one of blanks only is none),
-the meaning of every enum value in its description, every text enum value in `snake_case`,
-no `additionalProperties` that closes an
-output (a pure map keeps the schema of its values), and at most four levels of objects, the
-values of a map included (ADR 0009 C4). The subset itself has one definition, the
-loader of the interpreter (ADR 0030 G3): `wayloop_core::schema::contract_schema` runs the
-checks of the generator and then `Schema::load` on a registered type, and fails with
+the meaning of every enum value in its description, outside a condition (`if`, `then`,
+`contains`), which names values of a member described where the member is declared; every
+value a condition names, accepted by the declared schema of its member, and no condition that
+can never hold (`contains` on a member that is not a list, a `type` its member does not
+declare); every text enum value in `snake_case`; no `additionalProperties` that closes an
+output (a pure map keeps the schema of its values); and at most four levels of objects, the
+values of a map included (ADR 0009 C4). The subset itself has one definition, the loader of the
+interpreter (ADR 0030 G3): `wayloop_core::schema::contract_schema` runs the checks of the
+generator and then `Schema::load` on a registered type, and fails with
 `ContractFault::Rule` or `ContractFault::Subset`. A `null` type, the keywords `pattern`,
 `default` and `uniqueItems`, a format that is not named, a boolean schema or, in an input, a map
 whose values may be anything are refused there, at their place.

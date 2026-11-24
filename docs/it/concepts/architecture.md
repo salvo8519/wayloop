@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: ee10f3b3b10f
+source_hash: c46f26c0e144
 ---
 # Architettura
 
@@ -310,14 +310,17 @@ posto, è rifiutato quando viene caricato: nessuna regola di uno schema è ignor
 | `$ref`, `$defs` | Un riferimento a una definizione dello stesso file, il cui nome non contiene `/`, `~` o `%` | |
 | `$schema`, `$id`, `$comment`, `title`, `description` | Annotazioni, alla radice per `$schema` e `$id` | |
 
-La condizione di un `if` usa `properties`, `required`, `enum`, `const` e `contains`. Non c'è
+La condizione di un `if` usa `type`, `properties`, `required`, `enum`, `const` e `contains`.
+`contains` è vera per un valore che non è un array, quindi una condizione su una lista dichiara
+`type: array`: un membro del tipo sbagliato dà allora solo il suo errore di `type`. Non c'è
 `pattern`: il core non contiene un motore di espressioni regolari, e un formato con nome dà un
 `fix` preciso. I formati con nome sono `date`, `utc-date-time` (con il suffisso `Z`),
 `language-tag` (lingua, scrittura, regione e varianti di BCP 47), `tracker-handle`,
 `project-path` (un percorso relativo alla radice del progetto in una sola grafia: segmenti uniti
 da `/`, nessuno vuoto, `.` o `..`; nessun `\` e nessuna lettera di unità), gli
 identificativi di ogni tipo di artefatto (`brief-id`, `council-id`, `gate-id`, `epic-id`,
-`story-id`, `spec-id`, `change-id`, `task-id`, `milestone-id`, `handover-id`) e gli
+`story-id`, `spec-id`, `change-id`, `task-id`, `milestone-id`, `handover-id`),
+`brief-or-council-id` (l'uno o l'altro dei primi due, l'oggetto di una issue di gate) e gli
 identificativi delle parti (`requirement-id`, `criterion-id`, `decision-id`, `question-id`),
 con le forme canoniche della SPEC-0001, e `json-pointer` (un puntatore RFC 6901, la forma di
 ogni `pointer` dei contratti). La documentazione del modulo elenca ogni forma e ogni
@@ -384,7 +387,7 @@ volta, nel modulo `contract`:
 
 | Esigenza | Come è scritta |
 | --- | --- |
-| Un requisito condizionale | Una funzione del tipo, indicata in `#[schemars(transform = ...)]`, chiama `contract::rules::require_if_present`, `require_if_absent` o `require_if_equals`, che aggiungono a `allOf` una coppia di `if` e `then`; `require_if_absent` confronta il membro con `const: null`, condizione vera quando è assente o null, sia nell'interprete sia nella draft 2020-12 |
+| Un requisito condizionale | Una funzione del tipo, indicata in `#[schemars(transform = ...)]`, chiama `contract::rules::require_if_present`, `require_if_absent`, `require_if_equals`, `require_if_in` o `require_if_contains`, che aggiungono a `allOf` una coppia di `if` e `then`; `require_if_contains` verifica una lista con `type: array` e `contains`; `require_if_absent` confronta il membro con `const: null`, condizione vera quando è assente o null, sia nell'interprete sia nella draft 2020-12 |
 | Un formato con nome | Una forma di valore implementa `JsonSchema` a mano con `contract::rules::formatted`, a partire da un valore di `Format` |
 | Assente, non null | Un membro facoltativo, fuori da `required`, perde il tipo `null` che la derive aggiunge a un `Option` |
 | Un valore di enum con il suo significato | Un `oneOf` di costanti documentate diventa un `enum`, e ogni valore è aggiunto alla descrizione come riga ``- `valore`: significato`` |
@@ -395,10 +398,14 @@ volta, nel modulo `contract`:
 Le righe di un commento di documentazione sono unite in paragrafi, perché vanno a capo alla
 larghezza del codice. Il generatore poi verifica le regole dei contratti che non sono regole
 del sottoinsieme: una descrizione sulla radice, su ogni definizione e su ogni membro (una fatta
-solo di spazi non conta), il significato di ogni valore di enum nella sua descrizione, ogni
-valore testuale di enum in `snake_case`, nessun
-`additionalProperties` che chiuda un output (una mappa pura mantiene lo schema dei suoi
-valori), e al massimo quattro livelli di oggetti, compresi i valori di una mappa (ADR 0009 C4).
+solo di spazi non conta); il significato di ogni valore di enum nella sua descrizione, fuori da
+una condizione (`if`, `then`, `contains`), che nomina valori di un membro descritto dove il
+membro è dichiarato; ogni valore nominato da una condizione, accettato dallo schema dichiarato
+del suo membro, e nessuna condizione che non possa mai valere (`contains` su un membro che non è
+una lista, un `type` che il suo membro non dichiara); ogni valore testuale di enum in
+`snake_case`; nessun `additionalProperties`
+che chiuda un output (una mappa pura mantiene lo schema dei suoi valori); e al massimo quattro
+livelli di oggetti, compresi i valori di una mappa (ADR 0009 C4).
 Il sottoinsieme ha una sola definizione, il caricatore dell'interprete (ADR 0030 G3):
 `wayloop_core::schema::contract_schema` esegue i controlli del generatore e poi
 `Schema::load` su un tipo registrato, e fallisce con `ContractFault::Rule` o

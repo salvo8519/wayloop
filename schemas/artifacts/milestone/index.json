@@ -1,0 +1,11 @@
+{
+  "current": "1",
+  "format": 1,
+  "versions": {
+    "1": {
+      "file": "artifacts/milestone/v1.json",
+      "introduced_in": "unreleased",
+      "sha256": "bed1d7ade9babf0b816e5af04a3993e28757aa901f3fce214cfb8ffd02391139"
+    }
+  }
+}

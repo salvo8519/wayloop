@@ -1,0 +1,240 @@
+{
+  "$defs": {
+    "PlanItemStatus": {
+      "description": "Status of a milestone, an epic, a user story or a task (SPEC-0001 R5); `draft` is the initial status. `blocked` is never one: it is a state of the issue cycle (SPEC-0002).\n\n- `draft`: Proposed, not approved.\n- `approved`: Approved by a person; work may start.\n- `implementing`: Work has started: the item, or a task of it, is claimed.\n- `done`: Delivered; terminal.\n- `superseded`: Replaced by the items in `superseded_by`; terminal.",
+      "enum": [
+        "draft",
+        "approved",
+        "implementing",
+        "done",
+        "superseded"
+      ],
+      "type": "string"
+    },
+    "SpecReference": {
+      "additionalProperties": false,
+      "description": "A reference of a task to a living specification and to requirements of it.",
+      "properties": {
+        "requirements": {
+          "description": "Requirements of that specification the task implements; `[]` means that the task cites the specification without a particular requirement.",
+          "items": {
+            "description": "Identifier of a requirement of a living specification: `R` and a number from 1 without a leading zero, for example `R2`.",
+            "format": "requirement-id",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "spec": {
+          "description": "The specification cited.",
+          "format": "spec-id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "spec",
+        "requirements"
+      ],
+      "type": "object"
+    },
+    "Verification": {
+      "description": "A verification technique of a task or of an acceptance criterion (SPEC-0009 R7).\n\n- `tdd`: Test-driven development: a test written before the code.\n- `bdd`: Behaviour-driven development: a scenario in the language of the user.\n- `end_to_end`: A test of the whole system, through its interface.\n- `property`: A property test over generated inputs.\n- `contract`: A contract test against a published schema or case.\n- `benchmark`: A measurement against a stated threshold.\n- `judge`: A judgement against a rubric, which is then required (SPEC-0009 R8).\n- `none`: Verified by no technique, stated on purpose.",
+      "enum": [
+        "tdd",
+        "bdd",
+        "end_to_end",
+        "property",
+        "contract",
+        "benchmark",
+        "judge",
+        "none"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://salvo8519.github.io/wayloop/schemas/artifacts/task/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "superseded"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "superseded_by"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "implementing",
+              "done"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "issue"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verification": {
+            "contains": {
+              "const": "judge"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "verification"
+        ]
+      },
+      "then": {
+        "required": [
+          "rubric"
+        ]
+      }
+    }
+  ],
+  "description": "A task of an epic (SPEC-0001, Task), a tracker sub-issue of its epic closed by one pull request.",
+  "properties": {
+    "area": {
+      "description": "Area of the project policy, without the `area:` prefix; decides what can run in parallel.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "complexity": {
+      "description": "Complexity score, from 1 to 10.",
+      "maximum": 10,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "depends_on": {
+      "description": "Blocking tasks; `[]` means none.",
+      "items": {
+        "description": "Identifier of a task: `TASK-` and four digits, or five or more without a leading zero, for example `TASK-0107`.",
+        "format": "task-id",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "epic": {
+      "description": "Parent epic.",
+      "format": "epic-id",
+      "type": "string"
+    },
+    "expanded_from": {
+      "description": "Task this subtask was expanded from; that task is superseded by this one.",
+      "format": "task-id",
+      "type": "string"
+    },
+    "id": {
+      "description": "Stable identifier, in the canonical form of the type; assigned by the engine and never reused (SPEC-0001 R2, R14).",
+      "format": "task-id",
+      "type": "string"
+    },
+    "issue": {
+      "description": "Tracker number of the issue, cited by branches and pull requests; required when `status` is `implementing` or `done`.",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "kind": {
+      "const": "task",
+      "description": "Artifact type; selects the schema."
+    },
+    "language": {
+      "description": "Language of the prose, a BCP 47 tag; when absent, the language of the project.",
+      "format": "language-tag",
+      "type": "string"
+    },
+    "milestone": {
+      "description": "Milestone of the task; must equal the milestone of its epic.",
+      "format": "milestone-id",
+      "type": "string"
+    },
+    "parallel": {
+      "description": "Whether the task can run in parallel with other tasks of the epic.",
+      "type": "boolean"
+    },
+    "rubric": {
+      "description": "Rubric of the judge; required when `verification` contains `judge`.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of the schema of the type the document was written against (SPEC-0001 R16).",
+      "type": "integer"
+    },
+    "specification": {
+      "description": "Specifications and requirements the task implements; `[]` means none.",
+      "items": {
+        "$ref": "#/$defs/SpecReference"
+      },
+      "type": "array"
+    },
+    "status": {
+      "$ref": "#/$defs/PlanItemStatus",
+      "description": "Current status (SPEC-0001 R5), not the issue-cycle state of SPEC-0002."
+    },
+    "story": {
+      "description": "Story the task serves; its epic must be `epic`.",
+      "format": "story-id",
+      "type": "string"
+    },
+    "superseded_by": {
+      "description": "Identifiers of the artifacts of the same type that replace this one, at least one; required when `status` is `superseded`.",
+      "items": {
+        "description": "Identifier of a task: `TASK-` and four digits, or five or more without a leading zero, for example `TASK-0107`.",
+        "format": "task-id",
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "title": {
+      "description": "Outcome or name, in sentence case without a final full stop; 1 to 120 characters (Unicode code points).",
+      "maxLength": 120,
+      "minLength": 1,
+      "type": "string"
+    },
+    "verification": {
+      "description": "Verification techniques; at least one. The order of the values and a value repeated carry no meaning.",
+      "items": {
+        "$ref": "#/$defs/Verification"
+      },
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "title",
+    "status",
+    "epic",
+    "milestone",
+    "verification",
+    "area"
+  ],
+  "title": "Task",
+  "type": "object"
+}

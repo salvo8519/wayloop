@@ -1,2 +1,18 @@
 [files]
-extend-exclude = ["uv.lock", "Cargo.lock", "*.svg", "docs/it/**", "README.it.md", "i18n/**", "CLAUDE.local.md.example"]
+extend-exclude = [
+  "uv.lock",
+  "Cargo.lock",
+  "*.svg",
+  "docs/it/**",
+  "README.it.md",
+  "i18n/**",
+  "CLAUDE.local.md.example",
+]
+
+[default.extend-words]
+# Italian words of the story cases of SPEC-0001 AC9 (`story-italian-prose.json`,
+# `story-key-in-italian.json`), which hold Italian prose on purpose; their English
+# descriptions are still checked.
+registrato = "registrato"
+registrate = "registrate"
+comando = "comando"

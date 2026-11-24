@@ -7,13 +7,16 @@
 //! inside the subset of the core: an entry of `allOf` is a pair of `if` and `then`, the
 //! condition tests declared members only, and `then` holds `required` only.
 
-use core::num::NonZeroU32;
-
 use schemars::{JsonSchema, Schema, SchemaGenerator};
 use serde_json::{Map, Value, json};
 
+use super::Contract;
 use crate::Format;
 use crate::ident::string_schema;
+
+/// The name of the member that holds the status of an artifact (SPEC-0001, Common rules), the
+/// member the conditions on a status test.
+pub const STATUS: &str = "status";
 
 /// Requires the members `then` whenever the member `when` is present.
 pub fn require_if_present(schema: &mut Schema, when: &str, then: &[&str]) {
@@ -31,26 +34,48 @@ pub fn require_if_absent(schema: &mut Schema, when: &str, then: &[&str]) {
 /// Requires the members `then` whenever the member `when` equals `value`, for example
 /// `superseded_by` when `status` is `superseded`.
 pub fn require_if_equals(schema: &mut Schema, when: &str, value: impl Into<Value>, then: &[&str]) {
-    let condition = json!({
-        "properties": {when: {"const": value.into()}},
-        "required": [when],
-    });
+    require_if_member(schema, when, &json!({"const": value.into()}), then);
+}
+
+/// Requires the members `then` whenever the member `when` equals one of `values`, for example
+/// `issue` when `status` is `implementing` or `done`.
+pub fn require_if_in(schema: &mut Schema, when: &str, values: &[&str], then: &[&str]) {
+    require_if_member(schema, when, &json!({"enum": values}), then);
+}
+
+/// Requires the members `then` whenever the member `when` is a list that holds `value`, for
+/// example `rubric` when `verification` holds `judge`. The condition states the type: in JSON
+/// Schema `contains` holds for any value that is not a list, so without it a member of the
+/// wrong type would also require `then`, beside its own error of type.
+pub fn require_if_contains(
+    schema: &mut Schema,
+    when: &str,
+    value: impl Into<Value>,
+    then: &[&str],
+) {
+    let test = json!({"type": "array", "contains": {"const": value.into()}});
+    require_if_member(schema, when, &test, then);
+}
+
+/// Requires the members `then` whenever the member `when` is present and passes `test`.
+fn require_if_member(schema: &mut Schema, when: &str, test: &Value, then: &[&str]) {
+    let condition = json!({"properties": {when: test}, "required": [when]});
     push(schema, condition, then);
 }
 
 /// The rules of an artifact the derive does not write (SPEC-0001, Common rules): `kind` is the
-/// constant `kind` and `schema_version` the constant `version`, both from the registration of
-/// the contract (ADR 0030 G5); `superseded_by` is required when `status` equals `superseded`,
-/// the spelling of the terminal status of replacement of the type.
-pub fn artifact(schema: &mut Schema, kind: &str, version: NonZeroU32, superseded: &str) {
-    constant(schema, "kind", kind.into(), None);
+/// constant name of `contract` and `schema_version` the constant of its current version (ADR
+/// 0030 G5); `superseded_by` is required when `status` equals `superseded`, the spelling of the
+/// terminal status of replacement of the type.
+pub fn artifact(schema: &mut Schema, contract: &Contract, superseded: &str) {
+    constant(schema, "kind", contract.name.into(), None);
     constant(
         schema,
         "schema_version",
-        version.get().into(),
+        contract.version.get().into(),
         Some("integer"),
     );
-    require_if_equals(schema, "status", superseded, &["superseded_by"]);
+    require_if_equals(schema, STATUS, superseded, &["superseded_by"]);
 }
 
 /// The member `member` of `schema` becomes the constant `value`, of the JSON type `kind` when

@@ -20,7 +20,9 @@
 //!     direction objects stay open (ADR 0009 C5, as amended on 2026-11-20).
 //! - The checks of the generator, after the transform, for the rules that are not rules of the
 //!   subset: a description on the root, on every definition and on every member (one of
-//!   blanks only is none), the meaning of every enum value in its description, no
+//!   blanks only is none), the meaning of every enum value in its description (outside a
+//!   condition: `if`, `then`, `contains`, which names values described where their member is
+//!   declared), every value named in a condition accepted by the schema of its member, no
 //!   `additionalProperties` that closes an output (only a pure map keeps the schema of its
 //!   values), and at most four levels of objects (ADR 0009 C4).
 //!
@@ -48,7 +50,10 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::artifact::{ArtifactKind, Brief, BriefOrigin, BriefStatus};
+use crate::artifact::{
+    ArtifactKind, Brief, BriefOrigin, BriefStatus, Epic, Gate, GateStatus, Milestone,
+    PlanItemStatus, SpecReference, Story, StoryCriterion, Task, Verification,
+};
 use crate::validate::{
     BaseStatus, DocumentEntry, DocumentSummary, EntryFormat, InputKind, Origin, ParseError, Policy,
     Status, ValidateData, ValidateInput,
@@ -80,6 +85,12 @@ pub enum Problem {
     UndocumentedValue(String),
     /// A text enum value that is not `snake_case` (ADR 0009 C4).
     NotSnakeCase(String),
+    /// A value named by a condition that the declared schema of the member it tests does not
+    /// accept, such as a misspelt status: the condition would never hold.
+    UnacceptedValue(String),
+    /// A condition that no value of its member can meet, so the rule it guards would be lost:
+    /// `contains` on a member that is not a list, or a `type` its member does not declare.
+    Unmatchable(String),
     /// `additionalProperties` in an output, written by the derive (for example
     /// `deny_unknown_fields`, or a map flattened beside declared members): an output is open
     /// (ADR 0009 C5). A pure map, which declares no member, keeps the schema of its values.
@@ -117,6 +128,17 @@ impl fmt::Display for ContractError {
             Problem::NotSnakeCase(value) => {
                 write!(f, "at {place}: the enum value {value} is not snake_case")
             }
+            Problem::Unmatchable(detail) => {
+                write!(
+                    f,
+                    "at {place}: the condition tests {detail}, so it never holds"
+                )
+            }
+            Problem::UnacceptedValue(value) => write!(
+                f,
+                "at {place}: the condition names the value {value}, which its member does not \
+                 accept"
+            ),
             Problem::ClosedOutput => write!(
                 f,
                 "at {place}: `additionalProperties` that closes an output, which is open"
@@ -193,8 +215,11 @@ pub struct Registered {
     /// [`schema_for`] the type.
     pub schema: fn(Direction) -> Result<Value, ContractError>,
     /// [`reread`] into the type.
-    pub reread: fn(&Value) -> Result<Value, serde_json::Error>,
+    pub reread: Reread,
 }
+
+/// A document read into a contract type and written again, as [`reread`] does (ADR 0030 G1).
+pub type Reread = fn(&Value) -> Result<Value, serde_json::Error>;
 
 /// `document` read into `T` and written again: a document the schema of `T` accepts must give
 /// itself back, members set to null and members `T` does not know left out.
@@ -237,10 +262,13 @@ mod embedded;
 mod registry;
 
 pub use embedded::EMBEDDED;
-pub use registry::{Area, BRIEF, CONTRACTS, Contract, ContractFile, Embedded, Part, VALIDATE};
+pub use registry::{
+    Area, BRIEF, CONTRACTS, Contract, ContractFile, EPIC, Embedded, GATE, MILESTONE, Part, STORY,
+    TASK, VALIDATE,
+};
 
 /// Every contract type of this crate whose schema is derived, in the byte order of their names.
-pub const TYPES: [Registered; 31] = [
+pub const TYPES: [Registered; 41] = [
     registered!(ArtifactKind),
     registered!(BaseStatus),
     registered!(Brief),
@@ -256,20 +284,30 @@ pub const TYPES: [Registered; 31] = [
     registered!(EntryFormat),
     ENVELOPE,
     VALIDATE_OUTPUT,
+    registered!(Epic),
     registered!(Error),
     registered!(ErrorReport),
+    registered!(Gate),
+    registered!(GateStatus),
     registered!(InputHash),
     registered!(InputKind),
     registered!(Meta),
+    registered!(Milestone),
     registered!(NotDone),
     registered!(NotDoneReason),
     registered!(Origin),
     registered!(ParseError),
+    registered!(PlanItemStatus),
     registered!(Pointer),
     registered!(Policy),
     registered!(Reason),
     registered!(Source),
+    registered!(SpecReference),
     registered!(Status),
+    registered!(Story),
+    registered!(StoryCriterion),
+    registered!(Task),
     registered!(ValidateData),
     registered!(ValidateInput),
+    registered!(Verification),
 ];

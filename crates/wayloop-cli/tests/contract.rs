@@ -433,3 +433,30 @@ fn the_maximal_case_gives_every_member_of_the_input() {
     // `text` and `error` belong to other formats, `input_kind` to inputs, not to artifacts.
     assert_eq!(not_in_case, ["error", "input_kind", "text"]);
 }
+
+#[test]
+fn no_case_asserts_what_changes_as_the_engine_grows() {
+    // tests/contract/README.md, Format: a case does not assert the version of the engine, the
+    // wording of a message, or the lists of checks run and not run. Two cases did (#307,
+    // #320), and the next artifact type broke one of them; this test keeps the rule.
+    let forbidden = |pointer: &str| {
+        pointer == "/meta/engine_version"
+            || pointer.ends_with("/message")
+            || pointer.starts_with("/diagnostics/checks")
+            || pointer.starts_with("/diagnostics/not_done")
+    };
+    for (name, case) in cases() {
+        let expect = &case["expect"];
+        let mut pointers: Vec<&str> = Vec::new();
+        for list in ["values", "lengths"] {
+            if let Some(map) = expect[list].as_object() {
+                pointers.extend(map.keys().map(String::as_str));
+            }
+        }
+        if let Some(absent) = expect["absent"].as_array() {
+            pointers.extend(absent.iter().filter_map(Value::as_str));
+        }
+        let found: Vec<&str> = pointers.into_iter().filter(|p| forbidden(p)).collect();
+        assert_eq!(found, Vec::<&str>::new(), "{name}");
+    }
+}

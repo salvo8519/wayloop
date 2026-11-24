@@ -276,12 +276,15 @@ impl Checker<'_> {
     /// Whether `value` matches the condition `index`: the semantics of JSON Schema for the
     /// keywords of a condition. Conditions are trees of bounded depth.
     fn matches(&self, index: usize, value: &Value) -> bool {
-        if let Value::Object(members) = value {
-            return self.matches_object(index, members);
-        }
         let Some(condition) = self.schema.conditions.get(index) else {
             return true;
         };
+        if condition.kind.is_some_and(|kind| !has_type(kind, value)) {
+            return false;
+        }
+        if let Value::Object(members) = value {
+            return self.matches_object(index, members);
+        }
         let accepted = condition
             .values
             .as_ref()

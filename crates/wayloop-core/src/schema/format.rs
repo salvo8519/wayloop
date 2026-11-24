@@ -21,8 +21,9 @@ enum Shape {
     TrackerHandle,
     /// A path relative to the root of the project, in one spelling.
     ProjectPath,
-    /// `<PREFIX>-<seq>`: four digits, or five or more without a leading zero.
-    Sequence(&'static str),
+    /// `<PREFIX>-<seq>`, with one of the prefixes: four digits, or five or more without a
+    /// leading zero.
+    Sequence(&'static [&'static str]),
     /// `M<n>`: `0` or a number without a leading zero.
     Milestone,
     /// `HANDOVER-<issue>-<k>`, both numbers from 1.
@@ -41,14 +42,15 @@ const fn shape(format: Format) -> Shape {
         Format::LanguageTag => Shape::LanguageTag,
         Format::TrackerHandle => Shape::TrackerHandle,
         Format::ProjectPath => Shape::ProjectPath,
-        Format::BriefId => Shape::Sequence("BRIEF"),
-        Format::CouncilId => Shape::Sequence("COUNCIL"),
-        Format::GateId => Shape::Sequence("GATE"),
-        Format::EpicId => Shape::Sequence("EPIC"),
-        Format::StoryId => Shape::Sequence("STORY"),
-        Format::SpecId => Shape::Sequence("SPEC"),
-        Format::ChangeId => Shape::Sequence("CHANGE"),
-        Format::TaskId => Shape::Sequence("TASK"),
+        Format::BriefId => Shape::Sequence(&["BRIEF"]),
+        Format::CouncilId => Shape::Sequence(&["COUNCIL"]),
+        Format::BriefOrCouncilId => Shape::Sequence(&["BRIEF", "COUNCIL"]),
+        Format::GateId => Shape::Sequence(&["GATE"]),
+        Format::EpicId => Shape::Sequence(&["EPIC"]),
+        Format::StoryId => Shape::Sequence(&["STORY"]),
+        Format::SpecId => Shape::Sequence(&["SPEC"]),
+        Format::ChangeId => Shape::Sequence(&["CHANGE"]),
+        Format::TaskId => Shape::Sequence(&["TASK"]),
         Format::MilestoneId => Shape::Milestone,
         Format::HandoverId => Shape::Handover,
         Format::RequirementId => Shape::Part("R"),
@@ -78,10 +80,11 @@ impl Shape {
             Shape::LanguageTag => is_language_tag(text),
             Shape::TrackerHandle => is_tracker_handle(text),
             Shape::ProjectPath => is_project_path(text),
-            Shape::Sequence(prefix) => text
-                .strip_prefix(prefix)
-                .and_then(|rest| rest.strip_prefix('-'))
-                .is_some_and(is_sequence),
+            Shape::Sequence(prefixes) => prefixes.iter().any(|prefix| {
+                text.strip_prefix(prefix)
+                    .and_then(|rest| rest.strip_prefix('-'))
+                    .is_some_and(is_sequence)
+            }),
             Shape::Milestone => text
                 .strip_prefix('M')
                 .is_some_and(|n| n == "0" || is_counter(n)),
@@ -101,9 +104,11 @@ impl Shape {
             Shape::LanguageTag => Some(text.replace('_', "-")),
             Shape::TrackerHandle => (!text.starts_with('@')).then(|| format!("@{text}")),
             Shape::ProjectPath => project_path_fix(text),
-            Shape::Sequence(prefix) => after_prefix(text, &[prefix])
-                .and_then(number)
-                .map(|n| format!("{prefix}-{n:0>4}")),
+            Shape::Sequence(prefixes) => prefixes.iter().find_map(|prefix| {
+                after_prefix(text, &[prefix])
+                    .and_then(number)
+                    .map(|n| format!("{prefix}-{n:0>4}"))
+            }),
             Shape::Milestone => after_prefix(text, &["MILESTONE", "M"])
                 .and_then(number)
                 .map(|n| format!("M{n}")),
@@ -293,9 +298,12 @@ mod tests {
     fn every_identifier_format_checks_its_own_prefix() {
         for format in Format::ALL {
             let name = format.id();
-            if let Shape::Sequence(prefix) = shape(format) {
-                assert_eq!(name, format!("{}-id", prefix.to_ascii_lowercase()));
-                assert!(accepts(format, &format!("{prefix}-0001")), "{name}");
+            if let Shape::Sequence(prefixes) = shape(format) {
+                let lower: Vec<String> = prefixes.iter().map(|p| p.to_ascii_lowercase()).collect();
+                assert_eq!(name, format!("{}-id", lower.join("-or-")));
+                for prefix in prefixes {
+                    assert!(accepts(format, &format!("{prefix}-0001")), "{name}");
+                }
             }
             if let Shape::Part(prefix) = shape(format) {
                 assert!(name.ends_with("-id"), "{name}");

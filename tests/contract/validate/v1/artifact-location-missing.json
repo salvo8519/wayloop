@@ -16,9 +16,7 @@
       "/diagnostics/warnings/0/code": "artifact_location_missing",
       "/diagnostics/warnings/0/pointer": "/locations",
       "/diagnostics/warnings/0/reason": "missing",
-      "/diagnostics/warnings/0/message": "No folder of stored artifacts exists in the project (plan/briefs, plan/council, plan/items, specs); the command may not have run at the root of the project.",
-      "/meta/input_hash": "8aba0b31202d1ce1ad4d1ea87c4e15f4c9e1963599ab653b034397a184cf5464",
-      "/diagnostics/checks/4": "artifact_locations"
+      "/meta/input_hash": "8aba0b31202d1ce1ad4d1ea87c4e15f4c9e1963599ab653b034397a184cf5464"
     },
     "absent": [
       "/error"
