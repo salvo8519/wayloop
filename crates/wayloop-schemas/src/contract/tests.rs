@@ -14,7 +14,8 @@ use super::rules::{
 };
 use super::transform::{ANY_VALUE, only_reachable_definitions, unwrapped};
 use super::{
-    ContractError, Direction, MAX_OBJECT_LEVELS, PUBLISHED_AT, Problem, TYPES, schema_for, snapshot,
+    BRIEF, ContractError, Direction, MAX_OBJECT_LEVELS, PUBLISHED_AT, Problem, TYPES, schema_for,
+    snapshot,
 };
 use crate::fixtures::{Counted, at};
 use crate::{Format, Pointer};
@@ -479,6 +480,12 @@ fn each_problem_is_told_in_words_with_its_place() {
             "at /enum/0: the enum value a/b is not snake_case",
         ),
         (
+            at("/allOf/0/if/properties/status/const"),
+            Problem::UnacceptedValue("accept".into()),
+            "at /allOf/0/if/properties/status/const: the condition names the value accept, which \
+             its member does not accept",
+        ),
+        (
             at("/additionalProperties"),
             Problem::ClosedOutput,
             "at /additionalProperties: `additionalProperties` that closes an output, which is open",
@@ -702,6 +709,22 @@ fn replaced_in_a_misspelt_status(schema: &mut Schema) {
     require_if_in(schema, "status", &["Superseded"], &["superseded_by"]);
 }
 
+/// The same artifact, whose condition names a status it does not have: `accept` for
+/// `accepted`.
+#[derive(JsonSchema)]
+#[schemars(transform = replaced_in_a_status_it_does_not_have)]
+struct Unaccepted {
+    /// Status of the artifact.
+    status: Status,
+    /// The artifact that replaces this one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    superseded_by: Option<TaskId>,
+}
+
+fn replaced_in_a_status_it_does_not_have(schema: &mut Schema) {
+    require_if_equals(schema, "status", "accept", &["superseded_by"]);
+}
+
 #[test]
 fn a_condition_names_values_documented_where_the_member_is_declared() {
     // The values of an `enum` in an `if` are values of a declared member, described there:
@@ -723,6 +746,82 @@ fn a_condition_names_values_documented_where_the_member_is_declared() {
 }
 
 #[test]
+fn a_condition_names_only_values_its_member_accepts() {
+    // Review of T7: a misspelt value in a condition never matches, and the requirement it
+    // guards would be lost without an error.
+    for direction in [Direction::Input, Direction::Output] {
+        assert_eq!(
+            refused::<Unaccepted>(direction),
+            ContractError {
+                pointer: at("/allOf/0/if/properties/status/const"),
+                problem: Problem::UnacceptedValue("accept".into())
+            }
+        );
+    }
+    // By hand: the member through its reference, an `enum`, the `items` of a list for
+    // `contains`, a `const` and a `type`; null is the test of an absent member.
+    let schema = |test: Value| {
+        json!({
+            "description": "d",
+            "type": "object",
+            "properties": {
+                "status": {"description": "s", "$ref": "#/$defs/Status"},
+                "labels": {"description": "l", "type": "array", "items": {"$ref": "#/$defs/Status"}},
+                "kind": {"description": "k", "const": "task"},
+                "count": {"description": "c", "type": "integer"},
+                "free": {"description": "f"}
+            },
+            "$defs": {
+                "Status": {
+                    "description": "Status.\n\n- `accepted`: In force.\n- `superseded`: Replaced.",
+                    "type": "string",
+                    "enum": ["accepted", "superseded"]
+                }
+            },
+            "allOf": [{"if": {"properties": test}, "then": {"required": ["kind"]}}]
+        })
+    };
+    let at_if = "/allOf/0/if/properties";
+    for (test, pointer, value) in [
+        (
+            json!({"status": {"enum": ["accepted", "replaced"]}}),
+            "/status/enum/1",
+            "replaced",
+        ),
+        (
+            json!({"labels": {"type": "array", "contains": {"const": "accept"}}}),
+            "/labels/contains/const",
+            "accept",
+        ),
+        (json!({"kind": {"const": "epic"}}), "/kind/const", "epic"),
+        (json!({"count": {"const": "one"}}), "/count/const", "one"),
+    ] {
+        assert_eq!(
+            super::check::check(&schema(test.clone()), Direction::Output),
+            Err(ContractError {
+                pointer: at(&format!("{at_if}{pointer}")),
+                problem: Problem::UnacceptedValue(value.into())
+            }),
+            "{test}"
+        );
+    }
+    for test in [
+        json!({"status": {"enum": ["accepted", "superseded"]}}),
+        json!({"labels": {"type": "array", "contains": {"const": "superseded"}}}),
+        json!({"kind": {"const": "task"}}),
+        json!({"count": {"const": 3}}),
+        json!({"free": {"const": "anything"}}),
+        json!({"status": {"const": null}}),
+    ] {
+        assert_eq!(
+            super::check::check(&schema(test.clone()), Direction::Output),
+            Ok(()),
+            "{test}"
+        );
+    }
+}
+
+#[test]
 fn a_requirement_on_one_of_several_values_or_on_an_element_of_a_list() {
     let mut schema = Schema::from(serde_json::Map::new());
     require_if_in(&mut schema, "status", &["implementing", "done"], &["issue"]);
@@ -739,7 +838,9 @@ fn a_requirement_on_one_of_several_values_or_on_an_element_of_a_list() {
             },
             {
                 "if": {
-                    "properties": {"verification": {"contains": {"const": "judge"}}},
+                    "properties": {
+                        "verification": {"type": "array", "contains": {"const": "judge"}}
+                    },
                     "required": ["verification"]
                 },
                 "then": {"required": ["rubric"]}
@@ -1012,9 +1113,8 @@ fn only_a_declared_free_object_stays_open_in_an_input() {
 #[test]
 fn the_rules_of_an_artifact_hold_on_a_schema_without_members_and_keep_odd_members() {
     // Review N5: no member to replace is no reason to lose the rule, nor to panic.
-    let one = core::num::NonZeroU32::MIN;
     let mut bare = Schema::from(serde_json::Map::new());
-    artifact(&mut bare, "brief", one, "superseded");
+    artifact(&mut bare, &BRIEF, "superseded");
     assert_eq!(
         bare.get("properties").unwrap()["kind"],
         json!({"const": "brief"})
@@ -1024,7 +1124,7 @@ fn the_rules_of_an_artifact_hold_on_a_schema_without_members_and_keep_odd_member
         json!({"const": 1, "type": "integer"})
     );
     let mut odd = Schema::try_from(json!({"properties": true})).unwrap();
-    artifact(&mut odd, "brief", one, "superseded");
+    artifact(&mut odd, &BRIEF, "superseded");
     assert_eq!(odd.get("properties"), Some(&json!(true)));
 }
 

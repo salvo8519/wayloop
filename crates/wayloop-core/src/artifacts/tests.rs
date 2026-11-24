@@ -10,7 +10,9 @@ use core::num::{NonZeroU32, NonZeroU64};
 
 use serde_json::{Map, Value, json};
 use wayloop_schemas::artifact::ArtifactKind;
-use wayloop_schemas::contract::{Area, BRIEF, CONTRACTS, Embedded, Part, VALIDATE, reread};
+use wayloop_schemas::contract::{
+    Area, BRIEF, CONTRACTS, Contract, Embedded, Part, VALIDATE, reread,
+};
 use wayloop_schemas::validate::{ArtifactFolder, InputKind};
 use wayloop_schemas::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
 use wayloop_schemas::{NotDone, NotDoneReason, Source};
@@ -41,6 +43,9 @@ fn input_schema() -> crate::schema::Schema {
     kinds::load(VALIDATE.embedded(Part::Schema, VALIDATE.version).unwrap()).unwrap()
 }
 
+use wayloop_schemas::examples::{epic, gate, milestone, story, task};
+
+/// A valid brief with only its required members, smaller than the brief of the examples.
 fn brief() -> Value {
     json!({
         "kind": "brief",
@@ -167,12 +172,25 @@ fn the_kinds_and_their_checks_are_snake_case_and_unique() {
 
 // The brief schema against the oracle -----------------------------------------------------
 
+/// Asserts that the oracle and the interpreter agree on the verdict of every document against
+/// the schema `v1` of `contract`.
+fn oracle_agrees(contract: &Contract, documents: impl IntoIterator<Item = Value>) {
+    let snapshot = contract.embedded(Part::Schema, NonZeroU32::MIN).unwrap();
+    let schema: Value = serde_json::from_str(snapshot.text).unwrap();
+    let loaded = kinds::load(snapshot).unwrap();
+    let oracle = oracle(&schema);
+    for document in documents {
+        let errors = loaded.validate(&document, codes::ARTIFACT_SCHEMA);
+        assert_eq!(
+            oracle.is_valid(&without_nulls(&document)),
+            errors.is_empty(),
+            "{document}: {errors:?}"
+        );
+    }
+}
+
 #[test]
 fn the_oracle_agrees_with_the_interpreter_on_briefs() {
-    let brief_v1 = BRIEF.embedded(Part::Schema, NonZeroU32::MIN).unwrap();
-    let schema: Value = serde_json::from_str(brief_v1.text).unwrap();
-    let loaded = kinds::load(brief_v1).unwrap();
-    let oracle = oracle(&schema);
     let documents = [
         brief(),
         with(brief(), "language", json!("it")),
@@ -199,76 +217,10 @@ fn the_oracle_agrees_with_the_interpreter_on_briefs() {
         with(brief(), "scope_out", json!([])),
         with(brief(), "kind", json!("task")),
     ];
-    for document in documents {
-        let errors = loaded.validate(&document, codes::ARTIFACT_SCHEMA);
-        assert_eq!(
-            oracle.is_valid(&without_nulls(&document)),
-            errors.is_empty(),
-            "{document}: {errors:?}"
-        );
-    }
+    oracle_agrees(&BRIEF, documents);
 }
 
 // Gates, milestones, epics, stories and tasks (T7: R1, R5, R6, R9; AC1, AC9, AC35) ----------
-
-/// The valid gate of the examples of SPEC-0001.
-fn gate() -> Value {
-    json!({
-        "kind": "gate", "schema_version": 1, "id": "GATE-0001",
-        "title": "Approve the brief on terminal time tracking", "status": "done",
-        "subject": "BRIEF-0001", "issue": 2, "approved_by": "@example-owner"
-    })
-}
-
-/// The valid milestone of the examples.
-fn milestone() -> Value {
-    json!({
-        "kind": "milestone", "schema_version": 1, "id": "M1", "title": "Time entries",
-        "status": "implementing",
-        "gate": "A user records, lists and exports the entries of a month offline.",
-        "council_report": "COUNCIL-0001", "due": "2027-03-31", "tracker_number": 1
-    })
-}
-
-/// The valid epic of the examples.
-fn epic() -> Value {
-    json!({
-        "kind": "epic", "schema_version": 1, "id": "EPIC-0001",
-        "title": "Time entries are recorded from the terminal", "status": "implementing",
-        "milestone": "M1",
-        "outcome": "A user records a time entry with one command and lists the entries of a day.",
-        "area": "core", "issue": 10
-    })
-}
-
-/// The valid story of the examples.
-fn story() -> Value {
-    json!({
-        "kind": "story", "schema_version": 1, "id": "STORY-0001",
-        "title": "Record a time entry with one command", "status": "implementing",
-        "epic": "EPIC-0001", "milestone": "M1",
-        "as_a": "freelance developer", "i_want": "to record a time entry with one command",
-        "so_that": "I do not leave the terminal",
-        "acceptance_criteria": [{
-            "id": "AC1", "given": "an empty log",
-            "when": "I run the record command with a duration and a project",
-            "then": "the log holds one entry with that duration and project"
-        }],
-        "specification": ["SPEC-0001"], "issue": 11
-    })
-}
-
-/// The valid task of the examples.
-fn task() -> Value {
-    json!({
-        "kind": "task", "schema_version": 1, "id": "TASK-0001",
-        "title": "timesheet record appends one entry to the log", "status": "implementing",
-        "epic": "EPIC-0001", "milestone": "M1", "story": "STORY-0001",
-        "specification": [{"spec": "SPEC-0001", "requirements": ["R1", "R2"]}],
-        "verification": ["tdd"], "area": "core", "depends_on": [], "complexity": 3,
-        "parallel": false, "issue": 12
-    })
-}
 
 /// `document` without the member `key`.
 fn without(mut document: Value, key: &str) -> Value {
@@ -289,12 +241,9 @@ fn schema_error(pointer: &str, reason: Reason) -> (Code, String, Reason) {
 
 #[test]
 fn the_valid_plan_items_of_the_examples_pass_and_read_into_their_types() {
-    let validation = validate(&read(
-        [gate(), milestone(), epic(), story(), task()]
-            .into_iter()
-            .map(entry)
-            .collect(),
-    ));
+    let kinds = ["gate", "milestone", "epic", "story", "task"];
+    let documents = [gate(), milestone(), epic(), story(), task()];
+    let validation = validate(&read(documents.iter().cloned().map(entry).collect()));
     assert_eq!(validation.errors, []);
     assert_eq!(validation.failures, []);
     let checks: Vec<&str> = validation
@@ -302,11 +251,15 @@ fn the_valid_plan_items_of_the_examples_pass_and_read_into_their_types() {
         .iter()
         .map(wayloop_schemas::Check::id)
         .collect();
-    for kind in ["gate", "milestone", "epic", "story", "task"] {
+    // Each is read into its contract type and written back as given (ADR 0030 G1).
+    let built = built();
+    for (kind, document) in kinds.iter().zip(&documents) {
         assert!(
             checks.contains(&format!("schema_{kind}").as_str()),
             "{kind}"
         );
+        let reread = built.iter().find(|k| k.id == *kind).unwrap().reread;
+        assert_eq!(&reread(document).unwrap(), document, "{kind}");
     }
 }
 
@@ -322,8 +275,28 @@ fn a_gate_in_status_done_requires_the_person_who_approved_it() {
         ("/approved_by", Reason::Requires)
     );
     assert_eq!(error.pointers(), Some(&[at("/status")][..]));
-    let draft = without(with(gate(), "status", json!("draft")), "approved_by");
-    assert_eq!(errors_of(draft), []);
+    // The issue is required when `status` is `done` (decided by the maintainer on 2026-11-23),
+    // and optional before the gate is done or once it is superseded.
+    let validation = validate(&read(vec![entry(without(gate(), "issue"))]));
+    let [error] = &validation.errors[..] else {
+        panic!("{:?}", validation.errors);
+    };
+    assert_eq!(
+        (error.pointer().as_str(), error.reason()),
+        ("/issue", Reason::Requires)
+    );
+    assert_eq!(error.pointers(), Some(&[at("/status")][..]));
+    let draft = without(
+        without(with(gate(), "status", json!("draft")), "approved_by"),
+        "issue",
+    );
+    assert_eq!(errors_of(draft.clone()), []);
+    let superseded = with(
+        with(draft, "status", json!("superseded")),
+        "superseded_by",
+        json!(["GATE-0002"]),
+    );
+    assert_eq!(errors_of(superseded), []);
     // A gate has no status approved: it is done when the subject is approved.
     let approved = with(gate(), "status", json!("approved"));
     let validation = validate(&read(vec![entry(approved)]));
@@ -434,6 +407,15 @@ fn a_task_verified_by_a_judge_requires_a_rubric() {
     assert_eq!(
         errors_of(with(task(), "verification", json!(["unit"]))),
         [schema_error("/verification/0", Reason::Enum)]
+    );
+    // A text is not a list: its error of type, and no rubric required (review of T7).
+    assert_eq!(
+        errors_of(with(task(), "verification", json!("tdd"))),
+        [schema_error("/verification", Reason::Type)]
+    );
+    assert_eq!(
+        errors_of(with(task(), "verification", json!("judge"))),
+        [schema_error("/verification", Reason::Type)]
     );
 }
 
@@ -574,28 +556,19 @@ fn the_oracle_agrees_with_the_interpreter_on_plan_items() {
     };
     let documents = [
         (gate(), without(gate(), "approved_by")),
+        (gate(), without(gate(), "issue")),
         (milestone(), without(milestone(), "tracker_number")),
         (epic(), without(epic(), "issue")),
         (story(), without(story(), "specification")),
         (task(), with(task(), "verification", json!(["judge"]))),
+        (task(), with(task(), "verification", json!("judge"))),
     ];
     for (document, refused) in documents {
         let kind = document["kind"].as_str().unwrap().to_owned();
         let contract = CONTRACTS.iter().find(|c| c.name == kind).unwrap();
-        let snapshot = contract.embedded(Part::Schema, NonZeroU32::MIN).unwrap();
-        let schema: Value = serde_json::from_str(snapshot.text).unwrap();
-        let loaded = kinds::load(snapshot).unwrap();
-        let oracle = oracle(&schema);
         let mut all = variations(document);
         all.push(refused);
-        for document in all {
-            let errors = loaded.validate(&document, codes::ARTIFACT_SCHEMA);
-            assert_eq!(
-                oracle.is_valid(&without_nulls(&document)),
-                errors.is_empty(),
-                "{document}: {errors:?}"
-            );
-        }
+        oracle_agrees(contract, all);
     }
 }
 
@@ -982,15 +955,23 @@ fn checks_not_built_are_listed_once_with_their_reason() {
             "statuses",
         ]
     );
-    // The locations were not given: the documents were not discovered (AC37).
-    let reasons: Vec<NotDoneReason> = validation.not_done.iter().map(NotDone::reason).collect();
-    assert_eq!(reasons[1], NotDoneReason::InputAbsent);
-    assert!(
-        reasons
+    // The locations were not given: the documents were not discovered (AC37). Every other
+    // check is not built.
+    let reason = |id: &str| {
+        validation
+            .not_done
             .iter()
-            .enumerate()
-            .all(|(i, r)| i == 1 || *r == NotDoneReason::NotBuilt)
-    );
+            .find(|n| n.check().id() == id)
+            .map(NotDone::reason)
+    };
+    for id in not_done.iter().copied() {
+        let expected = if id == checks::ARTIFACT_LOCATIONS.id() {
+            NotDoneReason::InputAbsent
+        } else {
+            NotDoneReason::NotBuilt
+        };
+        assert_eq!(reason(id), Some(expected), "{id}");
+    }
     // One check identifier per schema (S6): the schemas of the built types ran, the schema
     // of the hand-over did not.
     assert_eq!(
@@ -1034,8 +1015,11 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     );
     assert_eq!(validation.warnings, []);
     assert_eq!(
-        NotDone::new(checks::LINKS, NotDoneReason::NotBuilt),
-        validation.not_done[3]
+        validation
+            .not_done
+            .iter()
+            .find(|n| n.check() == &checks::LINKS),
+        Some(&NotDone::new(checks::LINKS, NotDoneReason::NotBuilt))
     );
 }
 

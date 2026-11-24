@@ -373,6 +373,39 @@ fn contains_in_a_condition_selects_a_requirement() {
 }
 
 #[test]
+fn a_type_in_a_condition_keeps_contains_to_lists() {
+    // Review of T7: `contains` holds for a value that is not a list, so the condition states
+    // `type: array`; a verification written as a text gives its error of type only.
+    let schema = json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "verification": {"type": "array", "items": {"enum": ["tdd", "judge"]}},
+            "rubric": {"type": "string"}
+        },
+        "allOf": [{
+            "if": {"properties": {"verification": {"type": "array", "contains": {"const": "judge"}}}},
+            "then": {"required": ["rubric"]}
+        }]
+    });
+    let errors = check(&schema, &json!({"verification": "judge"}));
+    let error = only(&errors);
+    assert_eq!(error.pointer(), &at("/verification"));
+    assert_eq!(error.reason(), Reason::Type);
+    assert_eq!(
+        only(&check(&schema, &json!({"verification": ["judge"]}))).reason(),
+        Reason::Requires
+    );
+    // A type outside the subset is refused in a condition as elsewhere.
+    let mut wrong = schema;
+    wrong["allOf"][0]["if"]["properties"]["verification"]["type"] = json!("list");
+    assert_eq!(
+        invalid(&wrong),
+        at("/allOf/0/if/properties/verification/type")
+    );
+}
+
+#[test]
 fn additional_properties_false_maps_to_unknown_field_with_the_closest_key() {
     // SPEC-0001 AC9 and brief.invalid.yaml: the unknown key first, then the missing one.
     let document = with(without(valid_brief(), "problem"), "problema", json!("..."));

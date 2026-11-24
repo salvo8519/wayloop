@@ -146,9 +146,6 @@ mod tests {
         // Every contract of the registry, in its order, which is the byte order of the folders.
         let registered: Vec<String> = CONTRACTS.iter().map(Contract::folder).collect();
         assert_eq!(folders, registered);
-        for folder in ["artifacts/brief", "commands/validate", "envelope/result"] {
-            assert!(folders.iter().any(|f| f == folder), "{folder}");
-        }
         let at = |folder: &str| &contracts[folders.iter().position(|f| f == folder).unwrap()];
         let envelope = at("envelope/result");
         assert_eq!(envelope["version"], 1);

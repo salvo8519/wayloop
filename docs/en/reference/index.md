@@ -54,6 +54,11 @@ of each version and their SHA-256, is in `schemas/index.json` at the same addres
 | Contract | History, with the current version and the file of each version |
 | --- | --- |
 | Brief ([wayloop validate](validate.md)) | `schemas/artifacts/brief/index.json` |
+| Gate issue ([wayloop validate](validate.md)) | `schemas/artifacts/gate/index.json` |
+| Milestone ([wayloop validate](validate.md)) | `schemas/artifacts/milestone/index.json` |
+| Epic ([wayloop validate](validate.md)) | `schemas/artifacts/epic/index.json` |
+| User story ([wayloop validate](validate.md)) | `schemas/artifacts/story/index.json` |
+| Task ([wayloop validate](validate.md)) | `schemas/artifacts/task/index.json` |
 | Input and result of `wayloop validate` ([wayloop validate](validate.md)) | `schemas/commands/validate/index.json` |
 | Envelope of every command result ([ADR 0009](../project/adr/0009-contract-guidelines.md), C1) | `schemas/envelope/result/index.json` |
 

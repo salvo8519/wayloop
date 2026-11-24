@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 4c94a911fc4c
+source_hash: ae922dd4d4ba
 ---
 # wayloop validate
 
@@ -102,18 +102,18 @@ condizione in `pointers`:
 | Tipo | Membro | Richiesto quando |
 | --- | --- | --- |
 | Ogni tipo | `superseded_by` | `status` è `superseded` |
-| Issue di gate | `approved_by` | `status` è `done` |
+| Issue di gate | `approved_by`, `issue` | `status` è `done` |
 | Milestone | `tracker_number` | `status` è `implementing` o `done` |
 | Epic, user story, task | `issue` | `status` è `implementing` o `done` |
 | User story | `specification` | `status` è `approved`, `implementing` o `done` |
 | Task | `rubric` | `verification` contiene `judge` |
 
-Un task o una user story senza la sua epic, o un'epic, una story o un task senza la sua
+Un task o una user story senza la sua epic, o un'epic, una user story o un task senza la sua
 milestone, riceve un solo errore, `missing` in `/epic` o `/milestone`, e nessun errore di
-collegamento. Lo schema controlla la forma di un collegamento (per esempio `EPIC-0001`), non che
-il suo destinatario esista: questo è il controllo `links`. L'oggetto di una issue di gate è un
-brief o un verbale del comitato, nella forma `BRIEF-<seq>` o `COUNCIL-<seq>`. `blocked` non è
-lo stato di alcun artefatto: è uno stato del ciclo della issue.
+collegamento. Lo schema controlla la forma di un collegamento (per esempio `EPIC-0001`), non
+che il suo destinatario esista: questo è il controllo `links`. L'oggetto di una issue di gate
+è un brief o un verbale del comitato, nella forma `BRIEF-<seq>` o `COUNCIL-<seq>`. `blocked`
+non è lo stato di alcun artefatto: è uno stato del ciclo della issue.
 
 `artifact_locations` è elencato in `diagnostics.not_done` con il motivo `input_absent` quando
 `locations` non è dato: i documenti sono stati indicati per nome o inviati direttamente.
@@ -244,8 +244,8 @@ Gli avvisi sono elencati in `diagnostics.warnings`, nella forma di un errore; il
 | --- | --- | --- | --- |
 | `artifact_location_missing` | `missing` | `/locations` | Nel progetto in cui i documenti sono stati scoperti non esiste alcuna cartella di una posizione, per esempio perché il comando è stato eseguito in una sottocartella del progetto |
 
-Un membro sconosciuto riceve in `fix` il membro più vicino dello schema, per esempio `problem`
-per `problema`.
+Un membro sconosciuto riceve in `fix` il membro più vicino, quando ce n'è uno vicino: per
+esempio `problem` per `problema`.
 
 ## Codici di uscita
 

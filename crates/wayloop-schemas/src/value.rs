@@ -121,7 +121,9 @@ macro_rules! formatted_text {
 /// }
 /// let read: Apples = serde_json::from_str("3.0").unwrap();
 /// assert_eq!(read.get().get(), 3);
-/// assert!(serde_json::from_str::<Apples>("0").is_err());
+/// assert_eq!(Apples::MAX, None);
+/// let refused = serde_json::from_str::<Apples>("0").unwrap_err().to_string();
+/// assert!(refused.starts_with("expected an integer from 1"), "{refused}");
 /// assert!(serde_json::from_str::<Apples>("1.5").is_err());
 ///
 /// wayloop_schemas::positive_integer! {
@@ -129,7 +131,17 @@ macro_rules! formatted_text {
 ///     pub struct Score <= 5;
 /// }
 /// assert!(serde_json::from_str::<Score>("5").is_ok());
-/// assert!(serde_json::from_str::<Score>("6").is_err());
+/// let refused = serde_json::from_str::<Score>("6").unwrap_err().to_string();
+/// assert!(refused.starts_with("expected an integer from 1 to 5"), "{refused}");
+/// ```
+///
+/// A bound below 1 is refused when the type is compiled:
+///
+/// ```compile_fail
+/// wayloop_schemas::positive_integer! {
+///     /// Nothing fits.
+///     pub struct Never <= 0;
+/// }
 /// ```
 ///
 /// The type derives `Debug`, `Clone`, `Copy`, `PartialEq`, `Eq`, `PartialOrd`, `Ord` and
@@ -139,10 +151,7 @@ macro_rules! formatted_text {
 /// description is the doc comment.
 #[macro_export]
 macro_rules! positive_integer {
-    (
-        $(#[doc = $doc:literal])*
-        $vis:vis struct $name:ident $(<= $max:literal)?;
-    ) => {
+    (@define [$($doc:literal),*] $vis:vis $name:ident, $max:expr, $expected:expr) => {
         $(#[doc = $doc])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         $vis struct $name(::core::num::NonZeroU64);
@@ -161,7 +170,7 @@ macro_rules! positive_integer {
             }
 
             /// The inclusive upper bound; `None` when the number has none.
-            pub const MAX: ::core::option::Option<u64> = $crate::__bound!($($max)?);
+            pub const MAX: ::core::option::Option<u64> = $max;
 
             /// The number `value` holds, read by value, within the bounds of the type.
             fn read(
@@ -171,25 +180,34 @@ macro_rules! positive_integer {
             }
         }
 
-        $crate::__value_traits!($name, $name::read, "expected an integer from 1 within its bound");
+        $crate::__value_traits!($name, $name::read, $expected);
 
         $crate::__inline_schema!(
             $name,
             $crate::value::positive_schema(concat!($($doc, "\n"),*), $name::MAX)
         );
     };
-}
-
-/// The upper bound of [`positive_integer!`](crate::positive_integer!): `Some(max)` when one is
-/// written, `None` otherwise.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __bound {
-    () => {
-        ::core::option::Option::None
+    (
+        $(#[doc = $doc:literal])*
+        $vis:vis struct $name:ident;
+    ) => {
+        $crate::positive_integer!(
+            @define [$($doc),*] $vis $name,
+            ::core::option::Option::None,
+            "expected an integer from 1"
+        );
     };
-    ($max:literal) => {
-        ::core::option::Option::Some($max)
+    (
+        $(#[doc = $doc:literal])*
+        $vis:vis struct $name:ident <= $max:literal;
+    ) => {
+        const _: () = ::core::assert!($max >= 1, "the bound of a positive integer is at least 1");
+
+        $crate::positive_integer!(
+            @define [$($doc),*] $vis $name,
+            ::core::option::Option::Some($max),
+            ::core::concat!("expected an integer from 1 to ", ::core::stringify!($max))
+        );
     };
 }
 
@@ -199,7 +217,7 @@ macro_rules! __bound {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __value_traits {
-    ($name:ident, $read:path, $expected:literal) => {
+    ($name:ident, $read:path, $expected:expr) => {
         impl ::core::fmt::Display for $name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 ::core::fmt::Display::fmt(&self.0, f)
@@ -265,8 +283,8 @@ crate::formatted_text! {
 }
 
 crate::formatted_text! {
-    /// Identifier of a brief or of a council report, the subject of a gate issue, for example
-    /// `BRIEF-0001` or `COUNCIL-0001`.
+    /// Identifier of a brief or of a council report, the subject of a gate issue:
+    /// `BRIEF-<seq>` or `COUNCIL-<seq>`, for example `BRIEF-0001` or `COUNCIL-0001`.
     pub struct BriefOrCouncilId = Format::BriefOrCouncilId;
 }
 

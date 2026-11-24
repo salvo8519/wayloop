@@ -20,8 +20,9 @@
 //!     direction objects stay open (ADR 0009 C5, as amended on 2026-11-20).
 //! - The checks of the generator, after the transform, for the rules that are not rules of the
 //!   subset: a description on the root, on every definition and on every member (one of
-//!   blanks only is none), the meaning of every enum value in its description (outside the
-//!   condition of an `if`, which names values described where their member is declared), no
+//!   blanks only is none), the meaning of every enum value in its description (outside a
+//!   condition: `if`, `then`, `contains`, which names values described where their member is
+//!   declared), every value named in a condition accepted by the schema of its member, no
 //!   `additionalProperties` that closes an output (only a pure map keeps the schema of its
 //!   values), and at most four levels of objects (ADR 0009 C4).
 //!
@@ -84,6 +85,9 @@ pub enum Problem {
     UndocumentedValue(String),
     /// A text enum value that is not `snake_case` (ADR 0009 C4).
     NotSnakeCase(String),
+    /// A value named by a condition that the declared schema of the member it tests does not
+    /// accept, such as a misspelt status: the condition would never hold.
+    UnacceptedValue(String),
     /// `additionalProperties` in an output, written by the derive (for example
     /// `deny_unknown_fields`, or a map flattened beside declared members): an output is open
     /// (ADR 0009 C5). A pure map, which declares no member, keeps the schema of its values.
@@ -121,6 +125,11 @@ impl fmt::Display for ContractError {
             Problem::NotSnakeCase(value) => {
                 write!(f, "at {place}: the enum value {value} is not snake_case")
             }
+            Problem::UnacceptedValue(value) => write!(
+                f,
+                "at {place}: the condition names the value {value}, which its member does not \
+                 accept"
+            ),
             Problem::ClosedOutput => write!(
                 f,
                 "at {place}: `additionalProperties` that closes an output, which is open"
@@ -197,8 +206,11 @@ pub struct Registered {
     /// [`schema_for`] the type.
     pub schema: fn(Direction) -> Result<Value, ContractError>,
     /// [`reread`] into the type.
-    pub reread: fn(&Value) -> Result<Value, serde_json::Error>,
+    pub reread: Reread,
 }
+
+/// A document read into a contract type and written again, as [`reread`] does (ADR 0030 G1).
+pub type Reread = fn(&Value) -> Result<Value, serde_json::Error>;
 
 /// `document` read into `T` and written again: a document the schema of `T` accepts must give
 /// itself back, members set to null and members `T` does not know left out.

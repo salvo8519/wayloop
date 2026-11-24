@@ -44,7 +44,8 @@
       },
       "then": {
         "required": [
-          "approved_by"
+          "approved_by",
+          "issue"
         ]
       }
     }
@@ -62,7 +63,7 @@
       "type": "string"
     },
     "issue": {
-      "description": "Tracker number of the issue, once the issue exists.",
+      "description": "Tracker number of the issue, once the issue exists; required when `status` is `done`.",
       "minimum": 1,
       "type": "integer"
     },
@@ -85,7 +86,7 @@
       "description": "Current status (SPEC-0001 R5), not the issue-cycle state of SPEC-0002."
     },
     "subject": {
-      "description": "The brief or council report submitted for approval.",
+      "description": "The brief or council report submitted for approval: `BRIEF-<seq>` or `COUNCIL-<seq>`, for example `BRIEF-0001`.",
       "format": "brief-or-council-id",
       "type": "string"
     },

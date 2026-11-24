@@ -396,10 +396,37 @@ fn the_examples_of_the_plan_items_load_into_the_documents_of_their_cases() {
         "story-approved-without-specification",
         "task-judge-without-rubric",
         "epic-implementing-without-issue",
+        "gate-done-without-issue",
     ] {
         let given = documents(case);
         assert_eq!(given.get(..set.len()), Some(&set[..]), "{case}");
         assert_eq!(given.len(), set.len() + 1, "{case}");
+    }
+}
+
+#[test]
+fn the_examples_of_the_schemas_crate_are_those_of_the_valid_case() {
+    // `wayloop_schemas::examples` holds a deliberate copy of the documents of `plan-valid`
+    // for the tests of the core, which embed no file outside their crate; this keeps it equal.
+    use wayloop_schemas::examples;
+    let input = case_input("plan-valid");
+    let of_kind = |kind: &str| -> Value {
+        let entries = input["documents"].as_array().unwrap();
+        let entry = entries
+            .iter()
+            .find(|e| e["document"]["kind"] == kind)
+            .unwrap_or_else(|| panic!("no {kind} in plan-valid"));
+        entry["document"].clone()
+    };
+    let copies = [
+        ("gate", examples::gate()),
+        ("milestone", examples::milestone()),
+        ("epic", examples::epic()),
+        ("story", examples::story()),
+        ("task", examples::task()),
+    ];
+    for (kind, copy) in copies {
+        assert_eq!(copy, of_kind(kind), "{kind}");
     }
 }
 

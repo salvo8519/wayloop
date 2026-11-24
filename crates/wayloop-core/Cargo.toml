@@ -20,6 +20,8 @@ serde = { version = "1.0.229", default-features = false }
 
 # Tests only: never shipped, so not on the allowlist of scripts/check_core_io.py.
 [dev-dependencies]
+# The valid documents of the examples of SPEC-0001, for the tests.
+wayloop-schemas = { path = "../wayloop-schemas", version = "0.0.0", features = ["examples"] }
 # Test-only oracle for the hand-written SHA-256 (SPEC-0001 plan, D3); never shipped.
 sha2 = { version = "0.11.0", default-features = false }
 # Oracle of the schema interpreter (SPEC-0001 plan, D5): it must agree on every verdict.

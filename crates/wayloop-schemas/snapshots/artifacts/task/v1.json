@@ -1,7 +1,7 @@
 {
   "$defs": {
     "PlanItemStatus": {
-      "description": "Status of a milestone, an epic, a user story or a task (SPEC-0001 R5); `draft` is the initial status. `blocked` is never one: it is a state of the issue cycle (SPEC-0002).\n\n- `draft`: Proposed, not approved.\n- `approved`: Approved by a person; work may start.\n- `implementing`: Work has started: a task of it is claimed.\n- `done`: Delivered; terminal.\n- `superseded`: Replaced by the items in `superseded_by`; terminal.",
+      "description": "Status of a milestone, an epic, a user story or a task (SPEC-0001 R5); `draft` is the initial status. `blocked` is never one: it is a state of the issue cycle (SPEC-0002).\n\n- `draft`: Proposed, not approved.\n- `approved`: Approved by a person; work may start.\n- `implementing`: Work has started: the item, or a task of it, is claimed.\n- `done`: Delivered; terminal.\n- `superseded`: Replaced by the items in `superseded_by`; terminal.",
       "enum": [
         "draft",
         "approved",
@@ -16,7 +16,7 @@
       "description": "A reference of a task to a living specification and to requirements of it.",
       "properties": {
         "requirements": {
-          "description": "Requirements of that specification the task implements; `[]` means none in particular.",
+          "description": "Requirements of that specification the task implements; `[]` means that the task cites the specification without a particular requirement.",
           "items": {
             "description": "Identifier of a requirement of a living specification: `R` and a number from 1 without a leading zero, for example `R2`.",
             "format": "requirement-id",
@@ -37,7 +37,7 @@
       "type": "object"
     },
     "Verification": {
-      "description": "A verification technique of a task or of an acceptance criterion (SPEC-0009 R7).\n\n- `tdd`: Test-driven development: a test written before the code.\n- `bdd`: Behaviour-driven development: a scenario in the language of the user.\n- `end_to_end`: A test of the whole system, through its interface.\n- `property`: A property test over generated inputs.\n- `contract`: A contract test against a published schema or case.\n- `benchmark`: A measurement against a stated threshold.\n- `judge`: A judgement against a rubric, which is then required (SPEC-0009 R8).\n- `none`: No verification.",
+      "description": "A verification technique of a task or of an acceptance criterion (SPEC-0009 R7).\n\n- `tdd`: Test-driven development: a test written before the code.\n- `bdd`: Behaviour-driven development: a scenario in the language of the user.\n- `end_to_end`: A test of the whole system, through its interface.\n- `property`: A property test over generated inputs.\n- `contract`: A contract test against a published schema or case.\n- `benchmark`: A measurement against a stated threshold.\n- `judge`: A judgement against a rubric, which is then required (SPEC-0009 R8).\n- `none`: Verified by no technique, stated on purpose.",
       "enum": [
         "tdd",
         "bdd",
@@ -98,7 +98,8 @@
           "verification": {
             "contains": {
               "const": "judge"
-            }
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -215,7 +216,7 @@
       "type": "string"
     },
     "verification": {
-      "description": "Verification techniques; at least one.",
+      "description": "Verification techniques; at least one. The order of the values and a value repeated carry no meaning.",
       "items": {
         "$ref": "#/$defs/Verification"
       },

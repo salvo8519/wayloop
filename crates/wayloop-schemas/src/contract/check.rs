@@ -6,13 +6,13 @@
 //! type, a format that is not named, a reference out of the file or a reference chain) is
 //! refused there, and `wayloop_core::schema::contract_schema` runs both. These checks hold
 //! what a schema of the subset can still break: a description on the root, every definition and
-//! every member; the meaning of every enum value outside a condition, and every text value in
-//! `snake_case`; at
-//! most four levels of objects; no
+//! every member; the meaning of every enum value outside a condition (`if`, `then`,
+//! `contains`), and every text value in `snake_case`; in a condition, every value named for a
+//! member is one its declared schema accepts; at most four levels of objects; no
 //! `additionalProperties` that closes an output (a pure map keeps the schema of its values);
-//! and, in an input, `additionalProperties` on every
-//! object but the free objects of [`FREE_OBJECTS`]: `false`, or the schema of every member of
-//! a map, such as the `lines` of `validate`.
+//! and, in an input, `additionalProperties` on every object but the free objects of
+//! [`FREE_OBJECTS`]: `false`, or the schema of every member of a map, such as the `lines` of
+//! `validate`.
 
 use serde_json::{Map, Value};
 
@@ -172,7 +172,8 @@ fn walk(
             }
         }
     }
-    Ok(())
+    // After the walk of the conditions, so that a value out of spelling is told as such.
+    condition_values(root, schema, pointer)
 }
 
 /// Whether an object of an output refuses members it does not declare: any
@@ -188,8 +189,9 @@ fn closes_output(schema: &Map<String, Value>) -> bool {
 }
 
 /// The rules on the keywords of one subschema. The values of an `enum` are documented where the
-/// member is declared: inside a condition, which only names values of declared members,
-/// `documented` is false and only their spelling is checked.
+/// member is declared: inside a condition (`if`, `then`, `contains`), which only names values
+/// of declared members, `documented` is false and only their spelling is checked here; that
+/// they are values of the member is checked by [`condition_values`].
 fn own_keywords(
     schema: &Map<String, Value>,
     pointer: &Pointer,
@@ -240,6 +242,112 @@ fn own_keywords(
         }
     }
     Ok(())
+}
+
+/// Refuses a value named by a condition of `schema` that the declared member it tests does not
+/// accept: the `const` and `enum` of `allOf/<i>/if/properties/<m>`, checked against the schema
+/// of `<m>` in the `properties` of `schema`, and those of its `contains`, checked against the
+/// `items` of `<m>`. A misspelt value would make the condition never hold, and the requirement
+/// it guards would be lost without an error. A member not declared is left to the loader of the
+/// core.
+fn condition_values(
+    root: &Value,
+    schema: &Map<String, Value>,
+    pointer: &Pointer,
+) -> Result<(), ContractError> {
+    let (Some(Value::Array(entries)), Some(Value::Object(declared))) =
+        (schema.get("allOf"), schema.get("properties"))
+    else {
+        return Ok(());
+    };
+    for (i, entry) in entries.iter().enumerate() {
+        let Some(Value::Object(tests)) = entry.get("if").and_then(|c| c.get("properties")) else {
+            continue;
+        };
+        let at = pointer
+            .join("allOf")
+            .join_index(i)
+            .join("if")
+            .join("properties");
+        for (name, test) in tests {
+            if let Some(member) = declared.get(name) {
+                named_values(root, test, member, &at.join(name))?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Checks the `const` and `enum` of the condition `test` at `pointer` against the declared
+/// schema `member`, then its `contains` against the `items` of `member`.
+fn named_values(
+    root: &Value,
+    test: &Value,
+    member: &Value,
+    pointer: &Pointer,
+) -> Result<(), ContractError> {
+    let member = resolved(root, member);
+    if let Some(value) = test.get("const") {
+        accepted(member, value, &pointer.join("const"))?;
+    }
+    if let Some(Value::Array(values)) = test.get("enum") {
+        let at = pointer.join("enum");
+        for (i, value) in values.iter().enumerate() {
+            accepted(member, value, &at.join_index(i))?;
+        }
+    }
+    match (test.get("contains"), member.get("items")) {
+        (Some(inner), Some(items)) => named_values(root, inner, items, &pointer.join("contains")),
+        _ => Ok(()),
+    }
+}
+
+/// `schema`, or the definition its `$ref` reaches within `#/$defs/`.
+fn resolved<'a>(root: &'a Value, schema: &'a Value) -> &'a Value {
+    let mut current = schema;
+    for _ in 0..MAX_HOPS {
+        let target = current
+            .get("$ref")
+            .and_then(Value::as_str)
+            .and_then(|r| r.strip_prefix("#/$defs/"))
+            .and_then(|name| root.get("$defs")?.get(name));
+        match target {
+            Some(next) => current = next,
+            None => break,
+        }
+    }
+    current
+}
+
+/// Refuses `value` at `pointer` when the declared schema `member` does not accept it: not in its
+/// `enum`, not its `const`, or not of its `type`. Null is the test of an absent member (ADR 0009
+/// C2, [`rules::require_if_absent`](super::rules::require_if_absent)), accepted for any member.
+fn accepted(member: &Value, value: &Value, pointer: &Pointer) -> Result<(), ContractError> {
+    let accepts = value.is_null()
+        || match (member.get("enum"), member.get("const"), member.get("type")) {
+            (Some(Value::Array(values)), _, _) => values.contains(value),
+            (_, Some(constant), _) => constant == value,
+            (_, _, Some(Value::String(kind))) => has_type(kind, value),
+            _ => true,
+        };
+    if accepts {
+        Ok(())
+    } else {
+        Err(refuse(pointer, Problem::UnacceptedValue(value_text(value))))
+    }
+}
+
+/// Whether `value` is of the JSON type `kind` of the subset; a type outside the subset is left
+/// to the loader of the core.
+fn has_type(kind: &str, value: &Value) -> bool {
+    match kind {
+        "boolean" => value.is_boolean(),
+        "integer" => value.is_i64() || value.is_u64(),
+        "string" => value.is_string(),
+        "array" => value.is_array(),
+        "object" => value.is_object(),
+        _ => true,
+    }
 }
 
 /// Refuses objects nested deeper than [`MAX_OBJECT_LEVELS`] below `node`, which is inside

@@ -1,8 +1,9 @@
 //! The plan items of SPEC-0001 (milestone, epic, user story, task) and the gate issue on which
 //! a person approves a brief or a council report, each built on [`Common`](super::Common).
 //!
-//! These artifacts live in the tracker, or as `plan/items/<id>.yaml` before their tracker item
-//! exists; both forms are validated against the same schema (SPEC-0001, Where artifacts live).
+//! These artifacts live in the tracker. A plan item proposed before its tracker item exists is
+//! the file `plan/items/<id>.yaml`, validated against the same schema as the tracker form; a
+//! gate issue has only its tracker form (SPEC-0001, Where artifacts live).
 //! The schema states what one document can state: the members, their forms and the members
 //! required by a status or by a verification. Links to other artifacts, parts, statuses against
 //! the default branch, titles and areas of the policy are checked across the set.
@@ -11,7 +12,8 @@ use schemars::{JsonSchema, Schema};
 use serde::{Deserialize, Serialize};
 
 use super::Common;
-use crate::contract::{Contract, EPIC, GATE, MILESTONE, STORY, TASK, rules};
+use crate::contract::rules::{self, STATUS};
+use crate::contract::{Contract, EPIC, GATE, MILESTONE, STORY, TASK};
 use crate::value::{
     BriefOrCouncilId, CouncilId, CriterionId, Date, EpicId, GateId, IssueNumber, MilestoneId,
     MilestoneNumber, PolicyName, RequirementId, SpecId, StoryId, TaskId, Text, TrackerHandle,
@@ -25,7 +27,7 @@ crate::contract_enum! {
         Draft = "draft",
         /// Approved by a person; work may start.
         Approved = "approved",
-        /// Work has started: a task of it is claimed.
+        /// Work has started: the item, or a task of it, is claimed.
         Implementing = "implementing",
         /// Delivered; terminal.
         Done = "done",
@@ -37,6 +39,13 @@ crate::contract_enum! {
 impl PlanItemStatus {
     /// The statuses in which the tracker item exists, so its number is known.
     pub const STARTED: [PlanItemStatus; 2] = [PlanItemStatus::Implementing, PlanItemStatus::Done];
+
+    /// The statuses in which a user story names its specifications: from `approved` on.
+    pub const SPECIFIED: [PlanItemStatus; 3] = [
+        PlanItemStatus::Approved,
+        PlanItemStatus::Implementing,
+        PlanItemStatus::Done,
+    ];
 }
 
 crate::contract_enum! {
@@ -68,7 +77,7 @@ crate::contract_enum! {
         Benchmark = "benchmark",
         /// A judgement against a rubric, which is then required (SPEC-0009 R8).
         Judge = "judge",
-        /// No verification.
+        /// Verified by no technique, stated on purpose.
         None = "none",
     }
 }
@@ -86,9 +95,10 @@ pub struct Gate {
     /// The members of every artifact.
     #[serde(flatten)]
     pub common: Common<GateId, GateStatus>,
-    /// The brief or council report submitted for approval.
+    /// The brief or council report submitted for approval: `BRIEF-<seq>` or `COUNCIL-<seq>`,
+    /// for example `BRIEF-0001`.
     pub subject: BriefOrCouncilId,
-    /// Tracker number of the issue, once the issue exists.
+    /// Tracker number of the issue, once the issue exists; required when `status` is `done`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub issue: Option<IssueNumber>,
     /// Person who approved, as recorded in the ledger; required when `status` is `done`.
@@ -109,7 +119,7 @@ pub struct Milestone {
     /// Council report the milestone was generated from.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub council_report: Option<CouncilId>,
-    /// Planned date.
+    /// Planned date, `YYYY-MM-DD`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due: Option<Date>,
     /// Number of the tracker milestone, a sequence apart from issues; required when `status`
@@ -185,7 +195,8 @@ pub struct Story {
 pub struct SpecReference {
     /// The specification cited.
     pub spec: SpecId,
-    /// Requirements of that specification the task implements; `[]` means none in particular.
+    /// Requirements of that specification the task implements; `[]` means that the task cites
+    /// the specification without a particular requirement.
     pub requirements: Vec<RequirementId>,
 }
 
@@ -207,7 +218,8 @@ pub struct Task {
     /// Specifications and requirements the task implements; `[]` means none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub specification: Option<Vec<SpecReference>>,
-    /// Verification techniques; at least one.
+    /// Verification techniques; at least one. The order of the values and a value repeated
+    /// carry no meaning.
     #[schemars(length(min = 1))]
     pub verification: Vec<Verification>,
     /// Rubric of the judge; required when `verification` contains `judge`.
@@ -234,23 +246,24 @@ pub struct Task {
     pub issue: Option<IssueNumber>,
 }
 
-/// The rules of a gate the derive does not write: `approved_by` when `status` is `done`.
+/// The rules of a gate the derive does not write: `approved_by` and `issue` when `status` is
+/// `done` (`issue` decided by the maintainer on 2026-11-23).
 fn gate_rules(schema: &mut Schema) {
-    rules::artifact(schema, GATE.name, GATE.version, GateStatus::Superseded.id());
-    rules::require_if_equals(schema, "status", GateStatus::Done.id(), &["approved_by"]);
+    rules::artifact(schema, &GATE, GateStatus::Superseded.id());
+    rules::require_if_equals(
+        schema,
+        STATUS,
+        GateStatus::Done.id(),
+        &["approved_by", "issue"],
+    );
 }
 
 /// The rules every plan item has: those of an artifact, and its tracker number, the member
 /// `number`, once its status is one of [`PlanItemStatus::STARTED`].
 fn plan_item_rules(schema: &mut Schema, contract: &Contract, number: &str) {
-    rules::artifact(
-        schema,
-        contract.name,
-        contract.version,
-        PlanItemStatus::Superseded.id(),
-    );
+    rules::artifact(schema, contract, PlanItemStatus::Superseded.id());
     let started = PlanItemStatus::STARTED.map(PlanItemStatus::id);
-    rules::require_if_in(schema, "status", &started, &[number]);
+    rules::require_if_in(schema, STATUS, &started, &[number]);
 }
 
 fn milestone_rules(schema: &mut Schema) {
@@ -264,13 +277,8 @@ fn epic_rules(schema: &mut Schema) {
 /// The rules of a story: those of a plan item, and `specification` from `approved` on.
 fn story_rules(schema: &mut Schema) {
     plan_item_rules(schema, &STORY, "issue");
-    let specified = [
-        PlanItemStatus::Approved,
-        PlanItemStatus::Implementing,
-        PlanItemStatus::Done,
-    ]
-    .map(PlanItemStatus::id);
-    rules::require_if_in(schema, "status", &specified, &["specification"]);
+    let specified = PlanItemStatus::SPECIFIED.map(PlanItemStatus::id);
+    rules::require_if_in(schema, STATUS, &specified, &["specification"]);
 }
 
 /// The rules of a task: those of a plan item, and `rubric` when `verification` contains
@@ -287,7 +295,7 @@ fn task_rules(schema: &mut Schema) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Epic, Gate, Milestone, PlanItemStatus, Story, Task, Verification};
+    use super::{Gate, Milestone, Story, Task, Verification};
     use crate::contract::{Direction, schema_for};
     use serde::Serialize;
     use serde::de::DeserializeOwned;
@@ -301,39 +309,20 @@ mod tests {
     }
 
     #[test]
-    fn every_plan_item_reads_and_writes_itself() {
-        let gate: Gate = round_trip(&json!({
-            "kind": "gate", "schema_version": 1, "id": "GATE-0001", "title": "Approve the brief",
-            "status": "done", "subject": "BRIEF-0001", "issue": 2, "approved_by": "@owner"
-        }));
-        assert_eq!(gate.subject.as_str(), "BRIEF-0001");
-        let milestone: Milestone = round_trip(&json!({
-            "kind": "milestone", "schema_version": 1, "id": "M1", "title": "Time entries",
-            "status": "implementing", "gate": "Entries are recorded.", "due": "2027-03-31",
-            "tracker_number": 1
-        }));
-        assert_eq!(milestone.common.status, PlanItemStatus::Implementing);
-        let _: Epic = round_trip(&json!({
-            "kind": "epic", "schema_version": 1, "id": "EPIC-0001", "title": "Entries",
-            "status": "draft", "milestone": "M1", "outcome": "Entries exist.", "area": "core"
-        }));
-        let _: Story = round_trip(&json!({
-            "kind": "story", "schema_version": 1, "id": "STORY-0001", "title": "Record",
-            "status": "approved", "epic": "EPIC-0001", "milestone": "M1", "as_a": "user",
-            "i_want": "to record", "so_that": "I keep time",
-            "acceptance_criteria": [{"id": "AC1", "given": "a", "when": "b", "then": "c"}],
-            "specification": ["SPEC-0001"]
-        }));
+    fn a_task_writes_back_the_members_the_examples_leave_out() {
+        // The examples of SPEC-0001 are read into their types by the tests of the core; here,
+        // the members they do not hold, and the order of the techniques, kept as written.
         let task: Task = round_trip(&json!({
-            "kind": "task", "schema_version": 1, "id": "TASK-0001", "title": "Record",
-            "status": "approved", "epic": "EPIC-0001", "milestone": "M1",
-            "specification": [{"spec": "SPEC-0001", "requirements": ["R1"]}],
-            "verification": ["end_to_end", "judge"], "rubric": "Score 1 to 5.", "area": "core",
-            "depends_on": [], "complexity": 10, "parallel": false
+            "kind": "task", "schema_version": 1, "id": "TASK-0002", "title": "Record",
+            "status": "superseded", "superseded_by": ["TASK-0003"], "language": "it",
+            "epic": "EPIC-0001", "milestone": "M1",
+            "specification": [{"spec": "SPEC-0001", "requirements": []}],
+            "verification": ["judge", "end_to_end"], "rubric": "Score 1 to 5.", "area": "core",
+            "complexity": 10, "expanded_from": "TASK-0001"
         }));
         assert_eq!(
             task.verification,
-            [Verification::EndToEnd, Verification::Judge]
+            [Verification::Judge, Verification::EndToEnd]
         );
         assert!(serde_json::from_value::<super::Complexity>(json!(11)).is_err());
     }
@@ -373,7 +362,7 @@ mod tests {
                     json!(["issue"])
                 ),
                 (
-                    json!({"verification": {"contains": {"const": "judge"}}}),
+                    json!({"verification": {"type": "array", "contains": {"const": "judge"}}}),
                     json!(["rubric"])
                 ),
             ]
@@ -391,7 +380,7 @@ mod tests {
             gate["allOf"][1],
             json!({
                 "if": {"properties": {"status": {"const": "done"}}, "required": ["status"]},
-                "then": {"required": ["approved_by"]}
+                "then": {"required": ["approved_by", "issue"]}
             })
         );
         let story = schema_for::<Story>(Direction::Input).unwrap();

@@ -96,17 +96,18 @@ member of the condition in `pointers`:
 | Type | Member | Required when |
 | --- | --- | --- |
 | Every type | `superseded_by` | `status` is `superseded` |
-| Gate issue | `approved_by` | `status` is `done` |
+| Gate issue | `approved_by`, `issue` | `status` is `done` |
 | Milestone | `tracker_number` | `status` is `implementing` or `done` |
 | Epic, user story, task | `issue` | `status` is `implementing` or `done` |
 | User story | `specification` | `status` is `approved`, `implementing` or `done` |
 | Task | `rubric` | `verification` contains `judge` |
 
 A task or a user story without its epic, or an epic, a story or a task without its milestone,
-gets one error, `missing` at `/epic` or `/milestone`, and no error of a link. The schema checks the form of a link (for
-example `EPIC-0001`), not that its target exists: that is the check `links`. The subject of a
-gate issue is a brief or a council report, in the form `BRIEF-<seq>` or `COUNCIL-<seq>`.
-`blocked` is not a status of any artifact: it is a state of the issue cycle.
+gets one error, `missing` at `/epic` or `/milestone`, and no error of a link. The schema
+checks the form of a link (for example `EPIC-0001`), not that its target exists: that is the
+check `links`. The subject of a gate issue is a brief or a council report, in the form
+`BRIEF-<seq>` or `COUNCIL-<seq>`. `blocked` is not a status of any artifact: it is a state of
+the issue cycle.
 
 `artifact_locations` is listed in `diagnostics.not_done` with the reason `input_absent` when
 `locations` is not given: the documents were named or sent directly.
@@ -232,8 +233,8 @@ refused for them and the exit code does not change:
 | --- | --- | --- | --- |
 | `artifact_location_missing` | `missing` | `/locations` | No folder of a location exists in the project where the documents were discovered, for example because the command ran in a subfolder of the project |
 
-An unknown member gets the closest member of the schema in `fix`, for example `problem` for
-`problema`.
+An unknown member gets the closest member, when one is close, in `fix`: for example `problem`
+for `problema`.
 
 ## Exit codes
 

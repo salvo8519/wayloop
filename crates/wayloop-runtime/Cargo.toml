@@ -25,6 +25,8 @@ serde_json.workspace = true
 saphyr-parser = "0.3.4"
 
 [dev-dependencies]
+# The valid documents of the examples of SPEC-0001, for the tests.
+wayloop-schemas = { path = "../wayloop-schemas", version = "0.0.0", features = ["examples"] }
 # The crate itself with its test support, for the integration tests under tests/.
 wayloop-runtime = { path = ".", features = ["test-support"] }
 

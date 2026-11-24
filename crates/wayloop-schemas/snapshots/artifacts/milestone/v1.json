@@ -1,7 +1,7 @@
 {
   "$defs": {
     "PlanItemStatus": {
-      "description": "Status of a milestone, an epic, a user story or a task (SPEC-0001 R5); `draft` is the initial status. `blocked` is never one: it is a state of the issue cycle (SPEC-0002).\n\n- `draft`: Proposed, not approved.\n- `approved`: Approved by a person; work may start.\n- `implementing`: Work has started: a task of it is claimed.\n- `done`: Delivered; terminal.\n- `superseded`: Replaced by the items in `superseded_by`; terminal.",
+      "description": "Status of a milestone, an epic, a user story or a task (SPEC-0001 R5); `draft` is the initial status. `blocked` is never one: it is a state of the issue cycle (SPEC-0002).\n\n- `draft`: Proposed, not approved.\n- `approved`: Approved by a person; work may start.\n- `implementing`: Work has started: the item, or a task of it, is claimed.\n- `done`: Delivered; terminal.\n- `superseded`: Replaced by the items in `superseded_by`; terminal.",
       "enum": [
         "draft",
         "approved",
@@ -62,7 +62,7 @@
       "type": "string"
     },
     "due": {
-      "description": "Planned date.",
+      "description": "Planned date, `YYYY-MM-DD`.",
       "format": "date",
       "type": "string"
     },

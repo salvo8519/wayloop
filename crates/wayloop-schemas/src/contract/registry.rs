@@ -99,12 +99,13 @@ impl Contract {
 
 /// The contract of an artifact type: read by the engine, so its schema is an input (closed).
 /// Its name is the `kind` of the artifact and its version the `schema_version` a current
-/// document of the type carries.
+/// document of the type carries. `$t` names both the value of `ArtifactKind` and the contract
+/// type, which share their name.
 macro_rules! artifact {
-    ($kind:ident, $t:ty, $version:expr) => {
+    ($t:ident, $version:expr) => {
         Contract {
             area: Area::Artifacts,
-            name: ArtifactKind::$kind.id(),
+            name: ArtifactKind::$t.id(),
             version: $version,
             files: &[ContractFile {
                 part: Part::Schema,
@@ -116,22 +117,22 @@ macro_rules! artifact {
 }
 
 /// The brief (SPEC-0001, Brief).
-pub const BRIEF: Contract = artifact!(Brief, Brief, NonZeroU32::MIN);
+pub const BRIEF: Contract = artifact!(Brief, NonZeroU32::MIN);
 
 /// The gate issue (SPEC-0001, Gate issue).
-pub const GATE: Contract = artifact!(Gate, Gate, NonZeroU32::MIN);
+pub const GATE: Contract = artifact!(Gate, NonZeroU32::MIN);
 
 /// The milestone (SPEC-0001, Milestone).
-pub const MILESTONE: Contract = artifact!(Milestone, Milestone, NonZeroU32::MIN);
+pub const MILESTONE: Contract = artifact!(Milestone, NonZeroU32::MIN);
 
 /// The epic (SPEC-0001, Epic).
-pub const EPIC: Contract = artifact!(Epic, Epic, NonZeroU32::MIN);
+pub const EPIC: Contract = artifact!(Epic, NonZeroU32::MIN);
 
 /// The user story (SPEC-0001, User story).
-pub const STORY: Contract = artifact!(Story, Story, NonZeroU32::MIN);
+pub const STORY: Contract = artifact!(Story, NonZeroU32::MIN);
 
 /// The task (SPEC-0001, Task).
-pub const TASK: Contract = artifact!(Task, Task, NonZeroU32::MIN);
+pub const TASK: Contract = artifact!(Task, NonZeroU32::MIN);
 
 /// The command `validate` (SPEC-0001): its canonical input and its envelope with its data.
 pub const VALIDATE: Contract = Contract {

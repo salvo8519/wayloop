@@ -74,7 +74,7 @@ Prerequisites outside this specification:
 - [x] **T7 Validate milestones, epics, stories, tasks and gate issues**
   - Covers: R1, R5, R6, R9 (required parent and milestone); AC1 (these pairs), AC9 (story with Italian prose passes; key `titolo` refused with `fix` `title`), AC35 (task with `judge` and no `rubric`). Issue: #258.
   - Files: `schemas/artifacts/{milestone,epic,story,task,gate}/v1.json`, `crates/wayloop-core/src/artifacts/` (kind registry, formats), `tests/contract/validate/v1/`.
-  - Tests first: golden cases from `gate`, `task`, `epic` (schema part only), `story`, `milestone` examples; `approved_by` required when a gate is `done` (`requires`); `specification` required on a story from `approved` (`requires`); a task without `epic` gives one error (Q2).
+  - Tests first: golden cases from `gate`, `task`, `epic` (schema part only), `story`, `milestone` examples; `approved_by` and `issue` required when a gate is `done` (`requires`; `issue` decided by the maintainer on 2026-11-23); `specification` required on a story from `approved` (`requires`); a task without `epic` gives one error (Q2).
   - Verification: contract test, TDD.
   - Depends on: T5, Q2.
   - Size: M. Maintainer (crates, contract change).
@@ -124,7 +124,7 @@ Prerequisites outside this specification:
 - [ ] **T13 Check parts of artifacts and change deltas**
   - Covers: R18, R20; AC27, AC29 (first half; and the pure function that gives the next requirement identifier, used by the merge of SPEC-0009). Issue: #264.
   - Files: `crates/wayloop-core/src/artifacts/parts.rs`, `tests/contract/validate/v1/`.
-  - Tests first: duplicate `D1`, dissent naming `D4`, answer outside the options, task depending on itself, on a superseded task, and a cycle of three tasks; `change.conflict.invalid.yaml` with `pointers` to both operations; with R1 to R3 and R4 removed, the next identifier is R5.
+  - Tests first: duplicate `D1`, dissent naming `D4`, answer outside the options, task depending on itself, on a superseded task, and a cycle of three tasks; `change.conflict.invalid.yaml` with `pointers` to both operations; with R1 to R3 and R4 removed, the next identifier is R5; a task whose `verification` holds `none` together with another value is refused (decided by the maintainer on 2026-11-23; the schema states that the order of the values and a repeated value carry no meaning).
   - Verification: TDD, contract test.
   - Depends on: T12.
   - Size: M. Maintainer (crates).
@@ -167,6 +167,7 @@ Prerequisites outside this specification:
   - Covers: R10, R21; AC11, AC23, AC30; AC1 (`pull_request.invalid.yaml`, and the whole example set passing). Issue: closes #160.
   - Files: `crates/wayloop-core/src/naming/pull_request.rs`, `crates/wayloop-core/src/policy.rs`, `tests/process/test_conventions.py` (default policy equals `scripts/conventions.py`), `tests/contract/validate/v1/`.
   - Tests first: one test per AC; the label `no-issue` waives the rule and the waiver is returned in `data` for the ledger writer (the event itself is recorded with SPEC-0003); without `policy`, `meta.defaults_applied` lists the default policy.
+  - Builds the check `areas`: the `area` of epics and tasks against the policy (R21), which moves from `diagnostics.not_done` to `checks`.
   - Verification: TDD, contract test.
   - Depends on: T17, T12.
   - Size: M. Maintainer (crates).

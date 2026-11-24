@@ -48,8 +48,9 @@
 //! `properties`, is not checked. Numbers are read as IEEE 754 doubles, as RFC 8785 reads them,
 //! so digits beyond that precision are not seen: `1.0000000000000001` is the integer 1.
 //!
-//! The condition of `if` uses `properties`, `required`, `enum`, `const` and `contains` (an
-//! array with at least one element matching a condition), and annotations; `then` holds
+//! The condition of `if` uses `type`, `properties`, `required`, `enum`, `const` and `contains`
+//! (an array with at least one element matching a condition; it holds for a value that is not
+//! an array, so a condition on a list states `type: array`), and annotations; `then` holds
 //! `required` only. Every member named by `required`, by the first level of an `if` or by a
 //! `then` is declared in the `properties` of its schema. `pattern` is not in the subset: the
 //! core holds no regular expression engine, and a named format gives a precise `fix`.

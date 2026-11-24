@@ -12,7 +12,7 @@ use core::num::NonZeroU32;
 
 use serde_json::{Map, Value};
 use wayloop_schemas::artifact::ArtifactKind;
-use wayloop_schemas::contract::{Area, CONTRACTS, Embedded, Part};
+use wayloop_schemas::contract::{Area, CONTRACTS, Embedded, Part, Reread};
 use wayloop_schemas::number::{SAFE_INTEGER, integer, is_safe};
 
 use crate::schema::Schema;
@@ -34,9 +34,6 @@ pub fn schema_check(kind: &str) -> Check {
 
 /// A migration from one version of a document to the next.
 pub type Migration = fn(Map<String, Value>) -> Map<String, Value>;
-
-/// The reading of a document into the contract type of its kind, written again (ADR 0030 G1).
-pub type Reread = fn(&Value) -> Result<Value, serde_json::Error>;
 
 /// The migrations of each built type, by its `kind`; a type absent here has one version.
 const MIGRATIONS: &[(&str, &[Migration])] = &[];

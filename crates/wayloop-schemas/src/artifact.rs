@@ -134,12 +134,7 @@ pub struct Brief {
 
 /// The rules of an artifact that the derive does not write, for a brief.
 fn brief_rules(schema: &mut Schema) {
-    rules::artifact(
-        schema,
-        BRIEF.name,
-        BRIEF.version,
-        BriefStatus::Superseded.id(),
-    );
+    rules::artifact(schema, &BRIEF, BriefStatus::Superseded.id());
 }
 
 #[cfg(test)]
