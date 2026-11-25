@@ -276,6 +276,8 @@ fn the_kinds_and_their_checks_are_snake_case_and_unique() {
             checks::IDENTIFIER_LOCATION,
             checks::TITLE_FORMAT,
             checks::TITLE_DUPLICATE,
+            checks::BRANCH_NAME,
+            checks::COMMIT_HEADER,
             checks::MARKDOWN,
             checks::LINKS,
             checks::PARTS,
@@ -724,7 +726,7 @@ fn the_oracle_agrees_with_the_interpreter_on_plan_items() {
 // Hand-over records and inputs (T9: R1, R22; AC1, AC31) --------------------------------------
 
 /// The entry of the input `document` of the kind `input_kind`.
-fn input_entry(document: Value, input_kind: InputKind) -> Value {
+pub(super) fn input_entry(document: Value, input_kind: InputKind) -> Value {
     json!({"format": "document", "input_kind": input_kind.id(), "document": document})
 }
 
@@ -736,7 +738,7 @@ fn input_errors(document: Value, input_kind: InputKind) -> Vec<(Code, String, Re
 }
 
 /// Asserts that `validation` has no error and no failure, and that each of `ran` ran.
-fn passed_with(validation: &super::Validation, ran: &[&str]) {
+pub(super) fn passed_with(validation: &super::Validation, ran: &[&str]) {
     assert_eq!(validation.errors, []);
     assert_eq!(validation.failures, []);
     let checks: Vec<&str> = validation
@@ -1984,6 +1986,8 @@ fn checks_not_built_are_listed_once_with_their_reason() {
         checks::PARTS,
         checks::TITLE_FORMAT,
         checks::TITLE_DUPLICATE,
+        checks::BRANCH_NAME,
+        checks::COMMIT_HEADER,
     ]);
     assert_eq!(validation.checks, expected);
     let summaries: Vec<(Option<&str>, Option<&str>, Option<&str>)> = validation
@@ -2571,16 +2575,31 @@ fn valid_inputs_pass_and_their_schemas_run() {
     let validation = validate(&read(vec![
         input_entry(pull_request(), InputKind::PullRequest),
         input_entry(commit(), InputKind::Commit),
-        // A commit of one line has no body.
-        input_entry(without(commit(), "body"), InputKind::Commit),
+        // A commit of one line has no body, so it marks no breaking change (R11).
+        input_entry(
+            with(
+                without(commit(), "body"),
+                "header",
+                json!("feat(core): store durations in seconds"),
+            ),
+            InputKind::Commit,
+        ),
     ]));
-    passed_with(&validation, &["schema_commit", "schema_pull_request"]);
-    // The grammar of branches and headers and the links of a pull request are later checks.
+    passed_with(
+        &validation,
+        &[
+            "schema_commit",
+            "schema_pull_request",
+            "branch_name",
+            "commit_header",
+        ],
+    );
+    // The links of a pull request are a later check (R10).
     assert!(
         validation
             .not_done
             .iter()
-            .any(|n| n.check() == &checks::NAMING)
+            .any(|n| n.check() == &checks::PULL_REQUEST_LINK)
     );
     let kinds: Vec<Option<InputKind>> = validation.documents.iter().map(|d| d.input_kind).collect();
     assert_eq!(

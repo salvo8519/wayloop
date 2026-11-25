@@ -1,0 +1,53 @@
+{
+  "description": "Without a policy, a commit header with the scope ledger passes against the default policy, which meta.defaults_applied lists at /policy after the default of the command version.",
+  "covers": [
+    "SPEC-0001 R11",
+    "SPEC-0001 R21",
+    "SPEC-0001 AC30"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "header": "fix(ledger): chain events by hash",
+          "body": "Signed-off-by: Example Owner <owner@example.org>\n"
+        },
+        "input_kind": "commit"
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 0,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/meta/defaults_applied/0/reason": "current_command_version",
+      "/meta/defaults_applied/1/pointer": "/policy",
+      "/meta/defaults_applied/1/reason": "default_policy",
+      "/meta/defaults_applied/1/value/types": [
+        "feat",
+        "fix",
+        "perf",
+        "refactor",
+        "docs",
+        "test",
+        "build",
+        "ci",
+        "chore",
+        "revert"
+      ],
+      "/data/documents/0/input_kind": "commit",
+      "/meta/input_hash": "cb6ffc5e3fddfc915d5ea20acdc11712bf68a248bcb12830ebadfadfc5610c01"
+    },
+    "absent": [
+      "/error",
+      "/meta/defaults_applied/1/document"
+    ],
+    "lengths": {
+      "/meta/defaults_applied": 2,
+      "/data/documents": 1
+    }
+  }
+}

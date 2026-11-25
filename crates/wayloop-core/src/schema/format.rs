@@ -163,8 +163,9 @@ fn project_path_fix(text: &str) -> Option<String> {
     Some(segments.join("/"))
 }
 
-/// Whether `text` is one or more words of `[a-z0-9]+` joined by single hyphens.
-fn is_hyphenated_words(text: &str) -> bool {
+/// Whether `text` is one or more words of `[a-z0-9]+` joined by single hyphens: a
+/// `capability`, and the slug of a branch (SPEC-0001, Naming grammar).
+pub(crate) fn is_hyphenated_words(text: &str) -> bool {
     text.split('-').all(|word| {
         !word.is_empty()
             && word
@@ -176,7 +177,7 @@ fn is_hyphenated_words(text: &str) -> bool {
 /// The words of an ASCII `text` in lower case, every run of other characters written as one
 /// hyphen, none at either end. None for a text with a character outside ASCII, which a fix
 /// would drop and so change its meaning.
-fn hyphenated_words_fix(text: &str) -> Option<String> {
+pub(crate) fn hyphenated_words_fix(text: &str) -> Option<String> {
     if !text.is_ascii() {
         return None;
     }
@@ -210,12 +211,13 @@ fn number(text: &str) -> Option<&str> {
     Some(if trimmed.is_empty() { "0" } else { trimmed })
 }
 
-fn all_digits(text: &str) -> bool {
+/// One or more ASCII digits.
+pub(crate) fn all_digits(text: &str) -> bool {
     !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit())
 }
 
 /// `[1-9][0-9]*`.
-fn is_counter(text: &str) -> bool {
+pub(crate) fn is_counter(text: &str) -> bool {
     all_digits(text) && !text.starts_with('0')
 }
 

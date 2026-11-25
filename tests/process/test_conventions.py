@@ -185,3 +185,13 @@ def test_the_default_policy_of_the_core_has_the_areas_of_the_roadmap_labels() ->
     labels = [label["name"] for label in roadmap.load()["labels"]]
     areas = tuple(name.removeprefix(AREA_PREFIX) for name in labels if name.startswith(AREA_PREFIX))
     assert default_policy_list("AREAS") == areas
+
+
+def test_the_header_limit_of_the_core_is_that_of_the_conventions() -> None:
+    # A deliberate copy (crates/wayloop-core/src/naming/commit.rs): the core embeds no script.
+    commit_rs = (ROOT / "crates" / "wayloop-core" / "src" / "naming" / "commit.rs").read_text(
+        encoding="utf-8"
+    )
+    match = re.search(r"const HEADER_MAX_CHARS: usize = (\d+);", commit_rs)
+    assert match
+    assert int(match.group(1)) == conventions.MAX_HEADER

@@ -1,0 +1,68 @@
+{
+  "description": "A sprint branch without the S and two digits of its sprint is refused with branch_name, reason syntax at /branch, without fix.",
+  "covers": [
+    "SPEC-0001 R11",
+    "SPEC-0001 AC15"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "title": "feat(core): append one entry",
+          "body": "Closes #12\n",
+          "branch": "sprint/1/12-ledger-hash-chain",
+          "labels": []
+        },
+        "input_kind": "pull_request"
+      }
+    ],
+    "policy": {
+      "types": [
+        "feat",
+        "fix",
+        "perf",
+        "refactor",
+        "docs",
+        "test",
+        "build",
+        "ci",
+        "chore",
+        "revert"
+      ],
+      "scopes": [
+        "core",
+        "cli",
+        "docs",
+        "specs",
+        "ci"
+      ],
+      "areas": [
+        "core",
+        "cli",
+        "docs"
+      ]
+    }
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "branch_name",
+      "/error/document": 0,
+      "/error/pointer": "/branch",
+      "/error/reason": "syntax",
+      "/meta/input_hash": "088143cd0c2a6d044db071b4af793b1704884a1ff0c30e24a15269f59ef30add"
+    },
+    "absent": [
+      "/data",
+      "/error/fix",
+      "/error/expected"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "description": "A pull request whose branch has a slug of six words and whose title starts with a capital and ends with a full stop: branch_name with length at /branch, its fix the slug cut after five words; then commit_header with syntax twice at /title, each with the corrected title as fix.",
+  "covers": [
+    "SPEC-0001 R11",
+    "SPEC-0001 AC17",
+    "SPEC-0001 AC22"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "title": "feat(core): Append one entry per record command.",
+          "body": "Closes #12\n",
+          "branch": "feat/12-one-two-three-four-five-six",
+          "labels": []
+        },
+        "input_kind": "pull_request"
+      }
+    ],
+    "policy": {
+      "types": [
+        "feat",
+        "fix",
+        "perf",
+        "refactor",
+        "docs",
+        "test",
+        "build",
+        "ci",
+        "chore",
+        "revert"
+      ],
+      "scopes": [
+        "core",
+        "cli",
+        "docs",
+        "specs",
+        "ci"
+      ],
+      "areas": [
+        "core",
+        "cli",
+        "docs"
+      ]
+    }
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "branch_name",
+      "/error/document": 0,
+      "/error/pointer": "/branch",
+      "/error/reason": "length",
+      "/error/fix": "feat/12-one-two-three-four-five",
+      "/error/errors/1/code": "commit_header",
+      "/error/errors/1/pointer": "/title",
+      "/error/errors/1/reason": "syntax",
+      "/error/errors/1/fix": "feat(core): append one entry per record command",
+      "/error/errors/2/code": "commit_header",
+      "/error/errors/2/pointer": "/title",
+      "/error/errors/2/reason": "syntax",
+      "/error/errors/2/fix": "feat(core): append one entry per record command",
+      "/meta/input_hash": "3be9b537b3610920709714560b58bfcfefa0da6adbb61e89c04f12371df04c50"
+    },
+    "absent": [
+      "/data",
+      "/error/expected",
+      "/error/errors/1/expected"
+    ],
+    "lengths": {
+      "/error/errors": 3
+    }
+  }
+}

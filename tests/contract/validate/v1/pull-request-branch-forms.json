@@ -1,0 +1,98 @@
+{
+  "description": "A branch of a sprint lane and the three exempt forms pass, with a revert title without scope.",
+  "covers": [
+    "SPEC-0001 R11",
+    "SPEC-0001 AC15",
+    "SPEC-0001 AC16",
+    "SPEC-0001 AC19"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "title": "revert: drop the hash chain",
+          "body": "Refs #12\n",
+          "branch": "sprint/S01/12-ledger-hash-chain",
+          "labels": []
+        },
+        "input_kind": "pull_request"
+      },
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "title": "revert: drop the hash chain",
+          "body": "Refs #12\n",
+          "branch": "dependabot/cargo/serde-1.0.200",
+          "labels": []
+        },
+        "input_kind": "pull_request"
+      },
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "title": "revert: drop the hash chain",
+          "body": "Refs #12\n",
+          "branch": "release/v0.2.0",
+          "labels": []
+        },
+        "input_kind": "pull_request"
+      },
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "title": "revert: drop the hash chain",
+          "body": "Refs #12\n",
+          "branch": "revert-57-feat/12-ledger-hash-chain",
+          "labels": []
+        },
+        "input_kind": "pull_request"
+      }
+    ],
+    "policy": {
+      "types": [
+        "feat",
+        "fix",
+        "perf",
+        "refactor",
+        "docs",
+        "test",
+        "build",
+        "ci",
+        "chore",
+        "revert"
+      ],
+      "scopes": [
+        "core",
+        "cli",
+        "docs",
+        "specs",
+        "ci"
+      ],
+      "areas": [
+        "core",
+        "cli",
+        "docs"
+      ]
+    }
+  },
+  "expect": {
+    "exit_code": 0,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/data/documents/0/input_kind": "pull_request",
+      "/meta/input_hash": "83dbe4339a95c33e59db1e7c8e54d3c832ada1d6b99b8fd1b6e49f2eab5f4f03"
+    },
+    "absent": [
+      "/error"
+    ],
+    "lengths": {
+      "/data/documents": 4
+    }
+  }
+}

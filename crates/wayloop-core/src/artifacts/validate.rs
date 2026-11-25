@@ -4,9 +4,9 @@
 //! [`validate`] is a pure, total function: it never panics, never stops at the first error, and
 //! gives the same [`Validation`] for the same input. It is reached only through the entry point of
 //! the crate (ADR 0028). Errors come in the order of the documents, then of the stages (kind,
-//! version and schema; identifier; links; parts; titles), then within a stage in the order of the
-//! schema pass: the members of an object in the byte order of their keys, absent members after
-//! present ones. Each error of a document carries the index of the document. A check this version
+//! version and schema; identifier; links; parts; titles; names), then within a stage in the order
+//! of the schema pass: the members of an object in the byte order of their keys, absent members
+//! after present ones. Each error of a document carries the index of the document. A check this version
 //! does not run is listed in [`Validation::not_done`], never skipped silently.
 //!
 //! A document the interpreter has accepted, migrated to the current version of its type, is
@@ -28,6 +28,7 @@ use wayloop_schemas::{DefaultApplied, Diagnostics, ErrorReport, NotDone, NotDone
 use super::identifiers::{self, Indexed};
 use super::input::{self, Body, Entry, Input, Place};
 use super::kinds::{self, Checked, Kind, Loaded};
+use super::naming::{self, Named};
 use super::titles::{self, Titled};
 use super::{checks, codes, markdown};
 use super::{links, parts};
@@ -82,6 +83,8 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         checks::PARTS,
         checks::TITLE_FORMAT,
         checks::TITLE_DUPLICATE,
+        checks::BRANCH_NAME,
+        checks::COMMIT_HEADER,
     ]);
     let mut validation = Validation {
         checks: run,
@@ -101,6 +104,8 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
     let mut index = Vec::new();
     // The index of the title stage, built in the same way (R7, R8).
     let mut titled: Vec<Titled<'_>> = Vec::new();
+    // The index of the naming stage: the pull requests and the commits (R11).
+    let mut named: Vec<Named<'_>> = Vec::new();
     let id = identifiers::id_pointer();
     let title = crate::naming::titles::pointer();
     // The position counts in u64, the type of `document`, so it needs no conversion.
@@ -152,20 +157,31 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         if !title_refused {
             titled.extend(titles::titled(document, entry, &summary));
         }
+        let own = validation.errors.get(first..).unwrap_or_default();
+        named.extend(naming::named(document, entry, &summary, own));
         validation.documents.push(summary);
     }
-    across(&index, &titled, input, &mut validation, &mut not_done);
+    across(
+        &index,
+        &titled,
+        &named,
+        input,
+        &mut validation,
+        &mut not_done,
+    );
     validation.not_done = not_done.into_iter().collect();
     validation
 }
 
-/// The stages across the set, on the artifacts of `index` and the titles of `titled`: the
-/// identifiers (stage 3), the links (stage 4), the parts (stage 5), the titles (stage 7), the
-/// citations of ADRs when `adrs` is given, then the locations when `locations` is given; a check
-/// whose input is absent is added to `not_done`.
+/// The stages across the set, on the artifacts of `index`, the titles of `titled` and the
+/// inputs of `named`: the identifiers (stage 3), the links (stage 4), the parts (stage 5), the
+/// titles (stage 7), the names of pull requests and commits, the citations of ADRs when `adrs`
+/// is given, then the locations when `locations` is given; a check whose input is absent is
+/// added to `not_done`.
 fn across(
     index: &[Indexed<'_>],
     titled: &[Titled<'_>],
+    named: &[Named<'_>],
     input: &Input,
     validation: &mut Validation,
     not_done: &mut BTreeSet<NotDone>,
@@ -182,6 +198,7 @@ fn across(
     validation
         .errors
         .extend(titles::errors(titled, &policy.types));
+    validation.errors.extend(naming::errors(named, &policy));
     // By document, then by stage: the stable sort keeps the order of the stages within each
     // document (plan of SPEC-0001, Entry point and validation function).
     validation.errors.sort_by_key(Error::document);
@@ -216,13 +233,15 @@ fn across(
 }
 
 /// The policy the checks read: the policy of `input`, or else the default policy, reported in
-/// `validation` when a check reads it, that is when the set holds an epic or a task (R7, R21).
+/// `validation` when a check reads it, that is when the set holds an epic, a task, a pull request
+/// or a commit (R7, R11, R21).
 /// It is a default of the input itself, so it comes before the defaults of the documents.
 fn policy<'i>(input: &'i Input, validation: &mut Validation) -> Cow<'i, Policy> {
     if let Some(given) = &input.policy {
         return Cow::Borrowed(given);
     }
-    if titles::reads_policy(&validation.documents) {
+    let documents = &validation.documents;
+    if titles::reads_policy(documents) || naming::reads_policy(documents) {
         match crate::policy::applied() {
             Ok(default) => validation.defaults_applied.insert(0, default),
             Err(failure) => validation.failures.push(*failure),
