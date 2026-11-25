@@ -12,6 +12,9 @@
 //! numbers: the runtime lists the files of [`ADR_FOLDER`] and passes their paths to
 //! [`adr_numbers`], which keeps the numbers of the files named as ADRs.
 //!
+//! A listing is bounded: the runtime keeps at most [`MAX_LISTED`] paths that [`is_stored`] or
+//! [`is_adr`] accepts, and stops there, so a folder of any size takes bounded memory.
+//!
 //! The bounds are those of the files the runtime reads and of the documents it builds from
 //! them, each defined here once, every size in bytes as a `usize`:
 //!
@@ -257,6 +260,18 @@ pub fn discovered(found: impl IntoIterator<Item = String>) -> Result<Vec<StoredF
     bounded(set(files))
 }
 
+/// Whether `path`, relative to the root of the project with `/` separators, is the file of a
+/// stored artifact, which [`discovered`] keeps.
+#[must_use]
+pub fn is_stored(path: &str) -> bool {
+    located(path).is_some()
+}
+
+/// The most paths the runtime keeps from the listing of one set, stored artifacts
+/// ([`is_stored`]) or ADRs ([`is_adr`]): one more than [`MAX_FILES`], so that a listing that
+/// reaches it is refused with [`Refused::TooManyFiles`] and the runtime lists no further.
+pub const MAX_LISTED: usize = MAX_FILES + 1;
+
 /// `files`, when they are no more than [`MAX_FILES`].
 fn bounded(files: Vec<StoredFile>) -> Result<Vec<StoredFile>, Refused> {
     if files.len() > MAX_FILES {
@@ -308,31 +323,45 @@ pub const ADR_FOLDER: &str = "docs/en/project/adr";
 /// runtime lists no deeper.
 pub const ADR_DEPTH: usize = 1;
 
-/// The digits of the number of an ADR in the name of its file, as in `0014`.
-const ADR_DIGITS: usize = 4;
-
 /// The numbers of the ADRs among `found`, paths of files relative to the root of the project
 /// with `/` separators, as the runtime lists them below [`ADR_FOLDER`]: once each, in
-/// ascending order, for `adrs` of the input of `validate` (SPEC-0001 Q5; #344). A file of an
-/// ADR is `<NNNN>-<slug>.md` directly in the folder: four ASCII digits, a number from 1, a
-/// hyphen and a slug of at least one character. Any other file, such as the index `index.md`,
-/// is not an ADR and is ignored. The list has at most 9,999 numbers, whatever `found` holds.
-#[must_use]
-pub fn adr_numbers(found: impl IntoIterator<Item = String>) -> Vec<AdrNumber> {
-    let mut numbers: Vec<AdrNumber> = found
-        .into_iter()
-        .filter_map(|path| adr_number(&path))
-        .collect();
+/// ascending order, for `adrs` of the input of `validate` (SPEC-0001 Q5; #344, decided by the
+/// maintainer on 2026-11-25). A file of an ADR is `<number>-<slug>.md` directly in the folder
+/// ([`is_adr`]); any other file, such as the index `index.md`, is not an ADR and is ignored.
+///
+/// The rule has a copy in `scripts/_adr.py`, for the checks of the documentation; the cases of
+/// `tests/process/adr_names.json` keep the two equal.
+///
+/// # Errors
+///
+/// [`Refused::TooManyFiles`] when more than [`MAX_FILES`] files are ADRs.
+pub fn adr_numbers(found: impl IntoIterator<Item = String>) -> Result<Vec<AdrNumber>, Refused> {
+    let mut numbers = Vec::new();
+    for number in found.into_iter().filter_map(|path| adr_number(&path)) {
+        if numbers.len() == MAX_FILES {
+            return Err(Refused::TooManyFiles);
+        }
+        numbers.push(number);
+    }
     numbers.sort_unstable();
     numbers.dedup();
-    numbers
+    Ok(numbers)
 }
 
-/// The number of the ADR whose file is at `path`, when it is one (see [`adr_numbers`]).
+/// Whether `path`, relative to the root of the project with `/` separators, is the file of an
+/// ADR: `<number>-<slug>.md` directly in [`ADR_FOLDER`], where the number is a sequence from
+/// `0001` (four digits, or five or more without a leading zero, as in an identifier) and the
+/// slug has at least one character.
+#[must_use]
+pub fn is_adr(path: &str) -> bool {
+    adr_number(path).is_some()
+}
+
+/// The number of the ADR whose file is at `path`, when it is one (see [`is_adr`]).
 fn adr_number(path: &str) -> Option<AdrNumber> {
     let name = path.strip_prefix(ADR_FOLDER)?.strip_prefix('/')?;
     let (number, slug) = numbered_parts(name.strip_suffix(MARKDOWN)?)?;
-    if number.len() != ADR_DIGITS || slug.contains('/') {
+    if !format::is_sequence(number) || slug.contains('/') {
         return None;
     }
     let number = NonZeroU64::new(number.parse().ok()?)?;
@@ -419,9 +448,9 @@ pub fn given<S: AsRef<str>>(
 #[cfg(test)]
 mod tests {
     use super::{
-        ADR_DEPTH, ADR_FOLDER, LOCATIONS, MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, MAX_FILES,
+        ADR_FOLDER, LOCATIONS, MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, MAX_FILES, MAX_LISTED,
         MAX_NESTING, MAX_PROJECT_BYTES, Refused, Stored, StoredFile, VALUE_COST_BYTES, adr_numbers,
-        discovered, given, named_identifier, stored_by_extension,
+        discovered, given, is_adr, is_stored, named_identifier, stored_by_extension,
     };
     use wayloop_schemas::value::ProjectPath;
 
@@ -628,36 +657,46 @@ mod tests {
 
     #[test]
     fn the_adrs_are_the_numbered_markdown_files_directly_in_their_folder() {
-        // Plan of SPEC-0001, Q3: one file per ADR, `<NNNN>-<slug>.md`, in the folder of the
-        // ADRs; the index and every other file are not ADRs (#344).
-        assert_eq!(ADR_FOLDER, "docs/en/project/adr");
-        assert_eq!(ADR_DEPTH, 1);
+        // Plan of SPEC-0001, Q3; #344: one file per ADR, `<number>-<slug>.md`, the number a
+        // sequence from 0001, once each number in ascending order. The cases of the rule shared
+        // with `scripts/_adr.py` are read by a test of the runtime, which may read files.
         let found = [
+            "docs/en/project/adr/10000-five-digits.md",
             "docs/en/project/adr/0014-specifications-by-capability.md",
             "docs/en/project/adr/0002-tracker-as-database.md",
+            "docs/en/project/adr/0014-again.md",
             "docs/en/project/adr/index.md",
-            "docs/en/project/adr/0002-tracker-as-database.md",
-            "docs/en/project/adr/0031-x.md",
-            "docs/en/project/adr/0000-template.md",
-            "docs/en/project/adr/0003-.md",
-            "docs/en/project/adr/0004.md",
-            "docs/en/project/adr/004-short.md",
-            "docs/en/project/adr/00005-long.md",
-            "docs/en/project/adr/0006-x.markdown",
-            "docs/en/project/adr/0007-x.md.bak",
-            "docs/en/project/adr/0008_x.md",
-            "docs/en/project/adr/a009-x.md",
-            "docs/en/project/adr/deeper/0010-x.md",
-            "docs/en/project/adrs/0011-x.md",
-            "docs/it/project/adr/0012-x.md",
-            "0013-x.md",
+            "docs/en/project/adr/01234-leading-zero.md",
+            "docs/en/project/adr/deeper/0020-x.md",
+            "docs/en/project/adrs/0021-x.md",
+            "docs/it/project/adr/0022-x.md",
+            "0023-x.md",
         ];
-        let numbers: Vec<u64> = adr_numbers(found.iter().map(ToString::to_string))
+        let read: Vec<u64> = adr_numbers(found.map(String::from))
+            .unwrap()
             .into_iter()
             .map(|n| n.get().get())
             .collect();
-        assert_eq!(numbers, [2, 14, 31]);
-        assert_eq!(adr_numbers(Vec::new()), []);
+        assert_eq!(read, [2, 14, 10_000]);
+        assert_eq!(adr_numbers(Vec::new()), Ok(Vec::new()));
+    }
+
+    #[test]
+    fn more_than_max_files_adrs_are_refused() {
+        let names = |n: usize| (1..=n).map(|i| format!("{ADR_FOLDER}/{i:04}-x.md"));
+        assert_eq!(
+            adr_numbers(names(MAX_FILES)).map(|n| n.len()),
+            Ok(MAX_FILES)
+        );
+        assert_eq!(
+            adr_numbers(names(MAX_FILES + 1)),
+            Err(Refused::TooManyFiles)
+        );
+        assert_eq!(MAX_LISTED, MAX_FILES + 1);
+        // A listing is kept up to the cap only for the files the core reads.
+        assert!(is_stored("plan/items/TASK-0001.yaml"));
+        assert!(!is_stored("plan/items/README.md"));
+        assert!(!is_adr(&format!("{ADR_FOLDER}/index.md")));
     }
 
     #[test]

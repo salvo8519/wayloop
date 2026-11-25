@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: d789e62ba535
+source_hash: 0c66877c5750
 ---
 # wayloop validate
 
@@ -43,23 +43,28 @@ da una sottocartella, non ne trova nessuna e valida un insieme vuoto, con codice
 l'avviso `artifact_location_missing`. Senza percorsi legge ogni artefatto
 salvato: `plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` e
 `specs/<NNNN>-<capability>/spec.md` (quindi non `specs/_templates/`). Una posizione raggiunta
-attraverso un link simbolico è trattata come assente, e dentro una posizione i link, i file
-speciali e i nomi non UTF-8 sono saltati. Con dei percorsi legge solo quei file, come un unico
+attraverso un link simbolico, o che è un file e non una cartella, è trattata come assente, e
+dentro una posizione i link, i file speciali e i nomi non UTF-8 sono saltati. Con dei percorsi legge solo quei file, come un unico
 insieme: ogni percorso è relativo alla cartella corrente, non ha segmenti `..` né `\`, e indica
 un file YAML (`.yaml`) o un file Markdown (`.md`), letto come specifica viva ovunque si trovi
 (vedi Specifiche vive in Markdown); un percorso il cui file, risolti i link, è
 fuori dal progetto o ha un'altra estensione è rifiutato come errore d'uso, e un percorso che non
 è un file regolare (una cartella, una pipe, un dispositivo) non può essere letto (codice di
-uscita 3). Un insieme di più di 10.000 file, trovati o indicati, è rifiutato come errore d'uso.
+uscita 3). Un insieme di più di 10.000 file, trovati o indicati, è rifiutato come errore d'uso;
+la ricerca smette di elencare al primo file oltre quel limite.
 In entrambi i casi i file sono letti nell'ordine per byte dei loro percorsi, ognuno in una voce
 di `documents` con il suo percorso come origine `file` e, per lo YAML, la riga di ogni valore
 in `lines`; così ogni errore indica in `source` il file e la riga del valore errato.
 
 Che i file siano trovati o indicati, il comando dà anche in `adrs` i numeri degli ADR del
 progetto, letti dai nomi dei file direttamente in `docs/en/project/adr/`: un file
-`<NNNN>-<slug>.md`, quattro cifre da `0001` e uno slug, è l'ADR di quel numero; ogni altro
-file, come `index.md`, non è un ADR. Quando quella cartella non esiste, o è raggiunta
-attraverso un link simbolico, `adrs` non è dato e il controllo `adr_citations` non è eseguito.
+`<number>-<slug>.md` è l'ADR di quel numero, dove il numero è un numero di sequenza da `0001`
+(quattro cifre, o cinque o più senza zero iniziale) e lo slug ha almeno un carattere; ogni
+altro file, come `index.md`, non è un ADR ed è ignorato. Dentro la cartella i link, i file
+speciali e i nomi non UTF-8 sono saltati, e una cartella senza alcun file di ADR dà
+`adrs: []`, così ogni citazione è segnalata. Quando la cartella non esiste, è un file o è
+raggiunta attraverso un link simbolico, `adrs` non è dato e il controllo `adr_citations` non è
+eseguito. Una cartella con più di 10.000 file di ADR è rifiutata come errore d'uso.
 
 I file YAML sono letti con lo schema core di YAML 1.2: `no`, `on`, `yes` e le date come
 `2026-11-17` sono stringhe, e un valore tra virgolette è sempre una stringa. Un file è

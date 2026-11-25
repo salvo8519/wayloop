@@ -166,18 +166,46 @@ fn validate_checks_the_adr_citations_of_the_repository() {
     assert!(ran(&envelope, "adr_citations"), "{envelope}");
 }
 
+/// A living specification in Markdown that cites `ADR 0002, 0003` and `ADR 0014`, with its
+/// milestone M0 at its location.
+const CITING_SPEC: &str = "# SPEC-0001: Time entries
+
+| | |
+| --- | --- |
+| Status | Draft |
+| Milestone | M0 · Foundations |
+| Owner | @example-owner |
+| Related | ADR 0002, 0003; ADR 0014 |
+| Commit scope | core |
+
+## Problem
+Freelancers need to record time without leaving the terminal.
+
+## Scope
+**In scope:** Recording time entries
+**Out of scope:** Export
+
+## User stories
+- As a freelance developer, I want to record time, so that I bill it.
+
+## Requirements (EARS)
+- **R1**: THE TOOL SHALL store durations in minutes.
+
+## Acceptance criteria
+- **AC1** (R1): Given an empty log, when 90 minutes are recorded, then the log holds 90 minutes. Verification: TDD.
+";
+
 #[test]
 fn validate_warns_of_a_cited_adr_the_project_does_not_have() {
-    // SPEC-0001 Q5 through the command line: SPEC-0001 cites ADR 0002 among others; in a
-    // project whose ADRs are 0003 and the index, each citation of another number is warned.
-    let spec = "specs/0001-artifact-model/spec.md";
+    // SPEC-0001 Q5 through the command line: of the three ADRs cited, only 0003 exists, so
+    // exactly 0002 and 0014 are warned.
     let m0 = "kind: milestone\nschema_version: 1\nid: M0\ntitle: Foundations\nstatus: draft\n\
               gate: The artifact model validates.\n";
     let project = Project::new(
         "adr-citations",
         &[
             ("plan/items/M0.yaml", m0.to_owned()),
-            (spec, fs::read_to_string(repository().join(spec)).unwrap()),
+            ("specs/0001-time-entries/spec.md", CITING_SPEC.to_owned()),
             (
                 "docs/en/project/adr/0003-ledger.md",
                 "# ADR 0003\n".to_owned(),
@@ -188,15 +216,26 @@ fn validate_warns_of_a_cited_adr_the_project_does_not_have() {
     let (_, envelope, _, code) = project.validate(&[]);
     assert_eq!(code, 0, "{envelope}");
     assert!(ran(&envelope, "adr_citations"), "{envelope}");
-    let warnings = envelope["diagnostics"]["warnings"].as_array().unwrap();
-    let cited: Vec<&str> = warnings
+    let warnings: Vec<(&Value, &Value)> = envelope["diagnostics"]["warnings"]
+        .as_array()
+        .unwrap()
         .iter()
-        .filter(|w| w["code"] == "adr_citation_missing")
-        .map(|w| w["message"].as_str().unwrap())
+        .map(|w| (&w["code"], &w["message"]))
         .collect();
-    assert_eq!(cited.len(), 8, "{warnings:?}");
-    assert!(cited[0].contains("ADR 0002"), "{cited:?}");
-    assert!(cited.iter().all(|m| !m.contains("ADR 0003")), "{cited:?}");
+    assert_eq!(
+        warnings,
+        [
+            (
+                &json!("adr_citation_missing"),
+                &json!("SPEC-0001 cites ADR 0002, which is not an ADR of the project.")
+            ),
+            (
+                &json!("adr_citation_missing"),
+                &json!("SPEC-0001 cites ADR 0014, which is not an ADR of the project.")
+            ),
+        ],
+        "{envelope}"
+    );
     // Without the folder, the check is not done.
     let (_, envelope, _, _) = Project::new("no-adr-folder", &[]).validate(&[]);
     let not_done = envelope["diagnostics"]["not_done"].as_array().unwrap();

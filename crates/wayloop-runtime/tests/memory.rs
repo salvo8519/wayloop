@@ -18,7 +18,7 @@
 use std::fmt::Write as _;
 
 use wayloop_core::artifacts::locations::{MAX_DOCUMENT_BYTES, MAX_PROJECT_BYTES};
-use wayloop_runtime::project::{discover, load};
+use wayloop_runtime::project::{discover, project_input};
 use wayloop_runtime::test_support::TempProject;
 use wayloop_schemas::validate::EntryFormat;
 
@@ -49,7 +49,7 @@ fn held(files: &[(&str, &[u8])]) -> (usize, Vec<EntryFormat>) {
     let project = TempProject::new("memory", files);
     let found = discover(project.root()).unwrap().files;
     let before = resident();
-    let input = load(project.root(), found).unwrap();
+    let input = project_input(project.root(), found).unwrap();
     let held = resident().saturating_sub(before);
     let formats = input.documents.iter().map(|d| d.format).collect();
     (held, formats)

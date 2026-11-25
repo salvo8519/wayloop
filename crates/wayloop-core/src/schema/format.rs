@@ -220,7 +220,7 @@ fn is_counter(text: &str) -> bool {
 }
 
 /// `[0-9]{4}|[1-9][0-9]{4,}`.
-fn is_sequence(text: &str) -> bool {
+pub(crate) fn is_sequence(text: &str) -> bool {
     all_digits(text) && text.len() >= 4 && (text.len() == 4 || !text.starts_with('0'))
 }
 

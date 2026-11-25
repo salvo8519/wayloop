@@ -37,23 +37,29 @@ of the project. It gives the folders of the locations it found in `locations`; r
 subfolder, it finds none and validates an empty set, with exit code 0 and the warning
 `artifact_location_missing`. With no path it reads every stored artifact: `plan/briefs/*.yaml`,
 `plan/council/*.yaml`, `plan/items/*.yaml` and `specs/<NNNN>-<capability>/spec.md` (so not
-`specs/_templates/`). A location reached through a symbolic link is treated as absent, and
-links, special files and names that are not UTF-8 inside a location are skipped. With paths it
+`specs/_templates/`). A location reached through a symbolic link, or that is a file and not a
+folder, is treated as absent, and links, special files and names that are not UTF-8 inside a
+location are skipped. With paths it
 reads those files only, as one set: each path is relative to the current folder, has no `..`
 segment and no `\`, and names a YAML file (`.yaml`) or a Markdown file (`.md`), which is read
 as a living specification wherever it is (see Living specifications in Markdown); a path whose
 file, once its links are resolved, is outside the project or has another extension is refused
 as a usage error, and a path that is not a regular file (a folder, a pipe, a device) cannot be
 read (exit code 3). A set of more than 10,000 files, discovered or named, is refused as a usage
-error. Either way the files are read in the byte order of their paths, each into one entry of
+error; discovery stops listing at the first file beyond that bound. Either way the files are read in the byte order of their paths, each into one entry of
 `documents` with its path as its `file` origin and, for YAML, the line of each value in
 `lines`; so every error gives the file and the line of the faulty value in `source`.
 
 Discovered or named, the command also gives in `adrs` the numbers of the ADRs of the project,
 read from the names of the files directly in `docs/en/project/adr/`: a file
-`<NNNN>-<slug>.md`, four digits from `0001` and a slug, is the ADR of that number; any other
-file, such as `index.md`, is not an ADR. When that folder does not exist, or is reached through
-a symbolic link, `adrs` is not given and the check `adr_citations` is not done.
+`<number>-<slug>.md` is the ADR of that number, where the number is a sequence number from
+`0001` (four digits, or five or more without a leading zero) and the slug has at least one
+character; any other file, such as `index.md`, is not an ADR and is ignored. Links, special
+files and names that are not UTF-8 inside the folder are skipped, and a folder with no file of
+an ADR gives `adrs: []`, so that every citation is warned. When the folder does not exist, is
+a file or is reached through a symbolic link, `adrs` is not given and the check
+`adr_citations` is not done. A folder with more than 10,000 files of ADRs is refused as a
+usage error.
 
 YAML files are read with the YAML 1.2 core schema: `no`, `on`, `yes` and dates such as
 `2026-11-17` are strings, and a quoted value is always a string. A file is refused, as an

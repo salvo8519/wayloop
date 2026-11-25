@@ -1,0 +1,110 @@
+{
+  "about": "File names in the folder of the ADRs and the ADR number each names, null when it is not an ADR. Read by crates/wayloop-runtime/src/project/tests.rs (through locations::adr_numbers of the core) and by tests/process/test_adr.py (scripts/_adr.py), so that the two copies of the rule stay equal.",
+  "folder": "docs/en/project/adr",
+  "names": [
+    {
+      "name": "0001-rust-engine-thin-adapters.md",
+      "number": 1
+    },
+    {
+      "name": "0014-specifications-by-capability.md",
+      "number": 14
+    },
+    {
+      "name": "9999-last-of-four-digits.md",
+      "number": 9999
+    },
+    {
+      "name": "10000-first-of-five-digits.md",
+      "number": 10000
+    },
+    {
+      "name": "12345-x.md",
+      "number": 12345
+    },
+    {
+      "name": "18446744073709551615-largest.md",
+      "number": 18446744073709551615
+    },
+    {
+      "name": "0010-a slug with spaces.md",
+      "number": 10
+    },
+    {
+      "name": "0011--leading-hyphen.md",
+      "number": 11
+    },
+    {
+      "name": "0012-.md.md",
+      "number": 12
+    },
+    {
+      "name": "0015-ünïcode.md",
+      "number": 15
+    },
+    {
+      "name": "index.md",
+      "number": null
+    },
+    {
+      "name": "README.md",
+      "number": null
+    },
+    {
+      "name": "0000-template.md",
+      "number": null
+    },
+    {
+      "name": "01234-leading-zero.md",
+      "number": null
+    },
+    {
+      "name": "014-three-digits.md",
+      "number": null
+    },
+    {
+      "name": "14-two-digits.md",
+      "number": null
+    },
+    {
+      "name": "0003.md",
+      "number": null
+    },
+    {
+      "name": "0003-.md",
+      "number": null
+    },
+    {
+      "name": "0004-x.txt",
+      "number": null
+    },
+    {
+      "name": "0005-x.md.bak",
+      "number": null
+    },
+    {
+      "name": "0006-x.markdown",
+      "number": null
+    },
+    {
+      "name": "0009-x.MD",
+      "number": null
+    },
+    {
+      "name": "0007_x.md",
+      "number": null
+    },
+    {
+      "name": "a008-x.md",
+      "number": null
+    },
+    {
+      "name": "٠٠١٣-arabic-indic-digits.md",
+      "number": null
+    },
+    {
+      "name": "18446744073709551616-beyond-the-largest.md",
+      "number": null
+    }
+  ]
+}
