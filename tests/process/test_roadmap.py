@@ -259,6 +259,18 @@ def test_new_issue_refuses_an_unknown_epic() -> None:
         roadmap.new_issue(args)
 
 
+def test_new_issue_refuses_a_spec_that_is_not_a_specification_number() -> None:
+    # 2026-11-25: `--spec SPEC-0001` created #339 and then failed `check`.
+    import argparse
+
+    epic = next(e["title"] for e in roadmap.load()["milestones"][0]["epics"] if e.get("issue"))
+    args = argparse.Namespace(
+        milestone="M0", epic=epic, title="T", labels="", spec="SPEC-0001", body=None
+    )
+    with pytest.raises(SystemExit, match="four-digit number"):
+        roadmap.new_issue(args)
+
+
 def test_sync_refuses_a_milestone_missing_on_github(monkeypatch: pytest.MonkeyPatch) -> None:
     d = data()
     m, _e, t = roadmap.tasks(d)[0]

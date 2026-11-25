@@ -196,7 +196,7 @@ def problems_of(data: dict[str, Any], pr_body: str | None = None) -> list[str]:
     seen: dict[int, str] = {}
     status_of: dict[int, str] = {}
     referenced: set[str] = set()
-    spec_ids = {p.name[:4] for p in SPECS.glob("[0-9][0-9][0-9][0-9]-*") if p.is_dir()}
+    spec_ids = specification_numbers()
     releases = [m.get("release", "") for m in data["milestones"]]
     if not all(SEMVER.match(r) for r in releases):
         problems.append("every milestone needs a release X.Y.Z (the version that ships it)")
@@ -568,6 +568,11 @@ def list_tasks(only_open: bool, milestone: str | None) -> int:
     return 0
 
 
+def specification_numbers() -> set[str]:
+    """The four-digit numbers of the specifications under specs/, as tasks cite them."""
+    return {p.name[:4] for p in SPECS.glob("[0-9][0-9][0-9][0-9]-*") if p.is_dir()}
+
+
 def new_issue(args: argparse.Namespace) -> int:
     data = load()
     milestone = next((m for m in data["milestones"] if m["title"].startswith(args.milestone)), None)
@@ -579,6 +584,13 @@ def new_issue(args: argparse.Namespace) -> int:
         sys.exit(
             f"no epic '{args.epic}' with an issue in {milestone['title']}; "
             f"epics: {known}. A new epic is planned with the roadmap-update skill."
+        )
+    # 2026-11-25: `--spec SPEC-0001` was written as given and failed `check` only after the
+    # issue existed (#339); refuse it before anything is created.
+    if args.spec and args.spec not in specification_numbers():
+        sys.exit(
+            "--spec takes the four-digit number of a specification, for example 0001, "
+            f"not '{args.spec}'"
         )
     labels = [x for x in (args.labels or "").split(",") if x]
     numbers = github_milestones()
