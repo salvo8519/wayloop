@@ -73,34 +73,29 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         .iter()
         .map(|c| NotDone::new(c.clone(), NotDoneReason::NotBuilt))
         .collect();
-    // The index counts in u64, the type of `document`, so it needs no conversion.
-    // The artifacts that passed the stages of their own document, by their position in the
-    // input: the index of the identifier stage.
-    let mut passed = Vec::new();
-    for (index, entry) in (0_u64..).zip(&input.documents) {
+    // The index of the identifier stage: every artifact of a known kind whose `id` raised no
+    // error, whatever its other errors, so that duplicates are found in the same pass (ADR 0009
+    // C3).
+    let mut index = Vec::new();
+    let id = identifiers::id_pointer();
+    // The position counts in u64, the type of `document`, so it needs no conversion.
+    for (document, entry) in (0_u64..).zip(&input.documents) {
         let first = validation.errors.len();
-        let failed = validation.failures.len();
         let summary = check_entry(entry, kinds, &mut validation, &mut not_done);
-        let clean = validation.errors.len() == first && validation.failures.len() == failed;
-        if clean && summary.kind.is_some() && summary.id.is_some() {
-            passed.push((index, entry));
+        let found = validation.errors.get_mut(first..).unwrap_or_default();
+        let id_refused = found.iter().any(|error| *error.pointer() == id);
+        for error in found {
+            *error = error.clone().with_document(document);
+        }
+        if let (Some(_), Some(carried), false) = (summary.kind, &summary.id, id_refused) {
+            index.push(Indexed {
+                document,
+                id: carried.clone(),
+                entry,
+            });
         }
         validation.documents.push(summary);
-        for error in validation.errors.get_mut(first..).unwrap_or_default() {
-            *error = error.clone().with_document(index);
-        }
     }
-    let index: Vec<Indexed<'_>> = passed
-        .into_iter()
-        .filter_map(|(document, entry)| {
-            let summary = validation.documents.get(usize::try_from(document).ok()?)?;
-            Some(Indexed {
-                document,
-                id: summary.id.as_deref()?,
-                entry,
-            })
-        })
-        .collect();
     let duplicates = identifiers::duplicates(&index);
     let warnings = identifiers::locations(&index);
     validation.errors.extend(duplicates);
@@ -167,10 +162,7 @@ fn check_entry(
     not_done: &mut BTreeSet<NotDone>,
 ) -> DocumentSummary {
     let origin = entry.given.clone();
-    let located = |error: Error| match entry.source(error.pointer()) {
-        Some(source) => error.with_location(source),
-        None => error,
-    };
+    let located = |error: Error| entry.locate(error);
     match &entry.body {
         Body::Unreadable { line, message } => {
             let text = format!("The file could not be parsed: {message}");

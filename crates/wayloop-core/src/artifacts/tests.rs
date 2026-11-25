@@ -1,8 +1,8 @@
 //! Tests of the artifact model and of `validate` (SPEC-0001 T5: R1, R5, R6, R12, R14, R16;
 //! AC1, AC8, AC9, AC25; T7: R1, R5, R6, R9; AC1, AC9, AC35; T8: R1, R5, R6; AC1, AC35; T9: R1,
-//! R22; AC1, AC31; T10: R1, R16; AC1; T11: R2, R14; AC1, AC6). The contract cases of the command are in
-//! `tests/contract/validate/v1/` and run in the tests of `wayloop-cli`; these tests cover the
-//! parts the cases cannot reach.
+//! R22; AC1, AC31; T10: R1, R16; AC1; T11: R2, R14; AC1, AC6). The contract cases of the
+//! command are in `tests/contract/validate/v1/` and run in the tests of `wayloop-cli`; these
+//! tests cover the parts the cases cannot reach.
 
 // The helpers take JSON values by value so that a test reads as the document it builds.
 #![allow(clippy::needless_pass_by_value)]
@@ -1687,10 +1687,10 @@ fn ac6_two_artifacts_with_one_identifier_are_both_refused_each_naming_the_other(
 }
 
 #[test]
-fn a_refused_document_stays_out_of_the_index_and_errors_stay_in_document_order() {
-    // The broken brief carries the identifier too, but failed its own stage; the duplicate
-    // errors of the two tasks come by document, after the schema error of the brief between
-    // them, and three carriers name the two others each.
+fn a_refused_identifier_stays_out_of_the_index_and_errors_stay_in_document_order() {
+    // The brief carries the identifier too, but its `id` is refused; the duplicate errors of
+    // the three tasks come by document, around the format error of the brief, and each names
+    // the two others.
     let validation = validate(&read(vec![
         entry(task()),
         entry(with(brief(), "id", json!("TASK-0001"))),
@@ -1718,6 +1718,34 @@ fn a_refused_document_stays_out_of_the_index_and_errors_stay_in_document_order()
         .map(Related::document)
         .collect();
     assert_eq!(named, [2, 3]);
+}
+
+#[test]
+fn duplicates_are_found_in_the_same_pass_as_the_other_errors_of_their_documents() {
+    // ADR 0009 C3: a document with an error elsewhere than at its `id` is still indexed, so
+    // both carriers are refused with `identifier_duplicate`, after the schema error of the
+    // first.
+    let validation = validate(&read(vec![
+        entry(with(task(), "zz", json!(1))),
+        entry(task()),
+    ]));
+    let found: Vec<(Option<u64>, Code, String)> = validation
+        .errors
+        .iter()
+        .map(|e| (e.document(), e.code().clone(), e.pointer().to_string()))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            (Some(0), codes::ARTIFACT_SCHEMA, "/zz".to_owned()),
+            (Some(0), codes::IDENTIFIER_DUPLICATE, "/id".to_owned()),
+            (Some(1), codes::IDENTIFIER_DUPLICATE, "/id".to_owned()),
+        ]
+    );
+    assert_eq!(
+        validation.errors[1].related(),
+        Some(&[Related::new(1, at("/id"), None)][..])
+    );
 }
 
 #[test]
@@ -1883,12 +1911,17 @@ fn checks_not_built_are_listed_once_with_their_reason() {
 
 #[test]
 fn errors_come_in_the_order_of_the_documents_then_of_their_values() {
-    let validation = validate(&read(vec![
+    let input = read(vec![
         entry(with(with(brief(), "status", json!("done")), "zz", json!(1))),
         entry(json!({"kind": 7})),
         entry(json!({"kind": "ticket"})),
-        entry(with(brief(), "schema_version", json!(2))),
-    ]));
+        entry(with(
+            with(brief(), "id", json!("BRIEF-0002")),
+            "schema_version",
+            json!(2),
+        )),
+    ]);
+    let validation = validate(&input);
     assert_eq!(
         found(&validation.errors),
         [
@@ -1908,13 +1941,7 @@ fn errors_come_in_the_order_of_the_documents_then_of_their_values() {
         Some(ArtifactKind::ALL.len())
     );
     // Same input, same result.
-    let again = validate(&read(vec![
-        entry(with(with(brief(), "status", json!("done")), "zz", json!(1))),
-        entry(json!({"kind": 7})),
-        entry(json!({"kind": "ticket"})),
-        entry(with(brief(), "schema_version", json!(2))),
-    ]));
-    assert_eq!(again, validation);
+    assert_eq!(validate(&input), validation);
 }
 
 // Sources (R12) ----------------------------------------------------------------------------
@@ -2033,7 +2060,11 @@ fn every_error_of_a_document_carries_its_index_and_errors_of_the_input_none() {
     let validation = validate(&read(vec![
         entry(brief()),
         entry(json!({"kind": "ticket"})),
-        entry(with(brief(), "status", json!("done"))),
+        entry(with(
+            with(brief(), "id", json!("BRIEF-0002")),
+            "status",
+            json!("done"),
+        )),
     ]));
     let documents: Vec<Option<u64>> = validation.errors.iter().map(Error::document).collect();
     assert_eq!(documents, [Some(1), Some(2)]);

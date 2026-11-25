@@ -178,20 +178,19 @@ impl Location {
     }
 }
 
-/// The identifier of the specification that `folder`, `<NNNN>-<capability>`, is named after:
-/// `SPEC-` and the text before its first hyphen.
+/// The identifier of the specification that `folder` is named after, when it is
+/// `<number>-<capability>`: ASCII digits, a hyphen and a capability of at least one character;
+/// `SPEC-` and the number, in whatever form it is written.
 fn folder_identifier(folder: &str) -> Option<String> {
-    let (sequence, _) = folder.split_once('-')?;
-    Some(format!("SPEC-{sequence}"))
+    let (number, capability) = folder.split_once('-')?;
+    let digits = !number.is_empty() && number.bytes().all(|b| b.is_ascii_digit());
+    (digits && !capability.is_empty()).then(|| format!("SPEC-{number}"))
 }
 
-/// Whether `folder` is `<NNNN>-<capability>`: the sequence of a specification identifier, a
-/// hyphen and a capability of at least one character.
+/// Whether `folder` is `<NNNN>-<capability>`: a folder named after a specification whose
+/// number is the canonical sequence of an identifier.
 fn is_specification_folder(folder: &str) -> bool {
-    folder.split_once('-').is_some_and(|(_, capability)| {
-        !capability.is_empty()
-            && folder_identifier(folder).is_some_and(|id| format::accepts(Format::SpecId, &id))
-    })
+    folder_identifier(folder).is_some_and(|id| format::accepts(Format::SpecId, &id))
 }
 
 /// The identifier that the path of a stored artifact names, `path` relative to the root of the
@@ -199,7 +198,7 @@ fn is_specification_folder(folder: &str) -> bool {
 /// living specification; `None` for a path outside the [`LOCATIONS`]. The identity of an
 /// artifact is its `id`; a path that names another one gives a warning (SPEC-0001).
 #[must_use]
-pub fn named_identifier(path: &str) -> Option<String> {
+pub(crate) fn named_identifier(path: &str) -> Option<String> {
     LOCATIONS.iter().find_map(|location| {
         let below = location.below(path)?;
         location.names(&below)
@@ -547,6 +546,9 @@ mod tests {
             ("plan/items/notes.yaml", Some("notes")),
             ("specs/0001-artifact-model/spec.md", Some("SPEC-0001")),
             ("specs/12-x/spec.md", Some("SPEC-12")),
+            ("specs/notes-draft/spec.md", None),
+            ("specs/0001-/spec.md", None),
+            ("specs/-x/spec.md", None),
             ("plan/briefs/deeper/BRIEF-0001.yaml", None),
             ("plan/briefs/README.md", None),
             ("specs/0001-artifact-model/plan.md", None),

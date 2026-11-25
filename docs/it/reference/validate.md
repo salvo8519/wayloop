@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 0e1fd0fa011e
+source_hash: 43746974222e
 ---
 # wayloop validate
 
@@ -280,11 +280,11 @@ Ogni errore trovato è elencato in `error.errors`; il primo è ripetuto al livel
    in ordine per le regole che lo schema non può esprimere.
 2. Altrimenti, gli errori dei documenti, nell'ordine dei documenti; dentro un documento, per
    fase (prima tipo, versione e schema, poi identificativo, poi gli identificativi
-   dell'insieme); dentro una fase, nell'ordine del
-   passaggio dello schema: i membri di un oggetto nell'ordine dei byte delle loro chiavi (`/aa`
-   prima di `/zz`), gli elementi di un array per indice, i membri assenti dopo quelli presenti,
-   nell'ordine in cui lo schema li elenca come obbligatori. Gli errori del nome di un membro vengono prima degli errori del suo valore, allo stesso
-   puntatore.
+   dell'insieme); dentro una fase, nell'ordine del passaggio dello schema: i membri di un
+   oggetto nell'ordine dei byte delle loro chiavi (`/aa` prima di `/zz`), gli elementi di un
+   array per indice, i membri assenti dopo quelli presenti, nell'ordine in cui lo schema li
+   elenca come obbligatori. Gli errori del nome di un membro vengono prima degli errori del suo
+   valore, allo stesso puntatore.
 
 Ogni `pointer` del risultato è un puntatore RFC 6901; gli schemi dell'output e dell'envelope gli
 danno il formato `json-pointer`, che un validatore JSON Schema controlla quando la verifica dei
@@ -315,18 +315,19 @@ livelli di oggetti (ADR 0009 C4). `related` è assente quando non c'è un altro 
 | `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | Un input di passaggio di mano viola il suo schema, per esempio impostando un membro che solo il motore imposta (`unknown_field`) |
 | `schema_version_unknown` | `enum` | 1 | Lo `schema_version` non è una versione del tipo o dell'input; `expected` elenca le versioni note |
 | `identifier_format` | `syntax` | 1 | L'`id` non è nella forma canonica del suo tipo; `fix` dà l'identificativo corretto quando è possibile ricavarlo |
-| `identifier_duplicate` | `duplicate` | 1 | Due o più artefatti dell'insieme portano lo stesso identificativo: ciascuno è rifiutato in `/id`, e ogni errore nomina gli altri in `related`. Sono confrontati solo i documenti che hanno superato i propri controlli |
+| `identifier_duplicate` | `duplicate` | 1 | Due o più artefatti dell'insieme portano lo stesso identificativo: ciascuno è rifiutato in `/id`, e ogni errore nomina gli altri in `related`. È confrontato ogni documento di un `kind` noto il cui `id` non ha dato errori, qualunque siano i suoi altri errori, così i duplicati arrivano nello stesso passaggio |
 | `usage` | `syntax` | 2 | La riga di comando non è compresa; `command` è il comando indicato, vuoto quando nessuno |
 | `input_unreadable` | `missing`, `state` | 3 | Il file di input, un file indicato o una cartella del progetto non esiste (`missing`) o non può essere letto (`state`); l'envelope non contiene percorsi |
 | `internal_error` | `internal` | 5 | Il motore non ha potuto calcolare il risultato; l'input può essere valido |
 
 Gli avvisi sono elencati in `diagnostics.warnings`, nella forma di un errore; il risultato non
-è rifiutato per essi e il codice di uscita non cambia:
+è rifiutato per essi e il codice di uscita non cambia. Arrivano in un ordine fisso: gli avvisi
+`identifier_location` nell'ordine dei documenti, poi `artifact_location_missing`.
 
 | Codice | Motivo | Puntatore | Significato |
 | --- | --- | --- | --- |
 | `artifact_location_missing` | `missing` | `/locations` | Nel progetto in cui i documenti sono stati scoperti non esiste alcuna cartella di una posizione, per esempio perché il comando è stato eseguito in una sottocartella del progetto |
-| `identifier_location` | `conflict` | `/id` | L'artefatto è stato letto da `plan/briefs/<name>.yaml`, `plan/council/<name>.yaml`, `plan/items/<name>.yaml` o `specs/<NNNN>-<capability>/spec.md`, e `<name>`, o `SPEC-<NNNN>`, è diverso dal suo `id`; `fix` è l'`id`, che è l'identità. Un documento inviato direttamente, o letto da un altro percorso, non ne dà |
+| `identifier_location` | `conflict` | `/id` | L'artefatto è stato letto da `plan/briefs/<name>.yaml`, `plan/council/<name>.yaml`, `plan/items/<name>.yaml` o `specs/<number>-<capability>/spec.md` (`<number>` di cifre ASCII, in qualunque forma), e `<name>`, o `SPEC-<number>`, è diverso dal suo `id`; `fix` è l'`id`, che è l'identità. Un documento inviato direttamente, o letto da un altro percorso, non ne dà |
 
 Un membro sconosciuto riceve in `fix` il membro più vicino, quando ce n'è uno vicino: per
 esempio `problem` per `problema`.

@@ -618,10 +618,12 @@ tag naming its form, on purpose: it is output only, and its field names tell the
 
 Each error of `identifier_duplicate` names every other artifact that carries the identifier in
 `related` (SPEC-0004 R2): its `document`, the pointer `/id` and the members of its `source`
-(decided by the maintainer on 2026-11-25). A file name or a folder number that differs from the
-identifier (section Where artifacts live; living specification) is the warning
-`identifier_location` at `/id`, with `fix` the identifier, given only for an artifact read
-from a file of a location (decided by the maintainer on 2026-11-25).
+(decided by the maintainer on 2026-11-25). Every artifact of a known `kind` whose `id` raised
+no error is compared, whatever its other errors, so that the duplicates are found in the same
+pass as every other error (ADR 0009 C3; contract audit of #262). A file name or a folder
+number that differs from the identifier (section Where artifacts live; living specification)
+is the warning `identifier_location` at `/id`, with `fix` the identifier, given only for an
+artifact read from a file of a location (decided by the maintainer on 2026-11-25).
 
 `expected` lists accepted values, never a pattern. For a format error (`syntax`), `expected`
 is absent and `fix` carries a corrected value when one can be derived, for example `M2` for

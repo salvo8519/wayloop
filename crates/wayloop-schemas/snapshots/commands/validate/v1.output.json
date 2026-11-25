@@ -132,7 +132,7 @@
           "type": "array"
         },
         "fix": {
-          "description": "The closest member for a misspelt key, or a corrected value; absent when none can be derived."
+          "description": "The closest member for a misspelt key, or a corrected value; for a warning whose stored place is misnamed, the identifier the place should be named after; absent when none can be derived."
         },
         "message": {
           "description": "What went wrong, for a person; its wording is not part of the contract.",
@@ -202,7 +202,7 @@
           "type": "array"
         },
         "fix": {
-          "description": "The closest member for a misspelt key, or a corrected value; absent when none can be derived."
+          "description": "The closest member for a misspelt key, or a corrected value; for a warning whose stored place is misnamed, the identifier the place should be named after; absent when none can be derived."
         },
         "message": {
           "description": "What went wrong, for a person; its wording is not part of the contract.",
@@ -389,7 +389,7 @@
           }
         }
       ],
-      "description": "Another place of the condition of an error, in another document of the input: its index in `documents`, the pointer of the value relative to that document, and where the value is stored with the members of `source` (`file`, with `line` when known; `issue`; `milestone`), none of them when the document was sent directly.",
+      "description": "Another place of the condition of an error, in another document of the input: its index in `documents`, the pointer of the value relative to that document, and where the value is stored with the members of `source` (`file`, with `line` when known; `issue`; `milestone`), none of them when the document was sent directly. At most one form is given; the schema checks only that `line` comes with `file`.",
       "properties": {
         "document": {
           "description": "Index, from 0, in the input array `documents` of the other document.",
@@ -407,7 +407,7 @@
           "type": "integer"
         },
         "line": {
-          "description": "Line of the faulty value in `file`, counted from 1; absent when it is not known, never guessed.",
+          "description": "Line of the value in `file`, counted from 1; absent when it is not known, never guessed.",
           "minimum": 1,
           "type": "integer"
         },
@@ -455,7 +455,7 @@
           "type": "integer"
         },
         "line": {
-          "description": "Line of the faulty value in `file`, counted from 1; absent when it is not known, never guessed.",
+          "description": "Line of the value in `file`, counted from 1; absent when it is not known, never guessed.",
           "minimum": 1,
           "type": "integer"
         },

@@ -144,7 +144,9 @@ fn an_optional_member_has_no_null_and_is_not_required() {
     assert_eq!(
         error["properties"]["fix"],
         json!({"description": "The closest member for a misspelt key, or a corrected value; \
-                               absent when none can be derived."})
+                               for a warning whose stored place is misnamed, the identifier \
+                               the place should be named after; absent when none can be \
+                               derived."})
     );
 }
 

@@ -266,11 +266,10 @@ Every error found is listed in `error.errors`; the first one is repeated at the 
    order for the rules the schema cannot state.
 2. Otherwise, the errors of the documents, in the order of the documents; within a document,
    by stage (kind, version and schema first, then identifier, then the identifiers across the
-set); within a stage, in the order of
-   the schema pass: the members of an object in the byte order of their keys (`/aa` before
-   `/zz`), the elements of an array by index, absent members after present ones, in the order
-   in which the schema lists them as required. The errors of the name of a member come before
-   the errors of its value, at the same pointer.
+   set); within a stage, in the order of the schema pass: the members of an object in the byte
+   order of their keys (`/aa` before `/zz`), the elements of an array by index, absent members
+   after present ones, in the order in which the schema lists them as required. The errors of
+   the name of a member come before the errors of its value, at the same pointer.
 
 Every `pointer` of the result is an RFC 6901 pointer; the schemas of the output and of the
 envelope give it the format `json-pointer`, which a JSON Schema validator checks when format
@@ -301,18 +300,19 @@ levels of objects (ADR 0009 C4). `related` is absent when there is no other docu
 | `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | A hand-over input breaks its schema, for example by setting a member that only the engine sets (`unknown_field`) |
 | `schema_version_unknown` | `enum` | 1 | The `schema_version` is not a version of the type or of the input; `expected` lists the known versions |
 | `identifier_format` | `syntax` | 1 | The `id` is not in the canonical form of its type; `fix` gives the corrected identifier when one can be derived |
-| `identifier_duplicate` | `duplicate` | 1 | Two artifacts or more of the set carry one identifier: each is refused at `/id`, and each error names the others in `related`. Only documents that passed their own checks are compared |
+| `identifier_duplicate` | `duplicate` | 1 | Two artifacts or more of the set carry one identifier: each is refused at `/id`, and each error names the others in `related`. Every document of a known `kind` whose `id` raised no error is compared, whatever its other errors, so the duplicates come in the same pass |
 | `usage` | `syntax` | 2 | The command line is not understood; `command` is the command named, empty when none |
 | `input_unreadable` | `missing`, `state` | 3 | The input file, a file named or a folder of the project does not exist (`missing`) or cannot be read (`state`); the envelope holds no path |
 | `internal_error` | `internal` | 5 | The engine could not compute the result; the input may be valid |
 
 Warnings are listed in `diagnostics.warnings`, in the shape of an error; the result is not
-refused for them and the exit code does not change:
+refused for them and the exit code does not change. They come in a fixed order: the warnings
+`identifier_location` in the order of the documents, then `artifact_location_missing`.
 
 | Code | Reason | Pointer | Meaning |
 | --- | --- | --- | --- |
 | `artifact_location_missing` | `missing` | `/locations` | No folder of a location exists in the project where the documents were discovered, for example because the command ran in a subfolder of the project |
-| `identifier_location` | `conflict` | `/id` | The artifact was read from `plan/briefs/<name>.yaml`, `plan/council/<name>.yaml`, `plan/items/<name>.yaml` or `specs/<NNNN>-<capability>/spec.md`, and `<name>`, or `SPEC-<NNNN>`, differs from its `id`; `fix` is the `id`, which is the identity. A document sent directly, or read from another path, gives none |
+| `identifier_location` | `conflict` | `/id` | The artifact was read from `plan/briefs/<name>.yaml`, `plan/council/<name>.yaml`, `plan/items/<name>.yaml` or `specs/<number>-<capability>/spec.md` (`<number>` of ASCII digits, in any form), and `<name>`, or `SPEC-<number>`, differs from its `id`; `fix` is the `id`, which is the identity. A document sent directly, or read from another path, gives none |
 
 An unknown member gets the closest member, when one is close, in `fix`: for example `problem`
 for `problema`.

@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: ff33315bd4a7
+source_hash: 3e31059686c6
 ---
 # Architettura
 
@@ -200,16 +200,15 @@ valore errato:
 | `pointers` | Puntatori alle altre parti dell'input coinvolte, come i due lati di un conflitto; facoltativo |
 | `reason` | Un valore dell'enum documentato: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale`, e `internal` per un guasto del motore stesso, che non è un rifiuto dell'input |
 | `expected` | I valori accettati in `pointer`, mai un pattern; facoltativo, e `[]` quando nessun valore è accettato |
-| `fix` | Il campo più vicino a una chiave scritta male, o un valore corretto; facoltativo |
+| `fix` | Il campo più vicino a una chiave scritta male, o un valore corretto; per un avviso il cui luogo di memorizzazione ha un nome sbagliato, l'identificativo da cui il luogo dovrebbe prendere il nome; facoltativo |
 | `source` | Dove è salvato il valore: `{file, line}` per un file del repository, con `line` solo quando è nota, `{issue}` per una issue del tracker, `{milestone}` per una milestone del tracker, con righe e numeri a partire da 1; assente per un documento inviato direttamente |
 | `document` | Indice, da 0, del documento dell'input a cui l'errore appartiene, il cui `pointer` è allora relativo a quel documento; assente per un errore dell'input stesso |
 | `related` | Gli altri luoghi della stessa condizione, ciascuno in un altro documento dell'input: `{document, pointer}`, con i membri della sua `source` (`file` e `line`, `issue` o `milestone`) nella voce stessa quando quel documento è stato memorizzato, così l'envelope resta entro quattro livelli di oggetti (C4); facoltativo, e mai `[]` |
 
 Un campo facoltativo non fornito è omesso dalla forma JSON; una lista fornita vuota è scritta
 `[]`, perché assente significa non fornito e `[]` significa nessuno (ADR 0009, C2); `related` è
-omesso quando non c'è un altro luogo, mai scritto `[]`. Il report
-degli errori, `wayloop_core::ErrorReport`, elenca in `errors` tutti gli errori trovati in un
-solo passaggio, nell'ordine in cui sono stati trovati, e ripete il primo al livello superiore,
+omesso quando non c'è un altro luogo, mai scritto `[]`. Il report degli errori,
+`wayloop_core::ErrorReport`, elenca in `errors` tutti gli errori trovati in un solo passaggio, nell'ordine in cui sono stati trovati, e ripete il primo al livello superiore,
 così `errors[0]` è sempre uguale al livello superiore. `Error` ed `ErrorReport` implementano
 `Display` e `std::error::Error`. Un codice è una costante del tipo `Code`, così un solo punto elenca tutti
 i codici del motore; i codici arrivano con la specifica di ogni comando.

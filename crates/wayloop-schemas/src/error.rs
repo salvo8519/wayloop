@@ -206,7 +206,7 @@ struct SourceForm {
     /// Path of the file relative to the root of the project.
     #[serde(skip_serializing_if = "Option::is_none")]
     file: Option<ProjectPath>,
-    /// Line of the faulty value in `file`, counted from 1; absent when it is not known, never
+    /// Line of the value in `file`, counted from 1; absent when it is not known, never
     /// guessed.
     #[serde(skip_serializing_if = "Option::is_none")]
     line: Option<Line>,
@@ -267,7 +267,8 @@ impl JsonSchema for Source {
 /// The members of its [`Source`] are written in the entry itself, not in a member `source`:
 /// an entry of `related` in the list `errors` of a report is already the fourth level of
 /// objects of the envelope, the most ADR 0009 C4 allows. They follow the rules of `source`:
-/// exactly one form, `line` only with `file`.
+/// at most one form is given, none when the other document was sent directly, and the schema
+/// checks only that `line` comes with `file`; the type refuses members of two forms.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Related {
     /// Index, from 0, in the input array `documents` of the other document.
@@ -282,7 +283,8 @@ pub struct Related {
 /// Another place of the condition of an error, in another document of the input: its index
 /// in `documents`, the pointer of the value relative to that document, and where the value is
 /// stored with the members of `source` (`file`, with `line` when known; `issue`; `milestone`),
-/// none of them when the document was sent directly.
+/// none of them when the document was sent directly. At most one form is given; the schema
+/// checks only that `line` comes with `file`.
 // The schema of `Related` and the form it is read from: the members of a source in the entry,
 // with the rule of `Source`, which the flattened `SourceForm` brings (ADR 0009 C4: no fifth
 // level of objects).
@@ -319,12 +321,12 @@ impl JsonSchema for Related {
 }
 
 impl Related {
-    /// The value at `pointer` of the document at `index` of the input, stored at `source` when
-    /// the document was read from the repository or the tracker.
+    /// The value at `pointer` of the document at the index `document` of the input, stored at
+    /// `source` when the document was read from the repository or the tracker.
     #[must_use]
-    pub const fn new(index: u64, pointer: Pointer, source: Option<Source>) -> Self {
+    pub const fn new(document: u64, pointer: Pointer, source: Option<Source>) -> Self {
         Self {
-            document: index,
+            document,
             pointer,
             source,
         }
@@ -347,6 +349,12 @@ impl Related {
     pub const fn location(&self) -> Option<&Source> {
         self.source.as_ref()
     }
+}
+
+/// `related` as read: an empty list is no other place, read as absent, the one form the type
+/// writes (C2).
+fn non_empty<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Vec<Related>>, D::Error> {
+    Ok(Option::<Vec<Related>>::deserialize(deserializer)?.filter(|r| !r.is_empty()))
 }
 
 /// A refusal of the engine, with the fields of ADR 0009 C3, its `source`, `document`, the
@@ -377,8 +385,9 @@ pub struct Error {
     /// absent when not given.
     #[serde(skip_serializing_if = "Option::is_none")]
     expected: Option<Vec<Value>>,
-    /// The closest member for a misspelt key, or a corrected value; absent when none can be
-    /// derived.
+    /// The closest member for a misspelt key, or a corrected value; for a warning whose stored
+    /// place is misnamed, the identifier the place should be named after; absent when none can
+    /// be derived.
     #[serde(skip_serializing_if = "Option::is_none")]
     fix: Option<Value>,
     /// Where the faulty value is stored; absent for a document sent directly.
@@ -391,7 +400,11 @@ pub struct Error {
     /// The other places of the same condition, each in another document of the input, such
     /// as each other artifact that carries the same identifier; absent when there is none,
     /// never empty.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "non_empty",
+        skip_serializing_if = "Option::is_none"
+    )]
     #[schemars(length(min = 1))]
     related: Option<Vec<Related>>,
 }
@@ -449,8 +462,9 @@ impl Error {
         self
     }
 
-    /// The error with a suggested fix: the closest field for a misspelt key, or a corrected
-    /// value.
+    /// The error with a suggested fix: the closest field for a misspelt key, a corrected
+    /// value, or, for a warning whose stored place is misnamed, the identifier the place should
+    /// be named after.
     #[must_use]
     pub fn with_fix(mut self, fix: impl Into<Value>) -> Self {
         // A null fix is no fix: null means not given (ADR 0009 C2).
@@ -983,7 +997,15 @@ mod tests {
                 {"document": 2, "pointer": "/id"},
             ])
         );
-        assert_eq!(serde_json::from_value::<Error>(value).unwrap(), error);
+        assert_eq!(
+            serde_json::from_value::<Error>(value.clone()).unwrap(),
+            error
+        );
+        // An empty list read is no other place: absent, as the type writes it.
+        let mut empty = value;
+        empty["related"] = json!([]);
+        let read = serde_json::from_value::<Error>(empty).unwrap();
+        assert_eq!(read.related(), None);
         for (other, form) in [
             (json!({"issue": 4}), Some(json!({"issue": 4}))),
             (json!({"milestone": 2}), Some(json!({"milestone": 2}))),

@@ -278,6 +278,15 @@ impl Entry {
         })
     }
 
+    /// `error`, of this document, with the place where the value at its pointer is stored, when
+    /// the document was read from the repository or the tracker.
+    pub(crate) fn locate(&self, error: Error) -> Error {
+        match self.source(error.pointer()) {
+            Some(source) => error.with_location(source),
+            None => error,
+        }
+    }
+
     fn line_of(&self, pointer: &str) -> Option<Line> {
         let mut current = pointer;
         loop {

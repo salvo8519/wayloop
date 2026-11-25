@@ -1,8 +1,10 @@
 //! The identifier stage across the set (SPEC-0001 R2, R14; plan, stage 3).
 //!
 //! The form of each `id` is checked with the schema of its document, by the named formats of
-//! the interpreter (`identifier_format`). This stage reads the index of the artifacts that
-//! passed the stages of their own document, so that a broken document causes no error here:
+//! the interpreter (`identifier_format`). This stage reads the index of the artifacts of a
+//! known kind whose `id` raised no error, whatever their other errors, so that duplicates are
+//! found in the same pass as every other error (ADR 0009 C3) and a broken identifier causes no
+//! error here:
 //!
 //! - `identifier_duplicate`: two artifacts or more that carry one identifier are each refused
 //!   with the reason `duplicate` at `/id`, and each error names the others in `related`.
@@ -16,28 +18,31 @@ use std::collections::BTreeMap;
 use super::codes;
 use super::input::{Entry, Place};
 use super::locations::named_identifier;
-use crate::{Error, Pointer, Reason, Related};
+use crate::{Error, Pointer, Reason, Related, Source};
 
-/// An artifact of the index: a document that passed the stages of its own, by its index in
-/// the input, with its identifier and its entry.
-#[derive(Debug, Clone, Copy)]
+/// An artifact of the index: a document of a known kind whose `id` raised no error, by its
+/// index in the input, with its identifier and its entry.
+#[derive(Debug, Clone)]
 pub(super) struct Indexed<'a> {
     pub(super) document: u64,
-    pub(super) id: &'a str,
+    pub(super) id: String,
     pub(super) entry: &'a Entry,
 }
 
 /// The pointer of the identifier of an artifact.
-fn id_pointer() -> Pointer {
+pub(super) fn id_pointer() -> Pointer {
     Pointer::root().join("id")
 }
 
-/// The error or warning `error` of the artifact `artifact`, at `/id`, with its source.
-fn of(artifact: &Indexed<'_>, error: Error) -> Error {
-    let error = error.with_document(artifact.document);
-    match artifact.entry.source(&id_pointer()) {
-        Some(source) => error.with_location(source),
-        None => error,
+impl Indexed<'_> {
+    /// Where the identifier of the artifact is stored; `None` for a document sent directly.
+    fn source(&self) -> Option<Source> {
+        self.entry.source(&id_pointer())
+    }
+
+    /// `error`, at `/id` of the artifact, with its document and the place it is stored.
+    fn of(&self, error: Error) -> Error {
+        self.entry.locate(error.with_document(self.document))
     }
 }
 
@@ -46,19 +51,16 @@ fn of(artifact: &Indexed<'_>, error: Error) -> Error {
 pub(super) fn duplicates(index: &[Indexed<'_>]) -> Vec<Error> {
     let mut carriers: BTreeMap<&str, Vec<&Indexed<'_>>> = BTreeMap::new();
     for artifact in index {
-        carriers.entry(artifact.id).or_default().push(artifact);
+        carriers.entry(&artifact.id).or_default().push(artifact);
     }
     index
         .iter()
         .filter_map(|artifact| {
             let others: Vec<Related> = carriers
-                .get(artifact.id)?
+                .get(artifact.id.as_str())?
                 .iter()
                 .filter(|other| other.document != artifact.document)
-                .map(|other| {
-                    let source = other.entry.source(&id_pointer());
-                    Related::new(other.document, id_pointer(), source)
-                })
+                .map(|other| Related::new(other.document, id_pointer(), other.source()))
                 .collect();
             if others.is_empty() {
                 return None;
@@ -82,7 +84,7 @@ pub(super) fn duplicates(index: &[Indexed<'_>]) -> Vec<Error> {
                 Reason::Duplicate,
             )
             .with_related(others);
-            Some(of(artifact, error))
+            Some(artifact.of(error))
         })
         .collect()
 }
@@ -111,8 +113,8 @@ pub(super) fn locations(index: &[Indexed<'_>]) -> Vec<Error> {
                 id_pointer(),
                 Reason::Conflict,
             )
-            .with_fix(artifact.id);
-            Some(of(artifact, warning))
+            .with_fix(artifact.id.as_str());
+            Some(artifact.of(warning))
         })
         .collect()
 }
