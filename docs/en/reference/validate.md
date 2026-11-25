@@ -39,16 +39,17 @@ subfolder, it finds none and validates an empty set, with exit code 0 and the wa
 `plan/council/*.yaml`, `plan/items/*.yaml` and `specs/<NNNN>-<capability>/spec.md` (so not
 `specs/_templates/`). A location reached through a symbolic link, or that is a file and not a
 folder, is treated as absent, and links, special files and names that are not UTF-8 inside a
-location are skipped. With paths it
-reads those files only, as one set: each path is relative to the current folder, has no `..`
-segment and no `\`, and names a YAML file (`.yaml`) or a Markdown file (`.md`), which is read
-as a living specification wherever it is (see Living specifications in Markdown); a path whose
-file, once its links are resolved, is outside the project or has another extension is refused
-as a usage error, and a path that is not a regular file (a folder, a pipe, a device) cannot be
-read (exit code 3). A set of more than 10,000 files, discovered or named, is refused as a usage
-error; discovery stops listing at the first file beyond that bound. Either way the files are read in the byte order of their paths, each into one entry of
-`documents` with its path as its `file` origin and, for YAML, the line of each value in
-`lines`; so every error gives the file and the line of the faulty value in `source`.
+location are skipped. With paths it reads those files only, as one set: each path is relative
+to the current folder, has no `..` segment and no `\`, and names a YAML file (`.yaml`) or a
+Markdown file (`.md`), which is read as a living specification wherever it is (see Living
+specifications in Markdown); a path whose file, once its links are resolved, is outside the
+project or has another extension is refused as a usage error, and a path that is not a regular
+file (a folder, a pipe, a device) cannot be read (exit code 3). A set of more than 10,000
+files, discovered or named, is refused as a usage error; discovery stops listing at the first
+file beyond that bound. Either way the files are read in the byte order of their paths, each
+into one entry of `documents` with its path as its `file` origin and, for YAML, the line of
+each value in `lines`; so every error gives the file and the line of the faulty value in
+`source`.
 
 Discovered or named, the command also gives in `adrs` the numbers of the ADRs of the project,
 read from the names of the files directly in `docs/en/project/adr/`: a file

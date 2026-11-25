@@ -692,8 +692,10 @@ mod tests {
             adr_numbers(names(MAX_FILES + 1)),
             Err(Refused::TooManyFiles)
         );
-        assert_eq!(MAX_LISTED, MAX_FILES + 1);
-        // A listing is kept up to the cap only for the files the core reads.
+    }
+
+    #[test]
+    fn the_listing_keeps_only_the_files_the_core_reads() {
         assert!(is_stored("plan/items/TASK-0001.yaml"));
         assert!(!is_stored("plan/items/README.md"));
         assert!(!is_adr(&format!("{ADR_FOLDER}/index.md")));

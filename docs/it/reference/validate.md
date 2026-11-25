@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 0c66877c5750
+source_hash: 77fc56848d8b
 ---
 # wayloop validate
 
@@ -40,21 +40,21 @@ $ wayloop validate --input - [--command-version <n>]
 Senza `--input`, il comando legge il progetto nella cartella corrente, che deve essere la
 radice del progetto. Indica in `locations` le cartelle delle posizioni che ha trovato; eseguito
 da una sottocartella, non ne trova nessuna e valida un insieme vuoto, con codice di uscita 0 e
-l'avviso `artifact_location_missing`. Senza percorsi legge ogni artefatto
-salvato: `plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` e
+l'avviso `artifact_location_missing`. Senza percorsi legge ogni artefatto salvato:
+`plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` e
 `specs/<NNNN>-<capability>/spec.md` (quindi non `specs/_templates/`). Una posizione raggiunta
 attraverso un link simbolico, o che è un file e non una cartella, è trattata come assente, e
-dentro una posizione i link, i file speciali e i nomi non UTF-8 sono saltati. Con dei percorsi legge solo quei file, come un unico
-insieme: ogni percorso è relativo alla cartella corrente, non ha segmenti `..` né `\`, e indica
-un file YAML (`.yaml`) o un file Markdown (`.md`), letto come specifica viva ovunque si trovi
-(vedi Specifiche vive in Markdown); un percorso il cui file, risolti i link, è
-fuori dal progetto o ha un'altra estensione è rifiutato come errore d'uso, e un percorso che non
-è un file regolare (una cartella, una pipe, un dispositivo) non può essere letto (codice di
-uscita 3). Un insieme di più di 10.000 file, trovati o indicati, è rifiutato come errore d'uso;
-la ricerca smette di elencare al primo file oltre quel limite.
-In entrambi i casi i file sono letti nell'ordine per byte dei loro percorsi, ognuno in una voce
-di `documents` con il suo percorso come origine `file` e, per lo YAML, la riga di ogni valore
-in `lines`; così ogni errore indica in `source` il file e la riga del valore errato.
+dentro una posizione i link, i file speciali e i nomi non UTF-8 sono saltati. Con dei percorsi
+legge solo quei file, come un unico insieme: ogni percorso è relativo alla cartella corrente,
+non ha segmenti `..` né `\`, e indica un file YAML (`.yaml`) o un file Markdown (`.md`), letto
+come specifica viva ovunque si trovi (vedi Specifiche vive in Markdown); un percorso il cui
+file, risolti i link, è fuori dal progetto o ha un'altra estensione è rifiutato come errore
+d'uso, e un percorso che non è un file regolare (una cartella, una pipe, un dispositivo) non
+può essere letto (codice di uscita 3). Un insieme di più di 10.000 file, trovati o indicati, è
+rifiutato come errore d'uso; la ricerca smette di elencare al primo file oltre quel limite. In
+entrambi i casi i file sono letti nell'ordine per byte dei loro percorsi, ognuno in una voce di
+`documents` con il suo percorso come origine `file` e, per lo YAML, la riga di ogni valore in
+`lines`; così ogni errore indica in `source` il file e la riga del valore errato.
 
 Che i file siano trovati o indicati, il comando dà anche in `adrs` i numeri degli ADR del
 progetto, letti dai nomi dei file direttamente in `docs/en/project/adr/`: un file
