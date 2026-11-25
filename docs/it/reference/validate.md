@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 8d6139225ca6
+source_hash: 177cf7f8ae9a
 ---
 # wayloop validate
 
@@ -15,9 +15,10 @@ di passaggio di mano) sono validati rispetto ai loro schemi. Una specifica viva 
 Markdown viene prima normalizzata nel suo modello di documento (vedi Specifiche vive in Markdown
 più sotto). Tra documenti, gli identificativi sono controllati per unicità e rispetto al
 percorso del loro file, i collegamenti tra artefatti sono risolti (vedi Collegamenti più sotto),
-e i titoli di epic e task sono controllati per la loro forma e la loro unicità; gli altri
-controlli tra documenti (parti, stati, nomi, aree) non sono eseguiti da questa
-versione e sono elencati in `diagnostics.not_done`.
+le parti degli artefatti e le operazioni delle modifiche a delta sono controllate (vedi Parti
+più sotto), e i titoli di epic e task sono controllati per la loro forma e la loro unicità; gli
+altri controlli tra documenti (stati, nomi, aree) non sono eseguiti da questa versione e sono
+elencati in `diagnostics.not_done`.
 
 Questa pagina descrive la versione 1 del comando, compilata dai sorgenti. Il suo contratto è la
 coppia di snapshot di schema `schemas/commands/validate/v1.json` (input) e
@@ -91,6 +92,7 @@ letto; il messaggio per una persona, con il percorso, va sullo standard error.
 | `identifier_duplicate` | Due artefatti dell'insieme non portano mai lo stesso identificativo |
 | `identifier_location` | Il nome del file di un brief, di un verbale del comitato o di un elemento del piano, e il numero della cartella di una specifica viva, indicano l'`id` dell'artefatto; altrimenti un avviso |
 | `links` | Ogni collegamento di un artefatto porta a un artefatto dell'insieme, non in stato `superseded` dove conta, ogni requisito citato è in vigore, e un task o una user story appartengono alla milestone e all'epic dei loro genitori (vedi Collegamenti più sotto) |
+| `parts` | Nessun identificativo di parte è dato due volte nella sua lista, un dissenso nomina una decisione del suo verbale, una raccomandazione o una risposta è una delle opzioni della sua domanda, un task non dipende da sé stesso, né da un task sostituito, né da un ciclo, una modifica a delta ha al più un'operazione per requisito e nessun membro che il suo `op` rifiuta, e un task non è verificato da `none` accanto a una tecnica (vedi Parti più sotto) |
 | `adr_citations` | Ogni citazione `ADR <NNNN>` in `related` di una specifica viva indica un ADR di `adrs`; solo con `adrs` |
 | `title_format` | Il titolo di ogni epic e di ogni task non ha un prefisso di tipo, né un tag tra parentesi quadre all'inizio o alla fine, né un punto finale (vedi Titoli di epic e task più sotto) |
 | `title_duplicate` | Due titoli di epic e task, in qualunque stato tranne `superseded`, non sono mai uguali dopo la normalizzazione |
@@ -105,7 +107,6 @@ eseguito non è mai saltato in silenzio:
 
 | Controllo | Non eseguito su |
 | --- | --- |
-| `parts` | L'insieme: parti degli artefatti e operazioni delle modifiche a delta |
 | `statuses` | L'insieme: transizioni e stati iniziali rispetto a `base` |
 | `naming` | L'insieme: nomi dei branch, intestazioni dei commit e collegamenti delle pull request |
 | `areas` | L'insieme: l'`area` di ogni epic e di ogni task rispetto alle aree della policy del progetto |
@@ -144,14 +145,7 @@ una specifica viva ne ha sei, `draft`, `approved`, `surveyed`, `implementing`, `
 artefatto (`D<k>`, `Q<k>`, `R<k>`, `AC<k>`) e che una domanda di un verbale del comitato abbia
 almeno due opzioni, non che una parte sia unica, che un dissenso nomini una decisione del suo
 verbale, che una raccomandazione o una risposta sia una delle opzioni o che una modifica a delta
-abbia una sola operazione per requisito: questo è il controllo `parts`.
-
-Un'operazione di una modifica a delta non deve portare un membro che il suo `op` rifiuta:
-`requirement` con `added`, `text` con `removed` e `renamed` (una rinomina con un nuovo testo è
-una sola operazione `modified`), e `name` con `removed`. Lo schema non può indicare l'assenza di
-un membro sotto una condizione, quindi questa versione accetta questi membri; il controllo
-`parts` dovrà rifiutare ciascuno con `artifact_schema`, `unknown_field` e `/operations/<i>/op`
-in `pointers`.
+abbia una sola operazione per requisito: questo è il controllo `parts` (vedi Parti più sotto).
 
 Un passaggio di mano ha due forme di una stessa versione. L'input è ciò che un agente invia alla
 fine di una sessione, con `input_kind: handover_input` e senza `kind`: `schema_version`,
@@ -207,6 +201,9 @@ tracker non viene letto, quindi un collegamento verso di esso è mancante.
   del suo titolare. `expanded_from` (il task da cui un sottotask è stato espanso è sostituito da
   esso) e `depends_on` accettano una destinazione in stato `superseded`, perché registrano la
   storia del lavoro; una dipendenza da un task sostituito è una regola del controllo `parts`.
+- I sostituti offerti non comprendono mai la destinazione sostituita stessa, né l'artefatto che
+  porta il collegamento, che non nomina mai sé stesso: quando non ne resta nessuno, `expected` e
+  `fix` sono assenti.
 - Un requisito citato che la specifica non ha è `link_missing`; uno rimosso è
   `link_superseded`, motivo `state`, senza `expected` né `fix`, perché non ha sostituti. I
   requisiti sono controllati solo quando la specifica è nell'insieme e ha superato il suo
@@ -236,6 +233,42 @@ piano.
 Quando l'input stesso è rifiutato, o la riga di comando non è compresa, o l'input non può
 essere letto, nessun controllo viene eseguito: `diagnostics.checks` e `diagnostics.not_done`
 sono allora vuoti.
+
+### Parti
+
+Le parti di un artefatto sono lette dopo che ha superato il suo schema. Ogni regola qui sotto
+rifiuta il valore al suo puntatore; nessun errore di questo controllo nomina un altro documento
+in `related`.
+
+| Regola | Codice | Motivo | Puntatore | Altri membri |
+| --- | --- | --- | --- | --- |
+| Un identificativo di parte dato due volte nella sua lista: `decisions` e `questions` di un verbale del comitato; `requirements`, `acceptance_criteria` e `open_questions` di una specifica viva; `acceptance_criteria` di una user story | `part_invalid` | `duplicate` | L'`id` di ogni parte dopo la prima che lo porta | `pointers`: l'`id` della prima, poi il proprio |
+| Un dissenso che nomina una decisione che il verbale non ha | `part_invalid` | `missing` | `/dissent/<i>/decision` | `pointers`: `/decisions` |
+| Una raccomandazione o una risposta che non è una delle opzioni della sua domanda | `part_invalid` | `enum` | `/questions/<i>/recommendation` o `/questions/<i>/answer` | `expected`: ogni opzione una volta, nel suo ordine; `pointers`: `/questions/<i>/options` |
+| Un task che dipende da sé stesso | `part_invalid` | `conflict` | `/depends_on/<i>` | `pointers`: `/id` |
+| Un task che dipende da un task sostituito | `part_invalid` | `conflict` | `/depends_on/<i>` | `expected` e `fix` come per un collegamento a un artefatto sostituito (vedi Collegamenti) |
+| Un task che dipende da un task che dipende di nuovo da esso, direttamente o tramite altri task | `part_invalid` | `conflict` | `/depends_on/<i>` di ogni dipendenza del ciclo | nessuno |
+| Due operazioni di una modifica a delta sullo stesso requisito | `delta_conflict` | `conflict` | `/operations/<i>` di ogni operazione dopo la prima su quel requisito | `pointers`: la prima operazione, poi la propria |
+| Un membro che l'`op` di un'operazione rifiuta: `requirement` con `added`, `text` con `removed` e `renamed` (una rinomina con un nuovo testo è una sola operazione `modified`), `name` con `removed` | `artifact_schema` | `unknown_field` | `/operations/<i>/<member>` | `pointers`: `/operations/<i>/op` |
+| Un task la cui `verification` contiene `none` accanto a una tecnica | `artifact_schema` | `enum` | `/verification/<i>` di ogni `none` | `expected`: le tecniche; `pointers`: la prima tecnica della lista |
+
+Lo schema non può indicare l'assenza di un membro sotto una condizione, quindi i membri che un
+`op` rifiuta sono rifiutati da questo controllo. Un requisito rifiutato in un'operazione `added`
+non indica alcun requisito, quindi non è in conflitto con nessun'altra operazione. L'ordine dei
+valori della verifica e un valore ripetuto non hanno significato: `[none, none]` e `[tdd, tdd]`
+sono accettati.
+
+Le dipendenze di un task sono controllate solo quando il task non ha errori propri e non è in
+stato `done` o `superseded`, perché un tale task non viene più modificato; ogni task
+dell'insieme è una destinazione, quali che siano i suoi errori. Ogni dipendenza di un ciclo è
+rifiutata, non solo quella che lo ha chiuso, perché l'ordine dei documenti non dice quale lo
+abbia fatto. Una dipendenza da un task che nessun artefatto dell'insieme porta è soltanto un
+errore dei collegamenti.
+
+Quando una modifica a delta viene unita, un requisito aggiunto riceve l'identificativo che
+segue il numero più alto mai usato nella sua specifica viva, requisiti rimossi compresi: con da
+`R1` a `R3` e `R4` rimosso, è `R5`. Il motore dà quell'identificativo con una funzione del suo
+core; il merge stesso non è un comando di questa versione.
 
 ### Specifiche vive in Markdown
 
@@ -465,7 +498,8 @@ Ogni errore trovato è elencato in `error.errors`; il primo è ripetuto al livel
    in ordine per le regole che lo schema non può esprimere.
 2. Altrimenti, gli errori dei documenti, nell'ordine dei documenti; dentro un documento, per
    fase (prima tipo, versione e schema, poi identificativo, poi gli identificativi dell'insieme,
-   poi i collegamenti, poi la forma del titolo e i titoli dell'insieme); dentro una fase,
+   poi i collegamenti, poi le parti, poi la forma del titolo e i titoli dell'insieme); dentro
+   una fase,
    nell'ordine del passaggio dello schema: i membri di un oggetto nell'ordine dei byte delle loro
    chiavi (`/aa` prima di `/zz`), gli elementi di un array per indice, i membri assenti dopo
    quelli presenti, nell'ordine in cui lo schema li elenca come obbligatori. Gli errori del nome
@@ -496,7 +530,7 @@ livelli di oggetti (ADR 0009 C4). `related` è assente quando non c'è un altro 
 | Codice | Motivi | Codice di uscita | Significato |
 | --- | --- | --- | --- |
 | `command_input` | `syntax`, `duplicate`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `conflict` | 1 | L'input canonico è rifiutato: non è JSON, ripete una chiave, contiene un numero oltre un double, o viola il suo schema o una regola della sezione Input; oppure `--command-version` richiede una versione che il motore non esegue (`enum`, le versioni note in `expected`) |
-| `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `duplicate` | 1 | Un documento viola lo schema del suo tipo o del suo input (una pull request, un commit); anche un documento senza `kind`, o con un `kind` fuori dalla lista (`enum`, con i tipi in `expected`), uno `schema_version` assente, non intero (riportato con ogni altro errore rispetto alla versione corrente) od oltre più o meno (2^53 - 1) (`range`), un file che non è stato possibile analizzare (`syntax`, al puntatore dell'intero documento, con la sua riga in `source`), e i difetti di una specifica viva in Markdown, tra cui una sezione data due volte (`duplicate`; vedi Specifiche vive in Markdown) |
+| `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `duplicate` | 1 | Un documento viola lo schema del suo tipo o del suo input (una pull request, un commit); anche un documento senza `kind`, o con un `kind` fuori dalla lista (`enum`, con i tipi in `expected`), uno `schema_version` assente, non intero (riportato con ogni altro errore rispetto alla versione corrente) od oltre più o meno (2^53 - 1) (`range`), un file che non è stato possibile analizzare (`syntax`, al puntatore dell'intero documento, con la sua riga in `source`), i difetti di una specifica viva in Markdown, tra cui una sezione data due volte (`duplicate`; vedi Specifiche vive in Markdown), un membro che l'`op` di un'operazione rifiuta (`unknown_field`) e `none` accanto a una tecnica nella `verification` di un task (`enum`; vedi Parti) |
 | `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | Un input di passaggio di mano viola il suo schema, per esempio impostando un membro che solo il motore imposta (`unknown_field`) |
 | `schema_version_unknown` | `enum` | 1 | Lo `schema_version` non è una versione del tipo o dell'input; `expected` elenca le versioni note |
 | `identifier_format` | `syntax` | 1 | L'`id` non è nella forma canonica del suo tipo; `fix` dà l'identificativo corretto quando è possibile ricavarlo |
@@ -504,6 +538,8 @@ livelli di oggetti (ADR 0009 C4). `related` è assente quando non c'è un altro 
 | `link_missing` | `missing` | 1 | Un collegamento indica un identificativo che nessun artefatto dell'insieme porta, o un requisito che la sua specifica non ha (vedi Collegamenti) |
 | `link_superseded` | `state` | 1 | Un collegamento indica un artefatto in stato `superseded`, con i suoi sostituti in `expected` e, quando ce n'è uno, in `fix`; o un requisito rimosso, senza né l'uno né l'altro |
 | `hierarchy_mismatch` | `conflict` | 1 | Un task o una user story indicano una milestone o un'epic diversa da quella raggiunta attraverso il loro genitore |
+| `part_invalid` | `duplicate`, `missing`, `enum`, `conflict` | 1 | Un identificativo di parte dato due volte nella sua lista, un dissenso che non nomina una decisione del suo verbale, una raccomandazione o una risposta fuori dalle opzioni della sua domanda, o una dipendenza di un task da sé stesso, da un task sostituito o da un ciclo (vedi Parti) |
+| `delta_conflict` | `conflict` | 1 | Due o più operazioni di una modifica a delta sullo stesso requisito: ognuna dopo la prima è rifiutata, con la prima in `pointers` |
 | `title_format` | `syntax` | 1 | Il titolo di un epic o di un task ha un prefisso di tipo, un tag tra parentesi quadre all'inizio o alla fine, o un punto finale: un errore per regola in `/title`, ciascuno con `fix` il titolo con tutte le regole applicate, quando ne resta qualcosa |
 | `title_duplicate` | `duplicate` | 1 | Due o più titoli di epic o task, in qualunque stato tranne `superseded`, sono uguali dopo la normalizzazione: ciascuno è rifiutato in `/title`, e ogni errore nomina gli altri in `related` |
 | `usage` | `syntax` | 2 | La riga di comando non è compresa; `command` è il comando indicato, vuoto quando nessuno |

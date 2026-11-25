@@ -4,7 +4,7 @@
 //! [`validate`] is a pure, total function: it never panics, never stops at the first error,
 //! and gives the same [`Validation`] for the same input. It is reached only through the entry
 //! point of the crate (ADR 0028). Errors come in the order of the documents, then of the
-//! stages (kind, version and schema; identifier; links), then within a stage in the order of the
+//! stages (kind, version and schema; identifier; links; parts; titles), then within a stage in the order of the
 //! schema pass: the members of an object in the byte order of their keys, absent members
 //! after present ones. Each error of a document carries the index of the document. A check
 //! this version does not run is listed in [`Validation::not_done`], never skipped silently.
@@ -27,9 +27,9 @@ use wayloop_schemas::{DefaultApplied, Diagnostics, ErrorReport, NotDone, NotDone
 use super::identifiers::{self, Indexed};
 use super::input::{self, Body, Entry, Input, Place};
 use super::kinds::{self, Checked, Kind, Loaded};
-use super::links;
 use super::titles::{self, Titled};
 use super::{checks, codes, markdown};
+use super::{links, parts};
 use crate::command::COMMAND_INPUT;
 use crate::{Check, Error, Pointer, Reason};
 
@@ -78,6 +78,7 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         checks::IDENTIFIER_DUPLICATE,
         checks::IDENTIFIER_LOCATION,
         checks::LINKS,
+        checks::PARTS,
         checks::TITLE_FORMAT,
         checks::TITLE_DUPLICATE,
     ]);
@@ -157,7 +158,7 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
 }
 
 /// The stages across the set, on the artifacts of `index` and the titles of `titled`: the
-/// identifiers (stage 3), the links (stage 4), the titles (stage 7), the citations of ADRs when
+/// identifiers (stage 3), the links (stage 4), the parts (stage 5), the titles (stage 7), the citations of ADRs when
 /// `adrs` is given, then the locations when `locations` is given; a check whose input is absent
 /// is added to `not_done`.
 fn across(
@@ -171,8 +172,10 @@ fn across(
     let duplicates = identifiers::duplicates(index, &carriers);
     let warnings = identifiers::locations(index);
     let linked = links::check(index, &carriers);
+    let parted = parts::check(index, &carriers);
     validation.errors.extend(duplicates);
     validation.errors.extend(linked.errors);
+    validation.errors.extend(parted);
     let policy = policy(input, validation);
     validation
         .errors

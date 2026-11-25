@@ -90,10 +90,26 @@ impl Indexed<'_> {
     }
 
     /// The identifiers of the artifacts that replace this one, as given; empty when none is.
-    pub(super) fn superseded_by(&self) -> Vec<&str> {
+    fn superseded_by(&self) -> Vec<&str> {
         self.document()
             .map(|d| members::texts(d, SUPERSEDED_BY).map(|(_, id)| id).collect())
             .unwrap_or_default()
+    }
+
+    /// The replacements this artifact, superseded, offers to a link or a dependency of `holder`
+    /// that names it: its `superseded_by`, the values accepted in its place (R4), without the
+    /// artifact itself, which is superseded, and without `holder`, which never names itself.
+    pub(super) fn replacements(&self, holder: &str) -> Vec<&str> {
+        let mut replacements = self.superseded_by();
+        replacements.retain(|id| *id != self.id && *id != holder);
+        replacements
+    }
+
+    /// Whether the artifact is not changed again: `done` and `superseded` are terminal for every
+    /// type, and a hand-over record, which has no status, is never changed (R3).
+    pub(super) fn terminal(&self) -> bool {
+        self.kind == ArtifactKind::Handover
+            || matches!(self.status(), Some(Status::Done | Status::Superseded))
     }
 }
 

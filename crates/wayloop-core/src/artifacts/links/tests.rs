@@ -9,30 +9,15 @@ use wayloop_schemas::examples::{
 };
 
 use crate::artifacts::tests::{
-    at, entry, found, linked, project, read, read_input, stored, titled, validate, with,
+    at, entry, found, linked, project, read, read_input, stored, the_only_error, titled, validate,
+    validated, with,
 };
 use crate::artifacts::{Validation, checks, codes};
 use crate::{Code, Error, Reason};
 
-/// The project with `extra` after it, validated; `extra` starts at the index `project().len()`.
-fn validated(extra: Vec<Value>) -> Validation {
-    let entries = project().into_iter().chain(extra).map(entry).collect();
-    validate(&read(entries))
-}
-
 /// The index of the first document after the project.
 fn after() -> Option<u64> {
     u64::try_from(project().len()).ok()
-}
-
-/// The only error of `validation`, which has no warning.
-fn only_error(validation: &Validation) -> &Error {
-    assert_eq!(validation.failures, []);
-    assert_eq!(validation.warnings, []);
-    let [error] = &validation.errors[..] else {
-        panic!("{:?}", validation.errors);
-    };
-    error
 }
 
 /// The only warning of `validation`, which has no error.
@@ -92,7 +77,7 @@ fn the_example_project_links_with_no_error_and_no_warning_and_the_check_runs() {
 fn ac2_a_story_linked_to_a_missing_specification_names_the_story_the_field_and_the_target() {
     let story = story_with("STORY-0002", "specification", json!(["SPEC-0042"]));
     let validation = validated(vec![story]);
-    let error = only_error(&validation);
+    let error = the_only_error(&validation);
     assert_eq!(
         found(&validation.errors),
         coded(codes::LINK_MISSING, "/specification/0", Reason::Missing)
@@ -114,7 +99,7 @@ fn ac5_a_task_citing_a_missing_requirement_names_the_task_the_field_and_the_requ
         "specification",
         cited,
     )]);
-    let error = only_error(&validation);
+    let error = the_only_error(&validation);
     assert_eq!(
         found(&validation.errors),
         coded(
@@ -155,7 +140,7 @@ fn ac6_links_to_a_living_specification_moved_and_renamed_still_resolve() {
 fn ac7_a_story_linked_to_a_superseded_specification_gets_its_replacements_and_the_fix() {
     let story = story_with("STORY-0003", "specification", json!(["SPEC-0003"]));
     let validation = validated(vec![story]);
-    let error = only_error(&validation);
+    let error = the_only_error(&validation);
     assert_eq!(
         found(&validation.errors),
         coded(codes::LINK_SUPERSEDED, "/specification/0", Reason::State)
@@ -177,7 +162,7 @@ fn several_replacements_are_the_values_accepted_with_no_fix() {
     let replacement = with(replacement, "issue", Value::Null);
     let story = story_with("STORY-0002", "epic", json!("EPIC-0002"));
     let validation = validated(vec![replaced, replacement, story]);
-    let error = only_error(&validation);
+    let error = the_only_error(&validation);
     assert_eq!(
         found(&validation.errors),
         coded(codes::LINK_SUPERSEDED, "/epic", Reason::State)
@@ -201,7 +186,7 @@ fn milestone_2() -> Value {
 fn ac14_a_task_whose_milestone_differs_from_that_of_its_epic_is_refused_naming_both() {
     let refused = task_with("TASK-0002", "approved", "milestone", json!("M2"));
     let validation = validated(vec![milestone_2(), refused]);
-    let error = only_error(&validation);
+    let error = the_only_error(&validation);
     assert_eq!(
         found(&validation.errors),
         coded(codes::HIERARCHY_MISMATCH, "/milestone", Reason::Conflict)
@@ -222,7 +207,7 @@ fn ac14_a_task_whose_milestone_differs_from_that_of_its_epic_is_refused_naming_b
 fn a_story_whose_milestone_differs_from_that_of_its_epic_is_refused() {
     let story = story_with("STORY-0002", "milestone", json!("M2"));
     let validation = validated(vec![milestone_2(), story]);
-    let error = only_error(&validation);
+    let error = the_only_error(&validation);
     assert_eq!(
         found(&validation.errors),
         coded(codes::HIERARCHY_MISMATCH, "/milestone", Reason::Conflict)
@@ -236,7 +221,7 @@ fn a_task_whose_epic_differs_from_that_of_its_story_is_refused_naming_both() {
     let other = with(other, "issue", Value::Null);
     let refused = task_with("TASK-0002", "approved", "epic", json!("EPIC-0002"));
     let validation = validated(vec![other, refused]);
-    let error = only_error(&validation);
+    let error = the_only_error(&validation);
     assert_eq!(
         found(&validation.errors),
         coded(codes::HIERARCHY_MISMATCH, "/epic", Reason::Conflict)
@@ -281,7 +266,7 @@ fn a_removed_requirement_is_not_in_force_for_a_task_and_a_warning_once_it_is_don
     let cited = json!([{"spec": "SPEC-0001", "requirements": ["R4"]}]);
     let approved = task_with("TASK-0002", "approved", "specification", cited.clone());
     let validation = validated(vec![approved]);
-    let error = only_error(&validation);
+    let error = the_only_error(&validation);
     assert_eq!(
         found(&validation.errors),
         coded(
@@ -462,8 +447,14 @@ fn links_that_name_a_superseded_task_by_design_accept_it() {
         Value::Null,
     );
     let validation = validated(vec![expanded, subtask]);
-    assert_eq!(validation.errors, []);
-    assert_eq!(validation.warnings, []);
+    // No error of a link: the only error is that of the parts, at the dependency, and the
+    // subtask, the only replacement of the task, is not offered to itself.
+    let error = the_only_error(&validation);
+    assert_eq!(
+        found(&validation.errors),
+        coded(codes::PART_INVALID, "/depends_on/0", Reason::Conflict)
+    );
+    assert_eq!((error.fix(), error.expected()), (None, None));
 }
 
 #[test]
@@ -613,6 +604,11 @@ fn a_replacement_must_not_be_superseded_and_a_chain_is_a_warning_of_its_holder()
             (Some(first + 1), "/superseded_by/0".to_owned()),
         ]
     );
+    // Each epic of the cycle is the only replacement of the other: offering it would make the
+    // epic name itself, so neither offers a value.
+    for warning in &validation.warnings {
+        assert_eq!((warning.fix(), warning.expected()), (None, None));
+    }
     // A draft epic is not terminal: its replacement, itself superseded, is an error.
     let draft = with(item(epic(), "EPIC-0004"), "status", json!("draft"));
     let draft = with(
@@ -622,7 +618,7 @@ fn a_replacement_must_not_be_superseded_and_a_chain_is_a_warning_of_its_holder()
     );
     let replaced = superseded_epic("EPIC-0002", json!(["EPIC-0001"]));
     let validation = validated(vec![replaced, draft]);
-    let error = only_error(&validation);
+    let error = the_only_error(&validation);
     assert_eq!(
         found(&validation.errors),
         coded(codes::LINK_SUPERSEDED, "/superseded_by/0", Reason::State)
@@ -792,5 +788,10 @@ fn a_requirement_listed_twice_is_read_as_its_first_entry() {
     let cited = json!([{"spec": "SPEC-0005", "requirements": ["R1"]}]);
     let task = task_with("TASK-0002", "approved", "specification", cited);
     let validation = validated(vec![draft, task]);
-    assert_eq!(validation.errors, []);
+    // The task cites an active requirement: no error of a link. The duplicate itself is a
+    // fault of the parts (R18).
+    assert_eq!(
+        found(&validation.errors),
+        coded(codes::PART_INVALID, "/requirements/4/id", Reason::Duplicate)
+    );
 }

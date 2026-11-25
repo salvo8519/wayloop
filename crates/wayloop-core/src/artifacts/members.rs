@@ -15,7 +15,9 @@ pub(super) const BRIEF: &str = "brief";
 pub(super) const CAPABILITY: &str = "capability";
 pub(super) const COMMIT_SCOPE: &str = "commit_scope";
 pub(super) const COUNCIL_REPORT: &str = "council_report";
+pub(super) const DECISIONS: &str = "decisions";
 pub(super) const DEPENDS_ON: &str = "depends_on";
+pub(super) const DISSENT: &str = "dissent";
 pub(super) const EPIC: &str = "epic";
 pub(super) const EXPANDED_FROM: &str = "expanded_from";
 pub(super) const EXTRA_SECTIONS: &str = "extra_sections";
@@ -26,6 +28,7 @@ pub(super) const OPEN_QUESTIONS: &str = "open_questions";
 pub(super) const OPERATIONS: &str = "operations";
 pub(super) const OWNER: &str = "owner";
 pub(super) const PROBLEM: &str = "problem";
+pub(super) const QUESTIONS: &str = "questions";
 pub(super) const RELATED: &str = "related";
 pub(super) const REQUIREMENTS: &str = "requirements";
 pub(super) const SCOPE_IN: &str = "scope_in";
@@ -39,10 +42,15 @@ pub(super) const TASKS: &str = "tasks";
 pub(super) const USER_STORIES: &str = "user_stories";
 
 // Members of the parts of artifacts: requirements, acceptance criteria, open questions, extra
-// sections, operations of a change delta and references of a task.
+// sections, dissent and questions of a council report, operations of a change delta and
+// references of a task.
+pub(super) const ANSWER: &str = "answer";
+pub(super) const DECISION: &str = "decision";
 pub(super) const HEADING: &str = "heading";
 pub(super) const NAME: &str = "name";
 pub(super) const OP: &str = "op";
+pub(super) const OPTIONS: &str = "options";
+pub(super) const RECOMMENDATION: &str = "recommendation";
 pub(super) const REQUIREMENT: &str = "requirement";
 pub(super) const RESOLVED: &str = "resolved";
 pub(super) const RUBRIC: &str = "rubric";

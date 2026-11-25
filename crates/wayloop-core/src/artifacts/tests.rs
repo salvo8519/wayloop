@@ -142,6 +142,23 @@ pub(super) fn read_input(input: Value) -> Input {
     input::read(&input).unwrap()
 }
 
+/// The [`project`] with `extra` after it, validated; `extra` starts at the index
+/// `project().len()`.
+pub(super) fn validated(extra: Vec<Value>) -> super::Validation {
+    let entries = project().into_iter().chain(extra).map(entry).collect();
+    validate(&read(entries))
+}
+
+/// The only error of `validation`, which has no failure and no warning.
+pub(super) fn the_only_error(validation: &super::Validation) -> &Error {
+    assert_eq!(validation.failures, []);
+    assert_eq!(validation.warnings, []);
+    let [error] = &validation.errors[..] else {
+        panic!("{:?}", validation.errors);
+    };
+    error
+}
+
 pub(super) fn found(errors: &[Error]) -> Vec<(Code, String, Reason)> {
     errors
         .iter()
@@ -260,6 +277,10 @@ fn the_kinds_and_their_checks_are_snake_case_and_unique() {
             checks::TITLE_FORMAT,
             checks::TITLE_DUPLICATE,
             checks::MARKDOWN,
+            checks::LINKS,
+            checks::PARTS,
+            checks::ADR_CITATIONS,
+            checks::ARTIFACT_LOCATIONS,
         ]
         .iter()
         .map(|c| c.id().to_owned()),
@@ -1959,6 +1980,7 @@ fn checks_not_built_are_listed_once_with_their_reason() {
         checks::IDENTIFIER_DUPLICATE,
         checks::IDENTIFIER_LOCATION,
         checks::LINKS,
+        checks::PARTS,
         checks::TITLE_FORMAT,
         checks::TITLE_DUPLICATE,
     ]);

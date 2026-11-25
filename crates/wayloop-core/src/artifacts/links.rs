@@ -13,8 +13,9 @@
 //!   adapter of SPEC-0005 sends tracker items (plan, Canonical input).
 //! - A link to a superseded artifact is `link_superseded` with the reason `state`, its
 //!   replacements, the `superseded_by` of the target, in `expected`, and in `fix` the one
-//!   replacement when there is exactly one (R4; decided by the maintainer on 2026-11-25); a
-//!   target whose only replacement is itself offers none, so both are left out.
+//!   replacement when there is exactly one (R4; decided by the maintainer on 2026-11-25). The
+//!   target itself and the holder of the link are never offered, since neither is a value the
+//!   holder can name there; with no replacement left, both are left out.
 //!   `superseded_by` itself must name artifacts that are not superseded. `expanded_from` and
 //!   `depends_on` of a task accept a superseded target: they record the history of the work, a
 //!   subtask names the task it was expanded from, which it supersedes, and a dependency on a
@@ -195,7 +196,7 @@ pub(super) fn check(index: &[Indexed<'_>], carriers: &Carriers<'_, '_>) -> Found
             requirements: &requirements,
             holder,
             document,
-            terminal: terminal(holder.kind, holder.status()),
+            terminal: holder.terminal(),
             found: &mut found,
         };
         for rule in rules(holder.kind) {
@@ -203,12 +204,6 @@ pub(super) fn check(index: &[Indexed<'_>], carriers: &Carriers<'_, '_>) -> Found
         }
     }
     found
-}
-
-/// Whether an artifact of `kind` in `status` is not changed again: `done` and `superseded` are
-/// terminal for every type, and a hand-over record, which has no status, is never changed.
-fn terminal(kind: ArtifactKind, status: Option<Status>) -> bool {
-    kind == ArtifactKind::Handover || matches!(status, Some(Status::Done | Status::Superseded))
 }
 
 /// The links of one artifact, `holder`, read from `document`, its contract form.
@@ -283,11 +278,7 @@ impl<'i, 'a> Links<'_, 'i, 'a> {
         if accepts == Accepts::Any || found.status() != Some(Status::Superseded) {
             return;
         }
-        // A target that names only itself as its replacement offers none.
-        let mut replacements = found.superseded_by();
-        if replacements == [target] {
-            replacements.clear();
-        }
+        let replacements = found.replacements(holder);
         let message = if replacements.is_empty() {
             format!("{holder} links {target}, which is superseded.")
         } else {
