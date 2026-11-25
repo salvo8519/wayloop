@@ -127,7 +127,7 @@ milestones:
           - { issue: 295, title: "The envelope and the error report are generated from their types", status: done }
           - { issue: 307, title: "The map of lines is typed in the contract of validate", status: done }
           - { issue: 320, title: "Validate reports a project without any artifact location", status: done }
-          - { issue: 344, title: "Read the ADR list of the project for wayloop validate", spec: "0001", status: open }
+          - { issue: 344, title: "Read the ADR list of the project for wayloop validate", spec: "0001", status: done }
       - title: "Agent process"
         issue: 19
         labels: ["area:agents"]

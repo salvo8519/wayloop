@@ -25,6 +25,10 @@
 //!   entry with the line of the fault and a message, which the core reports as a `syntax`
 //!   error of the file (R12); it is never loaded and never aborts the run.
 //!
+//! - [`adrs`] lists the files of the folder of the ADRs that the core names, as a location is
+//!   listed, and passes their paths to the core, which keeps the numbers of the ADRs; with no
+//!   such folder, `adrs` stays absent and the core does not check the citations of ADRs.
+//!
 //! The entries carry the path of their file as their origin, so every error of the core gives
 //! the file and the line of the faulty value in `source` (R12).
 //!
@@ -37,13 +41,13 @@ use std::io::{self, Read as _};
 use std::path::{Component, Path, PathBuf};
 
 use wayloop_core::artifacts::locations::{
-    self, LOCATIONS, MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, MAX_PROJECT_BYTES, Refused, Stored,
-    StoredFile,
+    self, ADR_DEPTH, ADR_FOLDER, LOCATIONS, MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, MAX_PROJECT_BYTES,
+    Refused, Stored, StoredFile,
 };
 use wayloop_schemas::validate::{
     ArtifactFolder, DocumentEntry, EntryFormat, FreeDocument, Origin, ParseError, ValidateInput,
 };
-use wayloop_schemas::value::ProjectPath;
+use wayloop_schemas::value::{AdrNumber, ProjectPath};
 
 use crate::refusal::fault;
 use crate::yaml;
@@ -159,8 +163,41 @@ pub fn discovered_input(root: &Path) -> Result<ValidateInput, LoadError> {
     let found = discover(root)?;
     Ok(ValidateInput {
         locations: Some(found.locations),
-        ..load(root, found.files)?
+        ..named_input(root, found.files)?
     })
+}
+
+/// The canonical input of `validate` for `files` of the project at `root`, named by a person:
+/// the files, loaded as by [`load`], and the numbers of the ADRs of the project, as by
+/// [`adrs`], so that the citations of ADRs are checked however the files were chosen.
+///
+/// # Errors
+///
+/// As [`load`], and [`LoadError::Read`] when the folder of the ADRs exists but cannot be
+/// listed.
+pub fn named_input(root: &Path, files: Vec<StoredFile>) -> Result<ValidateInput, LoadError> {
+    let adrs = adrs(root)?;
+    Ok(ValidateInput {
+        adrs,
+        ..load(root, files)?
+    })
+}
+
+/// The numbers of the ADRs of the project at `root`, which the core reads from the names of
+/// the files in [`ADR_FOLDER`] ([`locations::adr_numbers`]; SPEC-0001 Q5, #344); `None` when
+/// that folder does not exist or is reached through a link, as a location is. Below it, a link,
+/// a special file and a name that is not UTF-8 are skipped.
+///
+/// # Errors
+///
+/// [`ReadError`] when the folder, or a parent of it, exists but cannot be read.
+pub fn adrs(root: &Path) -> Result<Option<Vec<AdrNumber>>, ReadError> {
+    if !is_real_folder(root, ADR_FOLDER)? {
+        return Ok(None);
+    }
+    let mut found = Vec::new();
+    list(root, ADR_FOLDER, ADR_DEPTH, &mut found)?;
+    Ok(Some(locations::adr_numbers(found)))
 }
 
 /// Whether `folder`, a path below `root` with `/` separators, is a folder reached without a

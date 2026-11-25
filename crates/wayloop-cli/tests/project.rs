@@ -20,7 +20,7 @@ use std::process::Command as Process;
 
 use serde_json::{Value, json};
 use wayloop_core::{Command, Context, envelope_json, run};
-use wayloop_runtime::test_support::TempProject;
+use wayloop_runtime::test_support::{TempProject, ran};
 
 fn repository() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -151,6 +151,57 @@ fn validate_reads_only_the_files_named_as_one_set() {
             (&json!(spec), &json!("SPEC-0001")),
         ]
     );
+}
+
+#[test]
+fn validate_checks_the_adr_citations_of_the_repository() {
+    // #344: run at the root of this repository, the command reads the numbers of its ADRs
+    // from `docs/en/project/adr/`, so the check `adr_citations` runs on SPEC-0001.
+    let output = Process::new(env!("CARGO_BIN_EXE_wayloop"))
+        .args(["validate", "specs/0001-artifact-model/spec.md"])
+        .current_dir(repository())
+        .output()
+        .unwrap();
+    let envelope: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(ran(&envelope, "adr_citations"), "{envelope}");
+}
+
+#[test]
+fn validate_warns_of_a_cited_adr_the_project_does_not_have() {
+    // SPEC-0001 Q5 through the command line: SPEC-0001 cites ADR 0002 among others; in a
+    // project whose ADRs are 0003 and the index, each citation of another number is warned.
+    let spec = "specs/0001-artifact-model/spec.md";
+    let m0 = "kind: milestone\nschema_version: 1\nid: M0\ntitle: Foundations\nstatus: draft\n\
+              gate: The artifact model validates.\n";
+    let project = Project::new(
+        "adr-citations",
+        &[
+            ("plan/items/M0.yaml", m0.to_owned()),
+            (spec, fs::read_to_string(repository().join(spec)).unwrap()),
+            (
+                "docs/en/project/adr/0003-ledger.md",
+                "# ADR 0003\n".to_owned(),
+            ),
+            ("docs/en/project/adr/index.md", "# ADRs\n".to_owned()),
+        ],
+    );
+    let (_, envelope, _, code) = project.validate(&[]);
+    assert_eq!(code, 0, "{envelope}");
+    assert!(ran(&envelope, "adr_citations"), "{envelope}");
+    let warnings = envelope["diagnostics"]["warnings"].as_array().unwrap();
+    let cited: Vec<&str> = warnings
+        .iter()
+        .filter(|w| w["code"] == "adr_citation_missing")
+        .map(|w| w["message"].as_str().unwrap())
+        .collect();
+    assert_eq!(cited.len(), 8, "{warnings:?}");
+    assert!(cited[0].contains("ADR 0002"), "{cited:?}");
+    assert!(cited.iter().all(|m| !m.contains("ADR 0003")), "{cited:?}");
+    // Without the folder, the check is not done.
+    let (_, envelope, _, _) = Project::new("no-adr-folder", &[]).validate(&[]);
+    let not_done = envelope["diagnostics"]["not_done"].as_array().unwrap();
+    let absent = json!({"check": "adr_citations", "reason": "input_absent"});
+    assert!(not_done.contains(&absent), "{not_done:?}");
 }
 
 #[test]

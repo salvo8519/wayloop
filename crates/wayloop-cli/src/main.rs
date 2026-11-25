@@ -233,7 +233,7 @@ fn from_project(
     } else {
         let named = paths.iter().map(|p| project::segments(Path::new(p)));
         match locations::given(named) {
-            Ok(files) => project::load(root, files),
+            Ok(files) => project::named_input(root, files),
             Err((index, refused)) => {
                 let path = index.and_then(|i| paths.get(i)).copied();
                 return refuse(command, path, refused, out);

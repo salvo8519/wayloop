@@ -8,6 +8,10 @@
 //! or it passes the paths a person named to [`given`]. Either way the set has one order on
 //! every platform, so that the canonical input of `validate` does too (SPEC-0004 R15).
 //!
+//! The ADRs of the project are not artifacts, but the check `adr_citations` needs their
+//! numbers: the runtime lists the files of [`ADR_FOLDER`] and passes their paths to
+//! [`adr_numbers`], which keeps the numbers of the files named as ADRs.
+//!
 //! The bounds are those of the files the runtime reads and of the documents it builds from
 //! them, each defined here once, every size in bytes as a `usize`:
 //!
@@ -28,10 +32,11 @@
 //! loaded set adds stays within them.
 
 use core::fmt;
+use core::num::NonZeroU64;
 
 use wayloop_schemas::Format;
 use wayloop_schemas::validate::ArtifactFolder;
-use wayloop_schemas::value::ProjectPath;
+use wayloop_schemas::value::{AdrNumber, ProjectPath};
 
 use crate::schema::format;
 
@@ -182,15 +187,16 @@ impl Location {
 /// `<number>-<capability>`: ASCII digits, a hyphen and a capability of at least one character;
 /// `SPEC-` and the number, in whatever form it is written.
 fn folder_identifier(folder: &str) -> Option<String> {
-    folder_parts(folder).map(|(number, _)| format!("SPEC-{number}"))
+    numbered_parts(folder).map(|(number, _)| format!("SPEC-{number}"))
 }
 
-/// The number and the capability of `folder` when it is `<number>-<capability>`: ASCII digits,
-/// a hyphen and a capability of at least one character, both as written.
-fn folder_parts(folder: &str) -> Option<(&str, &str)> {
-    let (number, capability) = folder.split_once('-')?;
+/// The number and the rest of `name` when it is `<number>-<rest>`: ASCII digits, a hyphen and
+/// a rest of at least one character, both as written. The folder of a specification is
+/// `<number>-<capability>`, the file of an ADR `<number>-<slug>.md`.
+fn numbered_parts(name: &str) -> Option<(&str, &str)> {
+    let (number, rest) = name.split_once('-')?;
     let digits = !number.is_empty() && number.bytes().all(|b| b.is_ascii_digit());
-    (digits && !capability.is_empty()).then_some((number, capability))
+    (digits && !rest.is_empty()).then_some((number, rest))
 }
 
 /// Whether `folder` is `<NNNN>-<capability>`: a folder named after a specification whose
@@ -220,7 +226,7 @@ pub(crate) fn specification_capability(path: &str) -> Option<&str> {
         .strip_prefix(ArtifactFolder::Specs.path())?
         .strip_prefix('/')?;
     match below.split('/').collect::<Vec<_>>().as_slice() {
-        [folder, file] if *file == SPECIFICATION => folder_parts(folder).map(|(_, c)| c),
+        [folder, file] if *file == SPECIFICATION => numbered_parts(folder).map(|(_, c)| c),
         _ => None,
     }
 }
@@ -290,6 +296,47 @@ fn set(files: impl IntoIterator<Item = StoredFile>) -> Vec<StoredFile> {
     files.sort_by(|a, b| a.path.as_str().cmp(b.path.as_str()));
     files.dedup_by(|a, b| a.path == b.path);
     files
+}
+
+/// The folder of the ADRs of the project, relative to its root with `/` separators (plan of
+/// SPEC-0001, Q3). Fixed: the folder of this repository; a configured folder comes with the
+/// configuration (ADR 0010). When it does not exist, `adrs` is not given and the check
+/// `adr_citations` is not done.
+pub const ADR_FOLDER: &str = "docs/en/project/adr";
+
+/// How many levels below [`ADR_FOLDER`] the files of the ADRs are: 1, directly in it. The
+/// runtime lists no deeper.
+pub const ADR_DEPTH: usize = 1;
+
+/// The digits of the number of an ADR in the name of its file, as in `0014`.
+const ADR_DIGITS: usize = 4;
+
+/// The numbers of the ADRs among `found`, paths of files relative to the root of the project
+/// with `/` separators, as the runtime lists them below [`ADR_FOLDER`]: once each, in
+/// ascending order, for `adrs` of the input of `validate` (SPEC-0001 Q5; #344). A file of an
+/// ADR is `<NNNN>-<slug>.md` directly in the folder: four ASCII digits, a number from 1, a
+/// hyphen and a slug of at least one character. Any other file, such as the index `index.md`,
+/// is not an ADR and is ignored. The list has at most 9,999 numbers, whatever `found` holds.
+#[must_use]
+pub fn adr_numbers(found: impl IntoIterator<Item = String>) -> Vec<AdrNumber> {
+    let mut numbers: Vec<AdrNumber> = found
+        .into_iter()
+        .filter_map(|path| adr_number(&path))
+        .collect();
+    numbers.sort_unstable();
+    numbers.dedup();
+    numbers
+}
+
+/// The number of the ADR whose file is at `path`, when it is one (see [`adr_numbers`]).
+fn adr_number(path: &str) -> Option<AdrNumber> {
+    let name = path.strip_prefix(ADR_FOLDER)?.strip_prefix('/')?;
+    let (number, slug) = numbered_parts(name.strip_suffix(MARKDOWN)?)?;
+    if number.len() != ADR_DIGITS || slug.contains('/') {
+        return None;
+    }
+    let number = NonZeroU64::new(number.parse().ok()?)?;
+    Some(AdrNumber::new(number))
 }
 
 /// Why a path, or a set of paths, is not read.
@@ -372,9 +419,9 @@ pub fn given<S: AsRef<str>>(
 #[cfg(test)]
 mod tests {
     use super::{
-        LOCATIONS, MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, MAX_FILES, MAX_NESTING, MAX_PROJECT_BYTES,
-        Refused, Stored, StoredFile, VALUE_COST_BYTES, discovered, given, named_identifier,
-        stored_by_extension,
+        ADR_DEPTH, ADR_FOLDER, LOCATIONS, MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, MAX_FILES,
+        MAX_NESTING, MAX_PROJECT_BYTES, Refused, Stored, StoredFile, VALUE_COST_BYTES, adr_numbers,
+        discovered, given, named_identifier, stored_by_extension,
     };
     use wayloop_schemas::value::ProjectPath;
 
@@ -577,6 +624,40 @@ mod tests {
         ] {
             assert_eq!(named_identifier(path).as_deref(), named, "{path}");
         }
+    }
+
+    #[test]
+    fn the_adrs_are_the_numbered_markdown_files_directly_in_their_folder() {
+        // Plan of SPEC-0001, Q3: one file per ADR, `<NNNN>-<slug>.md`, in the folder of the
+        // ADRs; the index and every other file are not ADRs (#344).
+        assert_eq!(ADR_FOLDER, "docs/en/project/adr");
+        assert_eq!(ADR_DEPTH, 1);
+        let found = [
+            "docs/en/project/adr/0014-specifications-by-capability.md",
+            "docs/en/project/adr/0002-tracker-as-database.md",
+            "docs/en/project/adr/index.md",
+            "docs/en/project/adr/0002-tracker-as-database.md",
+            "docs/en/project/adr/0031-x.md",
+            "docs/en/project/adr/0000-template.md",
+            "docs/en/project/adr/0003-.md",
+            "docs/en/project/adr/0004.md",
+            "docs/en/project/adr/004-short.md",
+            "docs/en/project/adr/00005-long.md",
+            "docs/en/project/adr/0006-x.markdown",
+            "docs/en/project/adr/0007-x.md.bak",
+            "docs/en/project/adr/0008_x.md",
+            "docs/en/project/adr/a009-x.md",
+            "docs/en/project/adr/deeper/0010-x.md",
+            "docs/en/project/adrs/0011-x.md",
+            "docs/it/project/adr/0012-x.md",
+            "0013-x.md",
+        ];
+        let numbers: Vec<u64> = adr_numbers(found.iter().map(ToString::to_string))
+            .into_iter()
+            .map(|n| n.get().get())
+            .collect();
+        assert_eq!(numbers, [2, 14, 31]);
+        assert_eq!(adr_numbers(Vec::new()), []);
     }
 
     #[test]

@@ -7,16 +7,19 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use wayloop_core::artifacts::codes;
-use wayloop_core::artifacts::locations::{MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, Stored, StoredFile};
+use wayloop_core::artifacts::locations::{
+    ADR_FOLDER, MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, Stored, StoredFile,
+};
 use wayloop_core::{Command, Context, run};
 use wayloop_schemas::Code;
 use wayloop_schemas::validate::{ArtifactFolder, EntryFormat, ValidateInput};
-use wayloop_schemas::value::ProjectPath;
+use wayloop_schemas::value::{AdrNumber, ProjectPath};
 
 use super::{
-    Content, LoadError, discover, discovered_input, entry, list, load, load_within, segments,
+    Content, LoadError, adrs, discover, discovered_input, entry, list, load, load_within,
+    named_input, segments,
 };
-use crate::test_support::TempProject;
+use crate::test_support::{TempProject, ran};
 use wayloop_core::artifacts::locations::Refused;
 
 /// The root of the repository.
@@ -942,18 +945,88 @@ fn a_document_beyond_its_bytes_is_unreadable_and_the_envelope_is_written() {
     assert_eq!(envelope["error"]["reason"], "syntax", "{envelope}");
 }
 
+/// The numbers of `adrs`, as integers.
+fn numbers(adrs: Option<Vec<AdrNumber>>) -> Option<Vec<u64>> {
+    adrs.map(|adrs| adrs.into_iter().map(|n| n.get().get()).collect())
+}
+
+#[test]
+fn the_adrs_of_the_project_are_read_from_the_names_of_their_files() {
+    // #344: the numbers of `docs/en/project/adr/<NNNN>-<slug>.md`, for the check
+    // `adr_citations`; the index and malformed names are not ADRs.
+    let adr = |name: &str| format!("{ADR_FOLDER}/{name}");
+    let names = [
+        adr("0014-specifications-by-capability.md"),
+        adr("0002-tracker-as-database.md"),
+        adr("index.md"),
+        adr("0000-template.md"),
+        adr("14-short.md"),
+        adr("0003.md"),
+        adr("0004-x.txt"),
+        adr("deeper/0005-x.md"),
+        "docs/it/project/adr/0006-x.md".to_owned(),
+    ];
+    let files: Vec<(&str, &[u8])> = names.iter().map(|n| (n.as_str(), &b"# ADR"[..])).collect();
+    let project = Project::new("adrs", &files);
+    assert_eq!(numbers(adrs(project.root()).unwrap()), Some(vec![2, 14]));
+    let input = project.input();
+    assert_eq!(numbers(input.adrs), Some(vec![2, 14]));
+    assert!(ran(&project.envelope(), "adr_citations"));
+    // Named files are checked against the ADRs of the project too.
+    let given = named_input(project.root(), Vec::new()).unwrap();
+    assert_eq!(numbers(given.adrs), Some(vec![2, 14]));
+}
+
+#[test]
+fn a_project_without_the_folder_of_the_adrs_does_not_give_them() {
+    let project = Project::new("no-adrs", &[("docs/en/index.md", b"# Docs")]);
+    assert_eq!(adrs(project.root()).unwrap(), None);
+    assert_eq!(project.input().adrs, None);
+    assert_eq!(named_input(project.root(), Vec::new()).unwrap().adrs, None);
+    let envelope = project.envelope();
+    let not_done = envelope["diagnostics"]["not_done"].as_array().unwrap();
+    let absent = json!({"check": "adr_citations", "reason": "input_absent"});
+    assert!(not_done.contains(&absent), "{not_done:?}");
+    // The folder with no ADR in it: the project has none, and every citation is warned.
+    let empty = Project::new("empty-adrs", &[("docs/en/project/adr/index.md", b"# ADRs")]);
+    assert_eq!(numbers(empty.input().adrs), Some(Vec::new()));
+    assert!(ran(&empty.envelope(), "adr_citations"));
+}
+
+#[cfg(unix)]
+#[test]
+fn the_folder_of_the_adrs_reached_through_a_link_is_not_read() {
+    use std::os::unix::fs::symlink;
+    let outside = Project::new("adrs-outside", &[("adr/0001-x.md", b"# ADR")]);
+    let project = Project::new("adrs-linked", &[]);
+    fs::create_dir_all(project.root().join("docs/en/project")).unwrap();
+    symlink(outside.root().join("adr"), project.root().join(ADR_FOLDER)).unwrap();
+    assert_eq!(adrs(project.root()).unwrap(), None);
+    // A linked file in the folder is skipped, as below a location.
+    let linked_file = Project::new("adrs-linked-file", &[("docs/en/project/adr/index.md", b"")]);
+    symlink(
+        outside.root().join("adr/0001-x.md"),
+        linked_file.root().join(ADR_FOLDER).join("0001-x.md"),
+    )
+    .unwrap();
+    assert_eq!(numbers(adrs(linked_file.root()).unwrap()), Some(Vec::new()));
+}
+
 #[test]
 fn the_living_specification_of_the_artifact_model_normalises_with_no_error() {
     // SPEC-0001 T14: the specification itself, in the Markdown form it defines, is read from
     // its file as `markdown` and normalised by the core with no error. Its links resolve (T12):
-    // the milestone it names, M0, lives in the tracker, so it is sent beside it.
+    // the milestone it names, M0, lives in the tracker, so it is sent beside it. The ADRs it
+    // cites are those of the repository (#344): the check `adr_citations` runs and warns of
+    // none.
     let path = "specs/0001-artifact-model/spec.md";
     let files = vec![StoredFile {
         path: ProjectPath::new(path),
         stored: Stored::Markdown,
     }];
-    let input = load(&repository(), files).unwrap();
+    let input = named_input(&repository(), files).unwrap();
     assert_eq!(input.documents[0].format, EntryFormat::Markdown);
+    assert_ne!(input.adrs, None);
     let mut input = serde_json::to_value(input).unwrap();
     let m0 = changed(
         &wayloop_schemas::examples::milestone(),
@@ -966,6 +1039,8 @@ fn the_living_specification_of_the_artifact_model_normalises_with_no_error() {
     let envelope = run(Command::Validate, &input, &Context::default());
     let envelope = serde_json::to_value(&envelope).unwrap();
     assert_eq!(envelope.get("error"), None, "{envelope}");
+    assert!(ran(&envelope, "adr_citations"), "{envelope}");
+    assert_eq!(envelope["diagnostics"]["warnings"], json!([]), "{envelope}");
     let summary = &envelope["data"]["documents"][0];
     assert_eq!(summary["kind"], "specification");
     assert_eq!(summary["id"], "SPEC-0001");
