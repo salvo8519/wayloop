@@ -17,7 +17,7 @@
 //! null, which are not given (ADR 0009 C2), into its contract type, [`ValidateInput`]: a
 //! failure there is a defect of the engine (ADR 0030 G1).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Deserialize as _;
 use serde_json::{Map, Value};
@@ -38,6 +38,8 @@ pub(crate) struct Input {
     pub(crate) locations: Option<Vec<ArtifactFolder>>,
     /// The subset of the project policy, when it is given.
     pub(crate) policy: Option<Policy>,
+    /// The numbers of the ADRs of the project, when they are given.
+    pub(crate) adrs: Option<BTreeSet<u64>>,
 }
 
 /// Where a document was read: the one member of its origin.
@@ -107,10 +109,14 @@ pub(crate) fn read(input: &Value) -> Result<Input, Box<Error>> {
         .into_iter()
         .map(entry)
         .collect::<Result<_, _>>()?;
+    let adrs = typed
+        .adrs
+        .map(|numbers| numbers.into_iter().map(|n| n.get().get()).collect());
     Ok(Input {
         documents,
         locations: typed.locations,
         policy: typed.policy,
+        adrs,
     })
 }
 

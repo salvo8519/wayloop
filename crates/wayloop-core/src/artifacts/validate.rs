@@ -4,7 +4,7 @@
 //! [`validate`] is a pure, total function: it never panics, never stops at the first error,
 //! and gives the same [`Validation`] for the same input. It is reached only through the entry
 //! point of the crate (ADR 0028). Errors come in the order of the documents, then of the
-//! stages (kind, version and schema; identifier), then within a stage in the order of the
+//! stages (kind, version and schema; identifier; links), then within a stage in the order of the
 //! schema pass: the members of an object in the byte order of their keys, absent members
 //! after present ones. Each error of a document carries the index of the document. A check
 //! this version does not run is listed in [`Validation::not_done`], never skipped silently.
@@ -27,6 +27,7 @@ use wayloop_schemas::{DefaultApplied, Diagnostics, ErrorReport, NotDone, NotDone
 use super::identifiers::{self, Indexed};
 use super::input::{self, Body, Entry, Input, Place};
 use super::kinds::{self, Checked, Kind, Loaded};
+use super::links;
 use super::titles::{self, Titled};
 use super::{checks, codes, markdown};
 use crate::command::COMMAND_INPUT;
@@ -76,6 +77,7 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         checks::IDENTIFIER_FORMAT,
         checks::IDENTIFIER_DUPLICATE,
         checks::IDENTIFIER_LOCATION,
+        checks::LINKS,
         checks::TITLE_FORMAT,
         checks::TITLE_DUPLICATE,
     ]);
@@ -108,7 +110,7 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
             .defaults_applied
             .extend(normalisation.defaults_applied);
         let checked_from = validation.errors.len();
-        let summary = check_entry(entry, kinds, &mut validation);
+        let (summary, read) = check_entry(entry, kinds, &mut validation);
         // An error of the schema at a member the normalisation withheld is not reported twice.
         let checked = validation.errors.split_off(checked_from);
         let withheld = &normalisation.withheld;
@@ -120,6 +122,10 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         let found = validation.errors.get_mut(first..).unwrap_or_default();
         let id_refused = found.iter().any(|error| *error.pointer() == id);
         let title_refused = found.iter().any(|error| *error.pointer() == title);
+        // One rule for the links (decided by the maintainer on 2026-11-25): a document with an
+        // error of its own, of the schema or of the normalisation of its Markdown, is not
+        // checked for links, and stays a target.
+        let clean = found.is_empty();
         for error in found {
             *error = error.clone().with_document(document);
         }
@@ -130,11 +136,14 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
             .collect();
         defaults.sort_by(|a, b| a.pointer().cmp(b.pointer()));
         validation.defaults_applied.extend(defaults);
-        if let (Some(_), Some(carried), false) = (summary.kind, &summary.id, id_refused) {
+        if let (Some(kind), Some(carried), false) = (summary.kind, &summary.id, id_refused) {
             index.push(Indexed {
                 document,
+                kind,
                 id: carried.clone(),
                 entry,
+                read,
+                clean,
             });
         }
         if !title_refused {
@@ -142,17 +151,49 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         }
         validation.documents.push(summary);
     }
-    let duplicates = identifiers::duplicates(&index);
-    let warnings = identifiers::locations(&index);
+    across(&index, &titled, input, &mut validation, &mut not_done);
+    validation.not_done = not_done.into_iter().collect();
+    validation
+}
+
+/// The stages across the set, on the artifacts of `index` and the titles of `titled`: the
+/// identifiers (stage 3), the links (stage 4), the titles (stage 7), the citations of ADRs when
+/// `adrs` is given, then the locations when `locations` is given; a check whose input is absent
+/// is added to `not_done`.
+fn across(
+    index: &[Indexed<'_>],
+    titled: &[Titled<'_>],
+    input: &Input,
+    validation: &mut Validation,
+    not_done: &mut BTreeSet<NotDone>,
+) {
+    let carriers = identifiers::carriers(index);
+    let duplicates = identifiers::duplicates(index, &carriers);
+    let warnings = identifiers::locations(index);
+    let linked = links::check(index, &carriers);
     validation.errors.extend(duplicates);
-    let policy = policy(input, &mut validation);
+    validation.errors.extend(linked.errors);
+    let policy = policy(input, validation);
     validation
         .errors
-        .extend(titles::errors(&titled, &policy.types));
+        .extend(titles::errors(titled, &policy.types));
     // By document, then by stage: the stable sort keeps the order of the stages within each
     // document (plan of SPEC-0001, Entry point and validation function).
     validation.errors.sort_by_key(Error::document);
     validation.warnings.extend(warnings);
+    validation.warnings.extend(linked.warnings);
+    match &input.adrs {
+        Some(adrs) => {
+            validation.checks.push(checks::ADR_CITATIONS);
+            validation.warnings.extend(links::citations(index, adrs));
+        }
+        None => {
+            not_done.insert(NotDone::new(
+                checks::ADR_CITATIONS,
+                NotDoneReason::InputAbsent,
+            ));
+        }
+    }
     match &input.locations {
         Some(folders) => {
             validation.checks.push(checks::ARTIFACT_LOCATIONS);
@@ -167,8 +208,6 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
             ));
         }
     }
-    validation.not_done = not_done.into_iter().collect();
-    validation
 }
 
 /// The policy the checks read: the policy of `input`, or else the default policy, reported in
@@ -216,8 +255,13 @@ fn no_schema(what: &str, id: &str) -> Error {
     ))
 }
 
-/// Checks one entry, adding what it found to `validation`, and gives its summary.
-fn check_entry(entry: &Entry, kinds: &[Loaded], validation: &mut Validation) -> DocumentSummary {
+/// What checking one entry gave: its summary and, for an artifact that passed its schema, the
+/// document read into its contract type, which the checks across the set read.
+type Summarised = (DocumentSummary, Option<Map<String, Value>>);
+
+/// Checks one entry, adding what it found to `validation`, and gives its summary with the
+/// document read into its contract type when it is an artifact that passed its schema.
+fn check_entry(entry: &Entry, kinds: &[Loaded], validation: &mut Validation) -> Summarised {
     let origin = entry.given.clone();
     let located = |error: Error| entry.locate(error);
     match &entry.body {
@@ -238,13 +282,13 @@ fn check_entry(entry: &Entry, kinds: &[Loaded], validation: &mut Validation) -> 
                 });
             }
             validation.errors.push(error);
-            summary(None, None, origin)
+            (summary(None, None, origin), None)
         }
         Body::Markdown { .. } => {
             let message = "A living specification sent as Markdown reached the checks without \
                            its normalisation.";
             validation.failures.push(Error::internal(message));
-            summary(None, None, origin)
+            (summary(None, None, origin), None)
         }
         Body::Document {
             document,
@@ -252,13 +296,13 @@ fn check_entry(entry: &Entry, kinds: &[Loaded], validation: &mut Validation) -> 
         } => {
             if let Some(loaded) = kinds.iter().find(|k| k.input == Some(*input_kind)) {
                 if let Some(read) = checked(loaded, document, validation, located) {
-                    return summary(Some(&read), Some(*input_kind), origin);
+                    return (summary(Some(&read), Some(*input_kind), origin), None);
                 }
             } else {
                 let failure = no_schema("input kind", input_kind.id());
                 validation.failures.push(failure);
             }
-            summary(Some(document), Some(*input_kind), origin)
+            (summary(Some(document), Some(*input_kind), origin), None)
         }
         Body::Document {
             document,
@@ -274,7 +318,7 @@ fn check_entry(entry: &Entry, kinds: &[Loaded], validation: &mut Validation) -> 
                         at,
                         Reason::Missing,
                     )));
-                    return summary(Some(document), None, origin);
+                    return (summary(Some(document), None, origin), None);
                 }
                 Some(Value::String(kind)) => kind,
                 Some(_) => {
@@ -285,13 +329,14 @@ fn check_entry(entry: &Entry, kinds: &[Loaded], validation: &mut Validation) -> 
                         at,
                         Reason::Type,
                     )));
-                    return summary(Some(document), None, origin);
+                    return (summary(Some(document), None, origin), None);
                 }
             };
             let artifact = kinds.iter().find(|k| k.input.is_none() && k.id == kind);
             if let Some(loaded) = artifact {
                 if let Some(read) = checked(loaded, document, validation, located) {
-                    return summary(Some(&read), None, origin);
+                    let summarised = summary(Some(&read), None, origin);
+                    return (summarised, Some(read));
                 }
             } else if ArtifactKind::from_id(kind).is_some() {
                 validation.failures.push(no_schema("artifact type", kind));
@@ -302,7 +347,7 @@ fn check_entry(entry: &Entry, kinds: &[Loaded], validation: &mut Validation) -> 
                         .with_expected(kinds::kinds()),
                 ));
             }
-            summary(Some(document), None, origin)
+            (summary(Some(document), None, origin), None)
         }
     }
 }

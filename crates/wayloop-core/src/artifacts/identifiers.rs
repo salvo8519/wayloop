@@ -12,22 +12,48 @@
 //!   folder number for a living specification, names another identifier gives a warning with
 //!   the reason `conflict` at `/id` and `fix` its identifier. The identity is the `id`; the
 //!   name only helps a person find the file. A document sent directly gives none.
+//!
+//! The same index, and the map of [`carriers`] built from it once, is the one the links
+//! resolve through (`links`, stage 4): an identifier is looked up there, never a path (ADR
+//! 0008).
 
-use wayloop_schemas::contract::rules::ID;
+use std::collections::BTreeMap;
+
+use serde_json::{Map, Value};
+use wayloop_schemas::artifact::ArtifactKind;
+use wayloop_schemas::validate::Status;
 
 use super::codes;
-use super::duplicates::{documents, shared};
-use super::input::{Entry, Place};
+use super::duplicates::{self, documents, shared_in};
+use super::input::{Body, Entry, Place};
 use super::locations::named_identifier;
+use super::members::{self, ID, STATUS, SUPERSEDED_BY};
 use crate::{Error, Pointer, Reason, Related, Source};
 
 /// An artifact of the index: a document of a known kind whose `id` raised no error, by its
-/// index in the input, with its identifier and its entry.
+/// index in the input, with its kind, its identifier, its entry, the document read into its
+/// contract type when it passed its schema (ADR 0030 G1), and whether it raised no error of its
+/// own.
 #[derive(Debug, Clone)]
 pub(super) struct Indexed<'a> {
     pub(super) document: u64,
+    pub(super) kind: ArtifactKind,
     pub(super) id: String,
     pub(super) entry: &'a Entry,
+    pub(super) read: Option<Map<String, Value>>,
+    /// No error of its own, of the schema or of the normalisation of its Markdown: only such an
+    /// artifact has its links checked, while every artifact of the index is a target (decided by
+    /// the maintainer on 2026-11-25).
+    pub(super) clean: bool,
+}
+
+/// The artifacts of the index by the identifier they carry, each list in the order of the
+/// index: built once and read by the duplicates and the links.
+pub(super) type Carriers<'i, 'a> = BTreeMap<&'i str, Vec<&'i Indexed<'a>>>;
+
+/// The artifacts of `index` by the identifier they carry.
+pub(super) fn carriers<'i, 'a>(index: &'i [Indexed<'a>]) -> Carriers<'i, 'a> {
+    duplicates::carriers(index, |a| a.id.as_str())
 }
 
 /// The pointer of the identifier of an artifact.
@@ -41,17 +67,41 @@ impl Indexed<'_> {
         self.entry.source(&id_pointer())
     }
 
-    /// `error`, at `/id` of the artifact, with its document and the place it is stored.
-    fn of(&self, error: Error) -> Error {
+    /// `error`, of the artifact, with its document and the place where the value at its
+    /// pointer is stored.
+    pub(super) fn of(&self, error: Error) -> Error {
         self.entry.locate(error.with_document(self.document))
+    }
+
+    /// The document as read into its contract type, or as given when it did not pass its
+    /// schema.
+    fn document(&self) -> Option<&Map<String, Value>> {
+        match (&self.read, &self.entry.body) {
+            (Some(read), _) => Some(read),
+            (None, Body::Document { document, .. }) => Some(document),
+            (None, _) => None,
+        }
+    }
+
+    /// The status of the artifact; `None` when it gives none that any type allows.
+    pub(super) fn status(&self) -> Option<Status> {
+        let status = self.document()?.get(STATUS)?.as_str()?;
+        Status::from_id(status)
+    }
+
+    /// The identifiers of the artifacts that replace this one, as given; empty when none is.
+    pub(super) fn superseded_by(&self) -> Vec<&str> {
+        self.document()
+            .map(|d| members::texts(d, SUPERSEDED_BY).map(|(_, id)| id).collect())
+            .unwrap_or_default()
     }
 }
 
-/// The errors of identifiers carried by more than one artifact of `index`, one per artifact,
-/// in the order of the index.
-pub(super) fn duplicates(index: &[Indexed<'_>]) -> Vec<Error> {
+/// The errors of identifiers carried by more than one artifact of `index`, whose map is
+/// `carriers`, one per artifact, in the order of the index.
+pub(super) fn duplicates<'i>(index: &'i [Indexed<'_>], carriers: &Carriers<'i, '_>) -> Vec<Error> {
     let related = |a: &Indexed<'_>| Related::new(a.document, id_pointer(), a.source());
-    shared(index, |a| a.id.as_str(), related)
+    shared_in(index, carriers, |a| a.id.as_str(), related)
         .into_iter()
         .map(|(artifact, others)| {
             let message = format!(

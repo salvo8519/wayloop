@@ -12,10 +12,15 @@ use crate::Code;
 pub const ARTIFACT_SCHEMA: Code = Code::new("artifact_schema");
 /// A link of an artifact in a non-terminal status points to nothing (R3, R4, R9).
 pub const LINK_MISSING: Code = Code::new("link_missing");
-/// A link of an artifact in a non-terminal status points to a superseded artifact (R4).
+/// A link of an artifact in a non-terminal status points to a superseded artifact (R4), or
+/// cites a removed requirement, which has no replacement (decided by the maintainer on
+/// 2026-11-25).
 pub const LINK_SUPERSEDED: Code = Code::new("link_superseded");
 /// A broken link of an artifact in a terminal status: a warning (R3).
 pub const LINK_BROKEN_TERMINAL: Code = Code::new("link_broken_terminal");
+/// A warning: a citation `ADR <NNNN>` in `related` of a living specification names no ADR of
+/// the project (Q5; decided by the maintainer on 2026-11-25).
+pub const ADR_CITATION_MISSING: Code = Code::new("adr_citation_missing");
 /// An epic or task title with a type prefix, a bracket tag or a final full stop (R7).
 pub const TITLE_FORMAT: Code = Code::new("title_format");
 /// Two epic or task titles equal after normalisation (R8).
@@ -55,11 +60,12 @@ pub const HANDOVER_INPUT: Code = Code::new("handover_input");
 pub const ARTIFACT_LOCATION_MISSING: Code = Code::new("artifact_location_missing");
 
 /// Every code of SPEC-0001, in the order of its Errors table.
-pub const ALL: [Code; 21] = [
+pub const ALL: [Code; 22] = [
     ARTIFACT_SCHEMA,
     LINK_MISSING,
     LINK_SUPERSEDED,
     LINK_BROKEN_TERMINAL,
+    ADR_CITATION_MISSING,
     TITLE_FORMAT,
     TITLE_DUPLICATE,
     PULL_REQUEST_LINK,
@@ -95,6 +101,7 @@ mod tests {
                 "link_missing",
                 "link_superseded",
                 "link_broken_terminal",
+                "adr_citation_missing",
                 "title_format",
                 "title_duplicate",
                 "pull_request_link",

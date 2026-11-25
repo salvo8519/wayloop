@@ -12,7 +12,7 @@ use super::{VERIFICATION_WORDS, normalise};
 use crate::artifacts::codes;
 use crate::artifacts::input::{self, Input};
 use crate::artifacts::kinds;
-use crate::artifacts::tests::found;
+use crate::artifacts::tests::{found, linked};
 use crate::{Error, Pointer, Reason, Source};
 
 /// The file of the specification of the examples.
@@ -84,11 +84,12 @@ fn normalised(text: &str) -> (Value, Vec<Error>) {
     (Value::Object(normalised.document), normalised.errors)
 }
 
-/// The set of one Markdown entry with `text`, read from [`FILE`].
+/// The set of one Markdown entry with `text`, read from [`FILE`], then the targets of its
+/// links.
 fn markdown_input(text: &str) -> Input {
-    let input = json!({"documents": [
-        {"format": "markdown", "text": text, "origin": {"file": FILE}}
-    ]});
+    let input = json!({"documents": linked(vec![
+        json!({"format": "markdown", "text": text, "origin": {"file": FILE}})
+    ])});
     assert_eq!(input::rules(&input), []);
     input::read(&input).unwrap()
 }
@@ -677,10 +678,10 @@ fn text_after_the_verification_words_that_is_not_a_rubric_is_added_to_the_text()
 fn two_living_specifications_with_one_identifier_are_located_at_their_title_lines() {
     // The identifier stage reads the normalised entry, so its errors carry the line.
     let other = "specs/0002-time-entries/spec.md";
-    let input = json!({"documents": [
-        {"format": "markdown", "text": EXAMPLE, "origin": {"file": FILE}},
-        {"format": "markdown", "text": EXAMPLE, "origin": {"file": other}}
-    ]});
+    let input = json!({"documents": linked(vec![
+        json!({"format": "markdown", "text": EXAMPLE, "origin": {"file": FILE}}),
+        json!({"format": "markdown", "text": EXAMPLE, "origin": {"file": other}})
+    ])});
     let validation =
         crate::artifacts::validate(&input::read(&input).unwrap(), &kinds::built().unwrap());
     let title = line_of(EXAMPLE, "# SPEC-0001");

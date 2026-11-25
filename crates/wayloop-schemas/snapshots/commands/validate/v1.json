@@ -260,7 +260,7 @@
   "description": "The canonical input of `wayloop validate`: a set of stored artifacts and inputs, validated together in one pass. A member set to null is not given (ADR 0009 C2). Checks whose part of the engine is not built yet are listed in `diagnostics.not_done` of the result.",
   "properties": {
     "adrs": {
-      "description": "Numbers of the ADRs of the project, for the warning on a citation `ADR <NNNN>` with no ADR of that number. Absent: citations are not checked.",
+      "description": "Numbers of the ADRs of the project, for the check `adr_citations`: the warning on a citation `ADR <NNNN>` with no ADR of that number. Absent: citations are not checked, and the check is listed in `diagnostics.not_done` with the reason `input_absent`.",
       "items": {
         "description": "Number of an ADR of the project, from 1.",
         "minimum": 1,

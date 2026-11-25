@@ -27,6 +27,9 @@ pub const ID: &str = "id";
 pub const TITLE: &str = "title";
 /// The greatest length of the title of an artifact, in characters (Unicode code points).
 pub const TITLE_MAX_CHARS: usize = 120;
+/// The name of the member that lists the replacements of an artifact, required when it is
+/// superseded and used as the fix of a link to it (SPEC-0001, Common rules, R4).
+pub const SUPERSEDED_BY: &str = "superseded_by";
 
 /// Requires the members `then` whenever the member `when` is present.
 pub fn require_if_present(schema: &mut Schema, when: &str, then: &[&str]) {
@@ -78,7 +81,7 @@ fn require_if_member(schema: &mut Schema, when: &str, test: &Value, then: &[&str
 /// of the terminal status of replacement of the type.
 pub fn artifact(schema: &mut Schema, contract: &Contract, superseded: &str) {
     constants(schema, contract);
-    require_if_equals(schema, STATUS, superseded, &["superseded_by"]);
+    require_if_equals(schema, STATUS, superseded, &[SUPERSEDED_BY]);
 }
 
 /// The constants of a document of `contract`: `kind` is the constant name of the contract, and

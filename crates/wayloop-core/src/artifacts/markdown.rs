@@ -37,6 +37,7 @@ use wayloop_schemas::contract::rules::{ID, KIND, SCHEMA_VERSION, STATUS, TITLE};
 use wayloop_schemas::value::{Line, ProjectPath};
 use wayloop_schemas::{DefaultApplied, DefaultReason};
 
+use super::members as member;
 use super::{codes, locations};
 use crate::schema::format;
 use crate::{Error, Pointer, Reason, Source};
@@ -106,37 +107,6 @@ enum Section {
     AcceptanceCriteria,
     Interfaces,
     OpenQuestions,
-}
-
-/// The names of the members of the document model of a living specification that the
-/// normalisation writes, each defined once; `kind`, `schema_version`, `id` and `status` are
-/// those of every artifact, in `rules`, and so is `title`.
-mod member {
-    pub(super) const CAPABILITY: &str = "capability";
-    pub(super) const MILESTONE: &str = "milestone";
-    pub(super) const OWNER: &str = "owner";
-    pub(super) const RELATED: &str = "related";
-    pub(super) const COMMIT_SCOPE: &str = "commit_scope";
-    pub(super) const SUPERSEDED_BY: &str = "superseded_by";
-    pub(super) const LANGUAGE: &str = "language";
-    pub(super) const PROBLEM: &str = "problem";
-    pub(super) const SCOPE_IN: &str = "scope_in";
-    pub(super) const SCOPE_OUT: &str = "scope_out";
-    pub(super) const STORIES: &str = "stories";
-    pub(super) const USER_STORIES: &str = "user_stories";
-    pub(super) const REQUIREMENTS: &str = "requirements";
-    pub(super) const ACCEPTANCE_CRITERIA: &str = "acceptance_criteria";
-    pub(super) const INTERFACES: &str = "interfaces";
-    pub(super) const OPEN_QUESTIONS: &str = "open_questions";
-    pub(super) const EXTRA_SECTIONS: &str = "extra_sections";
-    /// Members of the parts: requirements, acceptance criteria, open questions and extra
-    /// sections.
-    pub(super) const NAME: &str = "name";
-    pub(super) const TEXT: &str = "text";
-    pub(super) const VERIFICATION: &str = "verification";
-    pub(super) const RUBRIC: &str = "rubric";
-    pub(super) const RESOLVED: &str = "resolved";
-    pub(super) const HEADING: &str = "heading";
 }
 
 /// The sections of the template: the heading as written after `## `, the section, and the
