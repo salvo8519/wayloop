@@ -135,7 +135,7 @@ milestones:
           - { issue: 7, title: "Claude Code and Codex mirrors generated from .agents", tags: [parallel], status: done }
           - { issue: 8, title: "Session-start and session-end skills", tags: [parallel], status: done }
           - { issue: 159, title: "Agents merge their own pull requests; engine and contract changes wait for confirmation", status: done }
-          - { issue: 348, title: "Promote the learnings of the SPEC-0001 reviews", status: open }
+          - { issue: 348, title: "Promote the learnings of the SPEC-0001 reviews", status: done }
       - title: "Process skills, agents and hooks"
         issue: 205
         labels: ["area:agents"]

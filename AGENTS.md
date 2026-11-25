@@ -67,8 +67,9 @@ built with the process it describes. Read `docs/en/project/vision.md` and the AD
 - Work on untrusted input stays linear in its size: every scan is bounded, lookup maps are
   built once, no step rescans the whole text, and no error copies a list that grows with the
   input; it points to where the list is.
-- Each field of a contract keeps one meaning: a `fix` is a value applicable as is at its
-  `pointer`, and `expected` lists the accepted values (ADR 0009 C3).
+- Each field of a contract keeps one meaning (ADR 0009 C3, as amended): `fix` is what to
+  write at the `pointer` (the closest member for a misspelt key, or the corrected value),
+  never a value that cannot be written there; `expected` lists the accepted values.
 - The ledger is written only by the engine. Model output enters the state only after schema
   validation.
 - Issues of the roadmap are created and changed only with `scripts/roadmap.py` (`new`,
