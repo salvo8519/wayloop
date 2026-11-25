@@ -14,7 +14,7 @@
 
 use caseless::default_case_fold_str;
 use unicode_normalization::UnicodeNormalization as _;
-use wayloop_schemas::contract::rules::TITLE;
+use wayloop_schemas::contract::rules::{TITLE, TITLE_MAX_CHARS};
 use wayloop_schemas::value::PolicyName;
 
 use crate::artifacts::codes;
@@ -29,7 +29,8 @@ pub(crate) fn pointer() -> Pointer {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Prefixes {
     folded: Vec<String>,
-    /// The length of the longest type, in characters: a prefix word is never longer.
+    /// The length of the longest folded type, in characters: folding never shortens a word, so
+    /// a prefix word is never longer.
     longest: usize,
 }
 
@@ -40,9 +41,9 @@ impl Prefixes {
             .iter()
             .map(|t| default_case_fold_str(t.as_str()))
             .collect();
-        let longest = types
+        let longest = folded
             .iter()
-            .map(|t| t.as_str().chars().count())
+            .map(|t| t.chars().count())
             .max()
             .unwrap_or_default();
         Self { folded, longest }
@@ -59,6 +60,10 @@ impl Prefixes {
 /// grammar: prefix, bracket tag, full stop. A rule broken once another is fixed counts too, for
 /// example the prefix of `[EPIC] feat: Export`.
 pub(crate) fn format(title: &str, prefixes: &Prefixes) -> Vec<Error> {
+    debug_assert!(
+        title.chars().nth(TITLE_MAX_CHARS).is_none(),
+        "a title longer than the schema allows reached the rules"
+    );
     let (fix, broken) = corrected(title, prefixes);
     Rule::ALL
         .into_iter()
@@ -138,13 +143,19 @@ fn without_prefix<'t>(title: &'t str, prefixes: &Prefixes) -> Option<&'t str> {
         .take(prefixes.longest.saturating_add(1))
         .find(|(_, c)| matches!(c, ':' | '(' | '!'))?;
     let (word, rest) = text.split_at_checked(end)?;
+    // The scope ends at the first `):` or `)!:`, so it may hold `)` itself.
     let rest = match rest.strip_prefix('(') {
-        Some(scoped) => scoped.split_once(')')?.1,
-        None => rest,
+        Some(scoped) => scoped
+            .match_indices(')')
+            .find_map(|(at, _)| after_mark(scoped.get(at + 1..)?))?,
+        None => after_mark(rest)?,
     };
-    let rest = rest.strip_prefix('!').unwrap_or(rest);
-    let rest = rest.strip_prefix(':')?;
     prefixes.contains(word).then_some(rest)
+}
+
+/// `text` after its leading `:` or `!:`.
+fn after_mark(text: &str) -> Option<&str> {
+    text.strip_prefix(':').or_else(|| text.strip_prefix("!:"))
 }
 
 /// `title` without a bracket tag `[...]` at its start, or else at its end. The tag ends at the
@@ -221,6 +232,8 @@ fn corrected<'t>(title: &'t str, prefixes: &Prefixes) -> (&'t str, Vec<Rule>) {
 mod tests {
     use wayloop_schemas::value::PolicyName;
 
+    use wayloop_schemas::contract::rules::TITLE_MAX_CHARS;
+
     use super::{Prefixes, format, key};
     use crate::Reason;
     use crate::artifacts::codes;
@@ -263,6 +276,9 @@ mod tests {
             "Feat:Monthly export of time entries",
             "FIX(export): Monthly export of time entries",
             "docs(a: b): Monthly export of time entries",
+            // The scope may hold `)`: it ends at the first `):` or `)!:`.
+            "docs(a) b): Monthly export of time entries",
+            "docs(a) b)!: Monthly export of time entries",
             // The breaking mark of a commit header (decided by the maintainer on 2026-11-25).
             "feat!: Monthly export of time entries",
             "feat(core)!: Monthly export of time entries",
@@ -290,6 +306,11 @@ mod tests {
             assert_eq!(fixes(title), NONE, "{title}");
         }
         // With another policy, its types are the prefixes.
+        // A type outside ASCII is matched after folding, whose form may be longer.
+        assert_eq!(
+            format("STRASSE: Export", &prefixes(&["Stra\u{df}e"])).len(),
+            1
+        );
         let export = prefixes(&["Export"]);
         assert_eq!(format("export: monthly totals", &export).len(), 1);
         assert_eq!(format("feat: monthly totals", &export), []);
@@ -398,7 +419,7 @@ mod tests {
 
     #[test]
     fn a_long_run_of_full_stops_is_removed_in_one_step() {
-        let title = format!("Export{}", ".".repeat(100_000));
+        let title = format!("Export{}", ".".repeat(TITLE_MAX_CHARS - 6));
         let errors = format(&title, &prefixes(&[]));
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].fix().and_then(|f| f.as_str()), Some("Export"));

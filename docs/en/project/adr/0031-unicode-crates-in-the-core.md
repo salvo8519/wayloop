@@ -70,4 +70,7 @@ maintainer on 2026-11-19 (D4):
 - Updates of these crates are reviewed, never merged automatically, like every dependency of
   the core. A new release of `caseless`, or a replacement crate, is a reason to review this
   record.
-- Security review of 2026-11-25: no I/O, network, environment or build scripts in the three crates; licences permitted; cargo deny clean; findings fixed in #342.
+- Review of 2026-11-25 by the security-reviewer role: no I/O, network, environment or build
+  scripts in the three crates; licences permitted; cargo deny clean. Its findings, S1 (a title
+  beyond the length of the schema reaching the rules) and the wording of this record, were
+  fixed in #342.
