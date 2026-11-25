@@ -1,0 +1,121 @@
+{
+  "description": "Two briefs with one identifier, one read from a file and one sent directly: both are refused with identifier_duplicate at /id, and each error names the other in related, with the members of its source when it was stored.",
+  "covers": [
+    "SPEC-0001 R14",
+    "SPEC-0001 AC6",
+    "SPEC-0004 R2"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        },
+        "origin": {
+          "file": "plan/briefs/BRIEF-0001.yaml"
+        },
+        "lines": {
+          "": 1,
+          "/id": 4
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "identifier_duplicate",
+      "/error/pointer": "/id",
+      "/error/reason": "duplicate",
+      "/error/document": 0,
+      "/error/source": {
+        "file": "plan/briefs/BRIEF-0001.yaml",
+        "line": 4
+      },
+      "/error/related": [
+        {
+          "document": 1,
+          "pointer": "/id"
+        }
+      ],
+      "/error/errors/1/code": "identifier_duplicate",
+      "/error/errors/1/pointer": "/id",
+      "/error/errors/1/reason": "duplicate",
+      "/error/errors/1/document": 1,
+      "/error/errors/1/related": [
+        {
+          "document": 0,
+          "pointer": "/id",
+          "file": "plan/briefs/BRIEF-0001.yaml",
+          "line": 4
+        }
+      ],
+      "/meta/input_hash": "4d7cb4fda9259ac2ddd5763fc3406e1814c2c3140378a19ef578c2dbc135d0d6"
+    },
+    "absent": [
+      "/data",
+      "/error/errors/1/source"
+    ],
+    "lengths": {
+      "/error/errors": 2,
+      "/error/related": 1,
+      "/error/errors/1/related": 1,
+      "/diagnostics/warnings": 0
+    }
+  }
+}

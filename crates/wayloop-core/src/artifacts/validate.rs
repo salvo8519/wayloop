@@ -20,6 +20,7 @@ use wayloop_schemas::contract::{Part, VALIDATE};
 use wayloop_schemas::validate::{ArtifactFolder, DocumentSummary, InputKind, Origin, ValidateData};
 use wayloop_schemas::{Diagnostics, ErrorReport, NotDone, NotDoneReason, Outcome};
 
+use super::identifiers::{self, Indexed};
 use super::input::{self, Body, Entry, Input, Place};
 use super::kinds::{self, Checked, Kind, Loaded};
 use super::{checks, codes};
@@ -59,7 +60,11 @@ pub(crate) fn validate(input: &Input, kinds: &[Kind]) -> Validation {
 pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
     let mut run = vec![checks::DOCUMENT_KIND, checks::SCHEMA_VERSION];
     run.extend(kinds.iter().map(|k| kinds::schema_check(k.id)));
-    run.push(checks::IDENTIFIER_FORMAT);
+    run.extend([
+        checks::IDENTIFIER_FORMAT,
+        checks::IDENTIFIER_DUPLICATE,
+        checks::IDENTIFIER_LOCATION,
+    ]);
     let mut validation = Validation {
         checks: run,
         ..Validation::default()
@@ -69,14 +74,40 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         .map(|c| NotDone::new(c.clone(), NotDoneReason::NotBuilt))
         .collect();
     // The index counts in u64, the type of `document`, so it needs no conversion.
+    // The artifacts that passed the stages of their own document, by their position in the
+    // input: the index of the identifier stage.
+    let mut passed = Vec::new();
     for (index, entry) in (0_u64..).zip(&input.documents) {
         let first = validation.errors.len();
+        let failed = validation.failures.len();
         let summary = check_entry(entry, kinds, &mut validation, &mut not_done);
+        let clean = validation.errors.len() == first && validation.failures.len() == failed;
+        if clean && summary.kind.is_some() && summary.id.is_some() {
+            passed.push((index, entry));
+        }
         validation.documents.push(summary);
         for error in validation.errors.get_mut(first..).unwrap_or_default() {
             *error = error.clone().with_document(index);
         }
     }
+    let index: Vec<Indexed<'_>> = passed
+        .into_iter()
+        .filter_map(|(document, entry)| {
+            let summary = validation.documents.get(usize::try_from(document).ok()?)?;
+            Some(Indexed {
+                document,
+                id: summary.id.as_deref()?,
+                entry,
+            })
+        })
+        .collect();
+    let duplicates = identifiers::duplicates(&index);
+    let warnings = identifiers::locations(&index);
+    validation.errors.extend(duplicates);
+    // By document, then by stage: the stable sort keeps the order of the stages within each
+    // document (plan of SPEC-0001, Entry point and validation function).
+    validation.errors.sort_by_key(Error::document);
+    validation.warnings.extend(warnings);
     match &input.locations {
         Some(folders) => {
             validation.checks.push(checks::ARTIFACT_LOCATIONS);
@@ -240,7 +271,7 @@ fn checked(
             Err(failure) => validation.failures.push(*failure),
         },
         Checked::Refused(errors) => validation.errors.extend(errors.into_iter().map(located)),
-        Checked::Failed(failure) => validation.failures.push(failure),
+        Checked::Failed(failure) => validation.failures.push(*failure),
     }
     None
 }

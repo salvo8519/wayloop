@@ -9,8 +9,9 @@ Today briefs, council reports, gate issues, milestones, epics, user stories, liv
 specifications in normalised form, change deltas, tasks, hand-over records and the inputs (pull
 requests, commits and hand-over inputs) are validated against their schemas. A living
 specification sent as Markdown is accepted unchecked, and the checks not run are listed in
-`diagnostics.not_done`; so are the checks across documents
-(identifiers, links, parts, statuses, naming, areas).
+`diagnostics.not_done`. Across documents, identifiers are checked for uniqueness and against
+the path of their file; the other checks across documents (links, parts, statuses, naming,
+areas) are listed as not run.
 
 This page describes version 1 of the command, as built from source. Its contract is the pair
 of schema snapshots `schemas/commands/validate/v1.json` (input) and
@@ -77,6 +78,8 @@ path, goes to standard error.
 | `schema_<input_kind>`: `schema_commit`, `schema_pull_request` | Each input of the type passes the schema of its version (`schemas/inputs/<input_kind>/v1.json`): required members, unknown members, types and lengths (see Pull request and commit inputs below) |
 | `schema_handover_input` | Each hand-over input passes the input schema of its version (`schemas/artifacts/handover/v1.input.json`), as a hand-over record does (see below) |
 | `identifier_format` | The `id` is in the canonical form of its type, for example `BRIEF-0001` |
+| `identifier_duplicate` | No two artifacts of the set carry one identifier |
+| `identifier_location` | The file name of a brief, a council report or a plan item, and the folder number of a living specification, name the `id` of the artifact; a warning otherwise |
 | `artifact_locations` | Some folder of a location exists in the project the documents were discovered in; with `locations` only, after the checks above |
 
 Each schema is one check, `schema_<kind>` or `schema_<input_kind>`, listed in
@@ -88,7 +91,6 @@ Any other check the engine did not run is never skipped silently:
 | Check | Not run on |
 | --- | --- |
 | `markdown` | A living specification sent as Markdown |
-| `identifier_duplicate` | The set: two artifacts with one identifier |
 | `links` | The set: links between artifacts, hierarchy, ADR citations |
 | `parts` | The set: parts of artifacts and operations of change deltas |
 | `statuses` | The set: transitions and initial statuses against `base` |
@@ -263,7 +265,8 @@ Every error found is listed in `error.errors`; the first one is repeated at the 
    document is checked. They follow the schema pass of the input schema, then the entries in
    order for the rules the schema cannot state.
 2. Otherwise, the errors of the documents, in the order of the documents; within a document,
-   by stage (kind, version and schema first, then identifier); within a stage, in the order of
+   by stage (kind, version and schema first, then identifier, then the identifiers across the
+set); within a stage, in the order of
    the schema pass: the members of an object in the byte order of their keys (`/aa` before
    `/zz`), the elements of an array by index, absent members after present ones, in the order
    in which the schema lists them as required. The errors of the name of a member come before
@@ -284,6 +287,13 @@ it is stored:
 | `{milestone}` | `{milestone}` |
 | absent | absent |
 
+An error whose condition involves other documents, such as two artifacts with one identifier,
+names each of them in `related`: `{document, pointer}`, with the members of the `source` of
+that document (`file` and `line`, `issue` or `milestone`) in the entry itself when it was
+stored. They are not nested in a member `source`, so that the envelope keeps at most four
+levels of objects (ADR 0009 C4). `related` is absent when there is no other document, never
+`[]`.
+
 | Code | Reasons | Exit code | Meaning |
 | --- | --- | --- | --- |
 | `command_input` | `syntax`, `duplicate`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `conflict` | 1 | The canonical input is refused: it is not JSON, repeats a key, holds a number beyond a double, or breaks its schema or a rule of the section Input; or `--command-version` requests a version the engine does not run (`enum`, the known versions in `expected`) |
@@ -291,6 +301,7 @@ it is stored:
 | `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | A hand-over input breaks its schema, for example by setting a member that only the engine sets (`unknown_field`) |
 | `schema_version_unknown` | `enum` | 1 | The `schema_version` is not a version of the type or of the input; `expected` lists the known versions |
 | `identifier_format` | `syntax` | 1 | The `id` is not in the canonical form of its type; `fix` gives the corrected identifier when one can be derived |
+| `identifier_duplicate` | `duplicate` | 1 | Two artifacts or more of the set carry one identifier: each is refused at `/id`, and each error names the others in `related`. Only documents that passed their own checks are compared |
 | `usage` | `syntax` | 2 | The command line is not understood; `command` is the command named, empty when none |
 | `input_unreadable` | `missing`, `state` | 3 | The input file, a file named or a folder of the project does not exist (`missing`) or cannot be read (`state`); the envelope holds no path |
 | `internal_error` | `internal` | 5 | The engine could not compute the result; the input may be valid |
@@ -301,6 +312,7 @@ refused for them and the exit code does not change:
 | Code | Reason | Pointer | Meaning |
 | --- | --- | --- | --- |
 | `artifact_location_missing` | `missing` | `/locations` | No folder of a location exists in the project where the documents were discovered, for example because the command ran in a subfolder of the project |
+| `identifier_location` | `conflict` | `/id` | The artifact was read from `plan/briefs/<name>.yaml`, `plan/council/<name>.yaml`, `plan/items/<name>.yaml` or `specs/<NNNN>-<capability>/spec.md`, and `<name>`, or `SPEC-<NNNN>`, differs from its `id`; `fix` is the `id`, which is the identity. A document sent directly, or read from another path, gives none |
 
 An unknown member gets the closest member, when one is close, in `fix`: for example `problem`
 for `problema`.

@@ -220,7 +220,7 @@ pub(crate) enum Checked {
     /// The document is refused, with every error found.
     Refused(Vec<Error>),
     /// The engine failed: a migration gave a document that the current schema refuses.
-    Failed(Error),
+    Failed(Box<Error>),
 }
 
 impl Loaded {
@@ -294,7 +294,7 @@ impl Loaded {
         // defect of the engine, never a refusal of the input.
         let latest = self.against_current(&Value::Object(current.clone()));
         if let Some(first) = latest.into_iter().next() {
-            return Checked::Failed(Error::internal(format!(
+            return Checked::Failed(boxed(format!(
                 "The migration of a {} from version {version} gives a document that the \
                  current schema refuses: {first}",
                 self.id

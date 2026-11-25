@@ -65,7 +65,7 @@ use crate::validate::{
 };
 use crate::{
     Check, Code, DefaultApplied, DefaultReason, Diagnostics, Envelope, Error, ErrorReport,
-    InputHash, IssueStep, Meta, NotDone, NotDoneReason, Pointer, Reason, Source,
+    InputHash, IssueStep, Meta, NotDone, NotDoneReason, Pointer, Reason, Related, Source,
 };
 
 /// Deepest nesting of objects in a contract, the root object included (ADR 0009 C4).
@@ -273,7 +273,7 @@ pub use registry::{
 };
 
 /// Every contract type of this crate whose schema is derived, in the byte order of their names.
-pub const TYPES: [Registered; 67] = [
+pub const TYPES: [Registered; 68] = [
     registered!(ArtifactKind),
     registered!(BaseStatus),
     registered!(Brief),
@@ -325,6 +325,7 @@ pub const TYPES: [Registered; 67] = [
     registered!(PullRequest),
     registered!(Reason),
     registered!(RejectedAlternative),
+    registered!(Related),
     registered!(Requirement),
     registered!(RequirementStatus),
     registered!(Risk),

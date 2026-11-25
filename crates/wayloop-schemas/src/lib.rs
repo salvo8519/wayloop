@@ -51,5 +51,5 @@ pub use envelope::{
     Check, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope, ExitCode,
     INPUT_UNREADABLE, INTERNAL_ERROR, InputHash, Meta, NotDone, NotDoneReason, Outcome, USAGE,
 };
-pub use error::{Code, Error, ErrorReport, Pointer, Reason, Source};
+pub use error::{Code, Error, ErrorReport, Pointer, Reason, Related, Source};
 pub use format::Format;

@@ -616,6 +616,13 @@ issue, `{milestone}` for a tracker milestone.
 `source` is absent when the document was sent directly in the normalised form. `source` has no
 tag naming its form, on purpose: it is output only, and its field names tell the forms apart.
 
+Each error of `identifier_duplicate` names every other artifact that carries the identifier in
+`related` (SPEC-0004 R2): its `document`, the pointer `/id` and the members of its `source`
+(decided by the maintainer on 2026-11-25). A file name or a folder number that differs from the
+identifier (section Where artifacts live; living specification) is the warning
+`identifier_location` at `/id`, with `fix` the identifier, given only for an artifact read
+from a file of a location (decided by the maintainer on 2026-11-25).
+
 `expected` lists accepted values, never a pattern. For a format error (`syntax`), `expected`
 is absent and `fix` carries a corrected value when one can be derived, for example `M2` for
 `Milestone 2`. A new meaning gets a new code, and codes are never renamed or reused (ADR 0009
@@ -635,6 +642,7 @@ C8).
 | R13 | `transition_refused` | `state` |
 | R14 | `identifier_format` | `syntax` |
 | R14, R23 | `identifier_duplicate` | `duplicate` |
+| R14 | `identifier_location` (warning) | `conflict` |
 | R15 | `hierarchy_mismatch` | `conflict` |
 | R16 | `schema_version_unknown` | `enum` |
 | R17 | `approval_conflict` | `conflict` |

@@ -71,7 +71,7 @@
       "type": "object"
     },
     "Error": {
-      "description": "A refusal of the engine, with the fields of ADR 0009 C3, its `source`, and `document`, the index of the document of the input it belongs to (SPEC-0004 R2).\n\n`pointers`, `expected`, `fix`, `source` and `document` are optional and left out of the serialised form when not given; a list given empty is written `[]` (C2).",
+      "description": "A refusal of the engine, with the fields of ADR 0009 C3, its `source`, `document`, the index of the document of the input it belongs to, and `related`, the other documents involved (SPEC-0004 R2).\n\n`pointers`, `expected`, `fix`, `source`, `document` and `related` are optional and left out of the serialised form when not given; a list given empty is written `[]` (C2), except `related`, which is never empty.",
       "properties": {
         "code": {
           "$ref": "#/$defs/Code",
@@ -110,6 +110,14 @@
         "reason": {
           "$ref": "#/$defs/Reason",
           "description": "Why the input was refused (ADR 0009 C3)."
+        },
+        "related": {
+          "description": "The other places of the same condition, each in another document of the input, such as each other artifact that carries the same identifier; absent when there is none, never empty.",
+          "items": {
+            "$ref": "#/$defs/Related"
+          },
+          "minItems": 1,
+          "type": "array"
         },
         "source": {
           "$ref": "#/$defs/Source",
@@ -172,6 +180,14 @@
         "reason": {
           "$ref": "#/$defs/Reason",
           "description": "Why the input was refused (ADR 0009 C3)."
+        },
+        "related": {
+          "description": "The other places of the same condition, each in another document of the input, such as each other artifact that carries the same identifier; absent when there is none, never empty.",
+          "items": {
+            "$ref": "#/$defs/Related"
+          },
+          "minItems": 1,
+          "type": "array"
         },
         "source": {
           "$ref": "#/$defs/Source",
@@ -285,6 +301,59 @@
         "internal"
       ],
       "type": "string"
+    },
+    "Related": {
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "line"
+            ]
+          },
+          "then": {
+            "required": [
+              "file"
+            ]
+          }
+        }
+      ],
+      "description": "Another place of the condition of an error, in another document of the input: its index in `documents`, the pointer of the value relative to that document, and where the value is stored with the members of `source` (`file`, with `line` when known; `issue`; `milestone`), none of them when the document was sent directly.",
+      "properties": {
+        "document": {
+          "description": "Index, from 0, in the input array `documents` of the other document.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "file": {
+          "description": "Path of the file relative to the root of the project.",
+          "format": "project-path",
+          "type": "string"
+        },
+        "issue": {
+          "description": "Number of the tracker issue, from 1.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "line": {
+          "description": "Line of the faulty value in `file`, counted from 1; absent when it is not known, never guessed.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "milestone": {
+          "description": "Number of the tracker milestone, from 1.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "pointer": {
+          "$ref": "#/$defs/Pointer",
+          "description": "RFC 6901 pointer to the value involved, relative to that document."
+        }
+      },
+      "required": [
+        "document",
+        "pointer"
+      ],
+      "type": "object"
     },
     "Source": {
       "allOf": [

@@ -1,6 +1,6 @@
 //! Tests of the artifact model and of `validate` (SPEC-0001 T5: R1, R5, R6, R12, R14, R16;
 //! AC1, AC8, AC9, AC25; T7: R1, R5, R6, R9; AC1, AC9, AC35; T8: R1, R5, R6; AC1, AC35; T9: R1,
-//! R22; AC1, AC31; T10: R1, R16; AC1). The contract cases of the command are in
+//! R22; AC1, AC31; T10: R1, R16; AC1; T11: R2, R14; AC1, AC6). The contract cases of the command are in
 //! `tests/contract/validate/v1/` and run in the tests of `wayloop-cli`; these tests cover the
 //! parts the cases cannot reach.
 
@@ -17,7 +17,7 @@ use wayloop_schemas::contract::{
 };
 use wayloop_schemas::validate::{ArtifactFolder, InputKind};
 use wayloop_schemas::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
-use wayloop_schemas::{NotDone, NotDoneReason, Source};
+use wayloop_schemas::{NotDone, NotDoneReason, Related, Source};
 
 use super::input::{self, Input};
 use super::kinds::{self, Checked, Kind, Migration};
@@ -199,6 +199,8 @@ fn the_kinds_and_their_checks_are_snake_case_and_unique() {
             checks::DOCUMENT_KIND,
             checks::SCHEMA_VERSION,
             checks::IDENTIFIER_FORMAT,
+            checks::IDENTIFIER_DUPLICATE,
+            checks::IDENTIFIER_LOCATION,
             checks::MARKDOWN,
         ]
         .iter()
@@ -1584,6 +1586,182 @@ fn a_format_error_of_the_id_has_its_own_code_and_keeps_its_fix() {
     );
 }
 
+#[test]
+fn the_sequence_of_an_identifier_has_four_digits_up_to_9999_then_no_padding() {
+    // SPEC-0001, Identifiers (R14): the canonical sequence is `[0-9]{4}|[1-9][0-9]{4,}`.
+    for (id, fix) in [("TASK-107", "TASK-0107"), ("TASK-00107", "TASK-0107")] {
+        let validation = validate(&read(vec![entry(with(task(), "id", json!(id)))]));
+        let [error] = &validation.errors[..] else {
+            panic!("{id}: {:?}", validation.errors);
+        };
+        assert_eq!(
+            (error.code(), error.pointer(), error.reason(), error.fix()),
+            (
+                &codes::IDENTIFIER_FORMAT,
+                &at("/id"),
+                Reason::Syntax,
+                Some(&json!(fix))
+            ),
+            "{id}"
+        );
+        assert_eq!(error.expected(), None);
+    }
+    let accepted = [
+        with(task(), "id", json!("TASK-10000")),
+        with(handover(), "id", json!("HANDOVER-12-3")),
+    ];
+    let validation = validate(&read(accepted.into_iter().map(entry).collect()));
+    assert_eq!(validation.errors, []);
+    assert_eq!(validation.failures, []);
+}
+
+#[test]
+fn ac1_the_invalid_milestone_is_refused_at_its_id_with_the_fix_m2_and_no_expected() {
+    let document = with(milestone(), "id", json!("Milestone 2"));
+    let validation = validate(&read(vec![entry(document)]));
+    let [error] = &validation.errors[..] else {
+        panic!("{:?}", validation.errors);
+    };
+    assert_eq!(
+        (error.code(), error.pointer(), error.reason()),
+        (&codes::IDENTIFIER_FORMAT, &at("/id"), Reason::Syntax)
+    );
+    assert_eq!(error.fix(), Some(&json!("M2")));
+    assert_eq!(error.expected(), None);
+}
+
+/// The entry of `document` read from the file `file`, with the line of its `/id`.
+fn stored(document: Value, file: &str, id_line: u64) -> Value {
+    json!({
+        "format": "document", "document": document,
+        "origin": {"file": file}, "lines": {"/id": id_line}
+    })
+}
+
+fn stored_at(file: &str, id_line: u64) -> Source {
+    Source::File {
+        file: ProjectPath::new(file),
+        line: Some(line(id_line)),
+    }
+}
+
+#[test]
+fn ac6_two_artifacts_with_one_identifier_are_both_refused_each_naming_the_other() {
+    let validation = validate(&read(vec![
+        stored(task(), "plan/items/TASK-0001.yaml", 3),
+        entry(brief()),
+        entry(task()),
+    ]));
+    assert_eq!(
+        found(&validation.errors),
+        [
+            (codes::IDENTIFIER_DUPLICATE, "/id".into(), Reason::Duplicate),
+            (codes::IDENTIFIER_DUPLICATE, "/id".into(), Reason::Duplicate),
+        ]
+    );
+    let [first, second] = &validation.errors[..] else {
+        panic!("{:?}", validation.errors);
+    };
+    assert_eq!((first.document(), second.document()), (Some(0), Some(2)));
+    assert_eq!(
+        first.location(),
+        Some(&stored_at("plan/items/TASK-0001.yaml", 3))
+    );
+    assert_eq!(second.location(), None);
+    // Each names the other, with its source when it was stored.
+    assert_eq!(
+        first.related(),
+        Some(&[Related::new(2, at("/id"), None)][..])
+    );
+    assert_eq!(
+        second.related(),
+        Some(
+            &[Related::new(
+                0,
+                at("/id"),
+                Some(stored_at("plan/items/TASK-0001.yaml", 3))
+            )][..]
+        )
+    );
+    assert_eq!(validation.warnings, []);
+}
+
+#[test]
+fn a_refused_document_stays_out_of_the_index_and_errors_stay_in_document_order() {
+    // The broken brief carries the identifier too, but failed its own stage; the duplicate
+    // errors of the two tasks come by document, after the schema error of the brief between
+    // them, and three carriers name the two others each.
+    let validation = validate(&read(vec![
+        entry(task()),
+        entry(with(brief(), "id", json!("TASK-0001"))),
+        entry(task()),
+        entry(task()),
+    ]));
+    let documents: Vec<(Option<u64>, Code)> = validation
+        .errors
+        .iter()
+        .map(|e| (e.document(), e.code().clone()))
+        .collect();
+    assert_eq!(
+        documents,
+        [
+            (Some(0), codes::IDENTIFIER_DUPLICATE),
+            (Some(1), codes::IDENTIFIER_FORMAT),
+            (Some(2), codes::IDENTIFIER_DUPLICATE),
+            (Some(3), codes::IDENTIFIER_DUPLICATE),
+        ]
+    );
+    let named: Vec<u64> = validation.errors[0]
+        .related()
+        .unwrap()
+        .iter()
+        .map(Related::document)
+        .collect();
+    assert_eq!(named, [2, 3]);
+}
+
+#[test]
+fn a_file_name_or_folder_number_that_names_another_identifier_gives_a_warning() {
+    let specification = specification();
+    let validation = validate(&read(vec![
+        stored(brief(), "plan/briefs/BRIEF-0002.yaml", 4),
+        stored(task(), "plan/items/TASK-0001.yaml", 3),
+        stored(specification.clone(), "specs/0002-time-entries/spec.md", 1),
+        stored(
+            with(brief(), "id", json!("BRIEF-0005")),
+            "notes/BRIEF-0009.yaml",
+            2,
+        ),
+        entry(with(task(), "id", json!("TASK-0002"))),
+    ]));
+    assert_eq!(validation.errors, []);
+    assert_eq!(
+        found(&validation.warnings),
+        [
+            (codes::IDENTIFIER_LOCATION, "/id".into(), Reason::Conflict),
+            (codes::IDENTIFIER_LOCATION, "/id".into(), Reason::Conflict),
+        ]
+    );
+    let [brief_warning, spec_warning] = &validation.warnings[..] else {
+        panic!("{:?}", validation.warnings);
+    };
+    assert_eq!(brief_warning.document(), Some(0));
+    assert_eq!(brief_warning.fix(), Some(&json!("BRIEF-0001")));
+    assert_eq!(
+        brief_warning.location(),
+        Some(&stored_at("plan/briefs/BRIEF-0002.yaml", 4))
+    );
+    assert_eq!(spec_warning.document(), Some(2));
+    assert_eq!(spec_warning.fix(), Some(&specification["id"]));
+    // The same specification in the folder of its number gives none.
+    let validation = validate(&read(vec![stored(
+        specification,
+        "specs/0001-time-entries/spec.md",
+        1,
+    )]));
+    assert_eq!(validation.warnings, []);
+}
+
 // The set ----------------------------------------------------------------------------------
 
 #[test]
@@ -1668,7 +1846,11 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     let schemas = types.iter().map(|k| kinds::schema_check(k.id));
     let mut expected = vec![checks::DOCUMENT_KIND, checks::SCHEMA_VERSION];
     expected.extend(schemas);
-    expected.push(checks::IDENTIFIER_FORMAT);
+    expected.extend([
+        checks::IDENTIFIER_FORMAT,
+        checks::IDENTIFIER_DUPLICATE,
+        checks::IDENTIFIER_LOCATION,
+    ]);
     assert_eq!(validation.checks, expected);
     let summaries: Vec<(Option<&str>, Option<&str>, Option<&str>)> = validation
         .documents

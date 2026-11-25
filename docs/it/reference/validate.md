@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 662e06b41639
+source_hash: 0e1fd0fa011e
 ---
 # wayloop validate
 
@@ -13,8 +13,9 @@ Oggi brief, verbali del comitato, issue di gate, milestone, epic, user story, sp
 forma normalizzata, modifiche a delta, task, record di passaggio di mano e gli input (pull
 request, commit e input di passaggio di mano) sono validati rispetto ai loro schemi. Una
 specifica viva inviata in Markdown è accettata senza controllo, e i controlli non eseguiti sono
-elencati in `diagnostics.not_done`; così anche i controlli tra documenti (identificativi,
-collegamenti, parti, stati, nomi, aree).
+elencati in `diagnostics.not_done`. Tra documenti, gli identificativi sono controllati per
+unicità e rispetto al percorso del loro file; gli altri controlli tra documenti (collegamenti,
+parti, stati, nomi, aree) sono elencati come non eseguiti.
 
 Questa pagina descrive la versione 1 del comando, compilata dai sorgenti. Il suo contratto è la
 coppia di snapshot di schema `schemas/commands/validate/v1.json` (input) e
@@ -83,6 +84,8 @@ letto; il messaggio per una persona, con il percorso, va sullo standard error.
 | `schema_<input_kind>`: `schema_commit`, `schema_pull_request` | Ogni input del tipo supera lo schema della sua versione (`schemas/inputs/<input_kind>/v1.json`): membri obbligatori, membri sconosciuti, tipi e lunghezze (vedi Input pull request e commit più sotto) |
 | `schema_handover_input` | Ogni input di passaggio di mano supera lo schema di input della sua versione (`schemas/artifacts/handover/v1.input.json`), come fa un record di passaggio di mano (vedi sotto) |
 | `identifier_format` | L'`id` è nella forma canonica del suo tipo, per esempio `BRIEF-0001` |
+| `identifier_duplicate` | Due artefatti dell'insieme non portano mai lo stesso identificativo |
+| `identifier_location` | Il nome del file di un brief, di un verbale del comitato o di un elemento del piano, e il numero della cartella di una specifica viva, indicano l'`id` dell'artefatto; altrimenti un avviso |
 | `artifact_locations` | Nel progetto in cui i documenti sono stati scoperti esiste almeno una cartella di una posizione; solo con `locations`, dopo i controlli precedenti |
 
 Ogni schema è un controllo, `schema_<kind>` o `schema_<input_kind>`, elencato in
@@ -95,7 +98,6 @@ eseguito non è mai saltato in silenzio:
 | Controllo | Non eseguito su |
 | --- | --- |
 | `markdown` | Una specifica viva inviata in Markdown |
-| `identifier_duplicate` | L'insieme: due artefatti con lo stesso identificativo |
 | `links` | L'insieme: collegamenti tra artefatti, gerarchia, citazioni di ADR |
 | `parts` | L'insieme: parti degli artefatti e operazioni delle modifiche a delta |
 | `statuses` | L'insieme: transizioni e stati iniziali rispetto a `base` |
@@ -277,7 +279,8 @@ Ogni errore trovato è elencato in `error.errors`; il primo è ripetuto al livel
    nessun documento viene controllato. Seguono il passaggio dello schema di input, poi le voci
    in ordine per le regole che lo schema non può esprimere.
 2. Altrimenti, gli errori dei documenti, nell'ordine dei documenti; dentro un documento, per
-   fase (prima tipo, versione e schema, poi identificativo); dentro una fase, nell'ordine del
+   fase (prima tipo, versione e schema, poi identificativo, poi gli identificativi
+   dell'insieme); dentro una fase, nell'ordine del
    passaggio dello schema: i membri di un oggetto nell'ordine dei byte delle loro chiavi (`/aa`
    prima di `/zz`), gli elementi di un array per indice, i membri assenti dopo quelli presenti,
    nell'ordine in cui lo schema li elenca come obbligatori. Gli errori del nome di un membro vengono prima degli errori del suo valore, allo stesso
@@ -298,6 +301,13 @@ memorizzato:
 | `{milestone}` | `{milestone}` |
 | assente | assente |
 
+Un errore la cui condizione coinvolge altri documenti, come due artefatti con lo stesso
+identificativo, nomina ciascuno di essi in `related`: `{document, pointer}`, con i membri della
+`source` di quel documento (`file` e `line`, `issue` o `milestone`) nella voce stessa quando è
+stato memorizzato. Non sono annidati in un membro `source`, così l'envelope resta entro quattro
+livelli di oggetti (ADR 0009 C4). `related` è assente quando non c'è un altro documento, mai
+`[]`.
+
 | Codice | Motivi | Codice di uscita | Significato |
 | --- | --- | --- | --- |
 | `command_input` | `syntax`, `duplicate`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `conflict` | 1 | L'input canonico è rifiutato: non è JSON, ripete una chiave, contiene un numero oltre un double, o viola il suo schema o una regola della sezione Input; oppure `--command-version` richiede una versione che il motore non esegue (`enum`, le versioni note in `expected`) |
@@ -305,6 +315,7 @@ memorizzato:
 | `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | Un input di passaggio di mano viola il suo schema, per esempio impostando un membro che solo il motore imposta (`unknown_field`) |
 | `schema_version_unknown` | `enum` | 1 | Lo `schema_version` non è una versione del tipo o dell'input; `expected` elenca le versioni note |
 | `identifier_format` | `syntax` | 1 | L'`id` non è nella forma canonica del suo tipo; `fix` dà l'identificativo corretto quando è possibile ricavarlo |
+| `identifier_duplicate` | `duplicate` | 1 | Due o più artefatti dell'insieme portano lo stesso identificativo: ciascuno è rifiutato in `/id`, e ogni errore nomina gli altri in `related`. Sono confrontati solo i documenti che hanno superato i propri controlli |
 | `usage` | `syntax` | 2 | La riga di comando non è compresa; `command` è il comando indicato, vuoto quando nessuno |
 | `input_unreadable` | `missing`, `state` | 3 | Il file di input, un file indicato o una cartella del progetto non esiste (`missing`) o non può essere letto (`state`); l'envelope non contiene percorsi |
 | `internal_error` | `internal` | 5 | Il motore non ha potuto calcolare il risultato; l'input può essere valido |
@@ -315,6 +326,7 @@ Gli avvisi sono elencati in `diagnostics.warnings`, nella forma di un errore; il
 | Codice | Motivo | Puntatore | Significato |
 | --- | --- | --- | --- |
 | `artifact_location_missing` | `missing` | `/locations` | Nel progetto in cui i documenti sono stati scoperti non esiste alcuna cartella di una posizione, per esempio perché il comando è stato eseguito in una sottocartella del progetto |
+| `identifier_location` | `conflict` | `/id` | L'artefatto è stato letto da `plan/briefs/<name>.yaml`, `plan/council/<name>.yaml`, `plan/items/<name>.yaml` o `specs/<NNNN>-<capability>/spec.md`, e `<name>`, o `SPEC-<NNNN>`, è diverso dal suo `id`; `fix` è l'`id`, che è l'identità. Un documento inviato direttamente, o letto da un altro percorso, non ne dà |
 
 Un membro sconosciuto riceve in `fix` il membro più vicino, quando ce n'è uno vicino: per
 esempio `problem` per `problema`.
