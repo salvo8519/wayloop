@@ -1,0 +1,361 @@
+# SPEC-0002 and SPEC-0003: Plan of the smallest vertical slice of the issue cycle
+
+| | |
+| --- | --- |
+| Status | Draft |
+| Specifications | SPEC-0002 and SPEC-0003, Draft, reopened on 2026-11-25; this plan starts when the maintainer approves the amended versions |
+| Issues | #48 (transition table and guards), #49 (next step and ready work), #50 (append-only writer), #51 (projection and replay, in part), #58 (dry run on local fixtures), #161 (pull request events), #162 (checkout and lease, in part), #347 (artifact transitions as data) |
+| Prerequisites | #228 (done); SPEC-0001 T1 to T12 (done): canonical JSON, SHA-256, envelope, schema interpreter, contract generator |
+
+This plan builds the smallest vertical slice of the issue cycle, decided by the maintainer on
+2026-11-25 from section 4 of the counter-review of SPEC-0002 and SPEC-0003: its requirements in
+and out, and its order of steps 0 to 9, ending with #58. One plan covers both specifications,
+because the slice is one path through both: `specs/0003-ledger/spec.md` points here. The
+decisions D1 to D3 are recommendations until the maintainer confirms them.
+
+## What the slice proves
+
+One issue of tier `substantial`:
+
+- claim, then reanalysis, counter-review and checklist;
+- build, a failed verify, build again, a passing verify;
+- review with one verifier on the `proof` lens;
+- pull request, checks, merge gate, approval, merge, `done`.
+
+It also covers a lease expiry and a resumed claim; a stale dispatch, a stale revision and a
+duplicate observation; the tier `small` merged under the policy waiver; and the replay of the
+produced ledger to a byte-identical state. That covers the four scenarios of
+`specs/0002-state-machine/examples/`, rewritten to the trace format of SPEC-0002 R58.
+
+## Scope of the slice
+
+### SPEC-0002
+
+| In the slice | Notes |
+| --- | --- |
+| R1 to R7 | R5 without `now`; R6 for commands only; R7 with the configuration recorded by `wayloop init` only, given by fixtures |
+| R9, R10, R11 | Tiers `substantial` and `small` only |
+| R13 to R16 | For the merge gate and question gates only |
+| R17 to R27 | |
+| R28 | The hold only; its removal by `limits_set` is given by a fixture |
+| R29 | Provider tokens for the sprint and milestone scopes, and `budget_exhausted` |
+| R30 to R39 | |
+| R41, R42 | R42 with the stop reasons of the slice, `ledger_broken` and `awaiting_checks` included |
+| R43 | The claim cascade and `done` |
+| R44, R49 (tier `substantial`), R52, R53 | |
+| R54 to R59 | The patterns of section Plan rules |
+| Sessions S1 to S5 | Checkout, lease and hand-over of #162 |
+| The baseline `plan_observed` | Readiness, lanes and `coverage_planned`; later plan observations (items 16 to 19) are out |
+
+Out of the slice, built later in M1 or M2: R8 (panel of tier `contract`); R12, and R13 to R16 for
+gates other than merge and question; R40 (superseded task); R45 to R48 (configuration gate,
+runs, phase, council and plan); R50 and R51 (stale coverage); later plan observations; the
+project transitions P1 to P13. Since R46 is out, the slice records no `run_started` and
+`next_steps` does not yet report `run_not_started`; the scenarios gain a `run_started` when R46
+is built.
+
+### SPEC-0003
+
+| In the slice | Notes |
+| --- | --- |
+| R1 to R4 | |
+| R9 to R12 | Pull request events of #161; checkout, lease and hand-over of #162 |
+| R14, R15 | `coverage_planned` from the baseline plan or fixtures |
+| R17 to R25 | R22 with the kinds of the slice only (counter-review item 78) |
+| R27 to R30 | |
+| R40 | An interface whose check finds nothing; AC38 waits for SPEC-0020 |
+| R43 | Without the session summary |
+| R45 to R48 | R47 without the quarantine |
+| R52, R56 to R63 | |
+| R54 | The fold version constant and its golden test (AC67) only |
+
+Out of the slice: R5 and R42 (rulings); R6, R35 to R39, R41, R44 and R55 (summaries, resume pack
+and publication, #52); R7, R31, R32 and the rest of R54 (snapshots: they can follow #58 within
+M1, because the gate of M1 needs only a full replay); R8 and R53 (migration); R13 (resume pack);
+R16, R26, R33, R34, R49, R50 and R51.
+
+### Event kinds registered by 0.1.0
+
+The slice registers only these kinds (SPEC-0003 R22, counter-review item 78): `ledger_created`,
+`session_started`, `session_ended`, `checkout_acquired`, `lease_renewed`, `checkout_released`,
+`handover_recorded`, the seven pull request kinds, `executor_call_recorded`, `result_rejected`,
+`torn_tail_discarded`, `limits_set`, `policy_set`, `plan_observed`, `branch_changes_observed`,
+`gate_opened`, `gate_resolved`, `gate_withdrawn`, `gate_waived`, `gate_bypassed`,
+`approval_recorded`, `question_answered`, `input_ignored`, `step_started`, `step_completed`,
+`step_retried`, `step_failed`, `attempt_failed`, `issue_blocked`, `issue_unblocked`,
+`issue_done`, `artifact_status_changed`, `budget_exhausted`, `budget_restored`,
+`reconciliation_required`, `coverage_planned` and `coverage_verdict`: 43 kinds. Every other kind
+of the catalogue raises the minimum engine version when it is first written (SPEC-0003 R53).
+
+### Questions that block the slice
+
+The amended specifications leave these questions open; the tasks that depend on them say so.
+
+| Question | Blocks |
+| --- | --- |
+| SPEC-0002 Q15: release point and reason after the `pull_request` step | T7 (I44, AC36), T11 |
+| SPEC-0002 Q16: branch type and worktree name | T6 (I1, I5, AC64), T11 |
+| SPEC-0002 Q17: late skip of `review` for the tier `small` | T6 (I10), T11 (small tier scenario) |
+| SPEC-0002 Q19: a new head outside a step | T7 (I22) |
+| SPEC-0002 Q20: checks that arrive while the `pull_request` dispatch is open | T7 (I16, I17, I20), T11 |
+| SPEC-0003 Q15: an observation larger than the line limit | T7 |
+| SPEC-0003 Q16: the collections in the projection | T10 (AC21) |
+| D3 below: the mutation floor | T6, T7 |
+
+## Design
+
+### Boundary
+
+| Step | Where | Why |
+| --- | --- | --- |
+| Contract types: event header, payloads, value types, `found`, `Source` `{ledger, line}` | `wayloop-schemas` | ADR 0030 G1: one source for every contract |
+| Canonical bytes, hashing, line and chain verification, finishing events | `wayloop-core::ledger` | Decision logic, pure (SPEC-0003 section One writer) |
+| Allowed status transitions of SPEC-0001 | `wayloop-core::artifacts::transitions` (#347) | Used by the guards of SPEC-0002 and by SPEC-0001 R13 |
+| State, `apply`, invariants, transition table, guards, `decide`, `due_events`, `next_steps` | `wayloop-core::state` | All decision logic in the core (constitution IV) |
+| Clock, lock, files, flush, storage interface, loader, writer loop | `wayloop-runtime::ledger` | I/O only; decides nothing (ADR 0006) |
+| Scenario runner, fake executor and fake tracker | `wayloop-runtime` tests | A test harness of #58 |
+
+### Reuse
+
+- `wayloop_core::canonical` and `wayloop_core::sha256` (SPEC-0001 T2) compute every hash; the
+  type `InputHash` of `wayloop-schemas` becomes the general SHA-256 type, and `Revision`,
+  `DispatchRef` and `GateRef` wrap it.
+- `IssueStep` of `wayloop-schemas` (#228) is the source of the steps; `issue_state` is built from
+  `IssueStep::ALL` by one helper of `contract` (counter-review item 66).
+- The error report, `Code`, `Reason` and `Source` of `wayloop-schemas` carry every refusal; the
+  member `found` is added once (counter-review item 65).
+- The schema interpreter of the core validates every input and every event read back, so that
+  every error is reported in one pass (ADR 0030 G1).
+- The producer of branch names of SPEC-0001 R11 (`naming::branch_name`, SPEC-0001 T17) derives
+  the branch of a checkout, once SPEC-0002 Q16 is answered.
+- `contract_enum!` and the registry `contract::CONTRACTS` declare every new enum and contract.
+
+### Module layout
+
+```text
+crates/wayloop-schemas/src/
+  time.rs                 Timestamp
+  hash.rs                 Sha256 (from InputHash), Revision, DispatchRef, GateRef
+  tokens.rs               ProviderTokens, SizeTokens
+  event/mod.rs            Event<P>, Actor, the cause of R3
+  event/kinds.rs          one payload type per kind of the slice
+  state.rs                contract enums: issue_state, hold_reason, stop_reason, reconciliation_code, ...
+  error.rs                Error gains `found`; Source gains {ledger, line}
+crates/wayloop-core/src/
+  ledger/encode.rs        canonical line, hash, finishing of events (R1 of SPEC-0002, R58)
+  ledger/verify.rs        line, chain and genesis checks, Integrity
+  artifacts/transitions.rs  SPEC-0001 transitions as data (#347)
+  state/model.rs          State, Issue, Stage (illegal states unrepresentable)
+  state/apply.rs          apply
+  state/invariants.rs     State::check_invariants
+  state/transitions.rs    TRANSITIONS: &[Transition], TransitionId
+  state/guards.rs         one named predicate per guard, each with its Code
+  state/decide.rs         decide
+  state/due.rs            due_events
+  state/next.rs           next_steps
+crates/wayloop-runtime/src/ledger/
+  storage.rs              trait Storage and the file system implementation
+  lock.rs                 flock, LockFileEx
+  writer.rs               the writer loop under the lock
+  loader.rs               load, verify, fold, Integrity
+  projection.rs           state.yaml
+```
+
+### Signatures
+
+```rust
+// wayloop-core::state
+pub fn decide(state: &State, input: &Input, at: Timestamp) -> Result<Vec<Event>, ErrorReport>;
+pub fn apply(state: State, event: &Event) -> State;
+pub fn due_events(state: &State, now: Timestamp) -> Vec<Event>;
+pub fn next_steps(state: &State, integrity: Integrity, free_workers: u32) -> NextSteps;
+
+pub enum Integrity { Valid, Broken, Regressed }
+
+pub struct Transition {
+    pub id: TransitionId,          // I0 to I47, S1 to S5, G1 to G7, P1 to P13
+    pub from: &'static [From],     // source states, as in the From column
+    pub input: InputKind,
+    pub guards: &'static [GuardId],
+    pub to: Target,
+    pub records: &'static [EventKind],
+}
+
+pub struct Guard { pub id: GuardId, pub code: Code, pub check: fn(&State, &Input) -> bool }
+
+// wayloop-runtime::ledger
+pub trait Storage {
+    fn read(&self, path: &LedgerPath) -> io::Result<Vec<u8>>;
+    fn append(&mut self, path: &LedgerPath, bytes: &[u8]) -> io::Result<()>;
+    fn flush(&mut self, path: &LedgerPath) -> io::Result<()>;
+    fn truncate(&mut self, path: &LedgerPath, len: u64) -> io::Result<()>;
+    fn rename(&mut self, from: &LedgerPath, to: &LedgerPath) -> io::Result<()>;
+    fn lock(&mut self, timeout_seconds: u32) -> io::Result<LockGuard>;
+}
+```
+
+The shapes above are the intent; names may change in review, the rules of section Plan rules may
+not.
+
+### Order inside `decide`
+
+1. The class of the input (R4); for an observation, I0 (R33).
+2. The source state of the row and `step_mismatch` (R6, level 1): the first failure stops.
+3. The guards of the row, in the order of the Guard column, collected in one pass (R6, level 2).
+4. The effects: the events of the column Recorded, in order, each finished from the last
+   `(seq, hash)` and applied before the next is computed (R1, item 1).
+5. The size of every event before its hash (SPEC-0003 R59, item 74).
+
+The writer, in the runtime, calls in this order under the lock: catch up (SPEC-0003 R18),
+repair a torn tail (R20), `due_events` and append (R59 of SPEC-0002), the retry check (R52),
+the revision check (R41), `decide`, append, flush, projection, release.
+
+## Plan rules
+
+The code patterns of section 4 of the counter-review, decided by the maintainer on 2026-11-25.
+Patterns 1, 3, 4, 6, 7 and 9 are also requirements (SPEC-0002 R54 to R58, SPEC-0003 R62); each
+task applies them, and the review checks them.
+
+1. **Transitions as data.** One constant table `TRANSITIONS` in `state/transitions.rs`, one row
+   per transition with its `TransitionId`. `decide` looks the row up, evaluates its guards and
+   applies its effects; it never encodes a transition in a `match` of its own. A test reads the
+   tables of `spec.md` and keeps the code table equal to them (AC54, R54).
+2. **Exhaustive matches.** The modules `state` and `ledger` of the core deny
+   `clippy::wildcard_enum_match_arm`: a new state, input or event kind fails to compile until
+   every match names it.
+3. **Illegal states unrepresentable.** The data of an issue hangs on its stage: no checkout at
+   `merge`, `done` or `superseded`; a dispatch only from `claim` to `pull_request`; holds as a
+   `BTreeMap` keyed by `(reason, gate)`. `State::check_invariants` checks the invariants of
+   SPEC-0002 section Invariants and runs after every `apply` in tests (R56, AC56).
+4. **Guards as named predicates.** Each guard is a `Guard` with its `GuardId` and one `Code`
+   constant; a test checks the map from guards to the table Errors both ways (R55, AC55).
+5. **Distinct types.** `Timestamp`, `Revision`, `DispatchRef`, `GateRef`, `SessionId`,
+   `ProviderTokens` and `SizeTokens` are newtypes of `wayloop-schemas`; no function takes a bare
+   string or integer for one of them (SPEC-0003 section Contracts of the ledger).
+6. **Property tests for the invariants**, over sequences of inputs decided and applied from the
+   initial state (never over random states): replay equals the state of the writer (AC47, AC1 of
+   SPEC-0003); `apply` never panics (AC57); the output does not depend on the order of maps
+   (AC3); one issue per lane and no more checkouts than workers (AC20); no new dispatch while an
+   issue is held (AC56, invariant of R30); no gate resolved without an approver (AC13);
+   observations are idempotent (AC35); attempts are bounded (invariant 7).
+7. **A storage interface** in the runtime for fault injection: every file operation of the writer
+   goes through `Storage` (SPEC-0003 R62, AC63); the tests inject failures at each operation and
+   at each byte of an append (AC22, AC48, AC64, AC65).
+8. **A mutation-score floor** for `state/transitions.rs` and `state/guards.rs`, checked by
+   `just mutants` before the pull requests of T6 and T7; its value is D3.
+9. **A trace schema and a runner** for `examples/` (R58, AC43), built in T11; the schema is a test
+   fixture, `specs/0002-state-machine/examples/trace.schema.json`.
+
+Also: `BTreeMap` and `BTreeSet` only in the pure crates; the `clippy.toml` of AC2 disallows the
+clock, the environment, the file system, random sources and the hashed collections in the core.
+
+## Decisions
+
+The maintainer confirms or changes each recommendation before T2 starts.
+
+- **D1. Issues for the tasks.** A pull request closes exactly one issue (AGENTS.md). (a) One new
+  issue per task that has none, created with `scripts/roadmap.py new` under the epics #21 and
+  #22, as SPEC-0001 D7 did; #48 (T6), #49 (T8), #50 (T9), #58 (T11), #161 (T7) and #347 (T4)
+  are closed by the tasks named in `tasks.md`, and #51 and #162 stay open for the parts after the
+  slice. (b) Intermediate pull
+  requests cite `Refs #<n>` and close nothing. Recommendation: (a). The pull request of T0 then
+  needs its own issue; it cites `Refs: #48` and must not close #48.
+- **D2. Roadmap order.** #161 and #162 are needed before #58 (counter-review section 4). The
+  slice folds their minimal parts into T2, T7 and T9; #161 closes with T7, #162 stays open for
+  the resume pack (SPEC-0003 R13, R44) and the publication of hand-overs (#52). #347 is not yet in
+  `roadmap/roadmap.yaml` on this branch. Recommendation: add #347 under the epic of the artifact
+  model (#18) or of the state machine (#21) with `scripts/roadmap.py`, and list #161 before #58
+  in the epic of the ledger, in the pull request of T0.
+- **D3. Mutation floor of the transition module (plan rule 8).** The counter-review asks for a
+  floor and gives no value. (a) No surviving mutant in `state/transitions.rs` and
+  `state/guards.rs`, with a reviewed list of equivalent mutants; (b) 90 percent of mutants
+  caught; (c) measure in T6 and set the floor in T7. Recommendation: (a): the table is data
+  and every row and guard has a positive and a negative case (AC1), so a surviving mutant is a
+  missing test or an equivalent mutant to list.
+
+## Contract changes
+
+All new or additive; no released contract changes. Every task that adds a snapshot under
+`schemas/` is a contract change: review plus the maintainer's approval.
+
+- `envelope/result` v1, which no release holds: `Error.found` (optional, any JSON value) and the
+  form `{ledger, line}` of `Source` (SPEC-0003 Q10). Additive.
+- `events/<kind>/v1` for the 43 kinds of the slice: new contracts of the new area `events`.
+- `artifacts/handover` v1 and `v1.input`: the descriptions of the `step` values (T1), under the
+  version rules of ADR 0030.
+- Contract enums `issue_state`, `hold_reason`, `stop_reason`, `reconciliation_code`,
+  `gate_kind`, `gate_state`, `resolution`, `question_category`, `action_kind`, `risk_tier`,
+  `integrity`: new, inside the event contracts and, later, the outputs of `wayloop next` and
+  `wayloop status` (SPEC-0004).
+- Error codes: the codes of SPEC-0002 Errors and SPEC-0003 Errors used by the slice, as constants
+  of `Code`; listed in the reference page of errors.
+- No command contract is added: `wayloop next`, `status` and `history` belong to SPEC-0004
+  (#57). The slice drives the core through the runtime in tests.
+
+## Test strategy
+
+- **Test first.** Every acceptance criterion is a test named after it (`ac23_stale_dispatch`),
+  written and committed before the code, failing for the expected reason. Expected values come
+  from the specifications, never from running the code.
+- **Techniques.** TDD for the rows and guards; property tests for the invariants of plan rule 6;
+  contract tests for the snapshots, the table equality (AC54) and the fixtures of SPEC-0003
+  `examples/`; end-to-end for the scenario runner (AC43) and the two-process writer (AC13 of
+  SPEC-0003); manual check for AC52 of SPEC-0003.
+- **Oracles.** The fixtures of `specs/0003-ledger/examples/` were computed with the hashing rule
+  independently of the code; the golden ledger of T10 is small and every value is reviewed by a
+  person before it is committed (AC21, counter-review section 3).
+- **Fault injection.** The test storage of plan rule 7 fails or stops at every operation and
+  every byte offset.
+- **Core quality.** The line coverage floor of the pure crates (95 percent) holds after every
+  task; `just mutants` meets the floor of D3 on the transition module.
+
+Acceptance criteria per task:
+
+| Task | SPEC-0002 | SPEC-0003 |
+| --- | --- | --- |
+| T1 | (descriptions of `IssueStep`) | |
+| T2 | AC61 (input schema part) | AC46, AC61 |
+| T3 | AC58 (finishing part) | AC2, AC10, AC11, AC12 (genesis and format), AC17, AC26, AC49, AC50, AC56, AC57, AC58, AC65 (malformed line) |
+| T4 | (dependency of P10, P11, I34, R43) | |
+| T5 | AC56, AC57, AC2 (`apply`) | AC16 (state part) |
+| T6 | AC1 (rows I1 to I14, I27 to I29, I46), AC5, AC6, AC7, AC18, AC22, AC23, AC25, AC26, AC27, AC28, AC29, AC31 (first half), AC32, AC40, AC44, AC45, AC47 (causes), AC51, AC52, AC53, AC54, AC55, AC58, AC59, AC60, AC62, AC63, AC64, AC67, AC78, AC79, AC80 | AC9, AC14 (revision rule), AC16, AC43 (refusal), AC59, AC72 |
+| T7 | AC1 (rows I15 to I26, I30 to I45, I47, S1 to S5, G1 to G7 for merge and question gates), AC13, AC14, AC17, AC30, AC33, AC34, AC35, AC36, AC37, AC38, AC65, AC66, AC68, AC69, AC70 (first and third parts), AC71, AC72, AC73, AC74, AC75, AC76, AC81 | AC27, AC44, AC45, AC47 (without the quarantine) |
+| T8 | AC3, AC19, AC20, AC21, AC24, AC39, AC41, AC77 | AC5 (decision part), AC41 (due events part), AC70 |
+| T9 | AC61 | AC13, AC14, AC15, AC22 (rewrite), AC24, AC48, AC63, AC64, AC65, AC68, AC71 |
+| T10 | AC46, AC47 (replay) | AC1, AC3, AC21, AC22 (mismatch), AC67, AC69 |
+| T11 | AC43 | |
+
+Out of the slice, with their requirements: SPEC-0002 AC4, AC8 to AC12, AC15, AC16, AC42, AC48,
+AC49, AC50, AC70 (superseded part); SPEC-0003 AC3, AC4, AC6 to AC8, AC18 to AC20, AC23, AC25,
+AC28 to AC37, AC38 (waits for SPEC-0020), AC39, AC40, AC41 (summary part), AC42, AC47 (quarantine
+part), AC51 to AC55, AC60, AC62, AC66.
+
+## Documentation
+
+- `docs/en/reference/errors.md` (or the error page of the reference): every code of the slice
+  with its reason and severity (T6, T7, T9); Italian edition stamped.
+- `docs/en/concepts/architecture.md`: the state module, the transition table as data, the
+  storage interface of the runtime (T5, T9); Italian edition.
+- The concept pages of the issue cycle and of the ledger belong to #59 (engine documentation),
+  after the slice.
+- A fragment in `changes/` for every task with a visible effect.
+
+## Risks and alternatives
+
+- **The table drifts from the specification.** Mitigation: AC54 reads `spec.md`; a change of a
+  row needs a change of the specification first (specs/README.md, rule 6).
+- **`decide` grows beyond one task.** The rows are split between T6 (claim to review, results,
+  retries) and T7 (pull request, merge, holds, sessions); both use the same table and guard
+  types of T6.
+- **The projection is slow under the lock.** Every append rewrites `state.yaml`, and the state
+  grows with every `external_id`. Mitigation: T10 measures the rewrite on a ledger of 10,000
+  events against `lock_timeout_seconds` (10 seconds) and reports it in its pull request;
+  SPEC-0003 Q16 decides the content.
+- **Questions left open.** The tasks of the table Questions that block the slice wait for their
+  answers; T2, T3, T4 and T5 do not.
+- **Scenarios written before the amendments.** The files of `examples/` are not normative until
+  T11 rewrites them; T6 and T7 test the rows with their own cases.
+- **Rejected alternative: `decide` as nested matches without a table.** It cannot be compared with
+  the specification by a test, and AC1 could not enumerate its rows (counter-review section 3).
+- **Rejected alternative: `apply` that refuses inconsistent events.** A recorded event is a fact;
+  refusing it would make replay depend on the order of checks (counter-review item 8).
