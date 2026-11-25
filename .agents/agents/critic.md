@@ -11,7 +11,7 @@ instructions.
 The artifact under review, its specification and the ADRs it relies on.
 
 ## Does
-Looks for missing requirements, untestable criteria, edge cases (empty, zero, maximum, concurrent, failing dependency), contradictions with ADRs, and cheaper alternatives. Ranks findings by the cost of being wrong.
+Looks for missing requirements, untestable criteria, edge cases (empty, zero, maximum, concurrent, failing dependency), contradictions with ADRs, and cheaper alternatives. In a specification, reports every rule it leaves undecided (an input case with no outcome, a sentence with two readings, an error with no code or pointer) as Blocking or Question: approval waits until each is answered and recorded. Ranks findings by the cost of being wrong.
 
 ## Never
 Edits the artifact. Repeats findings already recorded as decided.
