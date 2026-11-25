@@ -8,8 +8,9 @@
 //!   [`crate::naming::branch`];
 //! - `commit_header`: the `header` of a commit and the `title` of a pull request, by the grammar
 //!   of [`crate::naming::commit`]; and the body of a commit whose header marks a breaking change,
-//!   which needs a paragraph starting with `BREAKING CHANGE:` (reason `requires` at `/body`).
-//!   The evidence of a breaking pull request title is its label `breaking-change`, checked by
+//!   which needs a `BREAKING CHANGE:` paragraph or footer (reason `requires` at `/body`). A
+//!   commit whose header git wrote itself, such as `Merge ` or `Revert "`, is exempt. The
+//!   evidence of a breaking pull request title is its label `breaking-change`, checked by
 //!   SPEC-0021, not here.
 //!
 //! The errors of a document come in the byte order of their pointers, as in the schema pass:
@@ -62,23 +63,25 @@ enum CommitBody<'a> {
 }
 
 impl CommitBody<'_> {
-    /// Whether the body lacks the paragraph of a breaking change; `false` when it is refused.
-    fn lacks_breaking_paragraph(self) -> bool {
+    /// Whether the body states no breaking change; `false` when it is refused.
+    fn lacks_breaking_change(self) -> bool {
         match self {
             CommitBody::Absent => true,
-            CommitBody::Text(text) => !commit::has_breaking_paragraph(text),
+            CommitBody::Text(text) => !commit::has_breaking_change(text),
             CommitBody::Refused => false,
         }
     }
 }
 
 /// The pull request or the commit of `entry`, the document `document` summarised by `summary`,
-/// whose own errors are `refused`; `None` for any other document.
+/// whose own errors are `refused`; `None` for any other document. `pointers` are those of
+/// [`Pointers::new`], built once for the set.
 pub(super) fn named<'a>(
     document: u64,
     entry: &'a Entry,
     summary: &DocumentSummary,
     refused: &[Error],
+    pointers: &Pointers,
 ) -> Option<Named<'a>> {
     let Body::Document { document: body, .. } = &entry.body else {
         return None;
@@ -86,13 +89,13 @@ pub(super) fn named<'a>(
     let read = |pointer: &Pointer, key: &str| clean(body, refused, pointer, key);
     let texts = match summary.input_kind? {
         InputKind::PullRequest => Texts::PullRequest {
-            title: read(&titles::pointer(), TITLE),
-            branch: read(&pointer(BRANCH), BRANCH),
+            title: read(&pointers.title, TITLE),
+            branch: read(&pointers.branch, BRANCH),
         },
         InputKind::Commit => Texts::Commit {
-            header: read(&pointer(HEADER), HEADER),
+            header: read(&pointers.header, HEADER),
             body: if body.contains_key(BODY) {
-                read(&pointer(BODY), BODY).map_or(CommitBody::Refused, CommitBody::Text)
+                read(&pointers.body, BODY).map_or(CommitBody::Refused, CommitBody::Text)
             } else {
                 CommitBody::Absent
             },
@@ -124,6 +127,25 @@ fn pointer(key: &str) -> Pointer {
     Pointer::root().join(key)
 }
 
+/// The pointers of the members of the inputs that this stage reads, built once for the set.
+pub(super) struct Pointers {
+    title: Pointer,
+    branch: Pointer,
+    header: Pointer,
+    body: Pointer,
+}
+
+impl Pointers {
+    pub(super) fn new() -> Self {
+        Self {
+            title: titles::pointer(),
+            branch: pointer(BRANCH),
+            header: pointer(HEADER),
+            body: pointer(BODY),
+        }
+    }
+}
+
 /// Whether the set summarised by `documents` holds a pull request or a commit, whose checks
 /// read the policy (R21).
 pub(super) fn reads_policy(documents: &[DocumentSummary]) -> bool {
@@ -134,7 +156,7 @@ pub(super) fn reads_policy(documents: &[DocumentSummary]) -> bool {
 
 /// Every error of the names of `named`, against the types and scopes of `policy`, indexed
 /// once, in the order of `named`.
-pub(super) fn errors(named: &[Named<'_>], policy: &Policy) -> Vec<Error> {
+pub(super) fn errors(named: &[Named<'_>], policy: &Policy, pointers: &Pointers) -> Vec<Error> {
     let lists = HeaderNames {
         types: Names::new(&policy.types),
         scopes: Names::new(&policy.scopes),
@@ -145,24 +167,28 @@ pub(super) fn errors(named: &[Named<'_>], policy: &Policy) -> Vec<Error> {
             Texts::PullRequest { title, branch } => {
                 let mut own = Vec::new();
                 if let Some(name) = branch {
-                    own.extend(branch::errors(name, &lists.types, &pointer(BRANCH)));
+                    own.extend(branch::errors(name, &lists.types, &pointers.branch));
                 }
                 if let Some(title) = title {
-                    own.extend(commit::check(title, &lists, &titles::pointer()).errors);
+                    own.extend(commit::check(title, &lists, &pointers.title).errors);
                 }
                 own
             }
-            Texts::Commit { header, body } => header.map_or_else(Vec::new, |header| {
-                let at = pointer(HEADER);
-                let checked = commit::check(header, &lists, &at);
-                let unevidenced = checked.breaking && body.lacks_breaking_paragraph();
-                let mut own = Vec::new();
-                if unevidenced {
-                    own.push(commit::requires(pointer(BODY), at));
-                }
-                own.extend(checked.errors);
-                own
-            }),
+            Texts::Commit { header, body } => header
+                .filter(|header| !commit::is_generated(header))
+                .map_or_else(Vec::new, |header| {
+                    let checked = commit::check(header, &lists, &pointers.header);
+                    let unevidenced = checked.breaking && body.lacks_breaking_change();
+                    let mut own = Vec::new();
+                    if unevidenced {
+                        own.push(commit::requires(
+                            pointers.body.clone(),
+                            pointers.header.clone(),
+                        ));
+                    }
+                    own.extend(checked.errors);
+                    own
+                }),
         };
         errors.extend(
             own.into_iter()

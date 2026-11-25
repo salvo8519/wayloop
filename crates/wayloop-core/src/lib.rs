@@ -50,7 +50,6 @@ use serde_json::Value;
 
 pub use command::{COMMAND_INPUT, CURRENT_COMMAND_VERSION, Command, Context, parse_json};
 pub use envelope::envelope_json;
-pub use naming::branch::branch_name;
 pub use wayloop_schemas::{
     Check, Code, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope, Error,
     ErrorReport, ExitCode, INPUT_UNREADABLE, INTERNAL_ERROR, InputHash, IssueStep, Meta, NotDone,

@@ -25,6 +25,9 @@ crate::closed_enum! {
         /// Lower-case words of ASCII letters and digits joined by single hyphens: the
         /// capability of a living specification, the slug of its folder.
         Capability = "capability",
+        /// A name of the project policy, a type of commits, a scope or an area: one lower-case
+        /// word of ASCII letters, digits and hyphens that starts with a letter.
+        PolicyName = "policy-name",
         /// `BRIEF-` and a sequence.
         BriefId = "brief-id",
         /// `COUNCIL-` and a sequence.
@@ -75,22 +78,23 @@ mod tests {
             Format::TrackerHandle => 3,
             Format::ProjectPath => 4,
             Format::Capability => 5,
-            Format::BriefId => 6,
-            Format::CouncilId => 7,
-            Format::BriefOrCouncilId => 8,
-            Format::GateId => 9,
-            Format::EpicId => 10,
-            Format::StoryId => 11,
-            Format::SpecId => 12,
-            Format::ChangeId => 13,
-            Format::TaskId => 14,
-            Format::MilestoneId => 15,
-            Format::HandoverId => 16,
-            Format::RequirementId => 17,
-            Format::CriterionId => 18,
-            Format::DecisionId => 19,
-            Format::QuestionId => 20,
-            Format::JsonPointer => 21,
+            Format::PolicyName => 6,
+            Format::BriefId => 7,
+            Format::CouncilId => 8,
+            Format::BriefOrCouncilId => 9,
+            Format::GateId => 10,
+            Format::EpicId => 11,
+            Format::StoryId => 12,
+            Format::SpecId => 13,
+            Format::ChangeId => 14,
+            Format::TaskId => 15,
+            Format::MilestoneId => 16,
+            Format::HandoverId => 17,
+            Format::RequirementId => 18,
+            Format::CriterionId => 19,
+            Format::DecisionId => 20,
+            Format::QuestionId => 21,
+            Format::JsonPointer => 22,
         }
     }
 
@@ -116,6 +120,7 @@ mod tests {
                 "tracker-handle",
                 "project-path",
                 "capability",
+                "policy-name",
                 "brief-id",
                 "council-id",
                 "brief-or-council-id",

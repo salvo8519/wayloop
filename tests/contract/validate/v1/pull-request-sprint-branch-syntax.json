@@ -62,7 +62,8 @@
       "/error/expected"
     ],
     "lengths": {
-      "/error/errors": 1
+      "/error/errors": 1,
+      "/meta/defaults_applied": 1
     }
   }
 }

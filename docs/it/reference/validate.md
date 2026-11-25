@@ -155,8 +155,11 @@ Ogni tipo accetta solo i propri stati. Un verbale del comitato ha `draft`, `appr
 una specifica viva ne ha sei, `draft`, `approved`, `surveyed`, `implementing`, `done` e
 `superseded`, e ogni altro, per esempio `published`, è rifiutato con `enum` e i sei in
 `expected`. La `capability` di una specifica viva è formata da parole minuscole di `a`-`z` e
-`0`-`9` unite da un solo trattino, per esempio `time-entries`; un requisito è `active` o
-`removed`, e assente significa `active`. Lo schema controlla la forma delle parti di un
+`0`-`9` unite da un solo trattino, per esempio `time-entries`. Il suo `commit_scope`, e l'`area`
+di un epic e di un task, sono nomi della policy (formato `policy-name`): una parola minuscola di
+lettere ASCII, cifre e trattini che inizia con una lettera, per cui `area:core` e `Core` sono
+rifiutati con `syntax`, il secondo con il fix `core`. Un requisito è `active` o `removed`, e
+assente significa `active`. Lo schema controlla la forma delle parti di un
 artefatto (`D<k>`, `Q<k>`, `R<k>`, `AC<k>`) e che una domanda di un verbale del comitato abbia
 almeno due opzioni, non che una parte sia unica, che un dissenso nomini una decisione del suo
 verbale, che una raccomandazione o una risposta sia una delle opzioni o che una modifica a delta
@@ -433,16 +436,17 @@ policy.
 
 | Forma di un branch | Regola |
 | --- | --- |
-| `<type>/<issue>-<slug>` | `<type>` un tipo della policy; `<issue>` un numero da 1 senza zeri iniziali; `<slug>` da una a cinque parole di lettere ASCII minuscole e cifre unite da singoli trattini |
+| `<type>/<issue>-<slug>` | `<type>` un tipo della policy; `<issue>` un numero da 1 senza zeri iniziali, al massimo 9007199254740991, l'intervallo di un numero di issue; `<slug>` da una a cinque parole di lettere ASCII minuscole e cifre unite da singoli trattini; il nome intero al massimo 100 caratteri |
 | `sprint/S<NN>/<issue>-<slug>` | come sopra, con `S` e due o più cifre, il numero dello sprint |
 | `dependabot/<anything>`, `release/v<anything>`, `revert-<n>-<anything>` | esenti: accettati senza altri controlli |
 
 Un tipo fuori dalla policy è il motivo `enum`, con i tipi in `expected`; uno slug di più di
-cinque parole è il motivo `length`; ogni altro difetto della forma è il motivo `syntax`. Gli
-errori dello slug portano in `fix` il branch con lo slug riscritto come in un nome di branch
-prodotto (più sotto), quando il tipo e la issue sono validi e lo slug lascia una parola:
-`feat/42-Ledger` dà `feat/42-ledger`, `feat/42-one-two-three-four-five-six` dà
-`feat/42-one-two-three-four-five`.
+cinque parole e un nome di più di 100 caratteri sono ciascuno il motivo `length`; ogni altro
+difetto della forma, compreso un numero di issue fuori dal suo intervallo, è il motivo `syntax`.
+Gli errori dello slug e della lunghezza portano in `fix` il branch con lo slug riscritto come in
+un nome di branch prodotto (più sotto), quando il tipo e la issue sono validi e il nome corretto
+non viola alcuna regola: `feat/42-Ledger` dà `feat/42-ledger`,
+`feat/42-one-two-three-four-five-six` dà `feat/42-one-two-three-four-five`.
 
 Un'intestazione è `<type>(<scope>)[!]: <subject>`, seguita a scelta da un riferimento
 ` [SPEC-<seq>]` o ` [SPEC-<seq> R<k>, R<k>]`:
@@ -454,22 +458,37 @@ Un'intestazione è `<type>(<scope>)[!]: <subject>`, seguita a scelta da un rifer
 | Uno scope è obbligatorio, tranne per il tipo `revert` | `feat: add x` | `missing`, gli scope in `expected` | nessuno |
 | Lo scope è uno scope della policy | `feat(kernel): add x` | `enum`, gli scope in `expected` | nessuno |
 | L'oggetto inizia con una lettera minuscola | `feat(core): Add the ledger` | `syntax` | `feat(core): add the ledger` |
-| L'oggetto non ha un punto finale, prima del riferimento | `feat(core): add the ledger.` | `syntax` | `feat(core): add the ledger` |
+| L'oggetto non ha un punto finale, prima del riferimento e dopo aver tolto gli spazi bianchi finali | `feat(core): add the ledger.` | `syntax` | `feat(core): add the ledger` |
 | Al massimo 72 caratteri, riferimento compreso | | `length` | nessuno |
 
 Il `fix` dell'oggetto rende minuscola la sua prima lettera quando inizia una parola con
-l'iniziale maiuscola, non un acronimo, e ne toglie i punti finali; è dato solo quando
-l'intestazione corretta non viola alcuna regola. Un commit la cui intestazione segnala una
-modifica incompatibile con `!` richiede un paragrafo del corpo che inizi con `BREAKING CHANGE:`;
-senza, o senza corpo, è rifiutato con il motivo `requires` in `/body`, con l'intestazione in
-`pointers`. Il titolo di una pull request non richiede quel paragrafo: la sua prova è
-l'etichetta `breaking-change`.
+l'iniziale maiuscola, non un acronimo, e ne toglie i punti e gli spazi bianchi finali; è dato
+solo quando l'intestazione corretta non viola alcuna regola. Un commit la cui intestazione
+segnala una modifica incompatibile con `!` richiede nel corpo una riga
+`BREAKING CHANGE: <testo>`, con del testo dopo i due punti: o un paragrafo che inizia con essa,
+o un footer, una riga dell'ultimo paragrafo, dove stanno i trailer. Una riga vuota contiene
+solo spazi e tabulazioni. Senza, o senza corpo, il commit è rifiutato con il motivo `requires`
+in `/body`, con l'intestazione in `pointers`; un corpo rifiutato dal suo schema non è letto di
+nuovo. Il titolo di una pull request non richiede quel paragrafo: la sua prova è l'etichetta
+`breaking-change`.
+
+Un commit la cui intestazione è scritta da git stesso è esente da queste regole, per la forma
+della sua intestazione e mai per il suo autore: un'intestazione che inizia con `Merge `,
+`Revert "`, `fixup! ` o `squash! `. Il titolo di una pull request non è scritto da git, quindi
+non ha questa esenzione.
 
 Un nome di branch prodotto è `<type>/<issue>-<slug>`: lo slug è il titolo confrontato come lo
 sono i titoli (Unicode NFC, case folding, di nuovo NFC), senza accenti, con ogni sequenza di
-altri caratteri trasformata in un solo trattino, troncato dopo cinque parole, e `work` quando
-non resta nulla: `Città di Salerno` dà `citta-di-salerno`, `Straße` dà `strasse`. Un nome
-prodotto supera sempre `branch_name`.
+altri caratteri trasformata in un solo trattino, troncato dopo cinque parole e poi alle parole
+intere che stanno in 100 caratteri (la prima parola troncata quando nessuna ci sta intera), e
+`work` quando non resta nulla: `Città di Salerno` dà `citta-di-salerno`, `Straße` dà
+`strasse`. Un nome prodotto supera sempre `branch_name`; nessun nome è prodotto quando il tipo e
+la issue non lasciano spazio per uno slug.
+
+Il programma `scripts/conventions.py` del repository di Wayloop, eseguito dal suo hook
+commit-msg e dal workflow delle sue pull request, applica la stessa grammatica; un test invia
+casi condivisi, le intestazioni della storia del suo branch principale e i suoi branch remoti a
+entrambi e richiede lo stesso verdetto.
 
 ## Input
 
@@ -480,7 +499,7 @@ un membro assente. Lo schema di input è chiuso: un membro che non elenca è rif
 | --- | --- | --- | --- |
 | `documents` | lista di oggetti | sì | Una voce per ogni artefatto o input memorizzato; `[]` significa nessuno |
 | `base` | lista di `{id, status}` | no | Stati sul branch predefinito degli artefatti dell'insieme |
-| `policy` | oggetto `{types, scopes, areas}`, ciascuno una lista di nomi della policy, identificativi di almeno un carattere | no | La parte della policy del progetto che il modello legge. I controlli `title_format` e `branch_name` ne leggono i `types`, il controllo `commit_header` i `types` e gli `scopes`; il controllo `areas` è elencato come non eseguito. Assente: vale la policy predefinita, la policy del repository di Wayloop, e `meta.defaults_applied` la elenca quando l'insieme contiene un epic, un task, una pull request o un commit, i cui controlli la leggono |
+| `policy` | oggetto `{types, scopes, areas}`: al massimo 32 tipi, 256 scope e 256 aree, ciascuno un nome della policy, una parola minuscola di lettere ASCII, cifre e trattini che inizia con una lettera (formato `policy-name`) | no | La parte della policy del progetto che il modello legge. I controlli `title_format` e `branch_name` ne leggono i `types`, il controllo `commit_header` i `types` e gli `scopes`; il controllo `areas` è elencato come non eseguito. Assente: vale la policy predefinita, la policy del repository di Wayloop, e `meta.defaults_applied` la elenca quando l'insieme contiene un epic, un task, una pull request o un commit, i cui controlli la leggono. Una policy con più nomi o con un nome fuori dalla sua forma è rifiutata come input del comando (`command_input`), nella lista o nel nome, e nessun controllo dei documenti viene eseguito |
 | `adrs` | lista di interi da 1 | no | Numeri degli ADR del progetto, per il controllo `adr_citations`. Assente: le citazioni non sono controllate, e il controllo non è eseguito. La riga di comando lo compila dai nomi dei file di `docs/en/project/adr/` quando quella cartella esiste |
 | `locations` | lista di `plan_briefs`, `plan_council`, `plan_items`, `specs`, per le cartelle `plan/briefs`, `plan/council`, `plan/items` e `specs` | no | Le cartelle delle posizioni che esistono nel progetto, quando i documenti vi sono stati scoperti; il loro ordine e una cartella ripetuta non hanno significato, non sono confrontate con le origini `file` dei documenti, e `[]` significa nessuna, e dà l'avviso `artifact_location_missing`. Assente: i documenti sono stati indicati per nome o inviati direttamente, e il controllo `artifact_locations` non è eseguito |
 | `language` | tag BCP 47, per esempio `it` o `en-GB` | no | La lingua del progetto. Nessun controllo di questa versione la legge, quindi quando è assente nessun default viene applicato né riportato; un controllo che ne ha bisogno elenca il default in `meta.defaults_applied` |
@@ -617,8 +636,8 @@ livelli di oggetti (ADR 0009 C4). `related` è assente quando non c'è un altro 
 | `delta_conflict` | `conflict` | 1 | Due o più operazioni di una modifica a delta sullo stesso requisito: ognuna dopo la prima è rifiutata, con la prima in `pointers` |
 | `title_format` | `syntax` | 1 | Il titolo di un epic o di un task ha un prefisso di tipo, un tag tra parentesi quadre all'inizio o alla fine, o un punto finale: un errore per regola in `/title`, ciascuno con `fix` il titolo con tutte le regole applicate, quando ne resta qualcosa |
 | `title_duplicate` | `duplicate` | 1 | Due o più titoli di epic o task, in qualunque stato tranne `superseded`, sono uguali dopo la normalizzazione: ciascuno è rifiutato in `/title`, e nomina un altro in `related`, il primo il secondo, ogni successivo il primo |
-| `branch_name` | `syntax`, `length`, `enum` | 1 | Il `branch` di una pull request viola la grammatica dei branch: la sua forma (`syntax`), uno slug di più di cinque parole (`length`), o un tipo fuori dalla policy (`enum`, con i tipi in `expected`); vedi Branch e intestazioni dei commit |
-| `commit_header` | `syntax`, `missing`, `enum`, `length`, `requires` | 1 | L'`header` di un commit o il `title` di una pull request viola la grammatica delle intestazioni: la sua forma o il suo oggetto (`syntax`), nessuno scope (`missing`), un tipo o uno scope fuori dalla policy (`enum`), più di 72 caratteri (`length`); o un commit segnala una modifica incompatibile senza il suo paragrafo (`requires` in `/body`); vedi Branch e intestazioni dei commit |
+| `branch_name` | `syntax`, `length`, `enum` | 1 | Il `branch` di una pull request viola la grammatica dei branch: la sua forma o un numero di issue fuori dal suo intervallo (`syntax`), uno slug di più di cinque parole o un nome di più di 100 caratteri (`length`), o un tipo fuori dalla policy (`enum`, con i tipi in `expected`); vedi Branch e intestazioni dei commit |
+| `commit_header` | `syntax`, `missing`, `enum`, `length`, `requires` | 1 | L'`header` di un commit o il `title` di una pull request viola la grammatica delle intestazioni: la sua forma o il suo oggetto (`syntax`), nessuno scope (`missing`), un tipo o uno scope fuori dalla policy (`enum`), più di 72 caratteri (`length`); o un commit segnala una modifica incompatibile senza il suo paragrafo o footer (`requires` in `/body`); un'intestazione scritta da git è esente; vedi Branch e intestazioni dei commit |
 | `usage` | `syntax` | 2 | La riga di comando non è compresa; `command` è il comando indicato, vuoto quando nessuno |
 | `input_unreadable` | `missing`, `state` | 3 | Il file di input, un file indicato o una cartella del progetto non esiste (`missing`) o non può essere letto (`state`); l'envelope non contiene percorsi |
 | `internal_error` | `internal` | 5 | Il motore non ha potuto calcolare il risultato; l'input può essere valido |

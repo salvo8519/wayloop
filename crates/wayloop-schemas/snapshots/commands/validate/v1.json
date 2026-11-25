@@ -204,33 +204,36 @@
     },
     "Policy": {
       "additionalProperties": false,
-      "description": "The subset of the project policy the artifact model reads (SPEC-0021 R1): the types and scopes of commits and the areas of epics and tasks.",
+      "description": "The subset of the project policy the artifact model reads (SPEC-0021 R1): the types and scopes of commits and the areas of epics and tasks. Each list is bounded, so that an error that lists the types or the scopes in `expected` never grows with the input (SPEC-0001, Project policy).",
       "properties": {
         "areas": {
-          "description": "Areas of epics and tasks, without the `area:` prefix.",
+          "description": "Areas of epics and tasks, without the `area:` prefix; a bounded list.",
           "items": {
-            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, spelt as the policy spells it, of at least one character.",
-            "minLength": 1,
+            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, one lower-case word of ASCII letters, digits and hyphens that starts with a letter, for example `feat` or `area-2` (SPEC-0001, Project policy).",
+            "format": "policy-name",
             "type": "string"
           },
+          "maxItems": 256,
           "type": "array"
         },
         "scopes": {
-          "description": "Scopes of commits and pull request titles.",
+          "description": "Scopes of commits and pull request titles; a bounded list.",
           "items": {
-            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, spelt as the policy spells it, of at least one character.",
-            "minLength": 1,
+            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, one lower-case word of ASCII letters, digits and hyphens that starts with a letter, for example `feat` or `area-2` (SPEC-0001, Project policy).",
+            "format": "policy-name",
             "type": "string"
           },
+          "maxItems": 256,
           "type": "array"
         },
         "types": {
-          "description": "Types of commits, branches and pull request titles.",
+          "description": "Types of commits, branches and pull request titles; a bounded list.",
           "items": {
-            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, spelt as the policy spells it, of at least one character.",
-            "minLength": 1,
+            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, one lower-case word of ASCII letters, digits and hyphens that starts with a letter, for example `feat` or `area-2` (SPEC-0001, Project policy).",
+            "format": "policy-name",
             "type": "string"
           },
+          "maxItems": 32,
           "type": "array"
         }
       },

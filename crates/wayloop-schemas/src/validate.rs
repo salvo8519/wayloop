@@ -232,15 +232,29 @@ pub struct BaseStatus {
 }
 
 /// The subset of the project policy the artifact model reads (SPEC-0021 R1): the types and
-/// scopes of commits and the areas of epics and tasks.
+/// scopes of commits and the areas of epics and tasks. Each list is bounded, so that an error
+/// that lists the types or the scopes in `expected` never grows with the input
+/// (SPEC-0001, Project policy).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Policy {
-    /// Types of commits, branches and pull request titles.
+    /// Types of commits, branches and pull request titles; a bounded list.
+    #[schemars(length(max = Policy::TYPES_MAX))]
     pub types: Vec<PolicyName>,
-    /// Scopes of commits and pull request titles.
+    /// Scopes of commits and pull request titles; a bounded list.
+    #[schemars(length(max = Policy::SCOPES_MAX))]
     pub scopes: Vec<PolicyName>,
-    /// Areas of epics and tasks, without the `area:` prefix.
+    /// Areas of epics and tasks, without the `area:` prefix; a bounded list.
+    #[schemars(length(max = Policy::AREAS_MAX))]
     pub areas: Vec<PolicyName>,
+}
+
+impl Policy {
+    /// The most types of a policy.
+    pub const TYPES_MAX: usize = 32;
+    /// The most scopes of a policy.
+    pub const SCOPES_MAX: usize = 256;
+    /// The most areas of a policy.
+    pub const AREAS_MAX: usize = 256;
 }
 
 /// The canonical input of `wayloop validate`: a set of stored artifacts and inputs, validated

@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 6cb8f6b83625
+source_hash: 3e6918ef779d
 ---
 # Architettura
 
@@ -323,7 +323,9 @@ La condizione di un `if` usa `type`, `properties`, `required`, `enum`, `const` e
 `project-path` (un percorso relativo alla radice del progetto in una sola grafia: segmenti uniti
 da `/`, nessuno vuoto, `.` o `..`; nessun `\` e nessuna lettera di unità), `capability` (parole
 minuscole di lettere e cifre unite da un solo trattino, lo slug della cartella di una specifica
-viva), gli identificativi di ogni tipo di artefatto (`brief-id`, `council-id`, `gate-id`,
+viva), `policy-name` (una parola minuscola di lettere, cifre e trattini che inizia con una
+lettera: un tipo, uno scope o un'area della policy del progetto), gli identificativi di ogni
+tipo di artefatto (`brief-id`, `council-id`, `gate-id`,
 `epic-id`, `story-id`, `spec-id`, `change-id`, `task-id`, `milestone-id`, `handover-id`),
 `brief-or-council-id` (l'uno o l'altro dei primi due, l'oggetto di una issue di gate) e gli
 identificativi delle parti (`requirement-id`, `criterion-id`, `decision-id`, `question-id`), con

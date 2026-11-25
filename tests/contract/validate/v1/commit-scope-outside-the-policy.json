@@ -66,12 +66,12 @@
     "absent": [
       "/data",
       "/error/fix",
-      "/error/source",
-      "/meta/defaults_applied/1"
+      "/error/source"
     ],
     "lengths": {
       "/error/errors": 1,
-      "/error/expected": 5
+      "/error/expected": 5,
+      "/meta/defaults_applied": 1
     }
   }
 }

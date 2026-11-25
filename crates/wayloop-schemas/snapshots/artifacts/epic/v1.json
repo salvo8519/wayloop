@@ -58,7 +58,7 @@
   "properties": {
     "area": {
       "description": "Area of the project policy, without the `area:` prefix; decides what can run in parallel.",
-      "minLength": 1,
+      "format": "policy-name",
       "type": "string"
     },
     "id": {

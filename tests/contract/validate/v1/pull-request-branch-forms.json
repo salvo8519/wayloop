@@ -92,7 +92,8 @@
       "/error"
     ],
     "lengths": {
-      "/data/documents": 4
+      "/data/documents": 4,
+      "/meta/defaults_applied": 1
     }
   }
 }

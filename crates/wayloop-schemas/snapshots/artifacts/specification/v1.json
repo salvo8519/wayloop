@@ -217,7 +217,7 @@
     },
     "commit_scope": {
       "description": "Scope of the project policy used by the commits that implement it.",
-      "minLength": 1,
+      "format": "policy-name",
       "type": "string"
     },
     "extra_sections": {

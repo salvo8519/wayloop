@@ -13,6 +13,10 @@ use wayloop_schemas::value::PolicyName;
 
 /// A list of names of the policy, such as its types or its scopes, indexed once for the rules
 /// that look names up in it: the cost of a lookup does not grow with the documents checked.
+///
+/// It matches a name exactly, as the policy spells it, since a branch and a header carry the
+/// name itself (R11). The type prefixes of titles are another index, `titles::Prefixes`, which
+/// case-folds the types, since a title is refused for a prefix without regard to case (R7).
 #[derive(Debug, Clone)]
 pub(crate) struct Names<'p> {
     /// The list as the policy gives it, for `expected`.

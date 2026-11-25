@@ -84,6 +84,12 @@ fn oracle_format(name: &str, text: &str) -> bool {
                 .get_or_init(|| full("[a-z0-9]+(-[a-z0-9]+)*"))
                 .is_match(text)
         }
+        "policy-name" => {
+            static POLICY_NAME: OnceLock<Regex> = OnceLock::new();
+            POLICY_NAME
+                .get_or_init(|| full("[a-z][a-z0-9-]*"))
+                .is_match(text)
+        }
         "tracker-handle" => {
             HANDLE
                 .get_or_init(|| full("@[A-Za-z0-9](-?[A-Za-z0-9])*"))
@@ -94,13 +100,14 @@ fn oracle_format(name: &str, text: &str) -> bool {
     }
 }
 
-const FORMATS: [&str; 22] = [
+const FORMATS: [&str; 23] = [
     "date",
     "utc-date-time",
     "language-tag",
     "tracker-handle",
     "project-path",
     "capability",
+    "policy-name",
     "brief-id",
     "council-id",
     "brief-or-council-id",
@@ -810,7 +817,7 @@ fn every_named_format_is_known_to_the_interpreter_and_to_the_oracle() {
 }
 
 /// Accepted and refused examples of each named format.
-const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 22] = [
+const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 23] = [
     (
         "project-path",
         &[
@@ -920,6 +927,21 @@ const FORMAT_EXAMPLES: [(&str, &[&str], &[&str]); 22] = [
             "-time",
             "time-",
             "citt\u{e0}",
+        ],
+    ),
+    (
+        "policy-name",
+        &["feat", "a", "area-2", "x-", "a--b", "breaking-change"],
+        &[
+            "",
+            "-",
+            "2fa",
+            "Feat",
+            "feat ",
+            "fe_at",
+            "feat/x",
+            "-feat",
+            "f\u{e9}at",
         ],
     ),
     (
@@ -1060,6 +1082,9 @@ fn fixes_of_formats() {
         ("capability", " time -- entries ", Some("time-entries")),
         ("capability", "--", None),
         ("capability", "citt\u{e0}", None),
+        ("policy-name", "Feat", Some("feat")),
+        ("policy-name", "fe_at", None),
+        ("policy-name", "2fa", None),
         ("tracker-handle", "example", Some("@example")),
         ("tracker-handle", "@@example", None),
         ("language-tag", "en_GB", Some("en-GB")),

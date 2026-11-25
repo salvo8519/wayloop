@@ -25,7 +25,9 @@ pub(crate) fn pointer() -> Pointer {
     Pointer::root().join(TITLE)
 }
 
-/// The types of the policy that a title may not start with, case-folded once.
+/// The types of the policy that a title may not start with, case-folded once: a prefix is found
+/// without regard to case (R7), unlike the exact lookup of `super::Names` for branches and
+/// headers (R11).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Prefixes {
     folded: Vec<String>,

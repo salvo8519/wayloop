@@ -684,10 +684,15 @@ fn the_parts_and_links_of_a_plan_item_have_the_forms_of_their_types() {
             "{pointer}"
         );
     }
-    // An empty area is not an area of any policy.
+    // An area is a name of the policy (#267): an empty one, or one out of its form, is
+    // refused by the format, with a fix when lower case gives the form.
     assert_eq!(
         errors_of(with(epic(), "area", json!(""))),
-        [schema_error("/area", Reason::Length)]
+        [schema_error("/area", Reason::Syntax)]
+    );
+    assert_eq!(
+        errors_of(with(epic(), "area", json!("area:core"))),
+        [schema_error("/area", Reason::Syntax)]
     );
 }
 
@@ -1248,7 +1253,7 @@ fn the_members_of_a_living_specification_have_their_forms() {
     );
     assert_eq!(
         member("commit_scope", json!("")),
-        [schema_error("/commit_scope", Reason::Length)]
+        [schema_error("/commit_scope", Reason::Syntax)]
     );
     assert_eq!(
         member("stories", json!(["STORY-1"])),

@@ -23,6 +23,9 @@ enum Shape {
     ProjectPath,
     /// Lower-case words of ASCII letters and digits joined by single hyphens.
     HyphenatedWords,
+    /// A name of the policy: a lower-case ASCII letter, then lower-case ASCII letters, digits and
+    /// hyphens.
+    PolicyName,
     /// `<PREFIX>-<seq>`, with one of the prefixes: four digits, or five or more without a
     /// leading zero.
     Sequence(&'static [&'static str]),
@@ -45,6 +48,7 @@ const fn shape(format: Format) -> Shape {
         Format::TrackerHandle => Shape::TrackerHandle,
         Format::ProjectPath => Shape::ProjectPath,
         Format::Capability => Shape::HyphenatedWords,
+        Format::PolicyName => Shape::PolicyName,
         Format::BriefId => Shape::Sequence(&["BRIEF"]),
         Format::CouncilId => Shape::Sequence(&["COUNCIL"]),
         Format::BriefOrCouncilId => Shape::Sequence(&["BRIEF", "COUNCIL"]),
@@ -94,6 +98,7 @@ impl Shape {
             Shape::TrackerHandle => is_tracker_handle(text),
             Shape::ProjectPath => is_project_path(text),
             Shape::HyphenatedWords => is_hyphenated_words(text),
+            Shape::PolicyName => is_policy_name(text),
             Shape::Sequence(prefixes) => prefixes.iter().any(|prefix| {
                 text.strip_prefix(prefix)
                     .and_then(|rest| rest.strip_prefix('-'))
@@ -119,6 +124,7 @@ impl Shape {
             Shape::TrackerHandle => (!text.starts_with('@')).then(|| format!("@{text}")),
             Shape::ProjectPath => project_path_fix(text),
             Shape::HyphenatedWords => hyphenated_words_fix(text),
+            Shape::PolicyName => Some(text.to_ascii_lowercase()),
             Shape::Sequence(prefixes) => prefixes.iter().find_map(|prefix| {
                 after_prefix(text, &[prefix])
                     .and_then(number)
@@ -172,6 +178,13 @@ pub(crate) fn is_hyphenated_words(text: &str) -> bool {
                 .bytes()
                 .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
     })
+}
+
+/// Whether `text` is a name of the policy: `[a-z][a-z0-9-]*`.
+pub(crate) fn is_policy_name(text: &str) -> bool {
+    let mut bytes = text.bytes();
+    bytes.next().is_some_and(|b| b.is_ascii_lowercase())
+        && bytes.all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
 /// The words of an ASCII `text` in lower case, every run of other characters written as one

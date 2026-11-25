@@ -2,13 +2,14 @@
 //! appears.
 //!
 //! - A text in a named format ([`BriefId`], [`ProjectPath`], [`LanguageTag`],
-//!   [`TrackerHandle`]) is written with [`formatted_text!`](crate::formatted_text!): a string
-//!   whose schema carries the format of [`Format`], checked by the core.
+//!   [`TrackerHandle`], [`PolicyName`]) is written with
+//!   [`formatted_text!`](crate::formatted_text!): a string whose schema carries the format of
+//!   [`Format`], checked by the core.
 //! - An integer from 1 ([`IssueNumber`], [`MilestoneNumber`], [`Line`], [`AdrNumber`],
 //!   [`SchemaVersion`]) is written with [`positive_integer!`](crate::positive_integer!): it is
 //!   read by value, so `3.0` is `3` (see [`crate::number`]), as the interpreter reads it.
 //! - [`Text`] is a prose text of at least one character; a name rather than prose has its own
-//!   type ([`RoleName`], [`PolicyName`], [`ToolName`]), with no language.
+//!   type ([`RoleName`], [`ToolName`], and [`PolicyName`] in its format), with no language.
 //!
 //! Their schemas are inlined where they are used, with the description of the member that uses
 //! them; the description of the type is kept for the elements of a list. A value read into
@@ -370,6 +371,13 @@ crate::formatted_text! {
 }
 
 crate::formatted_text! {
+    /// A name of the project policy, an identifier rather than prose: a type of commits, a scope
+    /// or an area, one lower-case word of ASCII letters, digits and hyphens that starts with a
+    /// letter, for example `feat` or `area-2` (SPEC-0001, Project policy).
+    pub struct PolicyName = Format::PolicyName;
+}
+
+crate::formatted_text! {
     /// A calendar date, `YYYY-MM-DD` (RFC 3339 `full-date`), for example `2027-03-31`.
     pub struct Date = Format::Date;
 }
@@ -479,12 +487,6 @@ non_empty_text! {
 }
 
 non_empty_text! {
-    /// A name of the project policy, an identifier rather than prose: a type of commits, a
-    /// scope or an area, spelt as the policy spells it, of at least one character.
-    pub struct PolicyName;
-}
-
-non_empty_text! {
     /// A name or identifier given by a tool such as the tracker or git, for example a label or a
     /// branch, spelt as the tool spells it; not prose and in no language, of at least one
     /// character.
@@ -564,8 +566,8 @@ mod tests {
         assert_eq!(text["minLength"], 1);
         let name = PolicyName::json_schema(&mut generator).to_value();
         assert_eq!(
-            (name["minLength"].clone(), name["type"].clone()),
-            (json!(1), json!("string"))
+            (name["format"].clone(), name["type"].clone()),
+            (json!("policy-name"), json!("string"))
         );
         assert!(name["description"].as_str().unwrap().contains("identifier"));
         assert_eq!(PolicyName::new("feat").as_str(), "feat");
