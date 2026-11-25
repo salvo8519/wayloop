@@ -85,7 +85,12 @@ pub(crate) const fn part_prefix(format: Format) -> Option<&'static str> {
 
 /// A corrected value for `text`, when one can be derived and `format` accepts it.
 pub(crate) fn fix(format: Format, text: &str) -> Option<String> {
-    shape(format).fix(text)
+    // A fix longer than the format allows is not a value that can be written at the pointer.
+    shape(format).fix(text).filter(|candidate| {
+        format
+            .max_chars()
+            .is_none_or(|max| candidate.chars().nth(max).is_none())
+    })
 }
 
 impl Shape {

@@ -101,6 +101,7 @@ pub(crate) fn applied() -> Result<DefaultApplied, Box<Error>> {
 mod tests {
     use serde_json::json;
 
+    use wayloop_schemas::POLICY_NAME_MAX_CHARS;
     use wayloop_schemas::validate::Policy;
 
     use super::{AREAS, SCOPES, TYPES, applied, default_policy};
@@ -113,6 +114,7 @@ mod tests {
         assert!(AREAS.len() <= Policy::AREAS_MAX);
         for name in TYPES.iter().chain(&SCOPES).chain(&AREAS) {
             assert!(is_policy_name(name), "{name}");
+            assert!(name.chars().count() <= POLICY_NAME_MAX_CHARS, "{name}");
         }
     }
 

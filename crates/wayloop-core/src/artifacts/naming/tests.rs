@@ -263,11 +263,15 @@ fn a_policy_over_its_bounds_or_out_of_the_form_of_names_is_refused_by_the_schema
 
     use crate::{COMMAND_INPUT, Command, Context, run};
     // D1 of #267: the lists are bounded and each name is a lower-case word.
+    // And each name has at most 32 characters (#267, decided by the maintainer on 2026-11-25).
     let names = |n: usize| -> Vec<String> { (0..n).map(|i| format!("t{i}")).collect() };
+    let longest = "a".repeat(wayloop_schemas::POLICY_NAME_MAX_CHARS);
+    let mut areas = names(Policy::AREAS_MAX - 1);
+    areas.push(longest.clone());
     let at_most = json!({
         "types": names(Policy::TYPES_MAX),
         "scopes": names(Policy::SCOPES_MAX),
-        "areas": names(Policy::AREAS_MAX)
+        "areas": areas
     });
     let header = |policy: &Value| {
         json!({
@@ -280,7 +284,7 @@ fn a_policy_over_its_bounds_or_out_of_the_form_of_names_is_refused_by_the_schema
     let over = json!({
         "types": names(Policy::TYPES_MAX + 1),
         "scopes": names(Policy::SCOPES_MAX + 1),
-        "areas": ["core", "Core", "2fa", "area:core", ""]
+        "areas": ["core", "Core", "2fa", "area:core", "", format!("{longest}a")]
     });
     let envelope = run(Command::Validate, &header(&over), &Context::default());
     let Some(report) = envelope.outcome().report() else {
@@ -293,6 +297,7 @@ fn a_policy_over_its_bounds_or_out_of_the_form_of_names_is_refused_by_the_schema
             (COMMAND_INPUT, "/policy/areas/2".into(), Reason::Syntax),
             (COMMAND_INPUT, "/policy/areas/3".into(), Reason::Syntax),
             (COMMAND_INPUT, "/policy/areas/4".into(), Reason::Syntax),
+            (COMMAND_INPUT, "/policy/areas/5".into(), Reason::Length),
             (COMMAND_INPUT, "/policy/scopes".into(), Reason::Length),
             (COMMAND_INPUT, "/policy/types".into(), Reason::Length),
         ]

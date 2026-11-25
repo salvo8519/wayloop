@@ -4,7 +4,7 @@
 //! [`check`] reads a header in the grammar
 //! `<type>(<scope>)[!]: <subject>[ [SPEC-<seq>[ R<k>[, R<k>]*]]]`: `<type>` is a type of the
 //! policy; `<scope>` is a scope of the policy, required except for `revert`; `<subject>` starts
-//! with a lower-case letter and, without its trailing white space, has no final full stop; the
+//! as [`starts_well`] tells and, without its trailing white space, has no final full stop; the
 //! header is at most [`HEADER_MAX_CHARS`] characters, reference included. Each fault is one
 //! error with the code `commit_header` at the pointer of the header. [`has_breaking_change`] and
 //! [`requires`] give the rule of the breaking mark `!` of a commit, whose body then needs a
@@ -71,7 +71,7 @@ enum Fault {
     NoScope,
     /// The scope is not a scope of the policy.
     Scope,
-    /// The subject does not start with a lower-case letter.
+    /// The subject does not start as [`starts_well`] requires.
     Start,
     /// The subject, without its trailing white space, ends with a full stop.
     FullStop,
@@ -193,7 +193,7 @@ fn faults<'h>(header: &'h str, names: &HeaderNames<'_>) -> (Option<Parsed<'h>>, 
                 Some(scope) if !names.scopes.contains(scope) => found.push(Fault::Scope),
                 _ => {}
             }
-            if !p.subject.chars().next().is_some_and(char::is_lowercase) {
+            if !starts_well(p.subject) {
                 found.push(Fault::Start);
             }
             if p.subject.trim_end().ends_with('.') {
@@ -205,6 +205,19 @@ fn faults<'h>(header: &'h str, names: &HeaderNames<'_>) -> (Option<Parsed<'h>>, 
         found.push(Fault::Length);
     }
     (parsed, found)
+}
+
+/// Whether `subject` starts as the grammar requires: with a lower-case ASCII letter, `a` to `z`,
+/// or with any character outside ASCII. It never starts with an upper-case ASCII letter, `A` to
+/// `Z`, nor with any other ASCII character: a digit, punctuation such as a backtick, or white
+/// space. The rule reads no table of Unicode, so it gives one verdict under every version of
+/// Unicode, in the core and in `scripts/conventions.py` (#267, decided by the maintainer on
+/// 2026-11-25).
+fn starts_well(subject: &str) -> bool {
+    subject
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_lowercase() || !c.is_ascii())
 }
 
 /// `header` in its parts, or `None` when it is not `<type>(<scope>)[!]: <subject>` with a type
@@ -264,9 +277,10 @@ fn is_reference(inner: &str) -> bool {
             .is_none_or(|list| list.split(", ").all(|r| accepts(Format::RequirementId, r)))
 }
 
-/// The header of `parsed` with its subject corrected: its first letter in lower case when it
-/// starts a capitalised word, and without its final full stops and white space; `None` when the
-/// correction cannot be derived or the corrected header still has a fault.
+/// The header of `parsed` with its subject corrected: its first letter in lower case when it is
+/// an upper-case ASCII letter that starts a capitalised word, not an acronym (the next character
+/// is not an upper-case ASCII letter), and without its final full stops and white space; `None`
+/// when the correction cannot be derived or the corrected header still has a fault.
 fn corrected(parsed: &Parsed<'_>, names: &HeaderNames<'_>) -> Option<String> {
     let subject = parsed
         .subject
@@ -274,10 +288,10 @@ fn corrected(parsed: &Parsed<'_>, names: &HeaderNames<'_>) -> Option<String> {
     let mut chars = subject.chars();
     let first = chars.next()?;
     let rest = chars.as_str();
-    let start = if first.is_lowercase() {
-        first.to_string()
-    } else if first.is_uppercase() && !rest.chars().next().is_some_and(char::is_uppercase) {
-        first.to_lowercase().collect()
+    let start = if starts_well(subject) {
+        first
+    } else if first.is_ascii_uppercase() && !rest.starts_with(|c: char| c.is_ascii_uppercase()) {
+        first.to_ascii_lowercase()
     } else {
         return None;
     };
@@ -304,7 +318,10 @@ fn message(fault: Fault) -> String {
              `{REVERT}`."
         ),
         Fault::Scope => "The scope of the header is not a scope of the policy.".to_owned(),
-        Fault::Start => "The subject does not start with a lower-case letter.".to_owned(),
+        Fault::Start => "The subject starts with an upper-case ASCII letter or another ASCII \
+                         character that is not a lower-case letter; it must start with a letter \
+                         from `a` to `z` or a character outside ASCII."
+            .to_owned(),
         Fault::FullStop => "The subject ends with a full stop.".to_owned(),
         Fault::Length => {
             format!("The header is longer than {HEADER_MAX_CHARS} characters, reference included.")

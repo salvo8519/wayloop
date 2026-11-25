@@ -1105,6 +1105,31 @@ fn fixes_of_formats() {
     }
 }
 
+/// A name of the policy is bounded by `maxLength`, which its schema takes from the format, so a
+/// name one character too long gets one error of length; and no fix is longer than the bound
+/// (#267, decided by the maintainer on 2026-11-25).
+#[test]
+fn a_policy_name_is_bounded_and_its_fix_never_exceeds_the_bound() {
+    let max = wayloop_schemas::POLICY_NAME_MAX_CHARS;
+    let schema =
+        wayloop_schemas::contract::rules::formatted(wayloop_schemas::Format::PolicyName, "A name.")
+            .to_value();
+    assert_eq!(schema["maxLength"], json!(max));
+    assert_eq!(check(&schema, &json!("a".repeat(max))).len(), 0);
+    let long = check(&schema, &json!("a".repeat(max + 1)));
+    assert_eq!(only(&long).reason(), Reason::Length);
+    // The lower-case form would fix the case but not the length: no fix is offered.
+    let both = check(&schema, &json!("A".repeat(max + 1)));
+    let reasons: Vec<Reason> = both.iter().map(Error::reason).collect();
+    assert_eq!(reasons, [Reason::Length, Reason::Syntax]);
+    assert_eq!(both[1].fix(), None);
+    let short = check(&schema, &json!(format!("F{}", "a".repeat(max - 1))));
+    assert_eq!(
+        only(&short).fix(),
+        Some(&json!(format!("f{}", "a".repeat(max - 1))))
+    );
+}
+
 // One pass, document order -----------------------------------------------------------------
 
 #[test]

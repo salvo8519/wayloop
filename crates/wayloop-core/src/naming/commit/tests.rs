@@ -265,6 +265,24 @@ fn ac22_a_capital_or_a_full_stop_in_the_subject_is_a_syntax_error_with_a_fix() {
 }
 
 #[test]
+fn the_start_of_a_subject_reads_no_table_of_unicode() {
+    // #267, decided by the maintainer on 2026-11-25: `a` to `z` and any character outside
+    // ASCII start a subject; every other ASCII character does not, with the code points at
+    // both ends of the two ranges of letters.
+    for start in ['a', 'z', '\u{80}', '\u{c8}', '\u{c9}', '\u{e8}', '\u{ab}'] {
+        let header = format!("feat(core): {start} starts it");
+        assert_eq!(faults(&header), NONE, "{header}");
+    }
+    for start in ['A', 'Z', '@', '[', '`', '{', '0', '9', ' ', '\t', '\u{7f}'] {
+        let header = format!("feat(core): {start} starts it");
+        let fix = start
+            .is_ascii_uppercase()
+            .then(|| format!("feat(core): {} starts it", start.to_ascii_lowercase()));
+        assert_eq!(faults(&header), [(Reason::Syntax, fix)], "{header:?}");
+    }
+}
+
+#[test]
 fn a_header_out_of_the_grammar_is_a_syntax_error() {
     for header in [
         "Added guards",

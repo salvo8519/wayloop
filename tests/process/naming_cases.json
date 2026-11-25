@@ -193,15 +193,49 @@
     },
     {
       "header": "feat(core): È as a capital",
-      "reasons": [
-        "syntax"
-      ]
+      "reasons": []
     },
     {
       "header": "feat(core): 2 ledgers",
       "reasons": [
         "syntax"
       ]
+    },
+    {
+      "header": "feat(core): É as an accented capital",
+      "reasons": []
+    },
+    {
+      "header": "feat(core): A as an ASCII capital",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core): Z as the last ASCII capital",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core): z as the last ASCII letter",
+      "reasons": []
+    },
+    {
+      "header": "feat(core): 0 as a digit",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core): `wayloop init` in a backtick",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core): « as a character outside ASCII",
+      "reasons": []
     },
     {
       "header": "Merge branch 'main' into feat/12-x",

@@ -118,6 +118,7 @@
     "area": {
       "description": "Area of the project policy, without the `area:` prefix; decides what can run in parallel.",
       "format": "policy-name",
+      "maxLength": 32,
       "type": "string"
     },
     "complexity": {

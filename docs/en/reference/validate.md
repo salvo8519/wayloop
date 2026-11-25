@@ -148,16 +148,17 @@ Each type accepts only its own statuses. A council report has `draft`, `approved
 `superseded`; a change delta `draft`, `approved`, `implementing`, `done` and `superseded`; a
 living specification has six, `draft`, `approved`, `surveyed`, `implementing`, `done` and
 `superseded`, and any other, for example `published`, is refused with `enum` and the six in
-`expected`. The `capability` of a living specification is lower-case words of `a` to `z` and
-`0` to `9` joined by single hyphens, for example `time-entries`. Its `commit_scope`, and the
-`area` of an epic and of a task, are names of the policy (format `policy-name`): one lower-case
-word of ASCII letters, digits and hyphens that starts with a letter, so `area:core` and `Core`
-are refused with `syntax`, the second with the fix `core`. A requirement is `active` or
-`removed`, and absent means `active`. The schema checks the form of the parts of an artifact
-(`D<k>`, `Q<k>`, `R<k>`, `AC<k>`) and that a question of a council report has at least two
-options, not that a part is unique, that a dissent names a decision of its report, that a
-recommendation or an answer is one of the options or that a change delta has one operation per
-requirement: that is the check `parts` (see Parts below).
+`expected`. The `capability` of a living specification is lower-case words of `a` to `z` and `0`
+to `9` joined by single hyphens, for example `time-entries`. Its `commit_scope`, and the `area`
+of an epic and of a task, are names of the policy (format `policy-name`): one lower-case word of
+ASCII letters, digits and hyphens that starts with a letter, of at most 32 characters, so
+`area:core` and `Core` are refused with `syntax`, the second with the fix `core`, and a name of
+33 characters with `length`. A requirement is `active` or `removed`, and absent means `active`.
+The schema checks the form of the parts of an artifact (`D<k>`, `Q<k>`, `R<k>`, `AC<k>`) and
+that a question of a council report has at least two options, not that a part is unique, that a
+dissent names a decision of its report, that a recommendation or an answer is one of the options
+or that a change delta has one operation per requirement: that is the check `parts` (see Parts
+below).
 
 A hand-over comes in two forms of one version. The input is what an agent submits at the end of
 a session, with `input_kind: handover_input` and no `kind`: `schema_version`, `step`,
@@ -439,18 +440,21 @@ A header is `<type>(<scope>)[!]: <subject>`, optionally followed by a reference
 | The type is a type of the policy | `feature(core): add x` | `enum`, the types in `expected` | none |
 | A scope is required, except for the type `revert` | `feat: add x` | `missing`, the scopes in `expected` | none |
 | The scope is a scope of the policy | `feat(kernel): add x` | `enum`, the scopes in `expected` | none |
-| The subject starts with a lower-case letter | `feat(core): Add the ledger` | `syntax` | `feat(core): add the ledger` |
+| The subject starts with a lower-case ASCII letter, `a` to `z`, or a character outside ASCII; never with an upper-case ASCII letter, a digit, punctuation such as a backtick, or white space | `feat(core): Add the ledger` | `syntax` | `feat(core): add the ledger` |
 | The subject has no final full stop, before the reference and after its trailing white space is trimmed | `feat(core): add the ledger.` | `syntax` | `feat(core): add the ledger` |
 | At most 72 characters, reference included | | `length` | none |
 
-The `fix` of the subject lowers its first letter when it starts a capitalised word, not an
-acronym, and removes its final full stops and white space; it is given only when the corrected
-header breaks no rule. A commit whose header marks a breaking change with `!` needs a line
-`BREAKING CHANGE: <text>` in its body, with text after the colon: either a paragraph that starts
-with it, or a footer, a line of the last paragraph, where the trailers are. A blank line holds
-only spaces and tabs. Without one, or without a body, the commit is refused with the reason
-`requires` at `/body`, the header in `pointers`; a body refused by its schema is not read again.
-A pull request title needs no such paragraph: its evidence is the label `breaking-change`.
+The rule of the start of the subject reads no table of Unicode, so its verdict is the same under
+every version of Unicode: `feat(core): Éclair recipes` passes, as a subject that starts with any
+character outside ASCII. The `fix` of the subject lowers its first letter when it is an
+upper-case ASCII letter that starts a capitalised word, not an acronym, and removes its final
+full stops and white space; it is given only when the corrected header breaks no rule. A commit
+whose header marks a breaking change with `!` needs a line `BREAKING CHANGE: <text>` in its
+body, with text after the colon: either a paragraph that starts with it, or a footer, a line of
+the last paragraph, where the trailers are. A blank line holds only spaces and tabs. Without
+one, or without a body, the commit is refused with the reason `requires` at `/body`, the header
+in `pointers`; a body refused by its schema is not read again. A pull request title needs no
+such paragraph: its evidence is the label `breaking-change`.
 
 A commit whose header git writes itself is exempt from these rules, by the form of its header
 and never by its author: a header that starts with `Merge `, `Revert "`, `fixup! ` or
@@ -461,7 +465,8 @@ A produced branch name is `<type>/<issue>-<slug>`: the slug is the title compare
 turned into one hyphen, cut after five words and then to the whole words that fit in 100
 characters (the first word cut when none fits whole), and `work` when nothing is left: `Città di
 Salerno` gives `citta-di-salerno`, `Straße` gives `strasse`. A produced name always passes
-`branch_name`; no name is produced when the type and the issue leave no room for a slug.
+`branch_name`; no name is produced when the type and the issue leave no room for a slug, or when
+the issue is beyond the range of an issue number.
 
 The command-line program `scripts/conventions.py` of the Wayloop repository, run by its
 commit-msg hook and its pull request workflow, applies the same grammar; a test sends shared
@@ -477,7 +482,7 @@ absent member. The input schema is closed: a member it does not list is refused.
 | --- | --- | --- | --- |
 | `documents` | list of objects | yes | One entry per stored artifact or input; `[]` means none |
 | `base` | list of `{id, status}` | no | Statuses on the default branch of the artifacts of the set |
-| `policy` | object `{types, scopes, areas}`: at most 32 types, 256 scopes and 256 areas, each a name of the policy, one lower-case word of ASCII letters, digits and hyphens that starts with a letter (format `policy-name`) | no | The subset of the project policy the model reads. The checks `title_format` and `branch_name` read its `types`, the check `commit_header` its `types` and `scopes`; the check `areas` is listed as not done. Absent: the default policy applies, the policy of the Wayloop repository, and `meta.defaults_applied` lists it when the set holds an epic, a task, a pull request or a commit, whose checks read it. A policy with more names or with a name out of its form is refused as a command input (`command_input`), at the list or at the name, and no check of the documents runs |
+| `policy` | object `{types, scopes, areas}`: at most 32 types, 256 scopes and 256 areas, each a name of the policy, one lower-case word of ASCII letters, digits and hyphens that starts with a letter, of at most 32 characters (format `policy-name`) | no | The subset of the project policy the model reads. The checks `title_format` and `branch_name` read its `types`, the check `commit_header` its `types` and `scopes`; the check `areas` is listed as not done. Absent: the default policy applies, the policy of the Wayloop repository, and `meta.defaults_applied` lists it when the set holds an epic, a task, a pull request or a commit, whose checks read it. A policy with more names, or with a name out of its form or longer than 32 characters, is refused as a command input (`command_input`), at the list or at the name, and no check of the documents runs |
 | `adrs` | list of integers from 1 | no | Numbers of the ADRs of the project, for the check `adr_citations`. Absent: citations are not checked, and the check is not done. The command line fills it from the file names of `docs/en/project/adr/` when that folder exists |
 | `locations` | list of `plan_briefs`, `plan_council`, `plan_items`, `specs`, for the folders `plan/briefs`, `plan/council`, `plan/items` and `specs` | no | The folders of the locations that exist in the project, when the documents were discovered there; their order and a repeated folder have no meaning, they are not compared with the `file` origins of the documents, and `[]` means none, which gives the warning `artifact_location_missing`. Absent: the documents were named or sent directly, and the check `artifact_locations` is not done |
 | `language` | BCP 47 tag, for example `it` or `en-GB` | no | The language of the project. No check of this version reads it, so no default is applied or reported when it is absent; a check that needs it lists the default in `meta.defaults_applied` |

@@ -107,8 +107,10 @@ Signed-off-by: Name Surname <email>
   `agents`, `project`, `roadmap`; build and delivery `ci`, `deps`, `release`, `scripts`,
   `benchmark`. New scopes are added in `scripts/conventions.py` with this page in the same
   pull request.
-- **Subject**: imperative, lower case first word, no full stop (trailing white space does not
-  hide one), header at most 72 characters, reference included.
+- **Subject**: imperative, lower case first word: it starts with `a` to `z` or a character
+  outside ASCII, never with `A` to `Z`, a digit, a backtick or other ASCII punctuation; no full
+  stop (trailing white space does not hide one), header at most 72 characters, reference
+  included.
 - **Breaking change**: `!` after the scope and a line `BREAKING CHANGE: <what>` in the body,
   starting a paragraph or as a footer among the trailers; the pull request carries the label
   `breaking-change`.

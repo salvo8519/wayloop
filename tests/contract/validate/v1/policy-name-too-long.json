@@ -1,0 +1,52 @@
+{
+  "description": "A policy name of 33 characters, one over the bound of 32, is refused by the schema of the command input at its pointer, with the reason `length` and no fix; a name of 32 characters is accepted.",
+  "covers": [
+    "SPEC-0001 R11",
+    "SPEC-0001 R21",
+    "SPEC-0001 AC21"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "header": "feat(core): add x"
+        },
+        "input_kind": "commit"
+      }
+    ],
+    "policy": {
+      "types": [
+        "feat"
+      ],
+      "scopes": [
+        "core",
+        "a-scope-name-of-thirty-two-chars",
+        "a-scope-name-of-thirty-three-char"
+      ],
+      "areas": [
+        "core"
+      ]
+    }
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "command_input",
+      "/error/pointer": "/policy/scopes/2",
+      "/error/reason": "length",
+      "/meta/input_hash": "905be0d3a32e49f90927392678c9053ade7356e0d0fdabb10c555cca86c054ba"
+    },
+    "absent": [
+      "/data",
+      "/error/fix",
+      "/error/errors/0/fix"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}

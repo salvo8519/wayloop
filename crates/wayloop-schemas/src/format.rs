@@ -64,9 +64,27 @@ crate::closed_enum! {
     }
 }
 
+/// The most characters of a name of the project policy, a value of the format `policy-name`
+/// (#267, decided by the maintainer on 2026-11-25): the schema of the name states it as
+/// `maxLength`, so that an error that lists names of the policy in `expected` stays bounded.
+pub const POLICY_NAME_MAX_CHARS: usize = 32;
+
+impl Format {
+    /// The most characters of a value of the format, which every schema that uses the format
+    /// states as `maxLength` beside it; `None` for a format that bounds no length of its own.
+    #[must_use]
+    pub const fn max_chars(self) -> Option<usize> {
+        if matches!(self, Self::PolicyName) {
+            Some(POLICY_NAME_MAX_CHARS)
+        } else {
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Format;
+    use super::{Format, POLICY_NAME_MAX_CHARS};
 
     // Exhaustive: a new format does not compile until it gets a position here, and then the
     // test fails until ALL lists it in that position.
@@ -142,5 +160,14 @@ mod tests {
         for unknown in ["email", "uint32", "", "Date"] {
             assert_eq!(Format::from_id(unknown), None, "{unknown}");
         }
+    }
+
+    #[test]
+    fn only_the_policy_name_bounds_its_length() {
+        for format in Format::ALL {
+            let bound = (format == Format::PolicyName).then_some(POLICY_NAME_MAX_CHARS);
+            assert_eq!(format.max_chars(), bound, "{format}");
+        }
+        assert_eq!(POLICY_NAME_MAX_CHARS, 32);
     }
 }

@@ -373,7 +373,8 @@ crate::formatted_text! {
 crate::formatted_text! {
     /// A name of the project policy, an identifier rather than prose: a type of commits, a scope
     /// or an area, one lower-case word of ASCII letters, digits and hyphens that starts with a
-    /// letter, for example `feat` or `area-2` (SPEC-0001, Project policy).
+    /// letter, of at most 32 characters, for example `feat` or `area-2` (SPEC-0001, Project
+    /// policy).
     pub struct PolicyName = Format::PolicyName;
 }
 
@@ -569,6 +570,10 @@ mod tests {
             (name["format"].clone(), name["type"].clone()),
             (json!("policy-name"), json!("string"))
         );
+        assert_eq!(name["maxLength"], json!(crate::POLICY_NAME_MAX_CHARS));
+        // The description repeats the bound in words; it must state the constant.
+        let bound = format!("at most {} characters", crate::POLICY_NAME_MAX_CHARS);
+        assert!(name["description"].as_str().unwrap().contains(&bound));
         assert!(name["description"].as_str().unwrap().contains("identifier"));
         assert_eq!(PolicyName::new("feat").as_str(), "feat");
         // A name given by a tool is not prose: its description says so, and names no language.

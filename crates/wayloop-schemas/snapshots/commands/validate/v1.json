@@ -209,8 +209,9 @@
         "areas": {
           "description": "Areas of epics and tasks, without the `area:` prefix; a bounded list.",
           "items": {
-            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, one lower-case word of ASCII letters, digits and hyphens that starts with a letter, for example `feat` or `area-2` (SPEC-0001, Project policy).",
+            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, one lower-case word of ASCII letters, digits and hyphens that starts with a letter, of at most 32 characters, for example `feat` or `area-2` (SPEC-0001, Project policy).",
             "format": "policy-name",
+            "maxLength": 32,
             "type": "string"
           },
           "maxItems": 256,
@@ -219,8 +220,9 @@
         "scopes": {
           "description": "Scopes of commits and pull request titles; a bounded list.",
           "items": {
-            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, one lower-case word of ASCII letters, digits and hyphens that starts with a letter, for example `feat` or `area-2` (SPEC-0001, Project policy).",
+            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, one lower-case word of ASCII letters, digits and hyphens that starts with a letter, of at most 32 characters, for example `feat` or `area-2` (SPEC-0001, Project policy).",
             "format": "policy-name",
+            "maxLength": 32,
             "type": "string"
           },
           "maxItems": 256,
@@ -229,8 +231,9 @@
         "types": {
           "description": "Types of commits, branches and pull request titles; a bounded list.",
           "items": {
-            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, one lower-case word of ASCII letters, digits and hyphens that starts with a letter, for example `feat` or `area-2` (SPEC-0001, Project policy).",
+            "description": "A name of the project policy, an identifier rather than prose: a type of commits, a scope or an area, one lower-case word of ASCII letters, digits and hyphens that starts with a letter, of at most 32 characters, for example `feat` or `area-2` (SPEC-0001, Project policy).",
             "format": "policy-name",
+            "maxLength": 32,
             "type": "string"
           },
           "maxItems": 32,

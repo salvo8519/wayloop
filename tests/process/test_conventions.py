@@ -132,7 +132,7 @@ def test_bots_follow_the_naming_rules_and_skip_only_the_issue_link() -> None:
     problems = conventions.check_pull_request(
         capital, "dependabot/cargo/x", "", [], "dependabot[bot]"
     )
-    assert any("lower-case" in p for p in problems)
+    assert any("from 'a' to 'z'" in p for p in problems)
     assert any("limit is 72" in p for p in problems)
     assert not any("link the issue" in p for p in problems)
 

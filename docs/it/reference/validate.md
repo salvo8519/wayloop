@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 77fc56848d8b
+source_hash: 9f82795598b5
 ---
 # wayloop validate
 
@@ -157,13 +157,14 @@ una specifica viva ne ha sei, `draft`, `approved`, `surveyed`, `implementing`, `
 `expected`. La `capability` di una specifica viva è formata da parole minuscole di `a`-`z` e
 `0`-`9` unite da un solo trattino, per esempio `time-entries`. Il suo `commit_scope`, e l'`area`
 di un epic e di un task, sono nomi della policy (formato `policy-name`): una parola minuscola di
-lettere ASCII, cifre e trattini che inizia con una lettera, per cui `area:core` e `Core` sono
-rifiutati con `syntax`, il secondo con il fix `core`. Un requisito è `active` o `removed`, e
-assente significa `active`. Lo schema controlla la forma delle parti di un
-artefatto (`D<k>`, `Q<k>`, `R<k>`, `AC<k>`) e che una domanda di un verbale del comitato abbia
-almeno due opzioni, non che una parte sia unica, che un dissenso nomini una decisione del suo
-verbale, che una raccomandazione o una risposta sia una delle opzioni o che una modifica a delta
-abbia una sola operazione per requisito: questo è il controllo `parts` (vedi Parti più sotto).
+lettere ASCII, cifre e trattini che inizia con una lettera, di al massimo 32 caratteri, per cui
+`area:core` e `Core` sono rifiutati con `syntax`, il secondo con il fix `core`, e un nome di 33
+caratteri con `length`. Un requisito è `active` o `removed`, e assente significa `active`. Lo
+schema controlla la forma delle parti di un artefatto (`D<k>`, `Q<k>`, `R<k>`, `AC<k>`) e che
+una domanda di un verbale del comitato abbia almeno due opzioni, non che una parte sia unica,
+che un dissenso nomini una decisione del suo verbale, che una raccomandazione o una risposta sia
+una delle opzioni o che una modifica a delta abbia una sola operazione per requisito: questo è
+il controllo `parts` (vedi Parti più sotto).
 
 Un passaggio di mano ha due forme di una stessa versione. L'input è ciò che un agente invia alla
 fine di una sessione, con `input_kind: handover_input` e senza `kind`: `schema_version`,
@@ -457,20 +458,22 @@ Un'intestazione è `<type>(<scope>)[!]: <subject>`, seguita a scelta da un rifer
 | Il tipo è un tipo della policy | `feature(core): add x` | `enum`, i tipi in `expected` | nessuno |
 | Uno scope è obbligatorio, tranne per il tipo `revert` | `feat: add x` | `missing`, gli scope in `expected` | nessuno |
 | Lo scope è uno scope della policy | `feat(kernel): add x` | `enum`, gli scope in `expected` | nessuno |
-| L'oggetto inizia con una lettera minuscola | `feat(core): Add the ledger` | `syntax` | `feat(core): add the ledger` |
+| L'oggetto inizia con una lettera ASCII minuscola, da `a` a `z`, o con un carattere fuori da ASCII; mai con una lettera ASCII maiuscola, una cifra, un segno di punteggiatura come un backtick, o uno spazio bianco | `feat(core): Add the ledger` | `syntax` | `feat(core): add the ledger` |
 | L'oggetto non ha un punto finale, prima del riferimento e dopo aver tolto gli spazi bianchi finali | `feat(core): add the ledger.` | `syntax` | `feat(core): add the ledger` |
 | Al massimo 72 caratteri, riferimento compreso | | `length` | nessuno |
 
-Il `fix` dell'oggetto rende minuscola la sua prima lettera quando inizia una parola con
-l'iniziale maiuscola, non un acronimo, e ne toglie i punti e gli spazi bianchi finali; è dato
-solo quando l'intestazione corretta non viola alcuna regola. Un commit la cui intestazione
-segnala una modifica incompatibile con `!` richiede nel corpo una riga
-`BREAKING CHANGE: <testo>`, con del testo dopo i due punti: o un paragrafo che inizia con essa,
-o un footer, una riga dell'ultimo paragrafo, dove stanno i trailer. Una riga vuota contiene
-solo spazi e tabulazioni. Senza, o senza corpo, il commit è rifiutato con il motivo `requires`
-in `/body`, con l'intestazione in `pointers`; un corpo rifiutato dal suo schema non è letto di
-nuovo. Il titolo di una pull request non richiede quel paragrafo: la sua prova è l'etichetta
-`breaking-change`.
+La regola dell'inizio dell'oggetto non legge alcuna tabella di Unicode, quindi il suo verdetto è
+lo stesso con ogni versione di Unicode: `feat(core): Éclair recipes` passa, come un oggetto che
+inizia con un qualsiasi carattere fuori da ASCII. Il `fix` dell'oggetto rende minuscola la sua
+prima lettera quando è una lettera ASCII maiuscola che inizia una parola con l'iniziale
+maiuscola, non un acronimo, e ne toglie i punti e gli spazi bianchi finali; è dato solo quando
+l'intestazione corretta non viola alcuna regola. Un commit la cui intestazione segnala una
+modifica incompatibile con `!` richiede nel corpo una riga `BREAKING CHANGE: <testo>`, con del
+testo dopo i due punti: o un paragrafo che inizia con essa, o un footer, una riga dell'ultimo
+paragrafo, dove stanno i trailer. Una riga vuota contiene solo spazi e tabulazioni. Senza, o
+senza corpo, il commit è rifiutato con il motivo `requires` in `/body`, con l'intestazione in
+`pointers`; un corpo rifiutato dal suo schema non è letto di nuovo. Il titolo di una pull
+request non richiede quel paragrafo: la sua prova è l'etichetta `breaking-change`.
 
 Un commit la cui intestazione è scritta da git stesso è esente da queste regole, per la forma
 della sua intestazione e mai per il suo autore: un'intestazione che inizia con `Merge `,
@@ -483,7 +486,8 @@ altri caratteri trasformata in un solo trattino, troncato dopo cinque parole e p
 intere che stanno in 100 caratteri (la prima parola troncata quando nessuna ci sta intera), e
 `work` quando non resta nulla: `Città di Salerno` dà `citta-di-salerno`, `Straße` dà
 `strasse`. Un nome prodotto supera sempre `branch_name`; nessun nome è prodotto quando il tipo e
-la issue non lasciano spazio per uno slug.
+la issue non lasciano spazio per uno slug, o quando la issue è oltre l'intervallo di un numero di
+issue.
 
 Il programma `scripts/conventions.py` del repository di Wayloop, eseguito dal suo hook
 commit-msg e dal workflow delle sue pull request, applica la stessa grammatica; un test invia
@@ -499,7 +503,7 @@ un membro assente. Lo schema di input è chiuso: un membro che non elenca è rif
 | --- | --- | --- | --- |
 | `documents` | lista di oggetti | sì | Una voce per ogni artefatto o input memorizzato; `[]` significa nessuno |
 | `base` | lista di `{id, status}` | no | Stati sul branch predefinito degli artefatti dell'insieme |
-| `policy` | oggetto `{types, scopes, areas}`: al massimo 32 tipi, 256 scope e 256 aree, ciascuno un nome della policy, una parola minuscola di lettere ASCII, cifre e trattini che inizia con una lettera (formato `policy-name`) | no | La parte della policy del progetto che il modello legge. I controlli `title_format` e `branch_name` ne leggono i `types`, il controllo `commit_header` i `types` e gli `scopes`; il controllo `areas` è elencato come non eseguito. Assente: vale la policy predefinita, la policy del repository di Wayloop, e `meta.defaults_applied` la elenca quando l'insieme contiene un epic, un task, una pull request o un commit, i cui controlli la leggono. Una policy con più nomi o con un nome fuori dalla sua forma è rifiutata come input del comando (`command_input`), nella lista o nel nome, e nessun controllo dei documenti viene eseguito |
+| `policy` | oggetto `{types, scopes, areas}`: al massimo 32 tipi, 256 scope e 256 aree, ciascuno un nome della policy, una parola minuscola di lettere ASCII, cifre e trattini che inizia con una lettera, di al massimo 32 caratteri (formato `policy-name`) | no | La parte della policy del progetto che il modello legge. I controlli `title_format` e `branch_name` ne leggono i `types`, il controllo `commit_header` i `types` e gli `scopes`; il controllo `areas` è elencato come non eseguito. Assente: vale la policy predefinita, la policy del repository di Wayloop, e `meta.defaults_applied` la elenca quando l'insieme contiene un epic, un task, una pull request o un commit, i cui controlli la leggono. Una policy con più nomi, o con un nome fuori dalla sua forma o più lungo di 32 caratteri, è rifiutata come input del comando (`command_input`), nella lista o nel nome, e nessun controllo dei documenti viene eseguito |
 | `adrs` | lista di interi da 1 | no | Numeri degli ADR del progetto, per il controllo `adr_citations`. Assente: le citazioni non sono controllate, e il controllo non è eseguito. La riga di comando lo compila dai nomi dei file di `docs/en/project/adr/` quando quella cartella esiste |
 | `locations` | lista di `plan_briefs`, `plan_council`, `plan_items`, `specs`, per le cartelle `plan/briefs`, `plan/council`, `plan/items` e `specs` | no | Le cartelle delle posizioni che esistono nel progetto, quando i documenti vi sono stati scoperti; il loro ordine e una cartella ripetuta non hanno significato, non sono confrontate con le origini `file` dei documenti, e `[]` significa nessuna, e dà l'avviso `artifact_location_missing`. Assente: i documenti sono stati indicati per nome o inviati direttamente, e il controllo `artifact_locations` non è eseguito |
 | `language` | tag BCP 47, per esempio `it` o `en-GB` | no | La lingua del progetto. Nessun controllo di questa versione la legge, quindi quando è assente nessun default viene applicato né riportato; un controllo che ne ha bisogno elenca il default in `meta.defaults_applied` |

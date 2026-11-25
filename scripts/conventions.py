@@ -130,6 +130,14 @@ def parse_header(header: str) -> Header | None:
     return Header(kind, scope, breaking, _without_reference(rest[2:]))
 
 
+def starts_well(subject: str) -> bool:
+    """Whether a subject starts with a lower-case ASCII letter, `a` to `z`, or any character
+    outside ASCII; never with an upper-case ASCII letter or another ASCII character. It reads no
+    table of Unicode, so Rust and Python agree under every version of Unicode."""
+    first = subject[:1]
+    return "a" <= first <= "z" or (first != "" and not first.isascii())
+
+
 def header_faults(header: str, types: Sequence[str], scopes: Sequence[str]) -> list[str]:
     """The faults of a header, in the order of the engine: `form`, `type`, `no_scope`, `scope`,
     `start`, `full_stop`, `length`."""
@@ -144,7 +152,7 @@ def header_faults(header: str, types: Sequence[str], scopes: Sequence[str]) -> l
             faults.append("no_scope")
         elif parsed.scope is not None and parsed.scope not in scopes:
             faults.append("scope")
-        if not parsed.subject[:1].islower():
+        if not starts_well(parsed.subject):
             faults.append("start")
         if parsed.subject.rstrip(WHITE_SPACE).endswith("."):
             faults.append("full_stop")
@@ -297,7 +305,8 @@ _HEADER_PROBLEMS = {
     "type": "the type is not one of: " + ", ".join(TYPES) + ".",
     "no_scope": "a scope is required, one of: " + ", ".join(SCOPES) + ".",
     "scope": "the scope is not one of: " + ", ".join(SCOPES) + ".",
-    "start": "the subject starts with a lower-case letter ('add', not 'Added').",
+    "start": "the subject starts with a letter from 'a' to 'z' or a character outside ASCII"
+    " ('add', not 'Added', '2' or '`').",
     "full_stop": "the subject does not end with a full stop.",
     "length": "the header is {length} characters, the limit is " + str(MAX_HEADER) + ".",
     "requires": "a breaking header ('!') needs a 'BREAKING CHANGE: <what>' paragraph or footer.",
