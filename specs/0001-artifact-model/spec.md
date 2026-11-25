@@ -424,6 +424,25 @@ with no mapped word is refused with the reason `enum` and the words below in `ex
 | `judge` | `judge` |
 | `none` | `none` |
 
+Cases the tables above leave open (decided by the maintainer on 2026-11-25). Each refusal below
+has the code `artifact_schema` and carries the line it names in `source`:
+
+- A header row whose label is not in the table, or that repeats a row already read, is refused
+  with the reason `unknown_field` at the pointer of the label as written, for example `/Stato`,
+  with the line of the row.
+- A section of the template given twice is refused with the reason `duplicate` at the member of
+  the section (`/scope_in` for `## Scope`, `/stories` for `## User stories`), with the line of
+  the second heading; its content is not read.
+- Text outside the title, the header rows and the sections, or in `## Scope` before its
+  paragraphs, is refused with the reason `syntax` at the root, with its line.
+- A paragraph in a section read as a list is one entry, as a list item is: a requirement
+  written without its `**R<k>**` is then refused at its `id`.
+- Text of an acceptance criterion after the verification words that does not start with
+  `Rubric:` is appended to its `text`, so that nothing written is dropped.
+- A title line without a colon is the title, and `id` is missing.
+- The root of the document is at line 1, as for a YAML file, so a missing member, and
+  `capability`, which comes from the folder, carry line 1.
+
 Most specifications of this repository predate these rules (acceptance criteria without their
 requirements, open questions without identifiers, extra sections). A migration task that
 brings them to this form (#229) must be done before `wayloop validate` runs on this repository.
@@ -632,7 +651,7 @@ C8).
 
 | Requirement | Code | Reasons |
 | --- | --- | --- |
-| R1, R6, R12 | `artifact_schema` | `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `syntax`, `requires` |
+| R1, R6, R12 | `artifact_schema` | `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `syntax`, `requires`, `duplicate` (a repeated section of a Markdown specification) |
 | R3, R4, R9 | `link_missing` | `missing` |
 | R4 | `link_superseded` | `state` |
 | R3 (terminal holder) | `link_broken_terminal` (warning) | `missing`, `state` |

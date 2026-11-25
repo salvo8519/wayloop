@@ -283,12 +283,11 @@ fn an_unknown_header_row_is_refused_at_its_line() {
 }
 
 #[test]
-fn a_repeated_header_row_is_refused_and_a_repeated_section_is_kept_as_prose() {
+fn a_repeated_header_row_is_refused() {
     let text = example_with(
         "| Commit scope | core |",
         "| Commit scope | core |\n| Owner | @other |",
     );
-    let text = text.replacen("## Notes", "## Problem\nAgain.\n\n## Notes", 1);
     let (document, errors) = normalised(&text);
     assert_eq!(
         found(&errors),
@@ -299,9 +298,38 @@ fn a_repeated_header_row_is_refused_and_a_repeated_section_is_kept_as_prose() {
         )]
     );
     assert_eq!(document["owner"], json!("@example-owner"));
+}
+
+#[test]
+fn a_repeated_section_of_the_template_is_refused_at_the_line_of_its_second_heading() {
+    // Decided by the maintainer on 2026-11-25: refused with `duplicate`, not kept as prose.
+    let text = example_with(
+        "## Notes",
+        "## Requirements (EARS)\n- **R5**: THE TOOL SHALL list entries.\n\n## Notes",
+    );
+    let errors = validated(&text);
     assert_eq!(
-        document["extra_sections"][0],
-        json!({"heading": "Problem", "text": "Again."})
+        found(&errors),
+        [(
+            codes::ARTIFACT_SCHEMA,
+            "/requirements".into(),
+            Reason::Duplicate
+        )]
+    );
+    let second = text
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| *l == "## Requirements (EARS)")
+        .nth(1)
+        .map(|(i, _)| Line::new(NonZeroU64::new(u64::try_from(i).unwrap() + 1).unwrap()))
+        .unwrap();
+    assert_eq!(errors[0].location(), Some(&at_line(second)));
+    // The content of the repeated section is not read, and nothing goes to the prose sections.
+    let (document, _) = normalised(&text);
+    assert_eq!(document["requirements"].as_array().unwrap().len(), 4);
+    assert_eq!(
+        document["extra_sections"],
+        json!([{"heading": "Notes", "text": "The log format follows COUNCIL-0001 D1."}])
     );
 }
 

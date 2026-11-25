@@ -247,8 +247,8 @@ fn check_entry(
 
 /// Normalises the living specification `text` of `entry` into its document model (R12), adds
 /// the faults the model cannot hold, then checks the document as one sent in normalised form,
-/// at the lines it was read from. An error of the schema at a value refused already, such as a
-/// verification with no mapped word, is not reported twice.
+/// at the lines it was read from. An error of the schema at a member the normalisation
+/// withheld, such as a verification with no mapped word, is not reported twice.
 fn from_markdown(
     entry: &Entry,
     text: &str,
@@ -261,11 +261,7 @@ fn from_markdown(
         _ => None,
     };
     let normalised = markdown::normalise(text, file);
-    let refused: BTreeSet<Pointer> = normalised
-        .errors
-        .iter()
-        .map(|e| e.pointer().clone())
-        .collect();
+    let withheld = normalised.withheld;
     validation.errors.extend(normalised.errors);
     let document = Entry {
         given: entry.given.clone(),
@@ -282,7 +278,7 @@ fn from_markdown(
     validation.errors.extend(
         checked
             .into_iter()
-            .filter(|e| !refused.contains(e.pointer())),
+            .filter(|e| !withheld.contains(e.pointer())),
     );
     summary
 }

@@ -6,20 +6,24 @@
 //! the header rows of the table below it, and one `##` section after another. A line inside a
 //! fenced block (` ``` ` or `~~~`) is never a heading. Headings, header rows and status words are
 //! English whatever the language of the project (R6); a section whose heading is not one of
-//! [`SECTIONS`], a translated heading included, or that repeats one already read, is kept as
-//! prose in `extra_sections`, and a required member whose section is missing is then refused by
-//! the schema with the reason `missing`.
+//! [`SECTIONS`], a translated heading included, is kept as prose in `extra_sections`, and a
+//! required member whose section is missing is then refused by the schema with the reason
+//! `missing`.
 //!
 //! Every value written gets the line it was read from, so that an error of the schema carries
 //! the file and the line in `source`; the root is at line 1. The few faults that have no member
 //! in the document model are refused here, with the code `artifact_schema` and their line: a
 //! header row that is not one of [`HEADER_ROWS`] or repeats one (`unknown_field`, at the row as
-//! written), text outside the title, the header and the sections (`syntax`, at the root), and a
-//! verification text with no word of [`VERIFICATION_WORDS`] (`enum`, the words in `expected`).
+//! written), a section of the template that repeats one already read (`duplicate`, at the member
+//! of the section, with the line of the second heading; its content is not read), text outside
+//! the title, the header and the sections (`syntax`, at the root), and a verification text with
+//! no word of [`VERIFICATION_WORDS`] (`enum`, the words in `expected`). These choices were
+//! decided by the maintainer on 2026-11-25 (SPEC-0001, Markdown form of a living
+//! specification).
 //! The document is otherwise written as read, never corrected: a malformed value is refused by
 //! the schema at its member.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use core::num::NonZeroU64;
 
@@ -47,6 +51,9 @@ pub(crate) struct Normalised {
     /// The faults the document model cannot hold, each with its source when the text was read
     /// from a file.
     pub(crate) errors: Vec<Error>,
+    /// The members left out of the document because a fault refused here stands for them: the
+    /// schema reports nothing more at these pointers, so that one fault gives one error.
+    pub(crate) withheld: BTreeSet<Pointer>,
 }
 
 /// How the value of a header row is written into its member.
@@ -84,6 +91,30 @@ enum Section {
     AcceptanceCriteria,
     Interfaces,
     OpenQuestions,
+}
+
+/// The members of the document model written from the sections.
+const PROBLEM: &str = "problem";
+const STORIES: &str = "stories";
+const REQUIREMENTS: &str = "requirements";
+const ACCEPTANCE_CRITERIA: &str = "acceptance_criteria";
+const INTERFACES: &str = "interfaces";
+const OPEN_QUESTIONS: &str = "open_questions";
+
+impl Section {
+    /// The member a section fills, the first of the two of Scope and User stories: where a
+    /// repeated section is refused.
+    const fn member(self) -> &'static str {
+        match self {
+            Section::Problem => PROBLEM,
+            Section::Scope => SCOPE_PARTS[0].1,
+            Section::UserStories => STORIES,
+            Section::Requirements => REQUIREMENTS,
+            Section::AcceptanceCriteria => ACCEPTANCE_CRITERIA,
+            Section::Interfaces => INTERFACES,
+            Section::OpenQuestions => OPEN_QUESTIONS,
+        }
+    }
 }
 
 /// The heading of each section of the template, as written after `## `.
@@ -181,9 +212,13 @@ pub(crate) fn normalise(text: &str, file: Option<&ProjectPath>) -> Normalised {
         let known = SECTIONS
             .iter()
             .find(|(name, _)| *name == title)
-            .map(|(_, section)| *section)
-            .filter(|section| !read.contains(section));
-        if let Some(section) = known {
+            .map(|(_, section)| *section);
+        if let Some(section) = known.filter(|section| read.contains(section)) {
+            let message = format!("The section `{title}` is given more than once.");
+            let pointer = Pointer::root().join(section.member());
+            let error = Error::new(codes::ARTIFACT_SCHEMA, message, pointer, Reason::Duplicate);
+            out.refuse(error, heading.line);
+        } else if let Some(section) = known {
             read.push(section);
             out.section(section, heading.line, content);
         } else {
@@ -474,18 +509,18 @@ impl Writer<'_> {
                 .collect()
         };
         match section {
-            Section::Problem => self.put("problem", prose(content).unwrap_or_default(), Some(line)),
+            Section::Problem => self.put(PROBLEM, prose(content).unwrap_or_default(), Some(line)),
             Section::Scope => self.scope(content),
             Section::UserStories => {
                 let (stories, prose_stories): (Vec<Entry>, Vec<Entry>) = entries(content)
                     .into_iter()
                     .partition(|e| format::accepts(Format::StoryId, &e.text));
-                self.list("stories", line, plain(stories));
+                self.list(STORIES, line, plain(stories));
                 self.list("user_stories", line, plain(prose_stories));
             }
             Section::Requirements => {
                 let values = parts(content, requirement);
-                self.list("requirements", line, values);
+                self.list(REQUIREMENTS, line, values);
             }
             Section::AcceptanceCriteria => {
                 let mut values = Vec::new();
@@ -493,9 +528,10 @@ impl Writer<'_> {
                     let (value, refused) = criterion(&entry.text);
                     if let Some(error) = refused {
                         let pointer = Pointer::root()
-                            .join("acceptance_criteria")
+                            .join(ACCEPTANCE_CRITERIA)
                             .join_index(i)
                             .join("verification");
+                        self.normalised.withheld.insert(pointer.clone());
                         let error =
                             Error::new(codes::ARTIFACT_SCHEMA, error, pointer, Reason::Enum)
                                 .with_expected(VERIFICATION_WORDS.iter().map(|(word, _)| *word));
@@ -503,12 +539,12 @@ impl Writer<'_> {
                     }
                     values.push((entry.line, value));
                 }
-                self.list("acceptance_criteria", line, values);
+                self.list(ACCEPTANCE_CRITERIA, line, values);
             }
-            Section::Interfaces => self.list("interfaces", line, plain(entries(content))),
+            Section::Interfaces => self.list(INTERFACES, line, plain(entries(content))),
             Section::OpenQuestions => {
                 let values = parts(content, question);
-                self.list("open_questions", line, values);
+                self.list(OPEN_QUESTIONS, line, values);
             }
         }
     }

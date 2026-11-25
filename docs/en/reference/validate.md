@@ -192,9 +192,8 @@ section read as a list is one entry, so a requirement written without its `**R<k
 refused at its `id`. A line inside a fenced block (` ``` ` or `~~~`) is never a heading.
 
 A section whose heading is not in the table, a translated heading such as `## Requisiti`
-included, or that repeats one already read, is kept in `extra_sections`; a required member
-whose section is missing is then refused with the reason `missing`, for example at
-`/requirements`. A section present but empty gives an empty value, which the schema refuses
+included, is kept in `extra_sections`; a required member whose section is missing is then
+refused with the reason `missing`, for example at `/requirements`. A section present but empty gives an empty value, which the schema refuses
 when the member needs one.
 
 The verification words are matched without regard to case in the text after `Verification:`
@@ -212,13 +211,18 @@ up to the first full stop, in the order they appear; other words are ignored, so
 | `judge` | `judge` |
 | `none` | `none` |
 
-Three faults have no member in the document model and are refused by the normalisation, with
+Four faults have no member in the document model and are refused by the normalisation, with
 the code `artifact_schema` and their line: a verification text with no word of the table
 (`enum` at `/acceptance_criteria/<i>/verification`, the words in `expected`; the schema then
 reports nothing more at that member), a header row that is not one of the table or repeats one
-(`unknown_field`, at the label as written, for example `/Stato`), and text outside the title,
-the header rows and the sections, or in the section Scope before its paragraphs (`syntax`, at
-the root). Every other value is written as read and checked by the schema at its member.
+(`unknown_field`, at the label as written, for example `/Stato`), a section of the template
+given twice (`duplicate`, at the member of the section, `/scope_in` for Scope and `/stories`
+for User stories, with the line of the second heading; its content is not read), and text
+outside the title, the header rows and the sections, or in the section Scope before its
+paragraphs (`syntax`, at the root). Every other value is written as read and checked by the
+schema at its member: text of a criterion after its verification words that does not start
+with `Rubric:` is added to its `text`, and the root is at line 1, as for a YAML file, so a
+missing member and `capability` carry line 1.
 
 ### Pull request and commit inputs
 
@@ -357,7 +361,7 @@ levels of objects (ADR 0009 C4). `related` is absent when there is no other docu
 | Code | Reasons | Exit code | Meaning |
 | --- | --- | --- | --- |
 | `command_input` | `syntax`, `duplicate`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `conflict` | 1 | The canonical input is refused: it is not JSON, repeats a key, holds a number beyond a double, or breaks its schema or a rule of the section Input; or `--command-version` requests a version the engine does not run (`enum`, the known versions in `expected`) |
-| `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | A document breaks the schema of its type or of its input (a pull request, a commit); also a document without a `kind`, or with a `kind` outside the list (`enum`, with the types in `expected`), a `schema_version` that is missing, not an integer (reported with every other error against the current version) or beyond plus or minus (2^53 - 1) (`range`), and a file that did not parse (`syntax`, at the pointer of the whole document, with its line in `source`) |
+| `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `duplicate` | 1 | A document breaks the schema of its type or of its input (a pull request, a commit); also a document without a `kind`, or with a `kind` outside the list (`enum`, with the types in `expected`), a `schema_version` that is missing, not an integer (reported with every other error against the current version) or beyond plus or minus (2^53 - 1) (`range`), a file that did not parse (`syntax`, at the pointer of the whole document, with its line in `source`), and the faults of a living specification in Markdown, among them a section given twice (`duplicate`; see Living specifications in Markdown) |
 | `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | A hand-over input breaks its schema, for example by setting a member that only the engine sets (`unknown_field`) |
 | `schema_version_unknown` | `enum` | 1 | The `schema_version` is not a version of the type or of the input; `expected` lists the known versions |
 | `identifier_format` | `syntax` | 1 | The `id` is not in the canonical form of its type; `fix` gives the corrected identifier when one can be derived |

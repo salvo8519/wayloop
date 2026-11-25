@@ -204,8 +204,8 @@ requisito scritto senza il suo `**R<k>**` è rifiutato al suo `id`. Una riga den
 delimitato (` ``` ` o `~~~`) non è mai un titolo di sezione.
 
 Una sezione il cui titolo non è nella tabella, compreso un titolo tradotto come `## Requisiti`,
-o che ripete una sezione già letta, è conservata in `extra_sections`; un membro obbligatorio la
-cui sezione manca è quindi rifiutato con il motivo `missing`, per esempio in `/requirements`.
+è conservata in `extra_sections`; un membro obbligatorio la cui sezione manca è quindi
+rifiutato con il motivo `missing`, per esempio in `/requirements`.
 Una sezione presente ma vuota dà un valore vuoto, che lo schema rifiuta quando il membro ne
 richiede uno.
 
@@ -224,14 +224,19 @@ ignorate, quindi `property test for production, TDD for validation` dà `[proper
 | `judge` | `judge` |
 | `none` | `none` |
 
-Tre difetti non hanno un membro nel modello di documento e sono rifiutati dalla normalizzazione,
-con il codice `artifact_schema` e la loro riga: un testo di verifica senza alcuna parola della
-tabella (`enum` in `/acceptance_criteria/<i>/verification`, le parole in `expected`; lo schema
-poi non riporta altro su quel membro), una riga di intestazione che non è nella tabella o ne
-ripete una (`unknown_field`, all'etichetta come scritta, per esempio `/Stato`), e testo fuori dal
-titolo, dalle righe di intestazione e dalle sezioni, o nella sezione Scope prima dei suoi
-paragrafi (`syntax`, alla radice). Ogni altro valore è scritto come letto e controllato dallo
-schema al suo membro.
+Quattro difetti non hanno un membro nel modello di documento e sono rifiutati dalla
+normalizzazione, con il codice `artifact_schema` e la loro riga: un testo di verifica senza
+alcuna parola della tabella (`enum` in `/acceptance_criteria/<i>/verification`, le parole in
+`expected`; lo schema poi non riporta altro su quel membro), una riga di intestazione che non è
+nella tabella o ne ripete una (`unknown_field`, all'etichetta come scritta, per esempio
+`/Stato`), una sezione del modello data due volte (`duplicate`, al membro della sezione,
+`/scope_in` per Scope e `/stories` per User stories, con la riga del secondo titolo; il suo
+contenuto non viene letto), e testo fuori dal titolo, dalle righe di intestazione e dalle
+sezioni, o nella sezione Scope prima dei suoi paragrafi (`syntax`, alla radice). Ogni altro
+valore è scritto come letto e controllato dallo schema al suo membro: il testo di un criterio
+dopo le sue parole di verifica che non inizia con `Rubric:` è aggiunto al suo `text`, e la
+radice è alla riga 1, come per un file YAML, quindi un membro mancante e `capability` riportano
+la riga 1.
 
 ### Input pull request e commit
 
@@ -375,7 +380,7 @@ livelli di oggetti (ADR 0009 C4). `related` è assente quando non c'è un altro 
 | Codice | Motivi | Codice di uscita | Significato |
 | --- | --- | --- | --- |
 | `command_input` | `syntax`, `duplicate`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `conflict` | 1 | L'input canonico è rifiutato: non è JSON, ripete una chiave, contiene un numero oltre un double, o viola il suo schema o una regola della sezione Input; oppure `--command-version` richiede una versione che il motore non esegue (`enum`, le versioni note in `expected`) |
-| `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | Un documento viola lo schema del suo tipo o del suo input (una pull request, un commit); anche un documento senza `kind`, o con un `kind` fuori dalla lista (`enum`, con i tipi in `expected`), uno `schema_version` assente, non intero (riportato con ogni altro errore rispetto alla versione corrente) od oltre più o meno (2^53 - 1) (`range`), e un file che non è stato possibile analizzare (`syntax`, al puntatore dell'intero documento, con la sua riga in `source`) |
+| `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `duplicate` | 1 | Un documento viola lo schema del suo tipo o del suo input (una pull request, un commit); anche un documento senza `kind`, o con un `kind` fuori dalla lista (`enum`, con i tipi in `expected`), uno `schema_version` assente, non intero (riportato con ogni altro errore rispetto alla versione corrente) od oltre più o meno (2^53 - 1) (`range`), un file che non è stato possibile analizzare (`syntax`, al puntatore dell'intero documento, con la sua riga in `source`), e i difetti di una specifica viva in Markdown, tra cui una sezione data due volte (`duplicate`; vedi Specifiche vive in Markdown) |
 | `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | Un input di passaggio di mano viola il suo schema, per esempio impostando un membro che solo il motore imposta (`unknown_field`) |
 | `schema_version_unknown` | `enum` | 1 | Lo `schema_version` non è una versione del tipo o dell'input; `expected` elenca le versioni note |
 | `identifier_format` | `syntax` | 1 | L'`id` non è nella forma canonica del suo tipo; `fix` dà l'identificativo corretto quando è possibile ricavarlo |

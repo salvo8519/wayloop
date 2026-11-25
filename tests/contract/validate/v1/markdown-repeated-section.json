@@ -1,0 +1,39 @@
+{
+  "description": "A section of the template given twice in a living specification in Markdown is refused with duplicate at the member of the section and the line of the second heading (decided by the maintainer on 2026-11-25).",
+  "covers": [
+    "SPEC-0001 R12"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "markdown",
+        "text": "# SPEC-0001: Time entries\n\n| | |\n| --- | --- |\n| Status | Implementing |\n| Milestone | M1 · First release |\n| Owner | @example-owner |\n| Related | COUNCIL-0001 |\n| Commit scope | core |\n\n## Problem\nFreelancers need to record time without leaving the terminal.\n\n## Scope\n**In scope:** Recording and listing time entries\n**Out of scope:** Export (a later specification)\n\n## User stories\n- STORY-0001\n- As a freelance developer, I want to see the total of a day, so that I check my timesheet.\n\n## Requirements (EARS)\n- **R1** *Record*: WHEN the user runs the record command, THE TOOL SHALL append one entry to the log.\n- **R2**: THE TOOL SHALL store durations in minutes.\n- **R3**: IF the duration is not positive, THEN THE TOOL SHALL refuse the entry.\n- **R4** (removed): THE TOOL SHALL ask for a project when none is given.\n\n## Acceptance criteria\n- **AC1** (R1, R2): Given an empty log, when an entry of 90 minutes is recorded, then the log holds one entry of 90 minutes. Verification: TDD.\n- **AC2** (R3): Given any duration of zero or less, when recorded, then it is refused. Verification: property test.\n- **AC3** (R1): Given the help of the record command, when read by a new user, then it explains duration and project. Verification: judge. Rubric: Score 1 to 5; 4 or more when duration format, project and one example are all stated.\n\n## Interfaces\n- timesheet record <duration> <project>\n\n## Open questions\n- [x] **Q1. Is a project required for every entry?**\n\n## Requirements (EARS)\n- **R5**: THE TOOL SHALL list entries.\n\n## Notes\nThe log format follows COUNCIL-0001 D1.\n",
+        "origin": {
+          "file": "specs/0001-time-entries/spec.md"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "artifact_schema",
+      "/error/pointer": "/requirements",
+      "/error/reason": "duplicate",
+      "/error/source": {
+        "file": "specs/0001-time-entries/spec.md",
+        "line": 39
+      },
+      "/error/document": 0,
+      "/meta/input_hash": "102fae26e3aa28668efeb3b227c0be17954ef238cf14c584f9067c85ef86c8ef"
+    },
+    "absent": [
+      "/data"
+    ],
+    "lengths": {
+      "/error/errors": 1
+    }
+  }
+}
