@@ -80,8 +80,8 @@ names its item. R62 and R63 and AC63 to AC72 are new.
 - **R18**: THE ENGINE SHALL write through one writer that holds an exclusive whole-file lock of the operating system on `ledger.lock` for each write, reads, verifies and folds every event appended since its last known `seq` before it decides (decided by the maintainer on 2026-11-25, counter-review item 76), appends the lines, flushes them to stable storage, and only then acknowledges the events; the writer releases the lock after the write, and the operating system releases it when the process ends.
 - **R19**: WHEN a command that changes state arrives, THE ENGINE SHALL evaluate its expected revision under the lock of the writer, after the retry check of R52, with the rule and the refusal of SPEC-0002 R41, and append nothing when it is stale.
 - **R20**: IF the last line of the last segment has no final line feed, THEN every reader SHALL ignore that line, and the writer, under its lock, SHALL write its bytes to the quarantine file `quarantine/torn-<seq>-<sha256>.bin` and flush it, then truncate the segment to its last line feed and flush it, then record a `torn_tail_discarded` event with their size and hash, and report a warning, in that order, so that a crash at any point leaves either the torn line or its quarantined copy (decided by the maintainer on 2026-11-25, counter-review item 70); `<seq>` is the `seq` the torn line would have had, 12 digits.
-- **R21**: IF the output of an agent or an executor does not validate against the schema of its step, THEN THE ENGINE SHALL record a `result_rejected` event with the step, the error codes and pointers, and a reference to the stored output by hash, count it as one retry of the step (SPEC-0002 R23), and leave every other part of the state unchanged except the closed dispatch, the hold `executor_failure` of SPEC-0002 I29 when the retries are at their limit, and the `budget_exhausted` of SPEC-0002 R29 when its executor call reaches a budget (decided by the maintainer on 2026-11-25, counter-review items 58 and 79).
-- **R22**: IF an event has a kind or a schema version the engine does not know, THEN THE ENGINE SHALL stop loading, report the line with the reason `enum`, the known values in `expected` and the minimum engine version recorded by the ledger, and refuse every append.
+- **R21**: IF the output of an agent or an executor does not validate against the schema of its step, THEN THE ENGINE SHALL record a `result_rejected` event with the step, the errors with the code `result_schema` of SPEC-0002 Errors and their pointers (second counter-review B7), and a reference to the stored output by hash, count it as one retry of the step (SPEC-0002 R23), and leave every other part of the state unchanged except the closed dispatch, the hold `executor_failure` of SPEC-0002 I29 when the retries are at their limit, and the `budget_exhausted` of SPEC-0002 R29 when its executor call reaches a budget (decided by the maintainer on 2026-11-25, counter-review items 58 and 79).
+- **R22**: IF an event has a kind or a schema version the engine does not know, THEN THE ENGINE SHALL stop loading, report the line with the reason `enum`, the known values in `expected` and the minimum engine version recorded by the ledger, which is the `min_engine_version` of the last `min_engine_version_raised` before that line, or of the genesis event when there is none, and refuse every append; every engine, from 0.1.0, registers `min_engine_version_raised`, so that it reads the minimum before it meets a kind it does not know (decided by the maintainer on 2026-11-25, second counter-review B9).
 - **R23**: THE ENGINE SHALL read the format version, the hash algorithm, the canonicalisation and the line limit of a ledger from its genesis event, and refuse a ledger whose values it does not know with the reason `enum`.
 - **R24**: THE ENGINE SHALL keep the ledger and its derived files under `<git common dir>/wayloop/` with the layout of section Storage, so that every worktree of a clone reads and writes the same ledger.
 - **R25**: WHEN events are appended, THE ENGINE SHALL rewrite the projection `state.yaml` under the lock, through a temporary file renamed over it, deterministically from the state, as the object `{revision, seq, state}` with its three members in that order and `state` in canonical order (decided by the maintainer on 2026-11-25, counter-review item 67); IF the stored projection differs from the projection of the state, THEN THE ENGINE SHALL report a warning and rewrite it.
@@ -102,16 +102,16 @@ names its item. R62 and R63 and AC63 to AC72 are new.
 - **R40**: THE ENGINE SHALL pass every payload through the secret check of SPEC-0020 R4 before it is appended, every executor output before it is stored as a blob, and every rendered summary before it is published; THE ENGINE SHALL refuse a command or a result that fails, and SHALL record an observation that fails with each failing value redacted. Until SPEC-0020 is approved, the writer calls the check through an interface whose implementation finds nothing, and AC38 waits for SPEC-0020 (decided by the maintainer on 2026-11-25, counter-review item 77).
 - **R41**: THE ENGINE SHALL write every summary file as its canonical JSON followed by one line feed, and IF the SHA-256 of a stored summary file differs from that of its `summary_recorded` event, THEN THE ENGINE SHALL report a warning and write it again from the events, at the summary schema version the event records.
 - **R42**: WHEN a recorded approver revokes a ruling, THE ENGINE SHALL record a `ruling_revoked` event that names the hash of the ruling event and a reason, keep the ruling in the history, and leave it out of the active rulings and of later summaries.
-- **R43**: WHEN the lease of a session ends, THE ENGINE SHALL record, after the checkout releases of R11, `session_ended` with the outcome `abandoned`, and compute its session summary from its events once #52 builds the summaries (counter-review item 80).
+- **R43**: WHEN the lease of a session ends, whether or not the session holds a checkout, THE ENGINE SHALL record, after the checkout releases of R11, `session_ended` with the outcome `abandoned` (a session with no checkout: decided by the maintainer on 2026-11-25, second counter-review B12), and compute its session summary from its events once #52 builds the summaries (counter-review item 80).
 - **R44**: THE ENGINE SHALL build the resume pack of an issue from the milestone summary, the issue summary and the latest hand-over of the issue, in that order, without repeating an entry already given, within the sum of their budgets, and SHALL place it in the brief as quoted data that names its author, never in the instruction part of the brief.
 - **R45**: THE ENGINE SHALL record every executor call with role, executor, model, effort, step, phase, model turns (`model_turns`, the turns of the model inside the call, never the turns of SPEC-0002; decided by the maintainer on 2026-11-25, counter-review item 56; the name decided by the maintainer on 2026-11-25, with the amendment), provider tokens in, provider tokens out, duration in milliseconds and the source of its cost, with the cost in integer micro-units of a currency when the source gives one, and refuse a record that lacks a required field.
-- **R46**: WHILE a session holds a checkout, THE ENGINE SHALL extend its lease with every event caused by a command or a result of that session, `lease_renewed` included, and with no other event: the events of `due_events`, the integrity events of the writer and the events caused by observations never extend a lease (decided by the maintainer on 2026-11-25, counter-review item 82; the list of events decided by the maintainer on 2026-11-25, with the amendment); WHEN the checkout ends, THE ENGINE SHALL record a `checkout_released` event with the reason of section Payloads.
+- **R46**: WHILE a session is open, whether or not it holds a checkout, THE ENGINE SHALL extend its lease with every event caused by a command or a result of that session, `lease_renewed` included, and with no other event: the events of `due_events`, the integrity events of the writer and the events caused by observations never extend a lease (decided by the maintainer on 2026-11-25, counter-review item 82; the list of events decided by the maintainer on 2026-11-25, with the amendment); a session that holds no checkout therefore ends as `abandoned` `limits.lease_minutes` minutes after its latest event that extends a lease (R43; decided by the maintainer on 2026-11-25, second counter-review B12); WHEN a checkout ends, THE ENGINE SHALL record a `checkout_released` event with the reason of section Payloads.
 - **R47**: THE ENGINE SHALL assign every session the identifier `session-<ledger>-<YYYY-MM-DD>-<NN>`, where `<ledger>` is the first eight digits of the `ledger_id`, the date is the UTC date of its `session_started` event, and `NN` is one more than the highest number used on that date in the ledger, the quarantine and the publications on the tracker, at least two digits; the numbers used in the quarantine reach the core through the `ledger_recovered` event, which carries the highest session number per date and hand-over number per issue found in the quarantined lines (decided by the maintainer on 2026-11-25, counter-review item 73).
-- **R48**: IF a hand-over or a step request (SPEC-0002 I3) for an issue comes from a session that does not hold its checkout, other than the late hand-over of R12, THEN THE ENGINE SHALL refuse it with the code `checkout_not_held`, the reason `state` and the holder in `found`; IF a session end or a lease renewal comes from an actor that is not the holder of that session, or a lease renewal from a session that holds no checkout, THEN THE ENGINE SHALL refuse it the same way; a lease renewal applies to the session, carries no expected revision and is idempotent (decided by the maintainer on 2026-11-25, counter-review items 60 and 61).
+- **R48**: IF a hand-over or a step request (SPEC-0002 I3) for an issue comes from a session that does not hold its checkout, other than the late hand-over of R12, THEN THE ENGINE SHALL refuse it with the code `checkout_not_held`, the reason `state` and the holder in `found`; IF a session end or a lease renewal comes from an actor that is not the holder of that session, or a lease renewal from a session that holds no checkout, THEN THE ENGINE SHALL refuse it the same way; a lease renewal applies to the session and carries no expected revision (decided by the maintainer on 2026-11-25, counter-review items 60 and 61), and each one extends the lease: R52 does not apply to it (decided by the maintainer on 2026-11-25, second counter-review B8).
 - **R49**: IF a derived file or a published summary cites a revision that is neither in the chain nor in a quarantine recorded by `ledger_recovered`, or a sequence number above the last event, THEN THE ENGINE SHALL report `ledger_regressed` with the file and the revision, and refuse every append until a person runs the recovery of R34.
 - **R50**: WHEN `wayloop ledger verify --full` runs, THE ENGINE SHALL also check that the revision of every published summary recorded by `summary_published` or `publication_imported` is in the chain or in a recorded quarantine.
 - **R51**: IF the git common directory is on a network file system, on a Windows drive reached from WSL, on a container bind mount or in a folder kept by a file synchronisation client, as far as the platform reports it, THEN THE ENGINE SHALL refuse to open the ledger with the code `ledger_storage_unsupported` and exit code 3.
-- **R52**: WHEN a command arrives whose `input_hash` is already recorded by an event of the same session, or, for a command without a session, by any event of the ledger, THE ENGINE SHALL append nothing and return the result of the recorded events, before it evaluates the expected revision; `expected_revision` is part of the input, so one `input_hash` names one command on one revision. The state, and therefore every snapshot, keeps the map from the `input_hash` of every command, with or without a session, to the `seq` of the first and the last event it caused, so that the check and the answer need no scan of the ledger and survive a snapshot (decided by the maintainer on 2026-11-25, counter-review item 63).
+- **R52**: WHEN a command other than `lease_renewal_requested` arrives whose `input_hash` is already recorded by an event of the same session, or, for a command without a session, by any event of the ledger, THE ENGINE SHALL append nothing and return the result of the recorded events, before it evaluates the expected revision; `expected_revision` is part of the input, so one `input_hash` names one command on one revision. The state, and therefore every snapshot, keeps the map from the `input_hash` of every command, with or without a session, to the `seq` of the first and the last event it caused, so that the check and the answer need no scan of the ledger and survive a snapshot (decided by the maintainer on 2026-11-25, counter-review item 63). A `lease_renewal_requested` repeats its content, and so its `input_hash`, at every heartbeat of a session; it is never a retry, and every one records `lease_renewed` (SPEC-0002 S4; decided by the maintainer on 2026-11-25, second counter-review B8).
 - **R53**: WHEN the writer appends the first event of a kind or of a schema version that requires a newer engine than the minimum recorded by the ledger, THE ENGINE SHALL first record `min_engine_version_raised` with the new minimum.
 - **R54**: THE ENGINE SHALL record in every snapshot the fold version of the engine that wrote it, a constant of `wayloop-core`, and ignore with a warning a snapshot whose fold version differs from its own; THE PROJECT SHALL keep a golden test that fails when the state replayed from the golden ledger changes while the fold version does not (decided by the maintainer on 2026-11-25, counter-review item 72).
 - **R55**: WHEN `wayloop init` creates a ledger in a clone whose tracker holds published summaries and hand-overs, THE ENGINE SHALL import with `publication_imported` every one that passes R39, so that resume packs and identifiers continue from them.
@@ -138,7 +138,7 @@ names its item. R62 and R63 and AC63 to AC72 are new.
 - **AC11** (R2, R4): Given `examples/ledger.rehashed-line.invalid.jsonl`, when it is loaded, then the error has the code `ledger_chain_broken`, the pointer `/prev_hash` of line 6, and `pointers` naming line 5. Verification: TDD.
 - **AC12** (R57, R23): Given `wayloop init` on a new clone, when the ledger is created, then line 1 is `ledger_created` with `seq` 0, `prev_hash` of 64 zeros, `format_version` 1 and `line_limit_bytes` 65,536; given a ledger whose first event is another kind, or that holds a second genesis event, then it is refused with the code `ledger_genesis`; given a genesis event with `hash_algorithm` `sha512`, then it is refused with the code `ledger_format_unknown` and the reason `enum`. Verification: TDD.
 - **AC13** (R18, R24): Given a ledger of N events in which each of two sessions holds a checkout of its own issue, a test binary of the runtime and two processes of it in two worktrees of one clone, each sending 1,000 `lease_renewal_requested` commands of its own session through the writer, with a clock that never ends a lease, when both finish, then the ledger holds N + 2,000 events in one valid chain, every acknowledged event is present once, and no event was appended by `due_events`; the test runs in CI on Linux, macOS and Windows. Verification: end-to-end (append path named: section 3 of the counter-review).
-- **AC14** (R19, R52): Given an expected revision after which an event named the issue of the command, when a command that changes state runs, then it is refused with `revision_stale` and the reason `stale` (SPEC-0002 Errors) and the ledger is unchanged; given an expected revision after which only events of other issues were recorded, then the command is accepted; given that accepted command, then an event on its issue that makes its expected revision stale, when the command is retried with the same `input_hash` in the same session, then the result of its recorded events is returned, nothing is appended and no `revision_stale` is reported. Verification: TDD.
+- **AC14** (R19, R52): Given an expected revision after which an event named the issue of the command, when a command that changes state runs, then it is refused with `revision_stale` and the reason `stale` (SPEC-0002 Errors) and the ledger is unchanged; given an expected revision after which only events of other issues were recorded, then the command is accepted; given that accepted command, then an event on its issue that makes its expected revision stale, when the command is retried with the same `input_hash` in the same session, then the result of its recorded events is returned, nothing is appended and no `revision_stale` is reported; given two `lease_renewal_requested` of one session with the same `input_hash`, then two `lease_renewed` are recorded (second counter-review B8). Verification: TDD.
 - **AC15** (R20): Given `examples/ledger.torn-tail.invalid.jsonl`, when a reader loads it, then the partial line is ignored and nothing is moved; when the writer next takes the lock, then the partial line is moved to the quarantine, a `torn_tail_discarded` event follows line 31, the chain is valid and a warning `ledger_torn_tail` is reported; given a malformed line that is not the last one, then nothing is moved and the error of R59 is reported. Verification: TDD.
 - **AC16** (R21): Given an executor result that misses a required field, when it is returned, then a `result_rejected` event is recorded with the error pointer and the hash of the stored output, the retries of the step increase by one, and the state differs from the previous one only in the retries, the closed dispatch and the last event `(seq, hash)`; given the retries at their limit, then the hold `executor_failure` is added too (counter-review item 79). Verification: TDD.
 - **AC17** (R22): Given an event of kind `future_kind` or of `schema_version` 99, when the ledger is loaded, then loading stops with the codes `event_kind_unknown` or `event_version_unknown`, the reason `enum`, the known values in `expected` and the recorded minimum engine version, and an append is refused. Verification: TDD.
@@ -177,10 +177,10 @@ names its item. R62 and R63 and AC63 to AC72 are new.
 - **AC50** (R27): Given `examples/ledger.time-order.invalid.jsonl`, when it is verified, then the error has the code `ledger_time_order`, the reason `range` and `source` `{ledger, line}` with line 9. Verification: TDD.
 - **AC51** (R49, R50): Given a `state.yaml` or a snapshot whose `seq` is above the last event, or a published summary whose revision is not in the chain or a recorded quarantine, when the ledger is loaded or verified in full, then `ledger_regressed` names the file and the revision and an append is refused; given the recovery by a person, then `ledger_recovered` with the reason `regressed` is recorded and the derived files are rebuilt. Verification: TDD.
 - **AC52** (R51): Given a git common directory on a network file system, when a command opens the ledger, then it fails with `ledger_storage_unsupported` and exit code 3, on each platform where the test can mount one. Verification: manual check, recorded in the pull request that builds R51, since CI may not mount a network file system (section 3 of the counter-review).
-- **AC53** (R53): Given a ledger whose minimum engine version is 0.1.0, when an engine of version 0.3.0 first appends a kind introduced in 0.3.0, then `min_engine_version_raised` with 0.3.0 precedes it; when an engine of version 0.2.0 loads that ledger, then it stops with the code `event_kind_unknown` and reports 0.3.0. Verification: TDD.
+- **AC53** (R53): Given a ledger whose minimum engine version is 0.1.0, when an engine of version 0.3.0 first appends a kind introduced in 0.3.0, then `min_engine_version_raised` with 0.3.0 precedes it; when an engine of version 0.2.0 loads that ledger, then it stops with the code `event_kind_unknown` and reports 0.3.0, read from the `min_engine_version_raised` it knows; given an engine of version 0.1.0, then it does the same, since 0.1.0 registers `min_engine_version_raised` (second counter-review B9). Verification: TDD.
 - **AC54** (R55): Given a tracker holding a published hand-over and an issue summary of issue 12, a forged summary from another account and a new clone, when `wayloop init` runs, then two `publication_imported` events are recorded, the forged one is ignored, the next hand-over is `HANDOVER-12-2` and the resume pack of issue 12 holds the imported ones. Verification: TDD.
 - **AC55** (R56): Given a hand-over whose `files_touched` holds `/etc/passwd`, `../x` or a path in NFD, when submitted, then each is refused with its pointer; given a ruling whose text holds a marker of R38, a run of four backticks and a tracker handle, when the summary is rendered, then the marker is escaped, the fence is longer than four backticks and the handle notifies nobody. Verification: TDD.
-- **AC56** (R2, R57, R58, R59, R60): Given `examples/ledger.valid.jsonl`, when it is verified, then it passes, every line is canonical, every `prev_hash` equals the `hash` of the previous line, no lease ends between two events of one session, and the revision is `27765ee853d32a87cf9a58811891449fa18c103f1ea96854c95deb9e059c0c0c`. Verification: contract test.
+- **AC56** (R2, R57, R58, R59, R60): Given `examples/ledger.valid.jsonl`, when it is verified, then it passes, every line is canonical, every `prev_hash` equals the `hash` of the previous line, no lease ends between two events of one session, and the revision is `27765ee853d32a87cf9a58811891449fa18c103f1ea96854c95deb9e059c0c0c`, which task T3 replaces with the revision of the regenerated fixture (section Examples, second counter-review B11). Verification: contract test.
 - **AC57** (R58): Given any event object and any permutation of the order of its members, when hashed, then the hash is the same and equals the SHA-256 of the canonical bytes without `hash`. Verification: property test.
 - **AC58** (R59): Given `examples/ledger.non-canonical.invalid.jsonl`, when it is loaded, then the error has the code `ledger_line_malformed`, the reason `syntax` and `source` `{ledger, line}` with line 3; given a line one byte above the line limit, then the reason is `length` and the line is not parsed. Verification: TDD.
 - **AC59** (R15): Given a review result whose vote cites `{role: code, file: crates/a.rs, line: 10, end_line: 20}` and `{role: test, file: crates/a.rs, line: 40, end_line: 52}`, produced on the head of the branch with a clean working tree, when it is accepted, then its `coverage_verdict` holds that `commit`, `dirty` `false` and the two citations as given; given a vote without `commit` or without `dirty`, then the result is recorded as `result_rejected` with the reason `missing` at the pointer of the field. Verification: TDD.
@@ -288,10 +288,12 @@ otherwise differ from that of a newer engine. Consumers of the outputs of the en
 agents and SDKs, accept enum values they do not know (ADR 0009 C5).
 
 An engine registers in its contracts and its fold only the kinds it builds. Version 0.1.0
-registers the kinds of the slice of the plan of SPEC-0002; a later version that builds another
-kind of this catalogue records `min_engine_version_raised` before the first event of that kind
-(R53), so that 0.1.0 stops cleanly on it (decided by the maintainer on 2026-11-25, counter-review
-item 78). The kinds owned by SPEC-0021, a Draft specification, are reserved here and registered
+registers the kinds of the slice of the plan of SPEC-0002 and `min_engine_version_raised`; a
+later version that builds another kind of this catalogue records `min_engine_version_raised`
+before the first event of that kind (R53), so that 0.1.0 reads the new minimum and stops cleanly
+on the kind it does not know, reporting that minimum (R22) (decided by the maintainer on
+2026-11-25, counter-review item 78; `min_engine_version_raised` in 0.1.0 decided by the
+maintainer on 2026-11-25, second counter-review B9). The kinds owned by SPEC-0021, a Draft specification, are reserved here and registered
 only with it.
 
 | Kind | Role | Payload owner | Consumed by |
@@ -444,11 +446,13 @@ their meaning; no JSON schema is written by hand.
 - Absent, not null (ADR 0009 C2): an optional member is left out, a list is `[]`.
 - Refusals and warnings are the `ErrorReport` and `Error` of `wayloop-schemas`, with codes as
   constants of `Code` and reasons from `Reason` (section Errors). `Error` gains an optional
-  member `found`, any JSON value, absent when not given: the value found where `expected` lists
-  the values accepted, or the facts of the state that the refusal names, such as the holder and
-  the end of a lease, the measured size, the `seq` and the last valid revision of a broken chain,
-  or the issue that occupies a lane. It is an additive change of `envelope/result` v1, which no
-  release holds (decided by the maintainer on 2026-11-25, counter-review item 65, option (a)).
+  member `found`, absent when not given, with one meaning: the values that the refused condition
+  found, in the input or in the state. Its shape is fixed per code, and the row of each code that
+  carries it, in section Errors of this specification and of SPEC-0002, gives that shape; a code
+  whose row gives none never carries it (one definition and a shape per code: decided by the
+  maintainer on 2026-11-25, second counter-review S5). It is an additive change of
+  `envelope/result` v1, which no release holds (decided by the maintainer on 2026-11-25,
+  counter-review item 65, option (a)), recorded as an amendment of ADR 0009 C3.
 - Location of a ledger line (Q10): `Source` of `wayloop-schemas` gains a fourth form,
   `{ledger, line}`, where `ledger` is the path of the segment relative to the git common
   directory and `line` counts from 1. `{file, line}` keeps its meaning, a path relative to the
@@ -695,15 +699,18 @@ A command of this kind from a session of an agent is refused with the reason `st
   R11, the session ends of R43 and the `summary_recorded` events of R36 that those ends cause,
   in the order of SPEC-0002 section Ready work and lanes. Every command that changes state appends them first, under
   the lock (R28); a command that only reads never calls it and never appends.
-- The lease of a session ends at the `recorded_at` of the latest event of that session that
-  extends it, plus `limits.lease_minutes` minutes of the latest `limits_set` (R46); its length and
+- The lease of a session, whether or not it holds a checkout, ends at the `recorded_at` of the
+  latest event of that session that extends it, plus `limits.lease_minutes` minutes of the latest
+  `limits_set` (R46); a session that holds no checkout cannot renew it (SPEC-0002 S4) and ends as
+  `abandoned` at that time (R43, second counter-review B12); its length and
   default are those of SPEC-0002 section Limits and budgets. The events that extend it are those
   caused by a command or a result of the session, `lease_renewed` included; the events of
   `due_events`, the integrity events and the events caused by observations do not, even when
   their header names the session (decided by the maintainer on 2026-11-25, counter-review item
   82, with the amendment). While a step runs, the runtime of the holder sends `lease_renewal_requested` every quarter
   of the lease, without an expected revision (SPEC-0002 S4), and its `lease_renewed` extends it
-  when nothing else happens. This is the one definition of the lease; SPEC-0002 R22 applies it.
+  when nothing else happens; every heartbeat is a new renewal, never a retry of R52 (second
+  counter-review B8). This is the one definition of the lease; SPEC-0002 R22 applies it.
 - A given time earlier than the last `recorded_at` is raised to it (R27). A clock behind by more
   than the lease would extend leases that already ended, so the append is refused with
   `clock_behind`; before the first `limits_set` the default lease of 120 minutes applies
@@ -724,7 +731,8 @@ A command of this kind from a session of an agent is refused with the reason `st
   highest found in the ledger, the quarantine and the publications of the issue.
 - A session holds zero or more checkouts. A checkout ends with `checkout_released` and one of
   the reasons listed in section Payloads (R46). A session that holds no checkout ends with the
-  outcome `completed` when its holder ends it (SPEC-0002 S3, counter-review item 41).
+  outcome `completed` when its holder ends it (SPEC-0002 S3, counter-review item 41), and with
+  the outcome `abandoned` at the end of its lease (SPEC-0002 S6, R43; second counter-review B12).
 - A late hand-over (R12) is accepted from the last holder after its lease ended, while no other
   session has claimed the issue. The session stays `abandoned`; the hand-over is recorded with
   `late` and the issue summary is rolled up again.
@@ -903,6 +911,7 @@ not ready (SPEC-0002 R19).
 | R19 | `revision_stale` | Defined by SPEC-0002 (R41) | refusal |
 | R17 | `verdict_commit_stale` | `stale` | recorded (`result_rejected`) |
 | R17 | `verdict_tree_dirty` | `state` | recorded (`result_rejected`) |
+| R21 | `result_schema` | Defined by SPEC-0002 (R23; second counter-review B7) | recorded (`result_rejected`) |
 | R20 | `ledger_torn_tail` | `syntax` | warning |
 | R22 | `event_kind_unknown`, `event_version_unknown` | `enum` | refusal |
 | R23 | `ledger_format_unknown` | `enum` | refusal |
@@ -926,9 +935,16 @@ not ready (SPEC-0002 R19).
 | R49, R50 | `ledger_regressed` | `conflict` | refusal of every append |
 | R51 | `ledger_storage_unsupported` | `state` | refusal, exit code 3 |
 
-R40 uses the codes of SPEC-0020. R52 returns the recorded result, not an error. The values that
-R4, R10, R12 and R48 report as found are in the member `found` of the error (section Contracts of
-the ledger).
+R40 uses the codes of SPEC-0020. R52 returns the recorded result, not an error. The member
+`found` of the error (section Contracts of the ledger) has these shapes, one per code, and no
+other code of this table carries it (second counter-review S5):
+
+| Code | `found` |
+| --- | --- |
+| Every code whose effect is "Broken chain" in section Integrity (R4) | `{value, seq, revision}`: the value found at the pointer, absent when the line does not parse; the `seq` of the line as stored, absent when it cannot be read; and the revision of the last valid event, absent when no event before the line is valid |
+| `checkout_held` (R10) | `{holder, lease_ends_at}`: the holder of the checkout and the end of the lease of its session, a `Timestamp` |
+| `handover_budget` (R12) | The measured size, in size tokens, an integer |
+| `checkout_not_held` (R48) | The holder of the checkout of the issue, or of the session named, a handle; absent when the issue has no checkout |
 
 ## Examples
 
@@ -940,9 +956,26 @@ this specification plus the `limits_set` and `plan_observed` of SPEC-0002 that t
 budgets and the milestone membership read; the other kinds of SPEC-0002, such as the steps and
 the gates, change no summary and are left out.
 
+The ledger fixtures were written before the amendments of 2026-11-25 and contradict them
+(second counter-review B11): in `ledger.valid.jsonl`, line 2 carries `budgets.intake`, which is
+removed, and lacks the `policy_set` with `project_name` that `wayloop init` records (SPEC-0002
+`genesis`); line 3 carries the external identifier `plan:<sha>:1` without
+`previous_plan_sha256`, where the form is now `plan:<previous>:<sha>:<part>`; lines 6, 9 and 20
+carry `turns`, now `model_turns`; line 23 carries the reason `awaiting_merge`, which is removed,
+and a release caused by `check_suite:5002`, where SPEC-0002 I44 now releases the checkout at the
+result of the `pull_request` step; and the file holds `ruling_recorded`, `summary_recorded` and
+`summary_published`, which 0.1.0 does not register. Every ledger derived from it inherits these
+lines. Until task T3 of `specs/0002-state-machine/tasks.md` regenerates them with the hashing
+rule, to the amended payloads and with the kinds that 0.1.0 registers only, and states the new
+revision in AC56 and the new line numbers in AC2, AC10, AC11, AC15, AC50, AC58 and in the table
+below, the ledger fixtures, their line numbers and the revision of AC56 are not normative
+(decided by the maintainer on 2026-11-25, second counter-review B11). The regenerated ledger keeps
+a line with accented letters stored as UTF-8. The summary fixtures and the lines that cite them
+are rewritten by the task that builds the summaries (#52).
+
 | File | Expected result |
 | --- | --- |
-| `ledger.valid.jsonl` | Valid; 32 events; revision of AC56; no lease ends between two events of one session |
+| `ledger.valid.jsonl` | Valid; 32 events; revision of AC56; no lease ends between two events of one session (not normative until T3 regenerates it) |
 | `ledger.edited-line.invalid.jsonl` | Line 5 payload changed without a new hash: `ledger_hash_mismatch` at line 5 |
 | `ledger.rehashed-line.invalid.jsonl` | Line 5 changed and hashed again: `ledger_chain_broken` at line 6, `pointers` naming line 5 |
 | `ledger.sequence-gap.invalid.jsonl` | Line 7 removed: `ledger_sequence_gap` at line 7, expected 6 |
