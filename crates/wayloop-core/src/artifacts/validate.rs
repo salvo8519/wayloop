@@ -1,13 +1,13 @@
 //! Validation of a set of artifacts and inputs (SPEC-0001; plan, Entry point and validation
 //! function).
 //!
-//! [`validate`] is a pure, total function: it never panics, never stops at the first error,
-//! and gives the same [`Validation`] for the same input. It is reached only through the entry
-//! point of the crate (ADR 0028). Errors come in the order of the documents, then of the
-//! stages (kind, version and schema; identifier; links; parts; titles), then within a stage in the order of the
-//! schema pass: the members of an object in the byte order of their keys, absent members
-//! after present ones. Each error of a document carries the index of the document. A check
-//! this version does not run is listed in [`Validation::not_done`], never skipped silently.
+//! [`validate`] is a pure, total function: it never panics, never stops at the first error, and
+//! gives the same [`Validation`] for the same input. It is reached only through the entry point of
+//! the crate (ADR 0028). Errors come in the order of the documents, then of the stages (kind,
+//! version and schema; identifier; links; parts; titles), then within a stage in the order of the
+//! schema pass: the members of an object in the byte order of their keys, absent members after
+//! present ones. Each error of a document carries the index of the document. A check this version
+//! does not run is listed in [`Validation::not_done`], never skipped silently.
 //!
 //! A document the interpreter has accepted, migrated to the current version of its type, is
 //! read into its contract type (ADR 0030 G1); a failure there is a defect of the engine.
@@ -160,9 +160,9 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
 }
 
 /// The stages across the set, on the artifacts of `index` and the titles of `titled`: the
-/// identifiers (stage 3), the links (stage 4), the parts (stage 5), the titles (stage 7), the citations of ADRs when
-/// `adrs` is given, then the locations when `locations` is given; a check whose input is absent
-/// is added to `not_done`.
+/// identifiers (stage 3), the links (stage 4), the parts (stage 5), the titles (stage 7), the
+/// citations of ADRs when `adrs` is given, then the locations when `locations` is given; a check
+/// whose input is absent is added to `not_done`.
 fn across(
     index: &[Indexed<'_>],
     titled: &[Titled<'_>],

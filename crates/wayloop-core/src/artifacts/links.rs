@@ -32,11 +32,11 @@
 //!   reason `conflict` at the member it declares, the member of the parent in `pointers` and
 //!   the value reached through the parent in `expected` (R15).
 //! - A citation of an ADR in `related` of a living specification, the word `ADR` followed by a
-//!   number, and each bare number that follows it in the same entry or in the entries right
-//!   after it, as in `ADR 0002, 0003`, up to a word that opens a bracket, names an ADR; with no ADR of that number among `adrs`, it
-//!   is the warning `adr_citation_missing` with the reason `missing` at the entry that holds it
-//!   (Q5; decided by the maintainer on 2026-11-25). `ADR 0014` and `ADR 14` cite the same ADR.
-//!   It runs only when `adrs` is given.
+//!   number, and each bare number that follows it in the same entry or in the entries right after
+//!   it, as in `ADR 0002, 0003`, up to a word that opens a bracket, names an ADR; with no ADR of
+//!   that number among `adrs`, it is the warning `adr_citation_missing` with the reason `missing`
+//!   at the entry that holds it (Q5; decided by the maintainer on 2026-11-25). `ADR 0014` and
+//!   `ADR 14` cite the same ADR. It runs only when `adrs` is given.
 //!
 //! No other error of a link or of the hierarchy carries `related` (decided by the maintainer on
 //! 2026-11-25): the pointer and the message name the target.
@@ -353,7 +353,7 @@ impl<'i, 'a> Links<'_, 'i, 'a> {
         };
         let mut error = Error::new(code, message, at, reason);
         if let Some(target) = target {
-            error = target.replaced(&self.holder.id, error);
+            error = target.replaced(self.holder, error);
         }
         let error = self.holder.of(error);
         if self.terminal {

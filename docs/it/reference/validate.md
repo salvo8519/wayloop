@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: acbbab611b94
+source_hash: 7b121e26ae6e
 ---
 # wayloop validate
 
@@ -198,8 +198,11 @@ tracker non viene letto, quindi un collegamento verso di esso è mancante.
   `expected` elenca solo lui. Con più sostituti non sono dati né `fix` né `expected`: nessun
   errore copia una lista che cresce con l'input, quindi una voce di `related` indica dove si
   trova la lista, `{document, pointer: "/superseded_by"}` della destinazione con i membri della
-  sua `source`, e il messaggio nomina solo la destinazione. Un `fix` è un valore valido al suo
-  puntatore, non la garanzia che l'insieme diventi valido una volta applicato.
+  sua `source`, e il messaggio nomina solo la destinazione. Quando la destinazione è il documento
+  stesso dell'errore, come in un riferimento a sé stesso nel suo `superseded_by`, è invece
+  `pointers` a contenere `/superseded_by`, perché `related` nomina solo altri documenti. Un
+  `fix` è un valore valido al suo puntatore, non la garanzia che l'insieme diventi valido una
+  volta applicato.
 - `superseded_by` indica artefatti non in stato `superseded`: un sostituto a sua volta
   sostituito, come in una catena o in un riferimento a sé stesso, è un collegamento interrotto
   del suo titolare. `expanded_from` (il task da cui un sottotask è stato espanso è sostituito da

@@ -693,7 +693,10 @@ include the target itself nor the artifact that holds the link or the dependency
 the maintainer on 2026-11-25). With exactly one, `fix` is that identifier, applicable as is,
 and `expected` is a list of it alone. With more than one, neither `fix` nor `expected` is given:
 one entry of `related` names the target's list, its `document`, the pointer `/superseded_by`
-and the members of its `source`, and the message names only the target. With none, neither is
+and the members of its `source`, and the message names only the target. When the target is the
+document of the error itself, as in a self-reference in its `superseded_by` with several
+replacements, `pointers` holds `/superseded_by` instead, since `related` names only other
+documents (ADR 0009; decided by the maintainer on 2026-11-25). With none, neither is
 given. A removed requirement has no replacement, so neither is given. `link_broken_terminal`
 carries the same `expected`, `fix` and `related` as the error it replaces, and a dependency on a
 superseded task (R18) the same as a link. A `fix` is a value valid at its pointer, not a

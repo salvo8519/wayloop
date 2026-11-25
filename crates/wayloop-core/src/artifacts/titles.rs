@@ -7,7 +7,8 @@
 //! - `title_format`: the form of each title, by the grammar of [`crate::naming::titles`].
 //! - `title_duplicate`: two titles or more equal after normalisation, in any status except
 //!   `superseded`, epics and tasks compared with each other, are each refused with the reason
-//!   `duplicate` at `/title`, and each error names the others in `related`.
+//!   `duplicate` at `/title`, and each error names one other in `related`: each later carrier
+//!   names the first, the first names the second (decided by the maintainer on 2026-11-25).
 
 use serde_json::Value;
 use wayloop_schemas::artifact::{ArtifactKind, PlanItemStatus};

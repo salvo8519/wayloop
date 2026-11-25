@@ -187,7 +187,9 @@ until the tracker is read, so a link to it is missing.
   as is, for example `"SPEC-0001"`, and `expected` lists it alone. With several, neither `fix`
   nor `expected` is given: no error copies a list that grows with the input, so one entry of
   `related` points to where the list is, `{document, pointer: "/superseded_by"}` of the target
-  with the members of its `source`, and the message names only the target. A `fix` is a value
+  with the members of its `source`, and the message names only the target. When the target is
+  the document of the error itself, as in a self-reference in its `superseded_by`, `pointers`
+  holds `/superseded_by` instead, since `related` names only other documents. A `fix` is a value
   valid at its pointer, not a guarantee that the set becomes valid once it is applied.
 - `superseded_by` names artifacts that are not superseded: a replacement that is itself
   superseded, as in a chain or a self-reference, is a broken link of its holder.

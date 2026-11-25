@@ -179,6 +179,52 @@ fn several_replacements_are_named_where_they_are_listed_with_no_fix() {
     assert!(!error.message().contains("EPIC-0001"), "{error:?}");
 }
 
+#[test]
+fn several_replacements_of_the_holder_itself_are_named_in_pointers_not_in_related() {
+    // `related` names other documents only (ADR 0009): a superseded specification that names
+    // itself among several replacements points to its own list with `pointers`.
+    let documents: Vec<Value> = project()
+        .into_iter()
+        .map(|document| {
+            if document["id"] == "SPEC-0003" {
+                with(
+                    document,
+                    "superseded_by",
+                    json!(["SPEC-0003", "SPEC-0001", "SPEC-0002"]),
+                )
+            } else {
+                document
+            }
+        })
+        .chain([with(specification(), "id", json!("SPEC-0002"))])
+        .map(entry)
+        .collect();
+    let validation = validate(&read(documents));
+    assert_eq!(validation.errors, []);
+    let [warning] = &validation.warnings[..] else {
+        panic!("{:?}", validation.warnings);
+    };
+    assert_eq!(
+        found(&validation.warnings),
+        coded(
+            codes::LINK_BROKEN_TERMINAL,
+            "/superseded_by/0",
+            Reason::State
+        )
+    );
+    let pointers: Vec<String> = warning
+        .pointers()
+        .unwrap()
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(pointers, ["/superseded_by"]);
+    assert_eq!(
+        (warning.related(), warning.expected(), warning.fix()),
+        (None, None, None)
+    );
+}
+
 /// A draft milestone `M2` of the examples.
 fn milestone_2() -> Value {
     let milestone = with(milestone(), "id", json!("M2"));

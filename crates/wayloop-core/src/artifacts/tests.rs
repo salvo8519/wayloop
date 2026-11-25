@@ -2628,7 +2628,8 @@ fn the_oracle_agrees_with_the_interpreter_on_inputs() {
 #[test]
 fn input_kind_selects_the_schema() {
     // The pull request sent as a commit: its members other than the body are unknown to the
-    // commit, which misses its header. Present members in byte order, then absent ones in the order of `required`.
+    // commit, which misses its header. Present members in byte order, then absent ones in the
+    // order of `required`.
     assert_eq!(
         input_errors(pull_request(), InputKind::Commit),
         [

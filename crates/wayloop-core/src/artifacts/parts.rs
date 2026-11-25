@@ -330,7 +330,7 @@ impl<'i> Parts<'_, 'i, '_> {
                 first(carriers, target).filter(|found| found.status() == Some(Status::Superseded))
             {
                 let message = format!("{own} depends on {target}, which is superseded.");
-                found.replaced(own, conflict(message, at))
+                found.replaced(artifact, conflict(message, at))
             } else if cyclic.contains(&(artifact.document, i)) {
                 let message =
                     format!("{own} depends on {target}, which leads back to {own}: a cycle.");

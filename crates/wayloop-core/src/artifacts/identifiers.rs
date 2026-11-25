@@ -7,7 +7,9 @@
 //! error here:
 //!
 //! - `identifier_duplicate`: two artifacts or more that carry one identifier are each refused
-//!   with the reason `duplicate` at `/id`, and each error names the others in `related`.
+//!   with the reason `duplicate` at `/id`, and each error names one other in `related`: each
+//!   later carrier names the first, the first names the second (decided by the maintainer on
+//!   2026-11-25).
 //! - `identifier_location`: an artifact read from a file of a location whose name, or whose
 //!   folder number for a living specification, names another identifier gives a warning with
 //!   the reason `conflict` at `/id` and `fix` its identifier. The identity is the `id`; the
@@ -125,15 +127,20 @@ impl Indexed<'_> {
     /// the replacements it offers (R4). The replacements never include the artifact itself,
     /// which is superseded, nor `holder`, which never names itself. No error copies a list that
     /// grows with the input (decided by the maintainer on 2026-11-25): with exactly one
-    /// replacement, it is `expected` and `fix`; with several, `related` names where the list
-    /// is, the `superseded_by` of this artifact; with none, the error has neither.
-    pub(super) fn replaced(&self, holder: &str, error: Error) -> Error {
-        let mut offered = self.offered().iter().filter(|id| *id != holder);
+    /// replacement, it is `expected` and `fix`; with several, the error names where the list
+    /// is, the `superseded_by` of this artifact, in `related` when this artifact is another
+    /// document than `holder`, in `pointers` when it is the same, since `related` names only
+    /// other documents (ADR 0009); with none, the error has none of them.
+    pub(super) fn replaced(&self, holder: &Indexed<'_>, error: Error) -> Error {
+        let mut offered = self.offered().iter().filter(|id| **id != holder.id);
         match (offered.next(), offered.next()) {
             (None, _) => error,
             (Some(one), None) => error.with_expected([one.as_str()]).with_fix(one.as_str()),
             (Some(_), Some(_)) => {
                 let at = Pointer::root().join(SUPERSEDED_BY);
+                if self.document == holder.document {
+                    return error.with_pointers([at]);
+                }
                 let source = self.entry.source(&at);
                 error.with_related([Related::new(self.document, at, source)])
             }
