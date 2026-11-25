@@ -86,7 +86,7 @@ fn read(documents: Vec<Value>) -> Input {
     input::read(&input).unwrap()
 }
 
-fn found(errors: &[Error]) -> Vec<(Code, String, Reason)> {
+pub(super) fn found(errors: &[Error]) -> Vec<(Code, String, Reason)> {
     errors
         .iter()
         .map(|e| (e.code().clone(), e.pointer().to_string(), e.reason()))
@@ -1842,8 +1842,8 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     // not built (decided by the maintainer on 2026-11-25).
     let types = built();
     let input = read(vec![
-        json!({"format": "markdown", "text": "# SPEC-0001: x"}),
-        json!({"format": "markdown", "text": "# SPEC-0002: y"}),
+        json!({"format": "markdown", "text": super::markdown::tests::EXAMPLE,
+               "origin": {"file": "specs/0001-time-entries/spec.md"}}),
         entry(brief()),
     ]);
     let validation = super::validate(&input, &types);
@@ -1853,7 +1853,7 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     // Each check not done is listed once, in the order of its identifier.
     let mut expected_not_done: Vec<String> = checks::NOT_BUILT
         .iter()
-        .chain([&checks::ARTIFACT_LOCATIONS, &checks::MARKDOWN])
+        .chain([&checks::ARTIFACT_LOCATIONS])
         .map(|c| c.id().to_owned())
         .collect();
     expected_not_done.sort();
@@ -1872,7 +1872,11 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     // One check identifier per schema (S6): the schemas of the built types and inputs ran, in
     // their order.
     let schemas = types.iter().map(|k| kinds::schema_check(k.id));
-    let mut expected = vec![checks::DOCUMENT_KIND, checks::SCHEMA_VERSION];
+    let mut expected = vec![
+        checks::MARKDOWN,
+        checks::DOCUMENT_KIND,
+        checks::SCHEMA_VERSION,
+    ];
     expected.extend(schemas);
     expected.extend([
         checks::IDENTIFIER_FORMAT,
@@ -1894,8 +1898,7 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     assert_eq!(
         summaries,
         [
-            (None, None, None),
-            (None, None, None),
+            (Some("specification"), None, Some("SPEC-0001")),
             (Some("brief"), None, Some("BRIEF-0001")),
         ]
     );

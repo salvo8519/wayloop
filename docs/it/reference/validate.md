@@ -9,13 +9,13 @@ altri tipi del modello degli artefatti) e di input (pull request, commit, passag
 rispetto ai loro schemi, in un solo passaggio, e riporta ogni errore con il puntatore del valore
 errato e il luogo in cui è memorizzato. Non modifica nulla.
 
-Oggi brief, verbali del comitato, issue di gate, milestone, epic, user story, specifiche vive in
-forma normalizzata, modifiche a delta, task, record di passaggio di mano e gli input (pull
-request, commit e input di passaggio di mano) sono validati rispetto ai loro schemi. Una
-specifica viva inviata in Markdown è accettata senza controllo, e i controlli non eseguiti sono
-elencati in `diagnostics.not_done`. Tra documenti, gli identificativi sono controllati per
-unicità e rispetto al percorso del loro file; gli altri controlli tra documenti (collegamenti,
-parti, stati, nomi, aree) sono elencati come non eseguiti.
+Oggi brief, verbali del comitato, issue di gate, milestone, epic, user story, specifiche vive,
+modifiche a delta, task, record di passaggio di mano e gli input (pull request, commit e input
+di passaggio di mano) sono validati rispetto ai loro schemi. Una specifica viva scritta in
+Markdown viene prima normalizzata nel suo modello di documento (vedi Specifiche vive in Markdown
+più sotto). Tra documenti, gli identificativi sono controllati per unicità e rispetto al
+percorso del loro file; gli altri controlli tra documenti (collegamenti, parti, stati, nomi,
+aree) non sono eseguiti da questa versione e sono elencati in `diagnostics.not_done`.
 
 Questa pagina descrive la versione 1 del comando, compilata dai sorgenti. Il suo contratto è la
 coppia di snapshot di schema `schemas/commands/validate/v1.json` (input) e
@@ -78,6 +78,7 @@ letto; il messaggio per una persona, con il percorso, va sullo standard error.
 
 | Controllo | Cosa fa |
 | --- | --- |
+| `markdown` | Ogni specifica viva inviata in Markdown viene normalizzata nel suo modello di documento, poi controllata come documento del tipo `specification` (vedi Specifiche vive in Markdown più sotto) |
 | `document_kind` | Ogni documento ha un `kind` tra `brief`, `council_report`, `gate`, `milestone`, `epic`, `story`, `specification`, `change`, `task` e `handover`, oppure è un input con `input_kind` |
 | `schema_version` | Lo `schema_version` di ogni documento è una versione che il suo tipo conosce; un documento di una versione precedente viene migrato alla versione corrente dopo aver superato lo schema della propria versione |
 | `schema_<kind>`: `schema_brief`, `schema_change`, `schema_council_report`, `schema_epic`, `schema_gate`, `schema_handover`, `schema_milestone`, `schema_specification`, `schema_story`, `schema_task` | Ogni documento del tipo supera lo schema della sua versione (`schemas/artifacts/<kind>/v1.json`): membri obbligatori, membri sconosciuti, tipi, valori ammessi, lunghezze, formati, e i membri che uno stato, una verifica o un'operazione richiedono (vedi sotto) |
@@ -97,7 +98,6 @@ eseguito non è mai saltato in silenzio:
 
 | Controllo | Non eseguito su |
 | --- | --- |
-| `markdown` | Una specifica viva inviata in Markdown |
 | `links` | L'insieme: collegamenti tra artefatti, gerarchia, citazioni di ADR |
 | `parts` | L'insieme: parti degli artefatti e operazioni delle modifiche a delta |
 | `statuses` | L'insieme: transizioni e stati iniziali rispetto a `base` |
@@ -168,6 +168,70 @@ quando è noto, la sua `origin`; nessun `kind`, `id` o `status`.
 Quando l'input stesso è rifiutato, o la riga di comando non è compresa, o l'input non può
 essere letto, nessun controllo viene eseguito: `diagnostics.checks` e `diagnostics.not_done`
 sono allora vuoti.
+
+### Specifiche vive in Markdown
+
+Una specifica viva è memorizzata come `specs/<NNNN>-<capability>/spec.md`, con la struttura del
+modello `specs/_templates/spec.md`. Il motore la legge riga per riga, senza un parser Markdown,
+nel modello di documento del tipo `specification` (`kind` e `schema_version`, la versione
+corrente, sono quelli di quel modello), poi applica lo schema; ogni errore riporta in `source`
+la riga da cui il valore è stato letto. Titoli di sezione, righe di intestazione e parole di
+stato sono in inglese, qualunque sia la lingua del progetto; la prosa è nella lingua del
+progetto.
+
+| Markdown | Membro |
+| --- | --- |
+| `# SPEC-<seq>: <title>` | `id`, `title`; senza i due punti, tutto il testo è il titolo |
+| Cartella `specs/<NNNN>-<capability>/` | `capability`; assente quando il file è altrove o è inviato senza file |
+| Riga di intestazione `Status` | `status`, in minuscolo: `Draft` dà `draft` |
+| Riga di intestazione `Milestone` | `milestone`, la prima parola: `M0` di `M0 · Foundations` |
+| Righe di intestazione `Owner`, `Commit scope`, `Language` | `owner`, `commit_scope`, `language`, come scritte |
+| Riga di intestazione `Related` | `related`, divisa a ogni virgola e punto e virgola |
+| Riga di intestazione `Superseded by` | `superseded_by`, divisa a ogni virgola |
+| `## Problem` | `problem`, il testo come scritto |
+| `## Scope`, paragrafi `**In scope:**` e `**Out of scope:**` | `scope_in`, `scope_out`: una voce per ogni elemento di elenco, oppure il paragrafo come una voce |
+| `## User stories` | un elemento che è solo un identificativo `STORY` va in `stories`, ogni altro in `user_stories` |
+| `## Requirements (EARS)`, elementi `- **R<k>**: <text>`, `- **R<k>** *<name>*: <text>`, `- **R<k>** (removed): <text>` | `requirements` |
+| `## Acceptance criteria`, elementi `- **AC<k>** (R<i>, R<j>): <text> Verification: <words>. Rubric: <text>` | `acceptance_criteria`; `Rubric:` è facoltativo |
+| `## Interfaces` | `interfaces`, una voce per elemento |
+| `## Open questions`, elementi `- [ ] <text>` e `- [x] <text>`, che possono iniziare con `**Q<k>. <question>**` | `open_questions` |
+| Ogni altra sezione `##` | `extra_sections`, `{heading, text}`, conservata come prosa e non validata |
+
+Un elemento di elenco termina al successivo elemento, al successivo titolo di sezione o a una
+riga vuota; le righe che lo seguono, e una riga rientrata dopo una riga vuota, lo continuano e
+sono unite con uno spazio. Un paragrafo in una sezione letta come elenco è una voce, quindi un
+requisito scritto senza il suo `**R<k>**` è rifiutato al suo `id`. Una riga dentro un blocco
+delimitato (` ``` ` o `~~~`) non è mai un titolo di sezione.
+
+Una sezione il cui titolo non è nella tabella, compreso un titolo tradotto come `## Requisiti`,
+o che ripete una sezione già letta, è conservata in `extra_sections`; un membro obbligatorio la
+cui sezione manca è quindi rifiutato con il motivo `missing`, per esempio in `/requirements`.
+Una sezione presente ma vuota dà un valore vuoto, che lo schema rifiuta quando il membro ne
+richiede uno.
+
+Le parole di verifica sono riconosciute senza distinguere maiuscole e minuscole nel testo dopo
+`Verification:` fino al primo punto, nell'ordine in cui compaiono; le altre parole sono
+ignorate, quindi `property test for production, TDD for validation` dà `[property, tdd]`:
+
+| Parola | Valore |
+| --- | --- |
+| `TDD` | `tdd` |
+| `BDD`, `BDD scenario` | `bdd` |
+| `end-to-end` | `end_to_end` |
+| `property`, `property test` | `property` |
+| `contract`, `contract test` | `contract` |
+| `benchmark` | `benchmark` |
+| `judge` | `judge` |
+| `none` | `none` |
+
+Tre difetti non hanno un membro nel modello di documento e sono rifiutati dalla normalizzazione,
+con il codice `artifact_schema` e la loro riga: un testo di verifica senza alcuna parola della
+tabella (`enum` in `/acceptance_criteria/<i>/verification`, le parole in `expected`; lo schema
+poi non riporta altro su quel membro), una riga di intestazione che non è nella tabella o ne
+ripete una (`unknown_field`, all'etichetta come scritta, per esempio `/Stato`), e testo fuori dal
+titolo, dalle righe di intestazione e dalle sezioni, o nella sezione Scope prima dei suoi
+paragrafi (`syntax`, alla radice). Ogni altro valore è scritto come letto e controllato dallo
+schema al suo membro.
 
 ### Input pull request e commit
 

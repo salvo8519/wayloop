@@ -129,7 +129,7 @@ Prerequisites outside this specification:
   - Depends on: T12.
   - Size: M. Maintainer (crates).
 
-- [ ] **T14 Normalise living specifications from Markdown**
+- [x] **T14 Normalise living specifications from Markdown**
   - Covers: R6, R12; AC13, AC36. Issue: #265.
   - Files: `crates/wayloop-core/src/artifacts/markdown.rs`, `crates/wayloop-runtime/src/project.rs` (pass `spec.md` as `markdown`), `tests/contract/validate/v1/`.
   - Tests first: AC13 (`/requirements/1/id` with file and line); AC36 (`## Notes` and `## Requisiti` kept as prose, verification `[property, tdd]`, `/requirements` missing); continuation lines of a list item; header rows split at commas and semicolons; verification text with no mapped word refused with `enum`; this specification normalises with no error.

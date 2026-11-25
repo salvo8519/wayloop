@@ -111,10 +111,20 @@ fn validate_warns_when_it_runs_outside_the_root_of_the_project() {
 
 #[test]
 fn validate_reads_only_the_files_named_as_one_set() {
-    let project = briefs("named");
+    // A named Markdown file is a living specification, normalised by the core (SPEC-0001 R12):
+    // the specification of the artifact model, in the form it defines.
+    let spec = "specs/0001-artifact-model/spec.md";
+    let project = Project::new(
+        "named",
+        &[
+            ("plan/briefs/BRIEF-0001.yaml", example("brief.valid.yaml")),
+            ("plan/briefs/BRIEF-0003.yaml", example("brief.invalid.yaml")),
+            (spec, fs::read_to_string(repository().join(spec)).unwrap()),
+        ],
+    );
     let (_, value, _, code) = project.validate(&[
         "./plan/briefs/BRIEF-0001.yaml",
-        "plan/briefs/README.md",
+        spec,
         "plan/briefs/BRIEF-0001.yaml",
         "--command-version",
         "1",
@@ -127,7 +137,8 @@ fn validate_reads_only_the_files_named_as_one_set() {
         "plan/briefs/BRIEF-0001.yaml"
     );
     assert_eq!(documents[0]["id"], "BRIEF-0001");
-    assert_eq!(documents[1]["origin"]["file"], "plan/briefs/README.md");
+    assert_eq!(documents[1]["origin"]["file"], spec);
+    assert_eq!(documents[1]["id"], "SPEC-0001");
 }
 
 #[test]

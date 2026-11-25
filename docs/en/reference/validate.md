@@ -6,12 +6,12 @@ schemas, in one pass, and reports every error with the pointer of the faulty val
 place where it is stored. It changes nothing.
 
 Today briefs, council reports, gate issues, milestones, epics, user stories, living
-specifications in normalised form, change deltas, tasks, hand-over records and the inputs (pull
-requests, commits and hand-over inputs) are validated against their schemas. A living
-specification sent as Markdown is accepted unchecked, and the checks not run are listed in
-`diagnostics.not_done`. Across documents, identifiers are checked for uniqueness and against
-the path of their file; the other checks across documents (links, parts, statuses, naming,
-areas) are listed as not run.
+specifications, change deltas, tasks, hand-over records and the inputs (pull requests, commits
+and hand-over inputs) are validated against their schemas. A living specification written in
+Markdown is first normalised into its document model (see Living specifications in Markdown
+below). Across documents, identifiers are checked for uniqueness and against the path of their
+file; the other checks across documents (links, parts, statuses, naming, areas) are not run by
+this version and are listed in `diagnostics.not_done`.
 
 This page describes version 1 of the command, as built from source. Its contract is the pair
 of schema snapshots `schemas/commands/validate/v1.json` (input) and
@@ -72,6 +72,7 @@ path, goes to standard error.
 
 | Check | What it does |
 | --- | --- |
+| `markdown` | Each living specification sent as Markdown is normalised into its document model, then checked as a document of the type `specification` (see Living specifications in Markdown below) |
 | `document_kind` | Each document has a `kind` among `brief`, `council_report`, `gate`, `milestone`, `epic`, `story`, `specification`, `change`, `task` and `handover`, or is an input with `input_kind` |
 | `schema_version` | The `schema_version` of each document is a version its type knows; a document of an earlier version is migrated to the current one after it passes the schema of its own version |
 | `schema_<kind>`: `schema_brief`, `schema_change`, `schema_council_report`, `schema_epic`, `schema_gate`, `schema_handover`, `schema_milestone`, `schema_specification`, `schema_story`, `schema_task` | Each document of the type passes the schema of its version (`schemas/artifacts/<kind>/v1.json`): required members, unknown members, types, accepted values, lengths, formats, and the members a status, a verification or an operation requires (see below) |
@@ -90,7 +91,6 @@ Any other check the engine did not run is never skipped silently:
 
 | Check | Not run on |
 | --- | --- |
-| `markdown` | A living specification sent as Markdown |
 | `links` | The set: links between artifacts, hierarchy, ADR citations |
 | `parts` | The set: parts of artifacts and operations of change deltas |
 | `statuses` | The set: transitions and initial statuses against `base` |
@@ -158,6 +158,67 @@ hand-over has no title and no status; the summary of an input in `data.documents
 
 When the input itself is refused, or the command line is not understood, or the input cannot
 be read, no check runs: `diagnostics.checks` and `diagnostics.not_done` are then empty.
+
+### Living specifications in Markdown
+
+A living specification is stored as `specs/<NNNN>-<capability>/spec.md`, in the layout of the
+template `specs/_templates/spec.md`. The engine reads it line by line, without a Markdown
+parser, into the document model of the type `specification` (`kind` and `schema_version`, the
+current version, are those of that model), then applies the schema; every error carries the
+line it was read from in `source`. Headings, header rows and status words are English, whatever
+the language of the project; prose is in the language of the project.
+
+| Markdown | Member |
+| --- | --- |
+| `# SPEC-<seq>: <title>` | `id`, `title`; without a colon, the whole text is the title |
+| Folder `specs/<NNNN>-<capability>/` | `capability`; absent when the file is elsewhere or sent without a file |
+| Header row `Status` | `status`, in lower case: `Draft` gives `draft` |
+| Header row `Milestone` | `milestone`, the first word: `M0` of `M0 · Foundations` |
+| Header rows `Owner`, `Commit scope`, `Language` | `owner`, `commit_scope`, `language`, as written |
+| Header row `Related` | `related`, split at commas and semicolons |
+| Header row `Superseded by` | `superseded_by`, split at commas |
+| `## Problem` | `problem`, the text as written |
+| `## Scope`, paragraphs `**In scope:**` and `**Out of scope:**` | `scope_in`, `scope_out`: one entry per list item, or the paragraph as one entry |
+| `## User stories` | an item that is only a `STORY` identifier goes to `stories`, any other to `user_stories` |
+| `## Requirements (EARS)`, items `- **R<k>**: <text>`, `- **R<k>** *<name>*: <text>`, `- **R<k>** (removed): <text>` | `requirements` |
+| `## Acceptance criteria`, items `- **AC<k>** (R<i>, R<j>): <text> Verification: <words>. Rubric: <text>` | `acceptance_criteria`; `Rubric:` is optional |
+| `## Interfaces` | `interfaces`, one entry per item |
+| `## Open questions`, items `- [ ] <text>` and `- [x] <text>`, optionally starting with `**Q<k>. <question>**` | `open_questions` |
+| Any other `##` section | `extra_sections`, `{heading, text}`, kept as prose and not validated |
+
+A list item ends at the next item, the next heading or a blank line; its following lines, and
+a line indented after a blank line, continue it and are joined with a space. A paragraph in a
+section read as a list is one entry, so a requirement written without its `**R<k>**` is
+refused at its `id`. A line inside a fenced block (` ``` ` or `~~~`) is never a heading.
+
+A section whose heading is not in the table, a translated heading such as `## Requisiti`
+included, or that repeats one already read, is kept in `extra_sections`; a required member
+whose section is missing is then refused with the reason `missing`, for example at
+`/requirements`. A section present but empty gives an empty value, which the schema refuses
+when the member needs one.
+
+The verification words are matched without regard to case in the text after `Verification:`
+up to the first full stop, in the order they appear; other words are ignored, so
+`property test for production, TDD for validation` gives `[property, tdd]`:
+
+| Word | Value |
+| --- | --- |
+| `TDD` | `tdd` |
+| `BDD`, `BDD scenario` | `bdd` |
+| `end-to-end` | `end_to_end` |
+| `property`, `property test` | `property` |
+| `contract`, `contract test` | `contract` |
+| `benchmark` | `benchmark` |
+| `judge` | `judge` |
+| `none` | `none` |
+
+Three faults have no member in the document model and are refused by the normalisation, with
+the code `artifact_schema` and their line: a verification text with no word of the table
+(`enum` at `/acceptance_criteria/<i>/verification`, the words in `expected`; the schema then
+reports nothing more at that member), a header row that is not one of the table or repeats one
+(`unknown_field`, at the label as written, for example `/Stato`), and text outside the title,
+the header rows and the sections, or in the section Scope before its paragraphs (`syntax`, at
+the root). Every other value is written as read and checked by the schema at its member.
 
 ### Pull request and commit inputs
 

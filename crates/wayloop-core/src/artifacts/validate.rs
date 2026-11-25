@@ -23,7 +23,7 @@ use wayloop_schemas::{Diagnostics, ErrorReport, NotDone, NotDoneReason, Outcome}
 use super::identifiers::{self, Indexed};
 use super::input::{self, Body, Entry, Input, Place};
 use super::kinds::{self, Checked, Kind, Loaded};
-use super::{checks, codes};
+use super::{checks, codes, markdown};
 use crate::command::COMMAND_INPUT;
 use crate::{Check, Error, Pointer, Reason};
 
@@ -58,7 +58,11 @@ pub(crate) fn validate(input: &Input, kinds: &[Kind]) -> Validation {
 
 /// Validates `input` with the types `kinds`.
 pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
-    let mut run = vec![checks::DOCUMENT_KIND, checks::SCHEMA_VERSION];
+    let mut run = vec![
+        checks::MARKDOWN,
+        checks::DOCUMENT_KIND,
+        checks::SCHEMA_VERSION,
+    ];
     run.extend(kinds.iter().map(|k| kinds::schema_check(k.id)));
     run.extend([
         checks::IDENTIFIER_FORMAT,
@@ -138,10 +142,6 @@ fn no_location() -> Error {
     )
 }
 
-fn not_built(not_done: &mut BTreeSet<NotDone>, check: Check) {
-    not_done.insert(NotDone::new(check, NotDoneReason::NotBuilt));
-}
-
 /// The failure of the engine when the type `id`, an artifact type or an input kind named by
 /// `what`, has no schema loaded: every type of SPEC-0001 has its schema built (`kinds::built`),
 /// so one without is a defect of the engine, never a check left out (decided by the maintainer
@@ -183,10 +183,7 @@ fn check_entry(
             validation.errors.push(error);
             summary(None, None, origin)
         }
-        Body::Markdown => {
-            not_built(not_done, checks::MARKDOWN);
-            summary(None, None, origin)
-        }
+        Body::Markdown { text } => from_markdown(entry, text, kinds, validation, not_done),
         Body::Document {
             document,
             input_kind: Some(input_kind),
@@ -246,6 +243,48 @@ fn check_entry(
             summary(Some(document), None, origin)
         }
     }
+}
+
+/// Normalises the living specification `text` of `entry` into its document model (R12), adds
+/// the faults the model cannot hold, then checks the document as one sent in normalised form,
+/// at the lines it was read from. An error of the schema at a value refused already, such as a
+/// verification with no mapped word, is not reported twice.
+fn from_markdown(
+    entry: &Entry,
+    text: &str,
+    kinds: &[Loaded],
+    validation: &mut Validation,
+    not_done: &mut BTreeSet<NotDone>,
+) -> DocumentSummary {
+    let file = match &entry.origin {
+        Some(Place::File(file)) => Some(file),
+        _ => None,
+    };
+    let normalised = markdown::normalise(text, file);
+    let refused: BTreeSet<Pointer> = normalised
+        .errors
+        .iter()
+        .map(|e| e.pointer().clone())
+        .collect();
+    validation.errors.extend(normalised.errors);
+    let document = Entry {
+        given: entry.given.clone(),
+        origin: entry.origin.clone(),
+        body: Body::Document {
+            document: normalised.document,
+            input_kind: None,
+        },
+        lines: normalised.lines,
+    };
+    let first = validation.errors.len();
+    let summary = check_entry(&document, kinds, validation, not_done);
+    let checked = validation.errors.split_off(first);
+    validation.errors.extend(
+        checked
+            .into_iter()
+            .filter(|e| !refused.contains(e.pointer())),
+    );
+    summary
 }
 
 /// Checks `document` against the schemas of its type `loaded`, adding its errors, located by

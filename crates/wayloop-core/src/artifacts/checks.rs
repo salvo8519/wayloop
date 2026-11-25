@@ -21,14 +21,14 @@ pub const IDENTIFIER_LOCATION: Check = Check::new("identifier_location");
 /// discovered in (R26); run when `locations` is given, `input_absent` otherwise.
 pub const ARTIFACT_LOCATIONS: Check = Check::new("artifact_locations");
 
-// The schema of each type is its own check, `schema_<kind>` (`kinds::schema_check`): in
-// `checks` when the schema is built, in `not_done` otherwise. The checks run on every set are
-// `document_kind`, `schema_version`, `schema_<kind>` of each built type, `identifier_format`,
-// `identifier_duplicate` and `identifier_location`, in that order, then
-// `artifact_locations` when `locations` is given.
-
 /// A living specification sent as Markdown is normalised into its document model (R12).
 pub const MARKDOWN: Check = Check::new("markdown");
+
+// The schema of each type is its own check, `schema_<kind>` (`kinds::schema_check`): in
+// `checks` when the schema is built, in `not_done` otherwise. The checks run on every set are
+// `markdown`, `document_kind`, `schema_version`, `schema_<kind>` of each built type,
+// `identifier_format`, `identifier_duplicate` and `identifier_location`, in that order, then
+// `artifact_locations` when `locations` is given.
 /// Links between artifacts, the hierarchy and the citations of ADRs (R3, R4, R9, R15).
 pub const LINKS: Check = Check::new("links");
 /// Parts of artifacts and operations of change deltas (R18, R20).
