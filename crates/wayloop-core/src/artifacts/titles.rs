@@ -16,7 +16,7 @@ use wayloop_schemas::validate::DocumentSummary;
 use wayloop_schemas::value::PolicyName;
 
 use super::codes;
-use super::duplicates::{documents, shared};
+use super::duplicates::shared;
 use super::input::{Body, Entry};
 use crate::naming::titles::{self, Prefixes};
 use crate::{Error, Reason, Related};
@@ -105,11 +105,11 @@ pub(super) fn errors(index: &[Titled<'_>], types: &[PolicyName]) -> Vec<Error> {
         .collect();
     let compared: Vec<&Titled<'_>> = index.iter().filter(|t| !t.superseded).collect();
     let duplicates = shared(&compared, |t| t.key.as_str(), |t| t.related());
-    errors.extend(duplicates.into_iter().map(|(artifact, others)| {
+    errors.extend(duplicates.into_iter().map(|(artifact, other)| {
         let message = format!(
-            "The title is equal to the title of the {} of the input after normalisation; two \
-             epics or tasks never share a title.",
-            documents(&others)
+            "The title is equal to the title of the document {} of the input after \
+             normalisation; two epics or tasks never share a title.",
+            other.document()
         );
         let error = Error::new(
             codes::TITLE_DUPLICATE,
@@ -117,7 +117,7 @@ pub(super) fn errors(index: &[Titled<'_>], types: &[PolicyName]) -> Vec<Error> {
             titles::pointer(),
             Reason::Duplicate,
         )
-        .with_related(others);
+        .with_related([other]);
         artifact.of(error)
     }));
     errors

@@ -17,6 +17,7 @@
 //! resolve through (`links`, stage 4): an identifier is looked up there, never a path (ADR
 //! 0008).
 
+use core::cell::OnceCell;
 use std::collections::BTreeMap;
 
 use serde_json::{Map, Value};
@@ -24,7 +25,7 @@ use wayloop_schemas::artifact::ArtifactKind;
 use wayloop_schemas::validate::Status;
 
 use super::codes;
-use super::duplicates::{self, documents, shared_in};
+use super::duplicates::{self, shared_in};
 use super::input::{Body, Entry, Place};
 use super::locations::named_identifier;
 use super::members::{self, ID, STATUS, SUPERSEDED_BY};
@@ -45,6 +46,9 @@ pub(super) struct Indexed<'a> {
     /// artifact has its links checked, while every artifact of the index is a target (decided by
     /// the maintainer on 2026-11-25).
     pub(super) clean: bool,
+    /// The replacements the artifact offers, read once from its `superseded_by` by
+    /// [`Indexed::replaced`].
+    pub(super) offered: OnceCell<Vec<String>>,
 }
 
 /// The artifacts of the index by the identifier they carry, each list in the order of the
@@ -54,6 +58,12 @@ pub(super) type Carriers<'i, 'a> = BTreeMap<&'i str, Vec<&'i Indexed<'a>>>;
 /// The artifacts of `index` by the identifier they carry.
 pub(super) fn carriers<'i, 'a>(index: &'i [Indexed<'a>]) -> Carriers<'i, 'a> {
     duplicates::carriers(index, |a| a.id.as_str())
+}
+
+/// The artifact of the set that carries `id`, the first of the index when several do: the one
+/// target of every link and dependency that names `id`.
+pub(super) fn first<'i, 'a>(carriers: &Carriers<'i, 'a>, id: &str) -> Option<&'i Indexed<'a>> {
+    carriers.get(id)?.first().copied()
 }
 
 /// The pointer of the identifier of an artifact.
@@ -89,20 +99,45 @@ impl Indexed<'_> {
         Status::from_id(status)
     }
 
-    /// The identifiers of the artifacts that replace this one, as given; empty when none is.
-    fn superseded_by(&self) -> Vec<&str> {
-        self.document()
-            .map(|d| members::texts(d, SUPERSEDED_BY).map(|(_, id)| id).collect())
-            .unwrap_or_default()
+    /// At most three distinct identifiers of the `superseded_by` of the artifact, other than its
+    /// own, in their order, read once: enough to tell, for any holder, whether no replacement,
+    /// one or several remain once the holder is left out.
+    fn offered(&self) -> &[String] {
+        self.offered.get_or_init(|| {
+            let mut offered: Vec<String> = Vec::new();
+            let listed = self
+                .document()
+                .into_iter()
+                .flat_map(|d| members::texts(d, SUPERSEDED_BY).map(|(_, id)| id));
+            for id in listed {
+                if offered.len() == 3 {
+                    break;
+                }
+                if id != self.id && !offered.iter().any(|o| o == id) {
+                    offered.push(id.to_owned());
+                }
+            }
+            offered
+        })
     }
 
-    /// The replacements this artifact, superseded, offers to a link or a dependency of `holder`
-    /// that names it: its `superseded_by`, the values accepted in its place (R4), without the
-    /// artifact itself, which is superseded, and without `holder`, which never names itself.
-    pub(super) fn replacements(&self, holder: &str) -> Vec<&str> {
-        let mut replacements = self.superseded_by();
-        replacements.retain(|id| *id != self.id && *id != holder);
-        replacements
+    /// `error`, of a link or a dependency of `holder` that names this artifact, superseded, with
+    /// the replacements it offers (R4). The replacements never include the artifact itself,
+    /// which is superseded, nor `holder`, which never names itself. No error copies a list that
+    /// grows with the input (decided by the maintainer on 2026-11-25): with exactly one
+    /// replacement, it is `expected` and `fix`; with several, `related` names where the list
+    /// is, the `superseded_by` of this artifact; with none, the error has neither.
+    pub(super) fn replaced(&self, holder: &str, error: Error) -> Error {
+        let mut offered = self.offered().iter().filter(|id| *id != holder);
+        match (offered.next(), offered.next()) {
+            (None, _) => error,
+            (Some(one), None) => error.with_expected([one.as_str()]).with_fix(one.as_str()),
+            (Some(_), Some(_)) => {
+                let at = Pointer::root().join(SUPERSEDED_BY);
+                let source = self.entry.source(&at);
+                error.with_related([Related::new(self.document, at, source)])
+            }
+        }
     }
 
     /// Whether the artifact is not changed again: `done` and `superseded` are terminal for every
@@ -119,12 +154,12 @@ pub(super) fn duplicates<'i>(index: &'i [Indexed<'_>], carriers: &Carriers<'i, '
     let related = |a: &Indexed<'_>| Related::new(a.document, id_pointer(), a.source());
     shared_in(index, carriers, |a| a.id.as_str(), related)
         .into_iter()
-        .map(|(artifact, others)| {
+        .map(|(artifact, other)| {
             let message = format!(
-                "The identifier {} is also carried by the {} of the input; an identifier is \
-                 never reused.",
+                "The identifier {} is also carried by the document {} of the input; an \
+                 identifier is never reused.",
                 artifact.id,
-                documents(&others)
+                other.document()
             );
             let error = Error::new(
                 codes::IDENTIFIER_DUPLICATE,
@@ -132,7 +167,7 @@ pub(super) fn duplicates<'i>(index: &'i [Indexed<'_>], carriers: &Carriers<'i, '
                 id_pointer(),
                 Reason::Duplicate,
             )
-            .with_related(others);
+            .with_related([other]);
             artifact.of(error)
         })
         .collect()

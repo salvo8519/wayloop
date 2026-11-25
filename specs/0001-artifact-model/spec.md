@@ -55,7 +55,7 @@ Every level of the loop must have a validated structure so that the engine can c
 - **AC4** (R7, R8): Given titles with a prefix, a bracket tag, a full stop, or equal to another epic or task title after normalisation, when validated, then each is reported with its pointer and fix. Verification: TDD.
 - **AC5** (R9): Given a task citing a missing requirement, when validated, then the error names the task, the field and the requirement. Verification: TDD.
 - **AC6** (R2, R14): Given a living specification moved to another folder and renamed, when the artifacts that link to it are validated, then every link still resolves; given two artifacts with the same identifier, then both are refused with the reason `duplicate`, each with the source of the other. Verification: TDD.
-- **AC7** (R4): Given a story linked to a superseded specification, when validated, then the error names the field, the superseded identifier and, as the fix, the identifiers in its `superseded_by`. Verification: TDD, with `story.superseded-link.invalid.yaml`.
+- **AC7** (R4): Given a story linked to a superseded specification, when validated, then the error names the field, the superseded identifier and, as the fix, the identifier in its `superseded_by` when there is exactly one (with several, see Errors; decided by the maintainer on 2026-11-25). Verification: TDD, with `story.superseded-link.invalid.yaml`.
 - **AC8** (R5, R13): Given a task in status `draft`, when it is moved to `done`, then it is refused with the reason `state` and `expected` lists `approved` and `superseded`; given a brief with status `implementing`, then it is refused with the reason `enum`. Verification: TDD.
 - **AC9** (R6): Given a story whose prose is in Italian and whose keys are in English, when validated, then it passes; given the key `titolo` instead of `title`, then it is refused with the reason `unknown_field` and the fix `title`. Verification: TDD.
 - **AC10** (R7): Given the task title `wayloop init creates a project structure that validates`, when validated, then it passes. Verification: TDD.
@@ -376,7 +376,7 @@ One per capability (ADR 0014). The Markdown layout is the template in
 | `stories` | list of `STORY` identifiers | no | Stories covered, by identifier |
 | `user_stories` | list of strings | no | Stories written as prose, before or without a story artifact |
 | `requirements` | list of objects `{id, name, text, status}`, at least 1 | yes | EARS requirements; `id` is `R<k>`; `name` optional, changed by a rename (ADR 0008); `status` is `active` or `removed`; absent means `active`, which is not a default and gives no entry in `meta.defaults_applied` (decided by the maintainer on 2026-11-24) |
-| `acceptance_criteria` | list of objects `{id, requirements, text, verification, rubric}`, at least 1 | yes | `id` is `AC<k>`; `requirements` lists at least one `R<k>` of an active requirement; `verification` is a list of at least one of `tdd`, `bdd`, `end_to_end`, `property`, `contract`, `benchmark`, `judge`, `none`; `rubric` is a string, required when `verification` contains `judge` (SPEC-0009 R8) |
+| `acceptance_criteria` | list of objects `{id, requirements, text, verification, rubric}`, at least 1 | yes | `id` is `AC<k>`; `requirements` lists at least one `R<k>` of an active requirement; `verification` is a list of at least one of `tdd`, `bdd`, `end_to_end`, `property`, `contract`, `benchmark`, `judge`, `none`, where `none` is never given beside a technique (decided by the maintainer on 2026-11-25), and the order of the values and a repeated value carry no meaning; `rubric` is a string, required when `verification` contains `judge` (SPEC-0009 R8) |
 | `interfaces` | list of strings | no | Commands, schemas and events, with versions |
 | `open_questions` | list of objects `{id, text, resolved}` | no | `id` is `Q<k>`, optional; `resolved` is a boolean |
 | `extra_sections` | list of objects `{heading, text}` | no | Sections outside the template, kept as prose and not validated; `heading` required and not empty, `text` optional, absent when the section has no content (decided by the maintainer on 2026-11-24) |
@@ -500,7 +500,7 @@ A reviewable change of a living specification (ADR 0014, SPEC-0009 R2).
 | `milestone` | milestone identifier | yes | Must equal the milestone of the epic (R9, R15) |
 | `story` | `STORY` identifier | no | Story the task serves; its epic must be `epic` (R15) |
 | `specification` | list of objects `{spec, requirements}` | no | References such as `SPEC-0003` with `R2`, `R4`; each must exist (R9) |
-| `verification` | list of at least one enum value, as in the living specification | yes | Verification techniques (SPEC-0009 R7) |
+| `verification` | list of at least one enum value, as in the living specification | yes | Verification techniques (SPEC-0009 R7); `none` is never given beside a technique (decided by the maintainer on 2026-11-23); the order of the values and a repeated value carry no meaning |
 | `rubric` | string | when `verification` contains `judge` | Rubric of the judge (SPEC-0009 R8) |
 | `area` | string, an area of the project policy, without the `area:` prefix | yes | Decides what can run in parallel |
 | `depends_on` | list of `TASK` identifiers | no | Blocking tasks; never the task itself, a superseded task, or a cycle (R18); mapped to native dependencies by SPEC-0005 |
@@ -668,9 +668,13 @@ issue, `{milestone}` for a tracker milestone.
 `source` is absent when the document was sent directly in the normalised form. `source` has no
 tag naming its form, on purpose: it is output only, and its field names tell the forms apart.
 
-Each error of `identifier_duplicate` names every other artifact that carries the identifier in
-`related` (SPEC-0004 R2): its `document`, the pointer `/id` and the members of its `source`
-(decided by the maintainer on 2026-11-25). Every artifact of a known `kind` whose `id` raised
+No error copies a list that grows with the input; it points to where the list is (decided by the
+maintainer on 2026-11-25, superseding the earlier decision of the same day that each error of
+`identifier_duplicate` names every other carrier, and the one that no error of a link carries
+`related`). Each error of `identifier_duplicate` names one other artifact that carries the
+identifier in `related` (SPEC-0004 R2), its `document`, the pointer `/id` and the members of its
+`source`: every later carrier names the first, and the first names the second. The same holds
+for `title_duplicate`, which shares the rule. Every artifact of a known `kind` whose `id` raised
 no error is compared, whatever its other errors, so that the duplicates are found in the same
 pass as every other error (ADR 0009 C3; decided by the maintainer on 2026-11-25). A file name or a
 folder number that differs from the identifier (section Where artifacts live; living specification)
@@ -678,15 +682,23 @@ is the warning `identifier_location` at `/id`, with `fix` the identifier, given 
 artifact read from a file of a location (decided by the maintainer on 2026-11-25).
 
 Errors of links (`link_missing`, `link_superseded`, `link_broken_terminal`) and of the
-hierarchy (`hierarchy_mismatch`) carry no `related`: the pointer and the message name the
-target (decided by the maintainer on 2026-11-25).
+hierarchy (`hierarchy_mismatch`) carry no `related`, except for the replacements of a superseded
+target below: the pointer and the message name the target (decided by the maintainer on
+2026-11-25).
 
-The fix of R4 (decided by the maintainer on 2026-11-25, replacing an earlier decision of the
-same day that made `fix` a list): for a link to a superseded target, `expected` lists every
-identifier of its `superseded_by`, the values accepted at the pointer, and `fix` is present
-only when there is exactly one, and is that identifier, applicable as is. A removed
-requirement has no replacement, so neither is given. `link_broken_terminal` carries the same
-`expected` and `fix` as the error it replaces.
+The fix of R4 (decided by the maintainer on 2026-11-25, replacing two earlier decisions of the
+same day, one that made `fix` a list and one that listed every replacement in `expected`): the
+replacements of a superseded target are the identifiers of its `superseded_by`; they never
+include the target itself nor the artifact that holds the link or the dependency (decided by
+the maintainer on 2026-11-25). With exactly one, `fix` is that identifier, applicable as is,
+and `expected` is a list of it alone. With more than one, neither `fix` nor `expected` is given:
+one entry of `related` names the target's list, its `document`, the pointer `/superseded_by`
+and the members of its `source`, and the message names only the target. With none, neither is
+given. A removed requirement has no replacement, so neither is given. `link_broken_terminal`
+carries the same `expected`, `fix` and `related` as the error it replaces, and a dependency on a
+superseded task (R18) the same as a link. A `fix` is a value valid at its pointer, not a
+guarantee that the set becomes valid once it is applied (decided by the maintainer on
+2026-11-25).
 
 `superseded_by` is a link like any other: it names artifacts that are not superseded (R4). Its
 holder is superseded, so terminal, and a chain or a self-reference is the warning
@@ -699,6 +711,20 @@ not checked for links (R3, R15), so that a broken document causes no wave of lin
 remains a target of the links of the others, as long as its `id` raised no error (decided by
 the maintainer on 2026-11-25).
 
+The rules of parts and deltas (R18, R20), decided by the maintainer on 2026-11-25 as built:
+
+- They read only a document that passed its schema. Their errors come in the parts stage, after
+  the links and before the titles, also those with the code `artifact_schema`: a member refused
+  by the `op` of an operation and `none` beside a technique.
+- The dependencies of a task in a terminal status, `done` or `superseded`, are not checked and
+  are not edges of the graph of dependencies, since such a task is not changed again (R3).
+- Every dependency on a cycle is refused, not only the one that closed it, since the order of
+  the documents does not say which one did. An error of a cycle carries no `related`: the
+  pointer and the message name the dependency.
+- A part identifier given twice is refused at each carrier after the first, with the first and
+  its own `id` in `pointers`; two operations on one requirement are refused at each operation
+  after the first, with the first and its own in `pointers`.
+
 `expected` lists accepted values, never a pattern. For a format error (`syntax`), `expected`
 is absent and `fix` carries a corrected value when one can be derived, for example `M2` for
 `Milestone 2`. A new meaning gets a new code, and codes are never renamed or reused (ADR 0009
@@ -706,7 +732,7 @@ C8).
 
 | Requirement | Code | Reasons |
 | --- | --- | --- |
-| R1, R6, R12 | `artifact_schema` | `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `syntax`, `requires`, `duplicate` (a repeated section or a repeated paragraph of Scope of a Markdown specification) |
+| R1, R6, R12 | `artifact_schema` | `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `syntax`, `requires`, `duplicate` (a repeated section or a repeated paragraph of Scope of a Markdown specification); `unknown_field` also for a member refused by the `op` of an operation, and `enum` for `none` beside a technique in the `verification` of a task or of an acceptance criterion, at each `none`, with the techniques in `expected` (decided by the maintainer on 2026-11-23 and 2026-11-25) |
 | R3, R4, R9 | `link_missing` | `missing` |
 | R4 | `link_superseded` | `state` |
 | R3 (terminal holder) | `link_broken_terminal` (warning) | `missing`, `state` |

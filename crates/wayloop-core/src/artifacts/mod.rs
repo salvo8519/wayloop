@@ -21,13 +21,14 @@ mod links;
 pub mod locations;
 mod markdown;
 mod members;
-pub mod parts;
+mod parts;
 mod titles;
 mod validate;
 
 #[cfg(test)]
 mod tests;
 
+pub use parts::next_requirement;
 pub(crate) use validate::run;
 #[cfg(test)]
 pub(crate) use validate::{Validation, run_with, validate, validate_with};

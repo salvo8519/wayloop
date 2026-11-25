@@ -11,11 +11,11 @@
 //! - A link to an identifier no artifact of the set carries is `link_missing` with the reason
 //!   `missing` (R3, R9): a link to an item that is only in the tracker too, until the tracker
 //!   adapter of SPEC-0005 sends tracker items (plan, Canonical input).
-//! - A link to a superseded artifact is `link_superseded` with the reason `state`, its
-//!   replacements, the `superseded_by` of the target, in `expected`, and in `fix` the one
-//!   replacement when there is exactly one (R4; decided by the maintainer on 2026-11-25). The
-//!   target itself and the holder of the link are never offered, since neither is a value the
-//!   holder can name there; with no replacement left, both are left out.
+//! - A link to a superseded artifact is `link_superseded` with the reason `state`. Its
+//!   replacements, the `superseded_by` of the target without the target and the holder, are
+//!   given by [`Indexed::replaced`]: exactly one is `expected` and `fix`; several are named by
+//!   one `related` entry at the `superseded_by` of the target, never copied (R4; decided by the
+//!   maintainer on 2026-11-25).
 //!   `superseded_by` itself must name artifacts that are not superseded. `expanded_from` and
 //!   `depends_on` of a task accept a superseded target: they record the history of the work, a
 //!   subtask names the task it was expanded from, which it supersedes, and a dependency on a
@@ -38,7 +38,7 @@
 //!   (Q5; decided by the maintainer on 2026-11-25). `ADR 0014` and `ADR 14` cite the same ADR.
 //!   It runs only when `adrs` is given.
 //!
-//! No error of a link or of the hierarchy carries `related` (decided by the maintainer on
+//! No other error of a link or of the hierarchy carries `related` (decided by the maintainer on
 //! 2026-11-25): the pointer and the message name the target.
 //!
 //! The members of each type are read in the byte order of their keys, as the schema pass
@@ -52,7 +52,7 @@ use wayloop_schemas::artifact::{ArtifactKind, OperationKind, RequirementStatus};
 use wayloop_schemas::validate::Status;
 
 use super::codes;
-use super::identifiers::{Carriers, Indexed};
+use super::identifiers::{Carriers, Indexed, first};
 use super::members::{
     ACCEPTANCE_CRITERIA, BRIEF, COUNCIL_REPORT, DEPENDS_ON, EPIC, EXPANDED_FROM, ID, MILESTONE, OP,
     OPERATIONS, RELATED, REQUIREMENT, REQUIREMENTS, SPEC, SPECIFICATION, STATUS, STORIES, STORY,
@@ -264,7 +264,7 @@ impl<'i, 'a> Links<'_, 'i, 'a> {
 
     /// The artifact of the set that carries `id`, the first when several do.
     fn find(&self, id: &str) -> Option<&'i Indexed<'a>> {
-        self.carriers.get(id)?.first().copied()
+        first(self.carriers, id)
     }
 
     /// Checks the link at `at` to `target`.
@@ -272,22 +272,14 @@ impl<'i, 'a> Links<'_, 'i, 'a> {
         let holder = &self.holder.id;
         let Some(found) = self.find(target) else {
             let message = format!("{holder} links {target}, which no artifact of the set carries.");
-            self.broken(at, Reason::Missing, message, &[]);
+            self.broken(at, Reason::Missing, message, None);
             return;
         };
         if accepts == Accepts::Any || found.status() != Some(Status::Superseded) {
             return;
         }
-        let replacements = found.replacements(holder);
-        let message = if replacements.is_empty() {
-            format!("{holder} links {target}, which is superseded.")
-        } else {
-            format!(
-                "{holder} links {target}, which is superseded by {}.",
-                replacements.join(", ")
-            )
-        };
-        self.broken(at, Reason::State, message, &replacements);
+        let message = format!("{holder} links {target}, which is superseded.");
+        self.broken(at, Reason::State, message, Some(found));
     }
 
     /// Checks each requirement listed at `requirements` of `part`, at `at`, against the living
@@ -334,32 +326,34 @@ impl<'i, 'a> Links<'_, 'i, 'a> {
             None => {
                 let message =
                     format!("{holder} cites {cited} {requirement}, which {cited} does not have.");
-                self.broken(at, Reason::Missing, message, &[]);
+                self.broken(at, Reason::Missing, message, None);
             }
             Some(RequirementStatus::Removed) => {
                 let message = format!("{holder} cites {cited} {requirement}, which is removed.");
-                self.broken(at, Reason::State, message, &[]);
+                self.broken(at, Reason::State, message, None);
             }
             Some(RequirementStatus::Active) => {}
         }
     }
 
     /// Records a broken link at `at`: an error of the reason `reason`, or the warning
-    /// `link_broken_terminal` when the artifact is in a terminal status (R3). `replacements`,
-    /// those of a superseded target, are the values accepted at `at`, and the fix when there is
-    /// exactly one.
-    fn broken(&mut self, at: Pointer, reason: Reason, message: String, replacements: &[&str]) {
+    /// `link_broken_terminal` when the artifact is in a terminal status (R3). `target`, when the
+    /// link names a superseded artifact, gives its replacements.
+    fn broken(
+        &mut self,
+        at: Pointer,
+        reason: Reason,
+        message: String,
+        target: Option<&Indexed<'_>>,
+    ) {
         let code = match (self.terminal, reason) {
             (true, _) => codes::LINK_BROKEN_TERMINAL,
             (false, Reason::Missing) => codes::LINK_MISSING,
             (false, _) => codes::LINK_SUPERSEDED,
         };
         let mut error = Error::new(code, message, at, reason);
-        if !replacements.is_empty() {
-            error = error.with_expected(replacements.iter().copied());
-        }
-        if let [replacement] = replacements {
-            error = error.with_fix(*replacement);
+        if let Some(target) = target {
+            error = target.replaced(&self.holder.id, error);
         }
         let error = self.holder.of(error);
         if self.terminal {

@@ -1785,8 +1785,9 @@ fn ac6_two_artifacts_with_one_identifier_are_both_refused_each_naming_the_other(
 #[test]
 fn a_refused_identifier_stays_out_of_the_index_and_errors_stay_in_document_order() {
     // The brief carries the identifier too, but its `id` is refused; the duplicate errors of
-    // the three tasks come by document, around the format error of the brief, and each names
-    // the two others.
+    // the three tasks come by document, around the format error of the brief. No error copies
+    // a list that grows with the input (decided by the maintainer on 2026-11-25): the first
+    // carrier names the second, and each later carrier names the first.
     let validation = validate(&read(linked(vec![
         entry(task()),
         entry(with(brief(), "id", json!("TASK-0001"))),
@@ -1807,13 +1808,13 @@ fn a_refused_identifier_stays_out_of_the_index_and_errors_stay_in_document_order
             (Some(3), codes::IDENTIFIER_DUPLICATE),
         ]
     );
-    let named: Vec<u64> = validation.errors[0]
-        .related()
-        .unwrap()
+    let named: Vec<Vec<u64>> = validation
+        .errors
         .iter()
-        .map(Related::document)
+        .filter(|e| e.code() == &codes::IDENTIFIER_DUPLICATE)
+        .map(|e| e.related().unwrap().iter().map(Related::document).collect())
         .collect();
-    assert_eq!(named, [2, 3]);
+    assert_eq!(named, [vec![2], vec![0], vec![0]]);
 }
 
 #[test]
@@ -2972,11 +2973,7 @@ fn a_title_refused_by_its_schema_is_left_out_of_the_title_stage() {
 }
 
 #[test]
-fn a_duplicate_names_the_other_documents_in_its_message() {
-    let one = [Related::new(3, at("/id"), None)];
-    let two = [one[0].clone(), Related::new(5, at("/title"), None)];
-    assert_eq!(super::duplicates::documents(&one), "document 3");
-    assert_eq!(super::duplicates::documents(&two), "documents 3, 5");
+fn a_duplicate_names_the_other_document_in_its_message() {
     let validation = validate(&read(linked(vec![
         entry(task()),
         entry(epic()),

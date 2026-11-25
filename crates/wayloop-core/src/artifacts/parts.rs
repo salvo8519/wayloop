@@ -20,22 +20,26 @@
 //!   `removed` and `renamed`, `name` on `removed`, is `artifact_schema` with the reason
 //!   `unknown_field` at that member and the `op` in `pointers` (decided by the maintainer on
 //!   2026-11-24); a requirement refused there names no requirement, so it is no conflict.
-//! - A task whose `verification` holds `none` beside a technique is `artifact_schema` with the
-//!   reason `enum` at each `none`, the techniques in `expected` and the first of them in
-//!   `pointers` (decided by the maintainer on 2026-11-23).
+//! - A task or an acceptance criterion of a living specification whose `verification` holds
+//!   `none` beside a technique is `artifact_schema` with the reason `enum` at each `none`, the
+//!   techniques in `expected` and the first of them in `pointers` (decided by the maintainer on
+//!   2026-11-23 for tasks and on 2026-11-25 for acceptance criteria).
 //!
 //! The dependencies of a task read other documents, so only a task with no error of its own,
-//! in a status that is not terminal, has them checked; every task of the index is a target
-//! (decided by the maintainer on 2026-11-25). A dependency on the task itself, with `/id` in
-//! `pointers`, on a superseded task, with its replacements in `expected` and the fix when there
-//! is exactly one, as for a link (R4), or on a task that depends on it again, which closes a
-//! cycle, is `part_invalid` with the reason `conflict` at the dependency (R18). Every
-//! dependency on a cycle is refused, whichever closed it. The cycles are found once over the
-//! whole set, without recursion, in time linear in the tasks and their dependencies.
+//! in a status that is not terminal, has them checked, and only its dependencies are edges of
+//! the graph; every task of the index is a target, as long as its `id` raised no error (decided
+//! by the maintainer on 2026-11-25). A dependency on the task itself, with `/id` in `pointers`,
+//! on a superseded task, with its replacements as for a link (R4, [`Indexed::replaced`]), or on
+//! a task that leads back to it, which closes a cycle, is `part_invalid` with the reason
+//! `conflict` at the dependency (R18). Every dependency on a cycle is refused, whichever closed
+//! it, with no `related`. The cycles are found once over the whole set, without recursion, in
+//! time linear in the tasks and their dependencies.
 //!
-//! No error names another document in `related`: the specification does not ask for it. The
-//! errors of a document come in the byte order of its members, the elements of a list by index,
-//! at one element its own error before those of its members.
+//! Only a dependency on a superseded task with several replacements names another document in
+//! `related`, the list of the target. The errors of a document come in the parts stage, after
+//! the links, also those of the code `artifact_schema`; within it in the byte order of its
+//! members, the elements of a list by index, at one element its own error before those of its
+//! members.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -47,7 +51,7 @@ use wayloop_schemas::value::RequirementId;
 
 use super::codes;
 use super::duplicates;
-use super::identifiers::{Carriers, Indexed, id_pointer};
+use super::identifiers::{Carriers, Indexed, first, id_pointer};
 use super::members::{
     ACCEPTANCE_CRITERIA, ANSWER, DECISION, DECISIONS, DEPENDS_ON, DISSENT, ID, NAME, OP,
     OPEN_QUESTIONS, OPERATIONS, OPTIONS, QUESTIONS, RECOMMENDATION, REQUIREMENT, REQUIREMENTS,
@@ -55,6 +59,14 @@ use super::members::{
 };
 use crate::schema::format;
 use crate::{Error, Pointer, Reason};
+
+/// The prefix of a requirement identifier, `R`, from the one table of formats.
+const REQUIREMENT_PREFIX: &str = match format::part_prefix(Format::RequirementId) {
+    Some(prefix) => prefix,
+    None => "",
+};
+// The format of a requirement identifier is a part with a prefix, checked when the crate builds.
+const _: () = assert!(!REQUIREMENT_PREFIX.is_empty());
 
 /// The identifier that the next requirement added to a living specification gets when a change
 /// delta is merged (SPEC-0001 R20; SPEC-0009): `R<k>`, with `k` one more than the highest
@@ -71,7 +83,7 @@ use crate::{Error, Pointer, Reason};
 pub fn next_requirement<'r>(
     requirements: impl IntoIterator<Item = &'r RequirementId>,
 ) -> RequirementId {
-    let prefix = format::part_prefix(Format::RequirementId).unwrap_or_default();
+    let prefix = REQUIREMENT_PREFIX;
     let highest = requirements
         .into_iter()
         .map(RequirementId::as_str)
@@ -119,7 +131,7 @@ pub(super) fn check(index: &[Indexed<'_>], carriers: &Carriers<'_, '_>) -> Vec<E
         match artifact.kind {
             ArtifactKind::CouncilReport => parts.council_report(),
             ArtifactKind::Specification => {
-                parts.unique(ACCEPTANCE_CRITERIA);
+                parts.criteria();
                 parts.unique(OPEN_QUESTIONS);
                 parts.unique(REQUIREMENTS);
             }
@@ -127,7 +139,7 @@ pub(super) fn check(index: &[Indexed<'_>], carriers: &Carriers<'_, '_>) -> Vec<E
             ArtifactKind::Change => parts.operations(),
             ArtifactKind::Task => {
                 parts.dependencies(carriers, &cyclic);
-                parts.verification();
+                parts.verification(&Pointer::root(), document);
             }
             ArtifactKind::Brief
             | ArtifactKind::Gate
@@ -314,31 +326,14 @@ impl<'i> Parts<'_, 'i, '_> {
             let error = if target == own {
                 let message = format!("{own} depends on itself.");
                 conflict(message, at).with_pointers([id_pointer()])
-            } else if let Some(found) = carriers
-                .get(target)
-                .and_then(|c| c.first())
-                .filter(|found| found.status() == Some(Status::Superseded))
+            } else if let Some(found) =
+                first(carriers, target).filter(|found| found.status() == Some(Status::Superseded))
             {
-                let replacements = found.replacements(own);
-                let message = if replacements.is_empty() {
-                    format!("{own} depends on {target}, which is superseded.")
-                } else {
-                    format!(
-                        "{own} depends on {target}, which is superseded by {}.",
-                        replacements.join(", ")
-                    )
-                };
-                let mut error = conflict(message, at);
-                if !replacements.is_empty() {
-                    error = error.with_expected(replacements.iter().copied());
-                }
-                if let [replacement] = replacements.as_slice() {
-                    error = error.with_fix(*replacement);
-                }
-                error
+                let message = format!("{own} depends on {target}, which is superseded.");
+                found.replaced(own, conflict(message, at))
             } else if cyclic.contains(&(artifact.document, i)) {
                 let message =
-                    format!("{own} depends on {target}, which depends on {own} again: a cycle.");
+                    format!("{own} depends on {target}, which leads back to {own}: a cycle.");
                 conflict(message, at)
             } else {
                 continue;
@@ -347,12 +342,29 @@ impl<'i> Parts<'_, 'i, '_> {
         }
     }
 
-    /// The verification of a task: `none` is never given beside a technique (decided by the
-    /// maintainer on 2026-11-23). The order of the values and a repeated value carry no
-    /// meaning.
-    fn verification(&mut self) {
+    /// The acceptance criteria of a living specification, each in the byte order of its
+    /// members: its identifier unique in the list, then its verification.
+    fn criteria(&mut self) {
+        let document: &'i Map<String, Value> = self.document;
+        let repeated = repeated(&identifiers(document, ACCEPTANCE_CRITERIA));
+        for (i, criterion) in elements(document, ACCEPTANCE_CRITERIA) {
+            if let Some((first, id)) = repeated.get(&i) {
+                self.duplicate(ACCEPTANCE_CRITERIA, i, *first, id);
+            }
+            if let Some(members) = criterion.as_object() {
+                let at = Pointer::root().join(ACCEPTANCE_CRITERIA).join_index(i);
+                self.verification(&at, members);
+            }
+        }
+    }
+
+    /// The verification of a task or of an acceptance criterion, the object `holder` at `at`:
+    /// `none` is never given beside a technique (decided by the maintainer on 2026-11-23 and,
+    /// for acceptance criteria, on 2026-11-25). The order of the values and a repeated value
+    /// carry no meaning.
+    fn verification(&mut self, at: &Pointer, holder: &Map<String, Value>) {
         let none = Verification::None.id();
-        let values: Vec<(usize, &str)> = texts(self.document, VERIFICATION).collect();
+        let values: Vec<(usize, &str)> = texts(holder, VERIFICATION).collect();
         let Some(technique) = values.iter().find(|(_, v)| *v != none).map(|v| v.0) else {
             return;
         };
@@ -360,16 +372,16 @@ impl<'i> Parts<'_, 'i, '_> {
             .into_iter()
             .filter(|v| *v != Verification::None)
             .map(Verification::id);
-        let at = |i: usize| Pointer::root().join(VERIFICATION).join_index(i);
+        let value = |i: usize| at.join(VERIFICATION).join_index(i);
         for (i, _) in values.iter().filter(|(_, v)| *v == none) {
             let message = format!(
                 "{} is verified by {none} and by a technique; {none} states that no technique \
                  verifies it.",
                 self.artifact.id
             );
-            let error = Error::new(codes::ARTIFACT_SCHEMA, message, at(*i), Reason::Enum)
+            let error = Error::new(codes::ARTIFACT_SCHEMA, message, value(*i), Reason::Enum)
                 .with_expected(techniques.clone())
-                .with_pointers([at(technique)]);
+                .with_pointers([value(technique)]);
             self.push(error);
         }
     }
@@ -395,7 +407,7 @@ fn refused(op: OperationKind, member: &str) -> bool {
     match member {
         REQUIREMENT => !OperationKind::ON_A_REQUIREMENT.contains(&op),
         TEXT => !OperationKind::WITH_TEXT.contains(&op),
-        NAME => op == OperationKind::Removed,
+        NAME => OperationKind::WITHOUT_NAME.contains(&op),
         _ => false,
     }
 }
@@ -421,7 +433,7 @@ fn cyclic(index: &[Indexed<'_>], carriers: &Carriers<'_, '_>) -> BTreeSet<(u64, 
             continue;
         };
         for (i, target) in texts(document, DEPENDS_ON) {
-            let found = carriers.get(target).and_then(|c| c.first());
+            let found = first(carriers, target);
             let Some(m) = found.and_then(|f| node.get(&f.document)).copied() else {
                 continue;
             };
@@ -443,105 +455,122 @@ fn cyclic(index: &[Indexed<'_>], carriers: &Carriers<'_, '_>) -> BTreeSet<(u64, 
 
 /// The strongly connected component of each node of the graph `successors`, the successors of
 /// each node by its index, named by one of its nodes: the algorithm of Tarjan, with an explicit
-/// stack in place of recursion, so that a long path cannot exhaust the stack of the thread. Each
-/// node and each edge is visited once.
+/// stack of frames in place of recursion, so that a long path cannot exhaust the stack of the
+/// thread. Each node and each edge is visited once.
 fn components(successors: &[Vec<usize>]) -> Vec<usize> {
-    let count = successors.len();
-    let mut order: Vec<Option<usize>> = vec![None; count];
-    let mut low: Vec<usize> = vec![0; count];
-    let mut on_stack: Vec<bool> = vec![false; count];
-    let mut component: Vec<usize> = (0..count).collect();
-    let mut stack: Vec<usize> = Vec::new();
-    // Each frame is a node and the position of its next successor.
-    let mut frames: Vec<(usize, usize)> = Vec::new();
-    let mut visited = 0;
-    let get = |values: &[usize], n: usize| values.get(n).copied().unwrap_or_default();
-    for root in 0..count {
-        if order.get(root).copied().flatten().is_some() {
-            continue;
+    let mut tarjan = Tarjan::new(successors.len());
+    for root in 0..successors.len() {
+        if tarjan.order(root).is_none() {
+            tarjan.visit(successors, root);
         }
-        frames.push((root, 0));
-        enter(
-            root,
-            &mut visited,
-            &mut order,
-            &mut low,
-            &mut on_stack,
-            &mut stack,
-        );
+    }
+    tarjan.component
+}
+
+/// The state of the algorithm of Tarjan over a graph of `count` nodes. Every index it is given
+/// is below `count`; an index out of range is read as unvisited and never written.
+struct Tarjan {
+    /// The order in which each node was first visited; `None` before.
+    order: Vec<Option<usize>>,
+    /// The lowest order reached from each node through the nodes on the stack.
+    low: Vec<usize>,
+    /// Whether each node is on the stack of the component being built.
+    on_stack: Vec<bool>,
+    /// The nodes of the components not closed yet.
+    stack: Vec<usize>,
+    /// The component of each node, named by its first node visited.
+    component: Vec<usize>,
+    /// The order the next node visited gets.
+    visited: usize,
+}
+
+impl Tarjan {
+    fn new(count: usize) -> Self {
+        Self {
+            order: vec![None; count],
+            low: vec![0; count],
+            on_stack: vec![false; count],
+            stack: Vec::new(),
+            component: (0..count).collect(),
+            visited: 0,
+        }
+    }
+
+    fn order(&self, node: usize) -> Option<usize> {
+        self.order.get(node).copied().flatten()
+    }
+
+    fn low(&self, node: usize) -> usize {
+        self.low.get(node).copied().unwrap_or_default()
+    }
+
+    /// Lowers the lowest order reached from `node` to `reached`, when it is lower.
+    fn lower(&mut self, node: usize, reached: usize) {
+        if let Some(slot) = self.low.get_mut(node) {
+            *slot = (*slot).min(reached);
+        }
+    }
+
+    /// Gives `node` the next order of visit and puts it on the stack.
+    fn enter(&mut self, node: usize) {
+        if let Some(slot) = self.order.get_mut(node) {
+            *slot = Some(self.visited);
+        }
+        if let Some(slot) = self.low.get_mut(node) {
+            *slot = self.visited;
+        }
+        if let Some(flag) = self.on_stack.get_mut(node) {
+            *flag = true;
+        }
+        self.stack.push(node);
+        self.visited += 1;
+    }
+
+    /// Closes the component whose first node is `node`: every node above it on the stack.
+    fn close(&mut self, node: usize) {
+        while let Some(member) = self.stack.pop() {
+            if let Some(flag) = self.on_stack.get_mut(member) {
+                *flag = false;
+            }
+            if let Some(named) = self.component.get_mut(member) {
+                *named = node;
+            }
+            if member == node {
+                break;
+            }
+        }
+    }
+
+    /// Visits every node reached from `root`, unvisited, with one frame per node on the path:
+    /// the node and the position of its next successor.
+    fn visit(&mut self, successors: &[Vec<usize>], root: usize) {
+        let mut frames: Vec<(usize, usize)> = vec![(root, 0)];
+        self.enter(root);
         while let Some(frame) = frames.last_mut() {
             let (node, position) = *frame;
-            let next = successors.get(node).and_then(|s| s.get(position)).copied();
-            if let Some(successor) = next {
+            if let Some(successor) = successors.get(node).and_then(|s| s.get(position)).copied() {
                 frame.1 += 1;
-                match order.get(successor).copied().flatten() {
+                match self.order(successor) {
                     None => {
                         frames.push((successor, 0));
-                        enter(
-                            successor,
-                            &mut visited,
-                            &mut order,
-                            &mut low,
-                            &mut on_stack,
-                            &mut stack,
-                        );
+                        self.enter(successor);
                     }
-                    Some(seen) if on_stack.get(successor).copied().unwrap_or_default() => {
-                        lower(&mut low, node, seen);
+                    Some(seen) if self.on_stack.get(successor).copied().unwrap_or_default() => {
+                        self.lower(node, seen);
                     }
                     Some(_) => {}
                 }
                 continue;
             }
             frames.pop();
-            let reached = get(&low, node);
+            let reached = self.low(node);
             if let Some((parent, _)) = frames.last() {
-                lower(&mut low, *parent, reached);
+                self.lower(*parent, reached);
             }
-            if order.get(node).copied().flatten() == Some(reached) {
-                while let Some(member) = stack.pop() {
-                    if let Some(flag) = on_stack.get_mut(member) {
-                        *flag = false;
-                    }
-                    if let Some(named) = component.get_mut(member) {
-                        *named = node;
-                    }
-                    if member == node {
-                        break;
-                    }
-                }
+            if self.order(node) == Some(reached) {
+                self.close(node);
             }
         }
-    }
-    component
-}
-
-/// Gives `node` its order of visit, the next one, and puts it on the stack.
-fn enter(
-    node: usize,
-    visited: &mut usize,
-    order: &mut [Option<usize>],
-    low: &mut [usize],
-    on_stack: &mut [bool],
-    stack: &mut Vec<usize>,
-) {
-    if let Some(slot) = order.get_mut(node) {
-        *slot = Some(*visited);
-    }
-    if let Some(slot) = low.get_mut(node) {
-        *slot = *visited;
-    }
-    if let Some(flag) = on_stack.get_mut(node) {
-        *flag = true;
-    }
-    stack.push(node);
-    *visited += 1;
-}
-
-/// Lowers the lowest order reached from `node` to `reached`, when it is lower.
-fn lower(low: &mut [usize], node: usize, reached: usize) {
-    if let Some(slot) = low.get_mut(node) {
-        *slot = (*slot).min(reached);
     }
 }
 

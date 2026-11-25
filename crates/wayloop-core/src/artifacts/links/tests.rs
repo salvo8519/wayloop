@@ -154,7 +154,7 @@ fn ac7_a_story_linked_to_a_superseded_specification_gets_its_replacements_and_th
 }
 
 #[test]
-fn several_replacements_are_the_values_accepted_with_no_fix() {
+fn several_replacements_are_named_where_they_are_listed_with_no_fix() {
     let replaced = item(epic(), "EPIC-0002");
     let replaced = with(replaced, "status", json!("superseded"));
     let replaced = with(replaced, "superseded_by", json!(["EPIC-0001", "EPIC-0003"]));
@@ -167,12 +167,16 @@ fn several_replacements_are_the_values_accepted_with_no_fix() {
         found(&validation.errors),
         coded(codes::LINK_SUPERSEDED, "/epic", Reason::State)
     );
-    assert_eq!(
-        error.expected(),
-        Some(&[json!("EPIC-0001"), json!("EPIC-0003")][..])
-    );
-    // No single value to apply as is.
+    // No error copies a list that grows with the input (decided by the maintainer on
+    // 2026-11-25): the error names where the replacements are, the `superseded_by` of the
+    // target, and there is no single value to apply as is.
+    assert_eq!(error.expected(), None);
     assert_eq!(error.fix(), None);
+    let related = error.related().unwrap();
+    assert_eq!(related.len(), 1);
+    assert_eq!(Some(related[0].document()), after());
+    assert_eq!(related[0].pointer().to_string(), "/superseded_by");
+    assert!(!error.message().contains("EPIC-0001"), "{error:?}");
 }
 
 /// A draft milestone `M2` of the examples.

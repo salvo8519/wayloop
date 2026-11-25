@@ -423,7 +423,16 @@
       "/data",
       "/error/errors/0/fix",
       "/error/errors/0/expected",
-      "/error/errors/3/fix"
+      "/error/errors/0/related",
+      "/error/errors/1/fix",
+      "/error/errors/1/expected",
+      "/error/errors/1/related",
+      "/error/errors/2/fix",
+      "/error/errors/2/expected",
+      "/error/errors/2/related",
+      "/error/errors/3/fix",
+      "/error/errors/3/expected",
+      "/error/errors/3/related"
     ],
     "lengths": {
       "/error/errors": 4

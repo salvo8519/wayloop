@@ -312,16 +312,93 @@ fn a_dependency_on_a_superseded_task_is_a_conflict_with_its_replacement() {
         ]
     );
     let (one, two) = (&validation.errors[0], &validation.errors[1]);
-    // As for a link to a superseded artifact (R4): the replacements are the values accepted,
-    // and the fix when there is exactly one.
+    // As for a link to a superseded artifact (R4): exactly one replacement is the value
+    // accepted and the fix; several are named where they are listed, never copied (decided by
+    // the maintainer on 2026-11-25).
     assert_eq!(one.expected(), Some(&[json!("TASK-0004")][..]));
     assert_eq!(one.fix(), Some(&json!("TASK-0004")));
-    assert_eq!(
-        two.expected(),
-        Some(&[json!("TASK-0004"), json!("TASK-0006")][..])
-    );
-    assert_eq!(two.fix(), None);
+    assert_eq!((two.expected(), two.fix()), (None, None));
+    let related = two.related().unwrap();
+    assert_eq!(related.len(), 1);
+    assert_eq!(Some(related[0].document()), after(3));
+    assert_eq!(related[0].pointer().to_string(), "/superseded_by");
     assert!(one.message().contains("TASK-0003"), "{one:?}");
+}
+
+#[test]
+fn the_replacements_never_include_the_holder_nor_the_target() {
+    // `[holder, X]` and `[target, X]` both leave one replacement, X: it is the fix.
+    let validation = validated(vec![
+        depending("TASK-0002", &["TASK-0003", "TASK-0005"]),
+        superseded_task("TASK-0003", &["TASK-0002", "TASK-0004"]),
+        task_called("TASK-0004"),
+        superseded_task("TASK-0005", &["TASK-0005", "TASK-0004"]),
+    ]);
+    assert_eq!(validation.failures, []);
+    assert_eq!(
+        found(&validation.errors),
+        conflicts(&["/depends_on/0", "/depends_on/1"])
+    );
+    // The self-reference of the superseded target is its own broken link (R4), a warning since
+    // it is terminal, whose fix is the replacement left once the target itself is left out.
+    assert_eq!(
+        found(&validation.warnings),
+        [coded(
+            codes::LINK_BROKEN_TERMINAL,
+            "/superseded_by/0",
+            Reason::State
+        )]
+    );
+    for error in validation.errors.iter().chain(&validation.warnings) {
+        assert_eq!(error.expected(), Some(&[json!("TASK-0004")][..]));
+        assert_eq!(error.fix(), Some(&json!("TASK-0004")));
+        assert_eq!(error.related(), None);
+    }
+}
+
+#[test]
+fn the_report_stays_linear_in_dependencies_replacements_and_carriers() {
+    // No error copies a list that grows with the input (decided by the maintainer on
+    // 2026-11-25): n dependencies on a task with k replacements, and n copies of one
+    // identifier, give at most one `related` entry and one `expected` item per error.
+    const N: usize = 200;
+    const K: usize = 300;
+    let replacements: Vec<String> = (0..K).map(|k| format!("TASK-{:04}", 1000 + k)).collect();
+    let replacements: Vec<&str> = replacements.iter().map(String::as_str).collect();
+    let mut extra = vec![superseded_task("TASK-0003", &replacements)];
+    extra.extend(replacements.iter().map(|id| task_called(id)));
+    extra.extend((0..N).map(|n| depending(&format!("TASK-{:04}", 2000 + n), &["TASK-0003"])));
+    let copies = (0..N).map(|n| {
+        with(
+            task_called(&format!("TASK-{:04}", 3000 + n)),
+            "id",
+            json!("TASK-0009"),
+        )
+    });
+    extra.extend(copies);
+    let validation = validated(extra);
+    assert_eq!(validation.failures, []);
+    let count = |code: &Code| {
+        validation
+            .errors
+            .iter()
+            .filter(|e| e.code() == code)
+            .count()
+    };
+    assert_eq!(count(&codes::PART_INVALID), N);
+    assert_eq!(count(&codes::IDENTIFIER_DUPLICATE), N);
+    let related: usize = validation
+        .errors
+        .iter()
+        .map(|e| e.related().map_or(0, <[_]>::len))
+        .sum();
+    let expected: usize = validation
+        .errors
+        .iter()
+        .map(|e| e.expected().map_or(0, <[_]>::len))
+        .sum();
+    assert_eq!(related, 2 * N);
+    assert_eq!(expected, 0);
 }
 
 #[test]
@@ -501,7 +578,35 @@ fn a_path_of_a_million_nodes_needs_no_recursion() {
     assert_eq!(distinct.len(), NODES);
 }
 
-// The verification of a task ----------------------------------------------------------------------
+// The verification of a task and of an acceptance criterion ------------------------------------
+
+#[test]
+fn an_acceptance_criterion_verified_by_none_and_a_technique_is_refused_after_its_identifier() {
+    let mut spec = with(specification(), "id", json!("SPEC-0002"));
+    spec["acceptance_criteria"][1]["id"] = json!("AC1");
+    spec["acceptance_criteria"][1]["verification"] = json!(["none", "property"]);
+    spec["acceptance_criteria"][2]["verification"] = json!(["none", "none"]);
+    let validation = validated(vec![spec]);
+    assert_eq!(
+        found(errors(&validation)),
+        [
+            coded(
+                codes::PART_INVALID,
+                "/acceptance_criteria/1/id",
+                Reason::Duplicate
+            ),
+            coded(
+                codes::ARTIFACT_SCHEMA,
+                "/acceptance_criteria/1/verification/0",
+                Reason::Enum
+            ),
+        ]
+    );
+    assert_eq!(
+        pointers(&validation.errors[1]),
+        ["/acceptance_criteria/1/verification/1"]
+    );
+}
 
 #[test]
 fn a_task_verified_by_none_and_another_technique_is_refused_at_each_none() {

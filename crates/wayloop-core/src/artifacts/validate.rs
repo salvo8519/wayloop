@@ -12,6 +12,7 @@
 //! A document the interpreter has accepted, migrated to the current version of its type, is
 //! read into its contract type (ADR 0030 G1); a failure there is a defect of the engine.
 
+use core::cell::OnceCell;
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 
@@ -145,6 +146,7 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
                 entry,
                 read,
                 clean,
+                offered: OnceCell::new(),
             });
         }
         if !title_refused {
