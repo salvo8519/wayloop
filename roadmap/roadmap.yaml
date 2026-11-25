@@ -135,6 +135,7 @@ milestones:
           - { issue: 7, title: "Claude Code and Codex mirrors generated from .agents", tags: [parallel], status: done }
           - { issue: 8, title: "Session-start and session-end skills", tags: [parallel], status: done }
           - { issue: 159, title: "Agents merge their own pull requests; engine and contract changes wait for confirmation", status: done }
+          - { issue: 348, title: "Promote the learnings of the SPEC-0001 reviews", status: open }
       - title: "Process skills, agents and hooks"
         issue: 205
         labels: ["area:agents"]
@@ -170,6 +171,7 @@ milestones:
           - { issue: 48, title: "Implement the transition table and guards", spec: "0002", status: open }
           - { issue: 49, title: "Next step and ready work", spec: "0002", status: open }
           - { issue: 58, title: "Dry run of the issue cycle on local fixtures", spec: "0002", status: open }
+          - { issue: 347, title: "Allowed status transitions of artifacts as data in the core", spec: "0001", status: open }
       - title: "Ledger"
         issue: 22
         labels: ["area:core"]
