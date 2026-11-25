@@ -1,0 +1,77 @@
+{
+  "description": "The invalid commit of the examples: its scope kernel is not a scope of the policy, refused with commit_header, reason enum at /header, and the scopes of the policy in expected, without fix.",
+  "covers": [
+    "SPEC-0001 R11",
+    "SPEC-0001 AC1",
+    "SPEC-0001 AC21"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "header": "feat(kernel): store durations in seconds",
+          "body": "Signed-off-by: Example Owner <owner@example.org>\n"
+        },
+        "input_kind": "commit"
+      }
+    ],
+    "policy": {
+      "types": [
+        "feat",
+        "fix",
+        "perf",
+        "refactor",
+        "docs",
+        "test",
+        "build",
+        "ci",
+        "chore",
+        "revert"
+      ],
+      "scopes": [
+        "core",
+        "cli",
+        "docs",
+        "specs",
+        "ci"
+      ],
+      "areas": [
+        "core",
+        "cli",
+        "docs"
+      ]
+    }
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "commit_header",
+      "/error/document": 0,
+      "/error/pointer": "/header",
+      "/error/reason": "enum",
+      "/error/expected": [
+        "core",
+        "cli",
+        "docs",
+        "specs",
+        "ci"
+      ],
+      "/error/errors/0/code": "commit_header",
+      "/meta/input_hash": "0c4930e5f818c1999c77baa98fc3f97c007ea104022793789a8df75f7ff9996a"
+    },
+    "absent": [
+      "/data",
+      "/error/fix",
+      "/error/source"
+    ],
+    "lengths": {
+      "/error/errors": 1,
+      "/error/expected": 5,
+      "/meta/defaults_applied": 1
+    }
+  }
+}

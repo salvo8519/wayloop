@@ -1,0 +1,86 @@
+{
+  "description": "A policy with 33 types, over the bound of 32, and an area out of the form of a name of the policy is refused by the schema of the command input, each list and name at its pointer.",
+  "covers": [
+    "SPEC-0001 R11",
+    "SPEC-0001 R21",
+    "SPEC-0001 AC21"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "header": "feat(core): add x"
+        },
+        "input_kind": "commit"
+      }
+    ],
+    "policy": {
+      "types": [
+        "feat",
+        "fix",
+        "perf",
+        "refactor",
+        "docs",
+        "test",
+        "build",
+        "ci",
+        "chore",
+        "revert",
+        "type0",
+        "type1",
+        "type2",
+        "type3",
+        "type4",
+        "type5",
+        "type6",
+        "type7",
+        "type8",
+        "type9",
+        "type10",
+        "type11",
+        "type12",
+        "type13",
+        "type14",
+        "type15",
+        "type16",
+        "type17",
+        "type18",
+        "type19",
+        "type20",
+        "type21",
+        "type22"
+      ],
+      "scopes": [
+        "core"
+      ],
+      "areas": [
+        "core",
+        "Area:Core"
+      ]
+    }
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "command_input",
+      "/error/pointer": "/policy/areas/1",
+      "/error/reason": "syntax",
+      "/error/errors/1/code": "command_input",
+      "/error/errors/1/pointer": "/policy/types",
+      "/error/errors/1/reason": "length",
+      "/meta/input_hash": "1a9e5a2b85b8c62a51aaaf256a0182a08697ddae578776f2ded4d5330634e201"
+    },
+    "absent": [
+      "/data",
+      "/error/errors/0/fix",
+      "/error/errors/1/fix"
+    ],
+    "lengths": {
+      "/error/errors": 2
+    }
+  }
+}

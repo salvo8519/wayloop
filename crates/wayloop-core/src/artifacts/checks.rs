@@ -33,9 +33,9 @@ pub const MARKDOWN: Check = Check::new("markdown");
 // The schema of each type is its own check, `schema_<kind>` (`kinds::schema_check`): in `checks`
 // when the schema is built, in `not_done` otherwise. The checks run on every set are `markdown`,
 // `document_kind`, `schema_version`, `schema_<kind>` of each built type, `identifier_format`,
-// `identifier_duplicate`, `identifier_location`, `links`, `parts`, `title_format` and
-// `title_duplicate`, in the order of the stages of the plan, then `adr_citations` when `adrs` is
-// given and `artifact_locations` when `locations` is given.
+// `identifier_duplicate`, `identifier_location`, `links`, `parts`, `title_format`,
+// `title_duplicate`, `branch_name` and `commit_header`, in the order of the stages of the plan,
+// then `adr_citations` when `adrs` is given and `artifact_locations` when `locations` is given.
 /// Links between artifacts and the hierarchy of plan items (R3, R4, R9, R15).
 pub const LINKS: Check = Check::new("links");
 /// The citations `ADR <NNNN>` in `related` of a living specification against `adrs` (Q5 of
@@ -45,11 +45,19 @@ pub const ADR_CITATIONS: Check = Check::new("adr_citations");
 pub const PARTS: Check = Check::new("parts");
 /// Transitions and initial statuses against the default branch (R13, R19).
 pub const STATUSES: Check = Check::new("statuses");
-/// Branch names, commit headers and pull request links (R10, R11).
-pub const NAMING: Check = Check::new("naming");
+/// The `branch` of each pull request follows the grammar of branches, with a type of the policy
+/// (R11).
+pub const BRANCH_NAME: Check = Check::new("branch_name");
+/// The `header` of each commit and the `title` of each pull request follow the grammar of
+/// commit headers, with a type and a scope of the policy, and a commit whose header marks a
+/// breaking change has its paragraph (R11).
+pub const COMMIT_HEADER: Check = Check::new("commit_header");
+/// The body of each pull request links one planned task or gate issue, the issue of its branch
+/// (R10).
+pub const PULL_REQUEST_LINK: Check = Check::new("pull_request_link");
 /// The `area` of each epic and task is an area of the project policy, or of the default
 /// policy when none is given (R21).
 pub const AREAS: Check = Check::new("areas");
 
 /// The checks of the whole set that this version of the engine does not run.
-pub const NOT_BUILT: [Check; 3] = [STATUSES, NAMING, AREAS];
+pub const NOT_BUILT: [Check; 3] = [STATUSES, PULL_REQUEST_LINK, AREAS];

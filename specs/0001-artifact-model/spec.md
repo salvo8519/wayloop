@@ -133,6 +133,17 @@ policy as its value, and only when a check reads the policy: when the set holds 
 epic or task, or an input whose check reads types or scopes (decided by the maintainer on
 2026-11-25).
 
+The schema of the policy bounds its lists and the form of its names: at most 32 types, 256
+scopes and 256 areas, and each name is one lower-case word of ASCII letters, digits and hyphens
+that starts with a letter (`[a-z][a-z0-9-]*`), of at most 32 characters (#267, decided by the
+maintainer on 2026-11-25). The bounds and the form are defined once, as constants and as one
+name type of `wayloop-schemas` with the format `policy-name`, read by the schema and by the
+core: the schema of a name states its length as `maxLength` beside the format, so a name too
+long gets one error of length, and a fix of a name is never longer than the bound. A policy
+outside them is refused as a command input, at the list or at the name, and no check of the
+documents runs. The `area` of epics and tasks and the `commit_scope` of living specifications
+are names of the policy and have the same form.
+
 An `area` value is the area name without the label prefix: `core`, not `area:core`. The
 tracker adapter adds the prefix when it writes the label (SPEC-0005).
 
@@ -616,9 +627,12 @@ Branches:
 
 | Form | Rule |
 | --- | --- |
-| `<type>/<issue>-<slug>` | `<issue>` matching `[1-9][0-9]*`; `<slug>` of 1 to 5 words of `[a-z0-9]+` joined by single hyphens |
+| `<type>/<issue>-<slug>` | `<issue>` matching `[1-9][0-9]*`, within the range of an issue number, at most 9007199254740991 (#267, decided by the maintainer on 2026-11-25); `<slug>` of 1 to 5 words of `[a-z0-9]+` joined by single hyphens |
 | `sprint/S<NN>/<issue>-<slug>` | as above; `<NN>` two digits or more, the number of the sprint file |
 | `dependabot/<anything>`, `release/v<anything>`, `revert-<n>-<anything>` | exempt: accepted without further checks |
+
+A branch name that is not exempt has at most 100 characters (#267, decided by the maintainer on
+2026-11-25); a longer one is refused with the reason `length`.
 
 Commit header and pull request title:
 
@@ -628,16 +642,43 @@ Commit header and pull request title:
 
 - `<type>` is a type of the policy; `<scope>` is required and is a scope of the policy, except
   for `revert`, where it is optional.
-- `!` marks a breaking change; the commit then needs a paragraph starting with
-  `BREAKING CHANGE:` in its body (reason `requires`). For a pull request title, the label
-  `breaking-change` is the evidence, checked by SPEC-0021.
-- `<subject>` starts with a lower-case letter and has no final full stop.
+- `!` marks a breaking change; the commit then needs a line `BREAKING CHANGE: <text>` in its
+  body, with text after the colon, that starts a paragraph or is a footer, a line of the last
+  paragraph, where the trailers are (reason `requires`). The footer form was decided by the
+  maintainer on 2026-11-25 (#267). A blank line holds only spaces and tabs. For a pull request
+  title, the label `breaking-change` is the evidence, checked by SPEC-0021.
+- `<subject>` starts with a lower-case ASCII letter, `a` to `z`, or with any character outside
+  ASCII; it never starts with an upper-case ASCII letter, `A` to `Z`, nor with another ASCII
+  character, such as a digit, a backtick or white space. The rule reads no table of Unicode, so
+  its verdict is the same under every version of Unicode, in the core and in
+  `scripts/conventions.py` (#267, decided by the maintainer on 2026-11-25). The `fix` lowers an
+  upper-case ASCII first letter that starts a word, not an acronym. The subject has no final
+  full stop; its trailing white space is trimmed before the rule of the full stop (#267, decided
+  by the maintainer on 2026-11-25).
 - The header is at most 72 characters, reference included.
+- A commit whose header git writes itself is exempt from the grammar, by the form of its header
+  and never by its author: a header that starts with `Merge `, `Revert "`, `fixup! ` or
+  `squash! ` (#267, decided by the maintainer on 2026-11-25). A pull request title has no such
+  exemption.
+- A member refused by its schema is not checked again by these rules (#267, decided by the
+  maintainer on 2026-11-25): a header, a title or a branch with an error of its own is not read,
+  and a breaking commit whose body has an error of its own gets no `requires`.
+- A `fix` of a branch or of a header is given only when the corrected value breaks no other rule
+  of this grammar (#267, decided by the maintainer on 2026-11-25).
+
+`scripts/conventions.py`, which the commit-msg hook and the pull request workflow of this
+repository run, follows this grammar exactly, the core being the specification; a process test
+sends shared cases, every commit header of the history of `main` and every remote branch through
+both, and they must agree (#267, decided by the maintainer on 2026-11-25).
 
 Producing a branch name: the type is given; the slug is taken from the title, transliterated to
 ASCII (accents removed, for example `città` to `citta`), lower-cased, with every run of other
 characters turned into one hyphen, and cut after five words. When nothing is left, the slug is
-`work`.
+`work`. So that the produced name passes the limit of 100 characters, the slug is then cut to
+its whole words that fit, or its first word to the room left when none fits whole; when the type
+and the issue leave no room, or the issue is beyond the range of an issue number, no name is
+produced (#267, following from the limit of 100 characters decided by the maintainer on
+2026-11-25).
 
 Titles (R7, R8):
 
@@ -674,12 +715,16 @@ maintainer on 2026-11-25, superseding the earlier decision of the same day that 
 `related`). Each error of `identifier_duplicate` names one other artifact that carries the
 identifier in `related` (SPEC-0004 R2), its `document`, the pointer `/id` and the members of its
 `source`: every later carrier names the first, and the first names the second. The same holds
-for `title_duplicate`, which shares the rule. Every artifact of a known `kind` whose `id` raised
-no error is compared, whatever its other errors, so that the duplicates are found in the same
-pass as every other error (ADR 0009 C3; decided by the maintainer on 2026-11-25). A file name or a
-folder number that differs from the identifier (section Where artifacts live; living specification)
-is the warning `identifier_location` at `/id`, with `fix` the identifier, given only for an
-artifact read from a file of a location (decided by the maintainer on 2026-11-25).
+for `title_duplicate`, which shares the rule. The `expected` of `branch_name` and
+`commit_header` lists the types or the scopes of the policy (AC21): these lists are bounded by
+the schema of the policy (Project policy), in their number and in the length of each name, so
+they never grow with the input and AC21 agrees with this rule (#267, decided by the maintainer
+on 2026-11-25). Every artifact of a known `kind` whose `id` raised no error is compared,
+whatever its other errors, so that the duplicates are found in the same pass as every other
+error (ADR 0009 C3; decided by the maintainer on 2026-11-25). A file name or a folder number
+that differs from the identifier (section Where artifacts live; living specification) is the
+warning `identifier_location` at `/id`, with `fix` the identifier, given only for an artifact
+read from a file of a location (decided by the maintainer on 2026-11-25).
 
 Errors of links (`link_missing`, `link_superseded`, `link_broken_terminal`) and of the
 hierarchy (`hierarchy_mismatch`) carry no `related`, except for the replacements of a superseded

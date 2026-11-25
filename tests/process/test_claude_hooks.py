@@ -223,17 +223,19 @@ def test_no_reminder_on_main_or_without_commits(contracts: Path) -> None:
 
 
 def briefing_branch_issue(branch: str) -> str:
-    """The issue that the sed program of session-briefing.sh reads from a branch name."""
+    """The issue that session-briefing.sh reads from a branch name: its sed program and the
+    shell test of the length and the range that follows it, run on `branch`."""
     text = (HOOKS / "session-briefing.sh").read_text(encoding="utf-8")
     programs = re.findall(r"sed -nE '([^']+)'", text)
     assert len(programs) == 1, "session-briefing.sh reads the issue with one sed -nE program"
+    rule = re.search(r"^issue=\$\(.*?^fi$", text, re.MULTILINE | re.DOTALL)
+    assert rule, "session-briefing.sh reads the issue in one block, from issue=$( to fi"
     return subprocess.run(
-        ["sed", "-nE", programs[0]],
-        input=branch + "\n",
+        ["bash", "-c", f'branch="$1"\n{rule.group(0)}\nprintf %s "$issue"', "_", branch],
         capture_output=True,
         text=True,
         check=True,
-    ).stdout.strip()
+    ).stdout
 
 
 @pytest.mark.parametrize(
@@ -246,6 +248,17 @@ def briefing_branch_issue(branch: str) -> str:
         "feat/42-Upper",
         "feat/ledger",
         "sprint/01/42-x",
+        "sprint/S1/42-x",
+        "sprint/S123/42-x",
+        "feat/042-x",
+        "feat/42-one-two-three-four-five",
+        "feat/42-one-two-three-four-five-six",
+        "feat/9007199254740991-x",
+        "feat/9007199254740992-x",
+        "feat/99999999999999999-x",
+        "feat/1-" + "x" * 93,
+        "feat/1-" + "x" * 94,
+        "sprint/42-x",
         "main",
         "dependabot/cargo/serde-1.0.200",
         "release/v0.1.0",

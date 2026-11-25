@@ -1,0 +1,54 @@
+{
+  "description": "Headers that git writes itself, a merge and a revert, are exempt from the grammar of headers, and a breaking commit may state its change in a footer of the trailer block; the set passes against the default policy.",
+  "covers": [
+    "SPEC-0001 R11",
+    "SPEC-0001 AC18"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "header": "Merge branch 'main' into feat/12-ledger"
+        },
+        "input_kind": "commit"
+      },
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "header": "Revert \"feat(core)!: drop the v1 envelope\"",
+          "body": "This reverts commit 0123456.\n"
+        },
+        "input_kind": "commit"
+      },
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "header": "feat(core)!: drop the v1 envelope",
+          "body": "Drops the v1 envelope.\n\nRefs: #12\nBREAKING CHANGE: clients read v2.\nSigned-off-by: Example Owner <owner@example.org>\n"
+        },
+        "input_kind": "commit"
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 0,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/meta/defaults_applied/1/pointer": "/policy",
+      "/meta/defaults_applied/1/reason": "default_policy",
+      "/meta/input_hash": "6d262967f8e6a7ec707739d46c55aa0622c5f327940e4f7364c01a472e8f3ba6"
+    },
+    "absent": [
+      "/error"
+    ],
+    "lengths": {
+      "/data/documents": 3,
+      "/meta/defaults_applied": 2
+    }
+  }
+}

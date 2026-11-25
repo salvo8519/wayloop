@@ -25,6 +25,9 @@ crate::closed_enum! {
         /// Lower-case words of ASCII letters and digits joined by single hyphens: the
         /// capability of a living specification, the slug of its folder.
         Capability = "capability",
+        /// A name of the project policy, a type of commits, a scope or an area: one lower-case
+        /// word of ASCII letters, digits and hyphens that starts with a letter.
+        PolicyName = "policy-name",
         /// `BRIEF-` and a sequence.
         BriefId = "brief-id",
         /// `COUNCIL-` and a sequence.
@@ -61,9 +64,27 @@ crate::closed_enum! {
     }
 }
 
+/// The most characters of a name of the project policy, a value of the format `policy-name`
+/// (#267, decided by the maintainer on 2026-11-25): the schema of the name states it as
+/// `maxLength`, so that an error that lists names of the policy in `expected` stays bounded.
+pub const POLICY_NAME_MAX_CHARS: usize = 32;
+
+impl Format {
+    /// The most characters of a value of the format, which every schema that uses the format
+    /// states as `maxLength` beside it; `None` for a format that bounds no length of its own.
+    #[must_use]
+    pub const fn max_chars(self) -> Option<usize> {
+        if matches!(self, Self::PolicyName) {
+            Some(POLICY_NAME_MAX_CHARS)
+        } else {
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Format;
+    use super::{Format, POLICY_NAME_MAX_CHARS};
 
     // Exhaustive: a new format does not compile until it gets a position here, and then the
     // test fails until ALL lists it in that position.
@@ -75,22 +96,23 @@ mod tests {
             Format::TrackerHandle => 3,
             Format::ProjectPath => 4,
             Format::Capability => 5,
-            Format::BriefId => 6,
-            Format::CouncilId => 7,
-            Format::BriefOrCouncilId => 8,
-            Format::GateId => 9,
-            Format::EpicId => 10,
-            Format::StoryId => 11,
-            Format::SpecId => 12,
-            Format::ChangeId => 13,
-            Format::TaskId => 14,
-            Format::MilestoneId => 15,
-            Format::HandoverId => 16,
-            Format::RequirementId => 17,
-            Format::CriterionId => 18,
-            Format::DecisionId => 19,
-            Format::QuestionId => 20,
-            Format::JsonPointer => 21,
+            Format::PolicyName => 6,
+            Format::BriefId => 7,
+            Format::CouncilId => 8,
+            Format::BriefOrCouncilId => 9,
+            Format::GateId => 10,
+            Format::EpicId => 11,
+            Format::StoryId => 12,
+            Format::SpecId => 13,
+            Format::ChangeId => 14,
+            Format::TaskId => 15,
+            Format::MilestoneId => 16,
+            Format::HandoverId => 17,
+            Format::RequirementId => 18,
+            Format::CriterionId => 19,
+            Format::DecisionId => 20,
+            Format::QuestionId => 21,
+            Format::JsonPointer => 22,
         }
     }
 
@@ -116,6 +138,7 @@ mod tests {
                 "tracker-handle",
                 "project-path",
                 "capability",
+                "policy-name",
                 "brief-id",
                 "council-id",
                 "brief-or-council-id",
@@ -137,5 +160,14 @@ mod tests {
         for unknown in ["email", "uint32", "", "Date"] {
             assert_eq!(Format::from_id(unknown), None, "{unknown}");
         }
+    }
+
+    #[test]
+    fn only_the_policy_name_bounds_its_length() {
+        for format in Format::ALL {
+            let bound = (format == Format::PolicyName).then_some(POLICY_NAME_MAX_CHARS);
+            assert_eq!(format.max_chars(), bound, "{format}");
+        }
+        assert_eq!(POLICY_NAME_MAX_CHARS, 32);
     }
 }

@@ -1,0 +1,71 @@
+{
+  "description": "A commit whose header marks a breaking change with ! and whose body has no paragraph starting with BREAKING CHANGE: is refused with commit_header, reason requires at /body, and the header in pointers.",
+  "covers": [
+    "SPEC-0001 R11",
+    "SPEC-0001 AC18"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "header": "feat(core)!: drop the v1 envelope",
+          "body": "Drops the v1 envelope.\n\nRefs: #12\nSigned-off-by: Example Owner <owner@example.org>\n"
+        },
+        "input_kind": "commit"
+      }
+    ],
+    "policy": {
+      "types": [
+        "feat",
+        "fix",
+        "perf",
+        "refactor",
+        "docs",
+        "test",
+        "build",
+        "ci",
+        "chore",
+        "revert"
+      ],
+      "scopes": [
+        "core",
+        "cli",
+        "docs",
+        "specs",
+        "ci"
+      ],
+      "areas": [
+        "core",
+        "cli",
+        "docs"
+      ]
+    }
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "commit_header",
+      "/error/document": 0,
+      "/error/pointer": "/body",
+      "/error/reason": "requires",
+      "/error/pointers": [
+        "/header"
+      ],
+      "/meta/input_hash": "018cdc121a8562cdaab5eb42a176ea8efc681cd1276138981ed22901cd65c354"
+    },
+    "absent": [
+      "/data",
+      "/error/fix",
+      "/error/expected",
+      "/error/source"
+    ],
+    "lengths": {
+      "/error/errors": 1,
+      "/meta/defaults_applied": 1
+    }
+  }
+}

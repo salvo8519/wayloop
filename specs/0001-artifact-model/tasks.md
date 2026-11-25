@@ -156,7 +156,7 @@ Prerequisites outside this specification:
   - Depends on: T7, D4.
   - Size: S. Maintainer (crates).
 
-- [ ] **T17 Validate and produce branch names and commit headers**
+- [x] **T17 Validate and produce branch names and commit headers**
   - Covers: R11; AC12, AC15, AC16, AC17, AC18, AC19, AC20, AC21, AC22; AC1 (`commit.invalid.yaml`). Issue: #267.
   - Files: `crates/wayloop-core/src/naming/branch.rs`, `crates/wayloop-core/src/naming/commit.rs`, `tests/contract/validate/v1/`.
   - Tests first: one test per AC; the property test of AC12 over any issue number, type and title, accented and non-ASCII titles included.

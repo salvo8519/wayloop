@@ -77,9 +77,11 @@ a question with `needs-decision`.
 ## Branches
 
 `<type>/<issue>-<slug>`, lower case, words separated by hyphens, at most five words in the
-slug: `fix/61-replay-order`, `docs/48-mcp-guide`. The type is the Conventional Commit type of
+slug and at most 100 characters in all: `fix/61-replay-order`, `docs/48-mcp-guide`. The issue is
+a number from 1 without a leading zero. The type is the Conventional Commit type of
 the main change. One branch per issue; branches are short-lived and deleted after merge. An
-issue worked in a sprint lane uses `sprint/SNN/<issue>-<slug>` instead: on those branches CI
+issue worked in a sprint lane uses `sprint/SNN/<issue>-<slug>` instead, with two digits or more
+after `S`: on those branches CI
 also checks that the pull request changes only the files of the lane
 ([sprints](https://github.com/salvo8519/wayloop/blob/main/sprints/README.md)). Exempt:
 `dependabot/*`, `release/v*`, and `revert-<n>-*`, the branch GitHub creates for the
@@ -105,13 +107,23 @@ Signed-off-by: Name Surname <email>
   `agents`, `project`, `roadmap`; build and delivery `ci`, `deps`, `release`, `scripts`,
   `benchmark`. New scopes are added in `scripts/conventions.py` with this page in the same
   pull request.
-- **Subject**: imperative, lower case first word, no full stop, header at most 72 characters.
-- **Breaking change**: `!` after the scope and a `BREAKING CHANGE:` paragraph in the body; the
-  pull request carries the label `breaking-change`.
+- **Subject**: imperative, lower case first word: it starts with `a` to `z` or a character
+  outside ASCII, never with `A` to `Z`, a digit, a backtick or other ASCII punctuation; no full
+  stop (trailing white space does not hide one), header at most 72 characters, reference
+  included.
+- **Breaking change**: `!` after the scope and a line `BREAKING CHANGE: <what>` in the body,
+  starting a paragraph or as a footer among the trailers; the pull request carries the label
+  `breaking-change`.
+- **Messages written by git**: a header that starts with `Merge `, `Revert "`, `fixup! ` or
+  `squash! ` is exempt, by its form and never by its author. Bots follow every naming rule;
+  they only skip the issue link of a pull request.
 - **Trailers**: `Signed-off-by` always (`git commit -s`); `Refs: #<n>` to link the issue;
   `Docs-impact: none` when the change genuinely needs no documentation.
 - The commit-msg hook and the pull request workflow run the same code,
-  `scripts/conventions.py`.
+  `scripts/conventions.py`. Its grammar of branches and headers is SPEC-0001 R11, which
+  `wayloop validate` checks too: `tests/process/test_conventions.py` sends the shared cases of
+  `tests/process/naming_cases.json`, every header of the history of `main` and every remote
+  branch through both, and requires the same verdict.
 
 ## Pull requests
 

@@ -1,0 +1,60 @@
+{
+  "description": "A branch of more than 100 characters is refused with the reason length and, as the fix, the branch cut to the whole words of its slug that fit; a branch whose issue is beyond the range of an issue number is refused with the reason syntax and no fix.",
+  "covers": [
+    "SPEC-0001 R11"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "title": "feat(core): add x",
+          "body": "Closes #12",
+          "branch": "feat/12-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "labels": []
+        },
+        "input_kind": "pull_request"
+      },
+      {
+        "format": "document",
+        "document": {
+          "schema_version": 1,
+          "title": "feat(core): add x",
+          "body": "Closes #12",
+          "branch": "feat/9007199254740992-ledger",
+          "labels": []
+        },
+        "input_kind": "pull_request"
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/code": "branch_name",
+      "/error/document": 0,
+      "/error/pointer": "/branch",
+      "/error/reason": "length",
+      "/error/fix": "feat/12-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "/error/errors/1/code": "branch_name",
+      "/error/errors/1/document": 1,
+      "/error/errors/1/pointer": "/branch",
+      "/error/errors/1/reason": "syntax",
+      "/meta/defaults_applied/1/reason": "default_policy",
+      "/meta/input_hash": "024ad4d777fa1de25bc97a138def2416c3f6710ff83f49cc8928a1370705f4c1"
+    },
+    "absent": [
+      "/data",
+      "/error/expected",
+      "/error/errors/1/fix",
+      "/error/errors/1/expected"
+    ],
+    "lengths": {
+      "/error/errors": 2,
+      "/meta/defaults_applied": 2
+    }
+  }
+}

@@ -1,0 +1,493 @@
+{
+  "about": "Commit headers and branch names with the reasons of the errors that SPEC-0001 R11 gives them, in the order of the engine, under the default policy. Read by crates/wayloop-runtime/src/project/tests.rs (through the validate command of the core) and by tests/process/test_conventions.py (scripts/conventions.py), so that the two agree. A commit without body is sent without the member body.",
+  "commits": [
+    {
+      "header": "feat(state): add the transition table",
+      "reasons": []
+    },
+    {
+      "header": "fix(ledger): reject a broken hash chain [SPEC-0003 R4, R5]",
+      "reasons": []
+    },
+    {
+      "header": "feat(cli)!: rename the next command",
+      "body": "BREAKING CHANGE: the command is renamed.\n",
+      "reasons": []
+    },
+    {
+      "header": "feat(cli)!: rename the next command",
+      "reasons": [
+        "requires"
+      ]
+    },
+    {
+      "header": "feat(cli)!: rename the next command",
+      "body": "Renames it.\n\nRefs: #12\nBREAKING CHANGE: next is now step.\nSigned-off-by: A <a@example.org>\n",
+      "reasons": []
+    },
+    {
+      "header": "feat(cli)!: rename the next command",
+      "body": "Renames it.\n\nBREAKING CHANGE:\n",
+      "reasons": [
+        "requires"
+      ]
+    },
+    {
+      "header": "feat(cli)!: rename the next command",
+      "body": "Renames it.\nBREAKING CHANGE: inside.\nMore.\n\nRefs: #12\n",
+      "reasons": [
+        "requires"
+      ]
+    },
+    {
+      "header": "feat(cli)!: Rename the next command",
+      "reasons": [
+        "requires",
+        "syntax"
+      ]
+    },
+    {
+      "header": "revert: feat(state): add the transition table",
+      "reasons": []
+    },
+    {
+      "header": "revert(core): drop the hash chain",
+      "reasons": []
+    },
+    {
+      "header": "feat(tracker): read sub-issues into the cache [SPEC-0005 R1]",
+      "reasons": []
+    },
+    {
+      "header": "Added guards",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat: add something",
+      "reasons": [
+        "missing"
+      ]
+    },
+    {
+      "header": "feat(): add something",
+      "reasons": [
+        "missing"
+      ]
+    },
+    {
+      "header": "feature(state): add something",
+      "reasons": [
+        "enum"
+      ]
+    },
+    {
+      "header": "feat(money): add something",
+      "reasons": [
+        "enum"
+      ]
+    },
+    {
+      "header": "feat(state): Add something",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(state): add something.",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(state): xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "reasons": [
+        "length"
+      ]
+    },
+    {
+      "header": "feat(core): xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "reasons": []
+    },
+    {
+      "header": "feat(core): xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "reasons": [
+        "length"
+      ]
+    },
+    {
+      "header": "feat(core): èèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèèè",
+      "reasons": []
+    },
+    {
+      "header": "feature(core): Add x",
+      "reasons": [
+        "enum",
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core): add the ledger. \t",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core): add the ledger.　",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core): add the ledger ",
+      "reasons": []
+    },
+    {
+      "header": "feat(core): add x. [SPEC-1 R1]",
+      "reasons": []
+    },
+    {
+      "header": "feat(ledger): chain events by hash. [SPEC-0003 R2]",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core): add x [wip]",
+      "reasons": []
+    },
+    {
+      "header": "feat(core):add x",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core) : add x",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core: add x",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "my feat(core): add x",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "fe at(core): add x",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core): è as a letter",
+      "reasons": []
+    },
+    {
+      "header": "feat(core): È as a capital",
+      "reasons": []
+    },
+    {
+      "header": "feat(core): 2 ledgers",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core): É as an accented capital",
+      "reasons": []
+    },
+    {
+      "header": "feat(core): A as an ASCII capital",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core): Z as the last ASCII capital",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core): z as the last ASCII letter",
+      "reasons": []
+    },
+    {
+      "header": "feat(core): 0 as a digit",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core): `wayloop init` in a backtick",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "feat(core): « as a character outside ASCII",
+      "reasons": []
+    },
+    {
+      "header": "Merge branch 'main' into feat/12-x",
+      "reasons": []
+    },
+    {
+      "header": "Merge pull request #12 from owner/feat/12-x",
+      "body": "Add x.\n",
+      "reasons": []
+    },
+    {
+      "header": "Revert \"feat(core)!: drop the v1 envelope\"",
+      "body": "This reverts commit 0123456.\n",
+      "reasons": []
+    },
+    {
+      "header": "fixup! feat(core)!: drop the v1 envelope",
+      "reasons": []
+    },
+    {
+      "header": "squash! Anything at all.",
+      "reasons": []
+    },
+    {
+      "header": "amend! feat(core): add x",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "Revert feat(core): add x",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "header": "build(deps): Bump serde from 1.0.1 to 1.0.2 in the cargo-minor group across 1 directory",
+      "reasons": [
+        "syntax",
+        "length"
+      ]
+    },
+    {
+      "header": "ci(deps): bump the actions group across 1 directory with 2 updates",
+      "reasons": []
+    }
+  ],
+  "branches": [
+    {
+      "branch": "feat/42-ledger-hash-chain",
+      "reasons": []
+    },
+    {
+      "branch": "fix/61-replay-order",
+      "reasons": []
+    },
+    {
+      "branch": "docs/48-mcp-guide",
+      "reasons": []
+    },
+    {
+      "branch": "sprint/S01/42-ledger-hash",
+      "reasons": []
+    },
+    {
+      "branch": "sprint/S12/7-x",
+      "reasons": []
+    },
+    {
+      "branch": "sprint/S123/42-ledger-hash-chain",
+      "reasons": []
+    },
+    {
+      "branch": "main",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "dependabot/cargo/serde-1.0.200",
+      "reasons": []
+    },
+    {
+      "branch": "release/v0.1.0",
+      "reasons": []
+    },
+    {
+      "branch": "revert-57-feat/42-x",
+      "reasons": []
+    },
+    {
+      "branch": "revert-57-Anything At All",
+      "reasons": []
+    },
+    {
+      "branch": "feat/ledger",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "sprint/01/42-x",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "sprint/S1/42-x",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "sprint/s01/42-x",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "sprint/42-x",
+      "reasons": [
+        "enum"
+      ]
+    },
+    {
+      "branch": "feat/42-Upper",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "feature/42-ledger",
+      "reasons": [
+        "enum"
+      ]
+    },
+    {
+      "branch": "feature/42-Ledger",
+      "reasons": [
+        "enum",
+        "syntax"
+      ]
+    },
+    {
+      "branch": "feat/42-one-two-three-four-five",
+      "reasons": []
+    },
+    {
+      "branch": "feat/42-one-two-three-four-five-six",
+      "reasons": [
+        "length"
+      ]
+    },
+    {
+      "branch": "feat/0-x",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "feat/042-x",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "feat/42",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "feat/42-a--b",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "feat/42-a/b",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "/42-x",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "feat/9007199254740991-x",
+      "reasons": []
+    },
+    {
+      "branch": "feat/9007199254740992-x",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "feat/42-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reasons": []
+    },
+    {
+      "branch": "feat/42-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reasons": [
+        "length"
+      ]
+    },
+    {
+      "branch": "feat/42-abcdefghijklmnopq-abcdefghijklmnopq-abcdefghijklmnopq-abcdefghijklmnopq-abcdefghijklmnopq-abcdefghijklmnopq",
+      "reasons": [
+        "length",
+        "length"
+      ]
+    },
+    {
+      "branch": "docs/typo",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "docs/0-journal-checkpoint",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "chore/roadmap-handover-tracker-checks",
+      "reasons": [
+        "syntax"
+      ]
+    },
+    {
+      "branch": "release/0.2.0",
+      "reasons": [
+        "enum",
+        "syntax"
+      ]
+    },
+    {
+      "branch": "revert-x-feat/12-a",
+      "reasons": [
+        "enum"
+      ]
+    },
+    {
+      "branch": "feat/42-città",
+      "reasons": [
+        "syntax"
+      ]
+    }
+  ]
+}

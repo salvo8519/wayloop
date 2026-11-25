@@ -665,6 +665,7 @@ fn the_examples_of_the_pull_request_and_the_commit_load_into_the_documents_of_th
         "commit.valid.yaml",
         "pull_request.invalid.yaml",
         "commit.invalid.yaml",
+        "policy.yaml",
     ]);
     let (pull_request, commit) = (&read[0], &read[1]);
     let mut set = case_entries("plan-valid");
@@ -718,9 +719,81 @@ fn the_examples_of_the_pull_request_and_the_commit_load_into_the_documents_of_th
         codes::COMMIT_HEADER,
     ];
     assert_errors_only_of(&envelope, &allowed);
+    // T17, AC21: the case of a scope outside the policy sends the invalid commit alone, with the
+    // policy of the examples.
+    let scope = case_input("commit-scope-outside-the-policy");
+    assert_eq!(
+        case_entries("commit-scope-outside-the-policy"),
+        [input_entry(&read[3], "commit")]
+    );
+    assert_eq!(scope["policy"], read[4]);
     // The deliberate copies of `wayloop_schemas::examples` are these examples too.
     assert_eq!(wayloop_schemas::examples::pull_request(), *pull_request);
     assert_eq!(wayloop_schemas::examples::commit(), *commit);
+}
+
+/// The reasons of the errors of each document of the validation `envelope` of `count`
+/// documents, in the order of the envelope.
+fn reasons_by_document(envelope: &Value, count: usize) -> Vec<Vec<String>> {
+    let error = &envelope["error"];
+    assert_ne!(error["reason"], "internal", "{envelope}");
+    let errors: Vec<&Value> = match error["errors"].as_array() {
+        Some(errors) => errors.iter().collect(),
+        None if error.is_null() => Vec::new(),
+        None => vec![error],
+    };
+    let mut reasons = vec![Vec::new(); count];
+    for error in errors {
+        let document = usize::try_from(error["document"].as_u64().unwrap()).unwrap();
+        reasons[document].push(error["reason"].as_str().unwrap().to_owned());
+    }
+    reasons
+}
+
+#[test]
+fn the_shared_naming_cases_give_the_reasons_the_script_gives() {
+    // D2 of #267: `tests/process/naming_cases.json` is read here, through the validate command,
+    // and by `tests/process/test_conventions.py`, through `scripts/conventions.py`, so that the
+    // engine and the script give one verdict on every header and branch of the cases.
+    let path = repository().join("tests/process/naming_cases.json");
+    let cases: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+    let commits = cases["commits"].as_array().unwrap();
+    let branches = cases["branches"].as_array().unwrap();
+    let mut documents: Vec<Value> = commits
+        .iter()
+        .map(|case| {
+            let mut commit = json!({"schema_version": 1, "header": case["header"]});
+            if let Some(body) = case.get("body") {
+                commit["body"] = body.clone();
+            }
+            input_entry(&commit, "commit")
+        })
+        .collect();
+    documents.extend(branches.iter().map(|case| {
+        let pull_request = json!({
+            "schema_version": 1, "title": "feat(core): add x", "body": "", "labels": [],
+            "branch": case["branch"]
+        });
+        input_entry(&pull_request, "pull_request")
+    }));
+    let count = documents.len();
+    let envelope = run(
+        Command::Validate,
+        &json!({"documents": documents}),
+        &Context::default(),
+    );
+    let envelope = serde_json::to_value(envelope).unwrap();
+    let found = reasons_by_document(&envelope, count);
+    let expected = commits.iter().chain(branches).map(|case| {
+        let reasons = case["reasons"].as_array().unwrap();
+        reasons
+            .iter()
+            .map(|r| r.as_str().unwrap().to_owned())
+            .collect::<Vec<_>>()
+    });
+    for ((case, found), expected) in commits.iter().chain(branches).zip(found).zip(expected) {
+        assert_eq!(found, expected, "{case}");
+    }
 }
 
 #[test]

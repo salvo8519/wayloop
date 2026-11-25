@@ -133,11 +133,15 @@ fn constant(schema: &mut Schema, member: &str, value: Value, kind: Option<&str>)
     properties.insert(member.to_owned(), Value::Object(replaced));
 }
 
-/// The schema of a string in the named `format`, with its `description`.
+/// The schema of a string in the named `format`, with its `description`, and its `maxLength`
+/// when the format bounds the length of its values ([`Format::max_chars`]).
 #[must_use]
 pub fn formatted(format: Format, description: &str) -> Schema {
     let mut schema = string_schema(description);
     schema.insert("format".to_owned(), format.id().into());
+    if let Some(max) = format.max_chars() {
+        schema.insert("maxLength".to_owned(), max.into());
+    }
     schema
 }
 

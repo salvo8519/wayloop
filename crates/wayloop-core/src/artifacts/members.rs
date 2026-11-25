@@ -41,6 +41,12 @@ pub(super) const TASK: &str = "task";
 pub(super) const TASKS: &str = "tasks";
 pub(super) const USER_STORIES: &str = "user_stories";
 
+// Members of the inputs `pull_request` and `commit`; their `title` is at the pointer of the
+// title of an artifact, `crate::naming::titles::pointer`.
+pub(super) const BODY: &str = "body";
+pub(super) const BRANCH: &str = "branch";
+pub(super) const HEADER: &str = "header";
+
 // Members of the parts of artifacts: requirements, acceptance criteria, open questions, extra
 // sections, dissent and questions of a council report, operations of a change delta and
 // references of a task.

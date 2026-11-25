@@ -101,7 +101,22 @@ pub(crate) fn applied() -> Result<DefaultApplied, Box<Error>> {
 mod tests {
     use serde_json::json;
 
+    use wayloop_schemas::POLICY_NAME_MAX_CHARS;
+    use wayloop_schemas::validate::Policy;
+
     use super::{AREAS, SCOPES, TYPES, applied, default_policy};
+    use crate::schema::format::is_policy_name;
+
+    #[test]
+    fn the_lists_are_within_the_bounds_and_the_form_of_a_policy() {
+        assert!(TYPES.len() <= Policy::TYPES_MAX);
+        assert!(SCOPES.len() <= Policy::SCOPES_MAX);
+        assert!(AREAS.len() <= Policy::AREAS_MAX);
+        for name in TYPES.iter().chain(&SCOPES).chain(&AREAS) {
+            assert!(is_policy_name(name), "{name}");
+            assert!(name.chars().count() <= POLICY_NAME_MAX_CHARS, "{name}");
+        }
+    }
 
     #[test]
     fn the_lists_have_no_repeated_name() {

@@ -303,7 +303,9 @@ The condition of an `if` uses `type`, `properties`, `required`, `enum`, `const` 
 (language, script, region and variants of BCP 47), `tracker-handle`, `project-path` (a path
 relative to the root of the project in one spelling: segments joined by `/`, none empty, `.`
 or `..`; no `\` and no drive letter), `capability` (lower-case words of letters and digits
-joined by single hyphens, the slug of the folder of a living specification), the identifiers of
+joined by single hyphens, the slug of the folder of a living specification), `policy-name` (one
+lower-case word of letters, digits and hyphens that starts with a letter: a type, a scope or an
+area of the project policy), the identifiers of
 each artifact type (`brief-id`, `council-id`, `gate-id`, `epic-id`, `story-id`, `spec-id`,
 `change-id`, `task-id`, `milestone-id`, `handover-id`), `brief-or-council-id` (either of the
 first two, the subject of a gate issue), the identifiers of parts

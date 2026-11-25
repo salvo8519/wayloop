@@ -11,9 +11,11 @@ and hand-over inputs) are validated against their schemas. A living specificatio
 Markdown is first normalised into its document model (see Living specifications in Markdown
 below). Across documents, identifiers are checked for uniqueness and against the path of their
 file, the links between artifacts are resolved (see Links below), the parts of artifacts and the
-operations of change deltas are checked (see Parts below), and the titles of epics and tasks are
-checked for their form and their uniqueness; the other checks across documents (statuses,
-naming, areas) are not run by this version and are listed in `diagnostics.not_done`.
+operations of change deltas are checked (see Parts below), the titles of epics and tasks are
+checked for their form and their uniqueness, and the branch names and commit headers of pull
+requests and commits are checked against their grammar (see Branches and commit headers below);
+the other checks across documents (statuses, the issue links of pull requests, areas) are not run
+by this version and are listed in `diagnostics.not_done`.
 
 This page describes version 1 of the command, as built from source. Its contract is the pair
 of schema snapshots `schemas/commands/validate/v1.json` (input) and
@@ -102,6 +104,8 @@ path, goes to standard error.
 | `adr_citations` | Each citation `ADR <NNNN>` in `related` of a living specification names an ADR of `adrs`; with `adrs` only |
 | `title_format` | The title of each epic and task has no type prefix, no bracket tag at its start or end and no final full stop (see Titles of epics and tasks below) |
 | `title_duplicate` | No two titles of epics and tasks, in any status except `superseded`, are equal after normalisation |
+| `branch_name` | The `branch` of each pull request follows the grammar of branches, with a type of the policy (see Branches and commit headers below) |
+| `commit_header` | The `header` of each commit and the `title` of each pull request follow the grammar of commit headers, with a type and a scope of the policy, and a commit whose header marks a breaking change has its paragraph |
 | `artifact_locations` | Some folder of a location exists in the project the documents were discovered in; with `locations` only, after the checks above |
 
 Each schema is one check, `schema_<kind>` or `schema_<input_kind>`, listed in
@@ -113,7 +117,7 @@ Any other check the engine did not run is never skipped silently:
 | Check | Not run on |
 | --- | --- |
 | `statuses` | The set: transitions and initial statuses against `base` |
-| `naming` | The set: branch names, commit headers and pull request links |
+| `pull_request_link` | The set: the issue linked by the body of each pull request, and the issue of its branch |
 | `areas` | The set: the `area` of each epic and task against the areas of the project policy |
 
 A schema also states the members that a status, a verification or an operation requires; a
@@ -144,13 +148,17 @@ Each type accepts only its own statuses. A council report has `draft`, `approved
 `superseded`; a change delta `draft`, `approved`, `implementing`, `done` and `superseded`; a
 living specification has six, `draft`, `approved`, `surveyed`, `implementing`, `done` and
 `superseded`, and any other, for example `published`, is refused with `enum` and the six in
-`expected`. The `capability` of a living specification is lower-case words of `a` to `z` and
-`0` to `9` joined by single hyphens, for example `time-entries`; a requirement is `active` or
-`removed`, and absent means `active`. The schema checks the form of the parts of an artifact
-(`D<k>`, `Q<k>`, `R<k>`, `AC<k>`) and that a question of a council report has at least two
-options, not that a part is unique, that a dissent names a decision of its report, that a
-recommendation or an answer is one of the options or that a change delta has one operation per
-requirement: that is the check `parts` (see Parts below).
+`expected`. The `capability` of a living specification is lower-case words of `a` to `z` and `0`
+to `9` joined by single hyphens, for example `time-entries`. Its `commit_scope`, and the `area`
+of an epic and of a task, are names of the policy (format `policy-name`): one lower-case word of
+ASCII letters, digits and hyphens that starts with a letter, of at most 32 characters, so
+`area:core` and `Core` are refused with `syntax`, the second with the fix `core`, and a name of
+33 characters with `length`. A requirement is `active` or `removed`, and absent means `active`.
+The schema checks the form of the parts of an artifact (`D<k>`, `Q<k>`, `R<k>`, `AC<k>`) and
+that a question of a council report has at least two options, not that a part is unique, that a
+dissent names a decision of its report, that a recommendation or an answer is one of the options
+or that a change delta has one operation per requirement: that is the check `parts` (see Parts
+below).
 
 A hand-over comes in two forms of one version. The input is what an agent submits at the end of
 a session, with `input_kind: handover_input` and no `kind`: `schema_version`, `step`,
@@ -374,7 +382,9 @@ command line reads stored artifacts only; inputs are sent with `--input`.
 
 An empty text where one is required is refused with the reason `length`. The schema checks the
 shape only. The grammar of a branch name and of a commit header, and the issue links of a pull
-request, are the check `naming`, which this version does not run.
+request, are later checks: the grammar is the checks `branch_name` and `commit_header` (see
+Branches and commit headers below), and the links are the check `pull_request_link`, which this
+version does not run.
 
 ### Titles of epics and tasks
 
@@ -401,6 +411,68 @@ the café entries` and ` EXPORT of the  CAFÉ entries` are one title. Epic and t
 compared with each other, in every status except `superseded`. Case folding is the full folding
 of Unicode: the sharp s `ß` equals `ss`, and the final sigma equals sigma.
 
+### Branches and commit headers
+
+The `branch` of a pull request is checked by `branch_name`, and the `header` of a commit and the
+`title` of a pull request by `commit_header`, each when it is a string that raised no error,
+whatever the other errors of its document. The types and scopes are those of the policy.
+
+| Form of a branch | Rule |
+| --- | --- |
+| `<type>/<issue>-<slug>` | `<type>` a type of the policy; `<issue>` a number from 1 without a leading zero, at most 9007199254740991, the range of an issue number; `<slug>` one to five words of lower-case ASCII letters and digits joined by single hyphens; the whole name at most 100 characters |
+| `sprint/S<NN>/<issue>-<slug>` | as above, with `S` and two digits or more, the number of the sprint |
+| `dependabot/<anything>`, `release/v<anything>`, `revert-<n>-<anything>` | exempt: accepted without further checks |
+
+A type outside the policy is the reason `enum`, with the types in `expected`; a slug of more
+than five words and a name of more than 100 characters are each the reason `length`; any other
+fault of the form, an issue number beyond its range included, is the reason `syntax`. The
+errors of the slug and of the length carry in `fix` the branch with its slug rewritten as a
+produced branch name (below), when the type and the issue are valid and the corrected name
+breaks no rule: `feat/42-Ledger` gives `feat/42-ledger`, `feat/42-one-two-three-four-five-six`
+gives `feat/42-one-two-three-four-five`.
+
+A header is `<type>(<scope>)[!]: <subject>`, optionally followed by a reference
+` [SPEC-<seq>]` or ` [SPEC-<seq> R<k>, R<k>]`:
+
+| Rule | Example refused | Reason | `fix` |
+| --- | --- | --- | --- |
+| The form `<type>(<scope>)[!]: <subject>`, one space after the colon | `feat(core):add x` | `syntax` | none |
+| The type is a type of the policy | `feature(core): add x` | `enum`, the types in `expected` | none |
+| A scope is required, except for the type `revert` | `feat: add x` | `missing`, the scopes in `expected` | none |
+| The scope is a scope of the policy | `feat(kernel): add x` | `enum`, the scopes in `expected` | none |
+| The subject starts with a lower-case ASCII letter, `a` to `z`, or a character outside ASCII; never with an upper-case ASCII letter, a digit, punctuation such as a backtick, or white space | `feat(core): Add the ledger` | `syntax` | `feat(core): add the ledger` |
+| The subject has no final full stop, before the reference and after its trailing white space is trimmed | `feat(core): add the ledger.` | `syntax` | `feat(core): add the ledger` |
+| At most 72 characters, reference included | | `length` | none |
+
+The rule of the start of the subject reads no table of Unicode, so its verdict is the same under
+every version of Unicode: `feat(core): Éclair recipes` passes, as a subject that starts with any
+character outside ASCII. The `fix` of the subject lowers its first letter when it is an
+upper-case ASCII letter that starts a capitalised word, not an acronym, and removes its final
+full stops and white space; it is given only when the corrected header breaks no rule. A commit
+whose header marks a breaking change with `!` needs a line `BREAKING CHANGE: <text>` in its
+body, with text after the colon: either a paragraph that starts with it, or a footer, a line of
+the last paragraph, where the trailers are. A blank line holds only spaces and tabs. Without
+one, or without a body, the commit is refused with the reason `requires` at `/body`, the header
+in `pointers`; a body refused by its schema is not read again. A pull request title needs no
+such paragraph: its evidence is the label `breaking-change`.
+
+A commit whose header git writes itself is exempt from these rules, by the form of its header
+and never by its author: a header that starts with `Merge `, `Revert "`, `fixup! ` or
+`squash! `. A pull request title is not written by git, so it has no such exemption.
+
+A produced branch name is `<type>/<issue>-<slug>`: the slug is the title compared as titles are
+(Unicode NFC, case folding, NFC again), without its accents, with every run of other characters
+turned into one hyphen, cut after five words and then to the whole words that fit in 100
+characters (the first word cut when none fits whole), and `work` when nothing is left: `Città di
+Salerno` gives `citta-di-salerno`, `Straße` gives `strasse`. A produced name always passes
+`branch_name`; no name is produced when the type and the issue leave no room for a slug, or when
+the issue is beyond the range of an issue number.
+
+The command-line program `scripts/conventions.py` of the Wayloop repository, run by its
+commit-msg hook and its pull request workflow, applies the same grammar; a test sends shared
+cases, the headers of the history of its main branch and its remote branches through both and
+requires the same verdict.
+
 ## Input
 
 The canonical input is one JSON object. A member set to `null` is not given, exactly as an
@@ -410,7 +482,7 @@ absent member. The input schema is closed: a member it does not list is refused.
 | --- | --- | --- | --- |
 | `documents` | list of objects | yes | One entry per stored artifact or input; `[]` means none |
 | `base` | list of `{id, status}` | no | Statuses on the default branch of the artifacts of the set |
-| `policy` | object `{types, scopes, areas}`, each a list of names of the policy, identifiers of at least one character | no | The subset of the project policy the model reads. The check `title_format` reads its `types`; the check `areas` is listed as not done. Absent: the default policy applies, the policy of the Wayloop repository, and `meta.defaults_applied` lists it when the set holds an epic or a task, whose checks read it |
+| `policy` | object `{types, scopes, areas}`: at most 32 types, 256 scopes and 256 areas, each a name of the policy, one lower-case word of ASCII letters, digits and hyphens that starts with a letter, of at most 32 characters (format `policy-name`) | no | The subset of the project policy the model reads. The checks `title_format` and `branch_name` read its `types`, the check `commit_header` its `types` and `scopes`; the check `areas` is listed as not done. Absent: the default policy applies, the policy of the Wayloop repository, and `meta.defaults_applied` lists it when the set holds an epic, a task, a pull request or a commit, whose checks read it. A policy with more names, or with a name out of its form or longer than 32 characters, is refused as a command input (`command_input`), at the list or at the name, and no check of the documents runs |
 | `adrs` | list of integers from 1 | no | Numbers of the ADRs of the project, for the check `adr_citations`. Absent: citations are not checked, and the check is not done. The command line fills it from the file names of `docs/en/project/adr/` when that folder exists |
 | `locations` | list of `plan_briefs`, `plan_council`, `plan_items`, `specs`, for the folders `plan/briefs`, `plan/council`, `plan/items` and `specs` | no | The folders of the locations that exist in the project, when the documents were discovered there; their order and a repeated folder have no meaning, they are not compared with the `file` origins of the documents, and `[]` means none, which gives the warning `artifact_location_missing`. Absent: the documents were named or sent directly, and the check `artifact_locations` is not done |
 | `language` | BCP 47 tag, for example `it` or `en-GB` | no | The language of the project. No check of this version reads it, so no default is applied or reported when it is absent; a check that needs it lists the default in `meta.defaults_applied` |
@@ -467,10 +539,11 @@ does not know and accepts enum values it does not know.
   version, whose shape the envelope has; when the input is also text the engine cannot read as
   JSON, the same report lists the version first, then the error of the text. A usage error
   reports the current version of the command it names, and 1 when it names no known command.
-- When the input has no `policy` and the set holds an epic or a task, the default policy
-  follows the default of the command version: `{"pointer": "/policy", "value": {"types": [...],
-  "scopes": [...], "areas": [...]}, "reason": "default_policy", "message": ...}`, with no
-  `document`, since it is a default of the input itself. Its types and scopes are those of the
+- When the input has no `policy` and the set holds an epic, a task, a pull request or a
+  commit, the default policy follows the default of the command version: `{"pointer":
+  "/policy", "value": {"types": [...], "scopes": [...], "areas": [...]}, "reason":
+  "default_policy", "message": ...}`, with no `document`, since it is a default of the input
+  itself. Its types and scopes are those of the
   [conventions](../project/conventions.md#commits) of the Wayloop repository, and its areas
   those of its `area:` labels.
 - The defaults of the documents follow the defaults of the command version and the policy, in
@@ -541,6 +614,8 @@ absent when there is no other document, never `[]`.
 | `delta_conflict` | `conflict` | 1 | Two operations of a change delta or more on one requirement: each after the first is refused, with the first in `pointers` |
 | `title_format` | `syntax` | 1 | The title of an epic or a task has a type prefix, a bracket tag at its start or end, or a final full stop: one error per rule at `/title`, each with `fix` the title with every rule applied, when anything is left |
 | `title_duplicate` | `duplicate` | 1 | Two epic or task titles or more, in any status except `superseded`, are equal after normalisation: each is refused at `/title`, and names one other in `related`, the first the second, each later one the first |
+| `branch_name` | `syntax`, `length`, `enum` | 1 | The `branch` of a pull request breaks the grammar of branches: its form or an issue number beyond its range (`syntax`), a slug of more than five words or a name of more than 100 characters (`length`), or a type outside the policy (`enum`, with the types in `expected`); see Branches and commit headers |
+| `commit_header` | `syntax`, `missing`, `enum`, `length`, `requires` | 1 | The `header` of a commit or the `title` of a pull request breaks the grammar of headers: its form or its subject (`syntax`), no scope (`missing`), a type or a scope outside the policy (`enum`), more than 72 characters (`length`); or a commit marks a breaking change without its paragraph or footer (`requires` at `/body`); a header that git writes is exempt; see Branches and commit headers |
 | `usage` | `syntax` | 2 | The command line is not understood; `command` is the command named, empty when none |
 | `input_unreadable` | `missing`, `state` | 3 | The input file, a file named or a folder of the project does not exist (`missing`) or cannot be read (`state`); the envelope holds no path |
 | `internal_error` | `internal` | 5 | The engine could not compute the result; the input may be valid |
