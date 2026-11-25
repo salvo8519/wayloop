@@ -11,7 +11,7 @@ This plan builds the smallest vertical slice of the issue cycle, decided by the 
 2026-11-25 from section 4 of the counter-review of SPEC-0002 and SPEC-0003: its requirements in
 and out, and its order of steps 0 to 9, ending with #58. One plan covers both specifications,
 because the slice is one path through both: `specs/0003-ledger/spec.md` points here. The
-decisions D1 to D3 are recommendations until the maintainer confirms them.
+decisions D1 to D3 were adopted by the maintainer on 2026-11-25.
 
 ## What the slice proves
 
@@ -89,18 +89,14 @@ of the catalogue raises the minimum engine version when it is first written (SPE
 
 ### Questions that block the slice
 
-The amended specifications leave these questions open; the tasks that depend on them say so.
+The maintainer answered on 2026-11-25 every question that blocked the slice: SPEC-0002 Q14,
+Q15, Q16, Q17, Q19 and Q20, SPEC-0003 Q15 and Q16, and D1 to D3 below, each with the
+recommendation of the specification, and Q21 with its option (a) (decided by the maintainer on
+2026-11-25). SPEC-0002 Q18 stays open, outside the slice. No question blocks the slice:
 
 | Question | Blocks |
 | --- | --- |
-| SPEC-0002 Q15: release point and reason after the `pull_request` step | T7 (I44, AC36), T11 |
-| SPEC-0002 Q16: branch type and worktree name | T6 (I1, I5, AC64), T11 |
-| SPEC-0002 Q17: late skip of `review` for the tier `small` | T6 (I10), T11 (small tier scenario) |
-| SPEC-0002 Q19: a new head outside a step | T7 (I22) |
-| SPEC-0002 Q20: checks that arrive while the `pull_request` dispatch is open | T7 (I16, I17, I20), T11 |
-| SPEC-0003 Q15: an observation larger than the line limit | T7 |
-| SPEC-0003 Q16: the collections in the projection | T10 (AC21) |
-| D3 below: the mutation floor | T6, T7 |
+| None | |
 
 ## Design
 
@@ -126,8 +122,9 @@ The amended specifications leave these questions open; the tasks that depend on 
   member `found` is added once (counter-review item 65).
 - The schema interpreter of the core validates every input and every event read back, so that
   every error is reported in one pass (ADR 0030 G1).
-- The producer of branch names of SPEC-0001 R11 (`naming::branch_name`, SPEC-0001 T17) derives
-  the branch of a checkout, once SPEC-0002 Q16 is answered.
+- The producer of branch names of SPEC-0001 R11 (`naming::branch_name`, SPEC-0001 T17, #267)
+  derives the branch of a checkout from the `type` of the task, `feat` while the task has none
+  (SPEC-0002 Q16, decided by the maintainer on 2026-11-25). #267 is open, so T6 depends on it.
 - `contract_enum!` and the registry `contract::CONTRACTS` declare every new enum and contract.
 
 ### Module layout
@@ -242,7 +239,9 @@ task applies them, and the review checks them.
    goes through `Storage` (SPEC-0003 R62, AC63); the tests inject failures at each operation and
    at each byte of an append (AC22, AC48, AC64, AC65).
 8. **A mutation-score floor** for `state/transitions.rs` and `state/guards.rs`, checked by
-   `just mutants` before the pull requests of T6 and T7; its value is D3.
+   `just mutants` before the pull requests of T6 and T7: no surviving mutant, except the
+   equivalent mutants listed in the configuration of `cargo-mutants` of the repository, each with
+   a comment that says why it is equivalent, reviewed in the pull request that adds it (D3).
 9. **A trace schema and a runner** for `examples/` (R58, AC43), built in T11; the schema is a test
    fixture, `specs/0002-state-machine/examples/trace.schema.json`.
 
@@ -251,27 +250,25 @@ clock, the environment, the file system, random sources and the hashed collectio
 
 ## Decisions
 
-The maintainer confirms or changes each recommendation before T2 starts.
+Decided by the maintainer on 2026-11-25: every recommendation below is adopted (D1 (a), D2,
+D3 (a)).
 
 - **D1. Issues for the tasks.** A pull request closes exactly one issue (AGENTS.md). (a) One new
   issue per task that has none, created with `scripts/roadmap.py new` under the epics #21 and
   #22, as SPEC-0001 D7 did; #48 (T6), #49 (T8), #50 (T9), #58 (T11), #161 (T7) and #347 (T4)
   are closed by the tasks named in `tasks.md`, and #51 and #162 stay open for the parts after the
-  slice. (b) Intermediate pull
-  requests cite `Refs #<n>` and close nothing. Recommendation: (a). The pull request of T0 then
-  needs its own issue; it cites `Refs: #48` and must not close #48.
+  slice. (b) Intermediate pull requests cite `Refs #<n>` and close nothing. Decided: (a). The pull
+  request of T0 cites `Refs: #48` and does not close #48.
 - **D2. Roadmap order.** #161 and #162 are needed before #58 (counter-review section 4). The
   slice folds their minimal parts into T2, T7 and T9; #161 closes with T7, #162 stays open for
-  the resume pack (SPEC-0003 R13, R44) and the publication of hand-overs (#52). #347 is not yet in
-  `roadmap/roadmap.yaml` on this branch. Recommendation: add #347 under the epic of the artifact
-  model (#18) or of the state machine (#21) with `scripts/roadmap.py`, and list #161 before #58
-  in the epic of the ledger, in the pull request of T0.
-- **D3. Mutation floor of the transition module (plan rule 8).** The counter-review asks for a
-  floor and gives no value. (a) No surviving mutant in `state/transitions.rs` and
-  `state/guards.rs`, with a reviewed list of equivalent mutants; (b) 90 percent of mutants
-  caught; (c) measure in T6 and set the floor in T7. Recommendation: (a): the table is data
-  and every row and guard has a positive and a negative case (AC1), so a surviving mutant is a
-  missing test or an equivalent mutant to list.
+  the resume pack (SPEC-0003 R13, R44) and the publication of hand-overs (#52). Decided: #347 is
+  in the roadmap; the order "#161 before #58" is written in the body of #58 by the orchestrator
+  with `scripts/roadmap.py edit`.
+- **D3. Mutation floor of the transition module (plan rule 8).** (a) No surviving mutant in
+  `state/transitions.rs` and `state/guards.rs`, with a reviewed list of equivalent mutants;
+  (b) 90 percent of mutants caught; (c) measure in T6 and set the floor in T7. Decided: (a): the
+  table is data and every row and guard has a positive and a negative case (AC1), so a surviving
+  mutant is a missing test or an equivalent mutant to list.
 
 ## Contract changes
 
@@ -351,8 +348,8 @@ part), AC51 to AC55, AC60, AC62, AC66.
   grows with every `external_id`. Mitigation: T10 measures the rewrite on a ledger of 10,000
   events against `lock_timeout_seconds` (10 seconds) and reports it in its pull request;
   SPEC-0003 Q16 decides the content.
-- **Questions left open.** The tasks of the table Questions that block the slice wait for their
-  answers; T2, T3, T4 and T5 do not.
+- **Approval first.** Every task can start once the maintainer approves the amended
+  specifications; no question of the slice is open.
 - **Scenarios written before the amendments.** The files of `examples/` are not normative until
   T11 rewrites them; T6 and T7 test the rows with their own cases.
 - **Rejected alternative: `decide` as nested matches without a table.** It cannot be compared with
