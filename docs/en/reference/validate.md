@@ -10,9 +10,10 @@ specifications, change deltas, tasks, hand-over records and the inputs (pull req
 and hand-over inputs) are validated against their schemas. A living specification written in
 Markdown is first normalised into its document model (see Living specifications in Markdown
 below). Across documents, identifiers are checked for uniqueness and against the path of their
-file, and the titles of epics and tasks for their form and their uniqueness; the other checks
-across documents (links, parts, statuses, naming, areas) are not run by this version and are
-listed in `diagnostics.not_done`.
+file, the links between artifacts are resolved (see Links below), and the titles of epics and
+tasks are checked for their form and their uniqueness; the other checks across documents
+(parts, statuses, naming, areas) are not run by this version and are listed in
+`diagnostics.not_done`.
 
 This page describes version 1 of the command, as built from source. Its contract is the pair
 of schema snapshots `schemas/commands/validate/v1.json` (input) and
@@ -83,6 +84,8 @@ path, goes to standard error.
 | `identifier_format` | The `id` is in the canonical form of its type, for example `BRIEF-0001` |
 | `identifier_duplicate` | No two artifacts of the set carry one identifier |
 | `identifier_location` | The file name of a brief, a council report or a plan item, and the folder number of a living specification, name the `id` of the artifact; a warning otherwise |
+| `links` | Each link of an artifact resolves to an artifact of the set, not superseded where that matters, each requirement it cites is in force, and a task or a story belongs to the milestone and the epic of its parents (see Links below) |
+| `adr_citations` | Each citation `ADR <NNNN>` in `related` of a living specification names an ADR of `adrs`; with `adrs` only |
 | `title_format` | The title of each epic and task has no type prefix, no bracket tag at its start or end and no final full stop (see Titles of epics and tasks below) |
 | `title_duplicate` | No two titles of epics and tasks, in any status except `superseded`, are equal after normalisation |
 | `artifact_locations` | Some folder of a location exists in the project the documents were discovered in; with `locations` only, after the checks above |
@@ -95,7 +98,6 @@ Any other check the engine did not run is never skipped silently:
 
 | Check | Not run on |
 | --- | --- |
-| `links` | The set: links between artifacts, hierarchy, ADR citations |
 | `parts` | The set: parts of artifacts and operations of change deltas |
 | `statuses` | The set: transitions and initial statuses against `base` |
 | `naming` | The set: branch names, commit headers and pull request links |
@@ -158,7 +160,55 @@ hand-over has no title and no status; the summary of an input in `data.documents
 `input_kind` and, when known, its `origin`; no `kind`, `id` or `status`.
 
 `artifact_locations` is listed in `diagnostics.not_done` with the reason `input_absent` when
-`locations` is not given: the documents were named or sent directly.
+`locations` is not given: the documents were named or sent directly. `adr_citations` is listed
+there with the same reason when `adrs` is not given; the command line does not give it yet.
+
+### Links
+
+Every link is resolved by identifier through the set, never by path: a living specification
+moved to another folder and renamed is still found. The links of an artifact are read only when
+it passed its schema, so that a broken document causes no wave of link errors; an artifact with
+other errors is still found as a target, as long as its `id` raised none. An item that lives
+only in the tracker is not in the set until the tracker is read, so a link to it is missing.
+
+| Type | Members that link |
+| --- | --- |
+| Council report | `brief` |
+| Gate issue | `subject` |
+| Milestone | `council_report` |
+| Epic | `milestone` |
+| User story | `epic`, `milestone`, `specification` |
+| Living specification | `milestone`, `stories`; the `requirements` of each acceptance criterion name requirements of the same specification |
+| Change delta | `specification`, `tasks`; the `requirement` of an operation `modified`, `removed` or `renamed` names a requirement of that specification |
+| Task | `epic`, `milestone`, `story`, `specification` (each `spec` and its `requirements`), `depends_on`, `expanded_from` |
+| Hand-over record | `task` |
+| Every type | `superseded_by` |
+
+- A link to an identifier that no artifact of the set carries is `link_missing`, reason
+  `missing`, at the member of the link.
+- A link to a superseded artifact is `link_superseded`, reason `state`, with `fix` the list of
+  the identifiers of its `superseded_by`, also when it holds one, for example `["SPEC-0001"]`.
+  `superseded_by`, `expanded_from` (the task a subtask was expanded from is superseded by it)
+  and `depends_on` accept a superseded target; a dependency on a superseded task is a rule of
+  the check `parts`.
+- A cited requirement that the specification does not have is `link_missing`; a removed one is
+  `link_superseded`, reason `state`, with no fix. Requirements are checked only when the
+  specification is in the set and passed its schema.
+- A task or a story whose `milestone` differs from that of its epic, or a task whose `epic`
+  differs from that of its story, is `hierarchy_mismatch`, reason `conflict`, at `/milestone` or
+  `/epic`, with the member of the parent (`/epic` or `/story`) in `pointers` and the value
+  reached through the parent in `expected`.
+- An artifact in status `done` or `superseded` is not changed again, and a hand-over record is
+  never changed: each broken link of such an artifact is the warning `link_broken_terminal`,
+  with the reason of the error it replaces, and the hierarchy is not checked.
+- No error of a link or of the hierarchy carries `related`: the pointer and the message name the
+  target.
+- A citation is the word `ADR`, a space and digits, for example `ADR 0014`; `ADR 14` cites the
+  same ADR. With `adrs`, a citation whose number is not listed is the warning
+  `adr_citation_missing`, reason `missing`, at the entry of `related` that holds it.
+
+This version does not check that a milestone links an approved council report, nor that the
+task of a hand-over record carries its issue or that the issue is a task of the plan.
 
 When the input itself is refused, or the command line is not understood, or the input cannot
 be read, no check runs: `diagnostics.checks` and `diagnostics.not_done` are then empty.
@@ -298,7 +348,7 @@ absent member. The input schema is closed: a member it does not list is refused.
 | `documents` | list of objects | yes | One entry per stored artifact or input; `[]` means none |
 | `base` | list of `{id, status}` | no | Statuses on the default branch of the artifacts of the set |
 | `policy` | object `{types, scopes, areas}`, each a list of names of the policy, identifiers of at least one character | no | The subset of the project policy the model reads. The check `title_format` reads its `types`; the check `areas` is listed as not done. Absent: the default policy applies, the policy of the Wayloop repository, and `meta.defaults_applied` lists it when the set holds an epic or a task, whose checks read it |
-| `adrs` | list of integers from 1 | no | Numbers of the ADRs of the project |
+| `adrs` | list of integers from 1 | no | Numbers of the ADRs of the project, for the check `adr_citations`. Absent: citations are not checked, and the check is not done |
 | `locations` | list of `plan_briefs`, `plan_council`, `plan_items`, `specs`, for the folders `plan/briefs`, `plan/council`, `plan/items` and `specs` | no | The folders of the locations that exist in the project, when the documents were discovered there; their order and a repeated folder have no meaning, they are not compared with the `file` origins of the documents, and `[]` means none, which gives the warning `artifact_location_missing`. Absent: the documents were named or sent directly, and the check `artifact_locations` is not done |
 | `language` | BCP 47 tag, for example `it` or `en-GB` | no | The language of the project. No check of this version reads it, so no default is applied or reported when it is absent; a check that needs it lists the default in `meta.defaults_applied` |
 
@@ -384,11 +434,11 @@ Every error found is listed in `error.errors`; the first one is repeated at the 
    order for the rules the schema cannot state.
 2. Otherwise, the errors of the documents, in the order of the documents; within a document, by
    stage (kind, version and schema first, then identifier, then the identifiers across the set,
-   then the form of the title and the titles across the set); within a stage, in the order of
-   the schema pass: the members of an object in the byte order of their keys (`/aa` before
-   `/zz`), the elements of an array by index, absent members after present ones, in the order in
-   which the schema lists them as required. The errors of the name of a member come before the
-   errors of its value, at the same pointer.
+   then the links, then the form of the title and the titles across the set); within a stage,
+   in the order of the schema pass: the members of an object in the byte order of their keys
+   (`/aa` before `/zz`), the elements of an array by index, absent members after present ones,
+   in the order in which the schema lists them as required. The errors of the name of a member
+   come before the errors of its value, at the same pointer.
 
 Every `pointer` of the result is an RFC 6901 pointer; the schemas of the output and of the
 envelope give it the format `json-pointer`, which a JSON Schema validator checks when format
@@ -419,6 +469,9 @@ levels of objects (ADR 0009 C4). `related` is absent when there is no other docu
 | `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | A hand-over input breaks its schema, for example by setting a member that only the engine sets (`unknown_field`) |
 | `schema_version_unknown` | `enum` | 1 | The `schema_version` is not a version of the type or of the input; `expected` lists the known versions |
 | `identifier_format` | `syntax` | 1 | The `id` is not in the canonical form of its type; `fix` gives the corrected identifier when one can be derived |
+| `link_missing` | `missing` | 1 | A link names an identifier no artifact of the set carries, or a requirement its specification does not have (see Links) |
+| `link_superseded` | `state` | 1 | A link names a superseded artifact, with its replacements in `fix`, or a removed requirement |
+| `hierarchy_mismatch` | `conflict` | 1 | A task or a story names a milestone or an epic other than the one reached through its parent |
 | `identifier_duplicate` | `duplicate` | 1 | Two artifacts or more of the set carry one identifier: each is refused at `/id`, and each error names the others in `related`. Every document of a known `kind` whose `id` raised no error is compared, whatever its other errors, so the duplicates come in the same pass |
 | `title_format` | `syntax` | 1 | The title of an epic or a task has a type prefix, a bracket tag at its start or end, or a final full stop: one error per rule at `/title`, each with `fix` the title with every rule applied, when anything is left |
 | `title_duplicate` | `duplicate` | 1 | Two epic or task titles or more, in any status except `superseded`, are equal after normalisation: each is refused at `/title`, and each error names the others in `related` |
@@ -428,10 +481,13 @@ levels of objects (ADR 0009 C4). `related` is absent when there is no other docu
 
 Warnings are listed in `diagnostics.warnings`, in the shape of an error; the result is not
 refused for them and the exit code does not change. They come in a fixed order: the warnings
-`identifier_location` in the order of the documents, then `artifact_location_missing`.
+`identifier_location` in the order of the documents, then `link_broken_terminal`, then
+`adr_citation_missing`, each in the order of the documents, then `artifact_location_missing`.
 
 | Code | Reason | Pointer | Meaning |
 | --- | --- | --- | --- |
+| `link_broken_terminal` | `missing`, `state` | The member of the link | A link of an artifact that is done or superseded, or of a hand-over record, is broken, as `link_missing` or `link_superseded` would say for another artifact |
+| `adr_citation_missing` | `missing` | `/related/<i>` | A living specification cites an ADR whose number is not in `adrs` |
 | `artifact_location_missing` | `missing` | `/locations` | No folder of a location exists in the project where the documents were discovered, for example because the command ran in a subfolder of the project |
 | `identifier_location` | `conflict` | `/id` | The artifact was read from `plan/briefs/<name>.yaml`, `plan/council/<name>.yaml`, `plan/items/<name>.yaml` or `specs/<number>-<capability>/spec.md` (`<number>` of ASCII digits, in any form), and `<name>`, or `SPEC-<number>`, differs from its `id`; `fix` is the `id`, which is the identity. A document sent directly, or read from another path, gives none |
 

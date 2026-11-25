@@ -112,33 +112,45 @@ fn validate_warns_when_it_runs_outside_the_root_of_the_project() {
 #[test]
 fn validate_reads_only_the_files_named_as_one_set() {
     // A named Markdown file is a living specification, normalised by the core (SPEC-0001 R12):
-    // the specification of the artifact model, in the form it defines.
+    // the specification of the artifact model, in the form it defines. Its milestone M0 is
+    // named too, as a plan item, so that its link resolves (R3).
     let spec = "specs/0001-artifact-model/spec.md";
+    let milestone = "plan/items/M0.yaml";
+    let m0 = "kind: milestone\nschema_version: 1\nid: M0\ntitle: Foundations\nstatus: draft\n\
+              gate: The artifact model validates.\n";
     let project = Project::new(
         "named",
         &[
             ("plan/briefs/BRIEF-0001.yaml", example("brief.valid.yaml")),
             ("plan/briefs/BRIEF-0003.yaml", example("brief.invalid.yaml")),
+            (milestone, m0.to_owned()),
             (spec, fs::read_to_string(repository().join(spec)).unwrap()),
         ],
     );
     let (_, value, _, code) = project.validate(&[
         "./plan/briefs/BRIEF-0001.yaml",
         spec,
+        milestone,
         "plan/briefs/BRIEF-0001.yaml",
         "--command-version",
         "1",
     ]);
     assert_eq!(code, 0, "{value}");
     let documents = value["data"]["documents"].as_array().unwrap();
-    assert_eq!(documents.len(), 2, "{value}");
+    assert_eq!(documents.len(), 3, "{value}");
+    // In the byte order of their paths.
+    let read: Vec<(&Value, &Value)> = documents
+        .iter()
+        .map(|d| (&d["origin"]["file"], &d["id"]))
+        .collect();
     assert_eq!(
-        documents[0]["origin"]["file"],
-        "plan/briefs/BRIEF-0001.yaml"
+        read,
+        [
+            (&json!("plan/briefs/BRIEF-0001.yaml"), &json!("BRIEF-0001")),
+            (&json!(milestone), &json!("M0")),
+            (&json!(spec), &json!("SPEC-0001")),
+        ]
     );
-    assert_eq!(documents[0]["id"], "BRIEF-0001");
-    assert_eq!(documents[1]["origin"]["file"], spec);
-    assert_eq!(documents[1]["id"], "SPEC-0001");
 }
 
 #[test]

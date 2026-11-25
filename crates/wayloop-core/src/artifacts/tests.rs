@@ -17,7 +17,7 @@ use wayloop_schemas::contract::{
 };
 use wayloop_schemas::validate::{ArtifactFolder, InputKind};
 use wayloop_schemas::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
-use wayloop_schemas::{NotDone, NotDoneReason, Related, Source};
+use wayloop_schemas::{NotDoneReason, Related, Source};
 
 use super::input::{self, Input};
 use super::kinds::{self, Checked, Kind, Migration};
@@ -38,7 +38,7 @@ fn built() -> Vec<Kind> {
 }
 
 /// Validates `input` with the types whose schema is built.
-fn validate(input: &Input) -> super::Validation {
+pub(super) fn validate(input: &Input) -> super::Validation {
     super::validate(input, &built())
 }
 
@@ -53,7 +53,7 @@ use wayloop_schemas::examples::{
 };
 
 /// A valid brief with only its required members, smaller than the brief of the examples.
-fn brief() -> Value {
+pub(super) fn brief() -> Value {
     json!({
         "kind": "brief",
         "schema_version": 1,
@@ -69,23 +69,74 @@ fn brief() -> Value {
     })
 }
 
-fn with(mut document: Value, key: &str, value: Value) -> Value {
+/// The superseded living specification of the examples, replaced by `SPEC-0001`.
+pub(super) fn superseded_specification() -> Value {
+    let specification = with(specification(), "id", json!("SPEC-0003"));
+    let specification = with(specification, "status", json!("superseded"));
+    with(specification, "superseded_by", json!(["SPEC-0001"]))
+}
+
+/// The valid documents of the examples, one consistent project in which every link resolves
+/// (SPEC-0001, Examples).
+pub(super) fn project() -> Vec<Value> {
+    vec![
+        brief(),
+        council_report(),
+        specification(),
+        gate(),
+        milestone(),
+        epic(),
+        story(),
+        task(),
+        superseded_specification(),
+        change(),
+        handover(),
+    ]
+}
+
+/// The identifier an entry carries: the `id` of its document, or the identifier of the title
+/// of a living specification sent as Markdown.
+fn carried(entry: &Value) -> Option<String> {
+    if let Some(id) = entry["document"]["id"].as_str() {
+        return Some(id.to_owned());
+    }
+    let title = entry["text"].as_str()?.lines().next()?.strip_prefix("# ")?;
+    Some(title.split(':').next()?.to_owned())
+}
+
+/// `entries`, then the targets of their links: the documents of the [`project`] that carry
+/// none of their identifiers. The entries keep their indexes, and every error of the set is
+/// theirs, so that a test of one rule sees no error of a link it does not test (R3).
+pub(super) fn linked(entries: Vec<Value>) -> Vec<Value> {
+    let ids: Vec<String> = entries.iter().filter_map(carried).collect();
+    let targets = project()
+        .into_iter()
+        .filter(|d| !ids.iter().any(|id| d["id"] == id.as_str()))
+        .map(entry);
+    entries.into_iter().chain(targets).collect()
+}
+
+pub(super) fn with(mut document: Value, key: &str, value: Value) -> Value {
     document[key] = value;
     document
 }
 
 /// `document` with the title `Title <n>`, so that it shares no title with the examples (R8).
-fn titled(document: Value, n: u32) -> Value {
+pub(super) fn titled(document: Value, n: u32) -> Value {
     with(document, "title", json!(format!("Title {n}")))
 }
 
-fn entry(document: Value) -> Value {
+pub(super) fn entry(document: Value) -> Value {
     json!({"format": "document", "document": document})
 }
 
 /// The input of the set `documents`, read after it passed the input schema and its rules.
-fn read(documents: Vec<Value>) -> Input {
-    let input = json!({"documents": documents});
+pub(super) fn read(documents: Vec<Value>) -> Input {
+    read_input(json!({"documents": documents}))
+}
+
+/// The canonical `input`, read after it passed the input schema and its rules.
+pub(super) fn read_input(input: Value) -> Input {
     assert_eq!(input_schema().validate(&input, COMMAND_INPUT), []);
     assert_eq!(input::rules(&input), []);
     input::read(&input).unwrap()
@@ -98,7 +149,7 @@ pub(super) fn found(errors: &[Error]) -> Vec<(Code, String, Reason)> {
         .collect()
 }
 
-fn at(pointer: &str) -> Pointer {
+pub(super) fn at(pointer: &str) -> Pointer {
     Pointer::parse(pointer).unwrap()
 }
 
@@ -289,11 +340,17 @@ fn without(mut document: Value, key: &str) -> Value {
     document
 }
 
-/// The errors of validating `document` alone, by code, pointer and reason.
+/// The errors of `document`, validated with the targets of its links, by code, pointer and
+/// reason; the errors of the targets, which a changed `document` may cause, are not its own.
 fn errors_of(document: Value) -> Vec<(Code, String, Reason)> {
-    let validation = validate(&read(vec![entry(document)]));
+    let validation = validate(&read(linked(vec![entry(document)])));
     assert_eq!(validation.failures, []);
-    found(&validation.errors)
+    let own: Vec<Error> = validation
+        .errors
+        .into_iter()
+        .filter(|e| e.document() == Some(0))
+        .collect();
+    found(&own)
 }
 
 fn schema_error(pointer: &str, reason: Reason) -> (Code, String, Reason) {
@@ -303,7 +360,9 @@ fn schema_error(pointer: &str, reason: Reason) -> (Code, String, Reason) {
 /// Asserts that `documents` pass as one set, that the schema of each kind ran, and that each is
 /// read into its contract type and written back as given (ADR 0030 G1).
 fn assert_valid_and_reread(documents: &[Value]) {
-    let validation = validate(&read(documents.iter().cloned().map(entry).collect()));
+    let validation = validate(&read(linked(
+        documents.iter().cloned().map(entry).collect(),
+    )));
     assert_eq!(validation.errors, []);
     assert_eq!(validation.failures, []);
     let checks: Vec<&str> = validation
@@ -331,7 +390,7 @@ fn the_valid_plan_items_of_the_examples_pass_and_read_into_their_types() {
 #[test]
 fn a_gate_in_status_done_requires_the_person_who_approved_it() {
     // SPEC-0001, Gate issue: `approved_by` when `status` is `done` (reason `requires`).
-    let validation = validate(&read(vec![entry(without(gate(), "approved_by"))]));
+    let validation = validate(&read(linked(vec![entry(without(gate(), "approved_by"))])));
     let [error] = &validation.errors[..] else {
         panic!("{:?}", validation.errors);
     };
@@ -342,7 +401,7 @@ fn a_gate_in_status_done_requires_the_person_who_approved_it() {
     assert_eq!(error.pointers(), Some(&[at("/status")][..]));
     // The issue is required when `status` is `done` (decided by the maintainer on 2026-11-23),
     // and optional before the gate is done or once it is superseded.
-    let validation = validate(&read(vec![entry(without(gate(), "issue"))]));
+    let validation = validate(&read(linked(vec![entry(without(gate(), "issue"))])));
     let [error] = &validation.errors[..] else {
         panic!("{:?}", validation.errors);
     };
@@ -364,7 +423,7 @@ fn a_gate_in_status_done_requires_the_person_who_approved_it() {
     assert_eq!(errors_of(superseded), []);
     // A gate has no status approved: it is done when the subject is approved.
     let approved = with(gate(), "status", json!("approved"));
-    let validation = validate(&read(vec![entry(approved)]));
+    let validation = validate(&read(linked(vec![entry(approved)])));
     assert_eq!(
         found(&validation.errors),
         [schema_error("/status", Reason::Enum)]
@@ -384,7 +443,11 @@ fn the_subject_of_a_gate_is_a_brief_or_a_council_report() {
         ("council 1", Some("COUNCIL-0001")),
         ("BRIEF-1", Some("BRIEF-0001")),
     ] {
-        let validation = validate(&read(vec![entry(with(gate(), "subject", json!(subject)))]));
+        let validation = validate(&read(linked(vec![entry(with(
+            gate(),
+            "subject",
+            json!(subject),
+        ))])));
         assert_eq!(
             found(&validation.errors),
             [schema_error("/subject", Reason::Syntax)],
@@ -454,7 +517,7 @@ fn a_story_requires_its_specification_from_approved_on() {
 fn a_task_verified_by_a_judge_requires_a_rubric() {
     // AC35, for the task: `rubric` when `verification` contains `judge`.
     let judged = with(task(), "verification", json!(["tdd", "judge"]));
-    let validation = validate(&read(vec![entry(judged.clone())]));
+    let validation = validate(&read(linked(vec![entry(judged.clone())])));
     let [error] = &validation.errors[..] else {
         panic!("{:?}", validation.errors);
     };
@@ -513,11 +576,11 @@ fn a_task_without_its_epic_or_its_milestone_gives_one_error_each() {
 fn blocked_is_never_a_status_of_a_plan_item() {
     // SPEC-0001, Common rules: `blocked` is an issue-cycle state of SPEC-0002 only.
     for document in [milestone(), epic(), story(), task()] {
-        let validation = validate(&read(vec![entry(with(
+        let validation = validate(&read(linked(vec![entry(with(
             document,
             "status",
             json!("blocked"),
-        ))]));
+        ))])));
         assert_eq!(
             found(&validation.errors),
             [schema_error("/status", Reason::Enum)]
@@ -646,7 +709,7 @@ fn input_entry(document: Value, input_kind: InputKind) -> Value {
 
 /// The errors of validating the input `document` of the kind `input_kind` alone.
 fn input_errors(document: Value, input_kind: InputKind) -> Vec<(Code, String, Reason)> {
-    let validation = validate(&read(vec![input_entry(document, input_kind)]));
+    let validation = validate(&read(linked(vec![input_entry(document, input_kind)])));
     assert_eq!(validation.failures, []);
     found(&validation.errors)
 }
@@ -672,7 +735,7 @@ fn passed_with(validation: &super::Validation, ran: &[&str]) {
 /// Asserts that the input `document` of the kind `input_kind`, whose version the engine does
 /// not know, is refused with the known versions, `1` only (R16).
 fn version_unknown(document: Value, input_kind: InputKind) {
-    let validation = validate(&read(vec![input_entry(document, input_kind)]));
+    let validation = validate(&read(linked(vec![input_entry(document, input_kind)])));
     let error = validation.errors.first().unwrap();
     assert_eq!(
         (error.code(), error.pointer().as_str(), error.reason()),
@@ -861,7 +924,7 @@ fn the_files_touched_of_a_hand_over_are_project_paths_and_its_prose_may_name_its
 fn an_artifact_document_never_selects_the_schema_of_an_input() {
     // `kind` selects among artifacts only: the spelling of an input kind is not one.
     let document = with(handover_input(), "kind", json!("handover_input"));
-    let validation = validate(&read(vec![entry(document)]));
+    let validation = validate(&read(linked(vec![entry(document)])));
     let error = validation.errors.first().unwrap();
     assert_eq!(
         (error.code(), error.pointer().as_str(), error.reason()),
@@ -913,7 +976,7 @@ fn the_valid_council_report_specification_and_change_pass_and_read_into_their_ty
 
 /// The error of `document` alone, which must be the only one, with its `expected`.
 fn only_error(document: Value) -> Error {
-    let validation = validate(&read(vec![entry(document)]));
+    let validation = validate(&read(linked(vec![entry(document)])));
     let [error] = &validation.errors[..] else {
         panic!("{:?}", validation.errors);
     };
@@ -1178,17 +1241,17 @@ fn the_members_of_a_living_specification_have_their_forms() {
     );
     // A requirement is `active` or `removed`; an open question may have no identifier, and
     // states whether it is resolved.
+    // R4 of the example, which no criterion names, so that its status alone is tested.
     let requirement = |status: &str| {
-        member(
-            "requirements",
-            json!([{"id": "R1", "text": "T", "status": status}]),
-        )
+        let mut requirements = specification()["requirements"].clone();
+        requirements[3]["status"] = json!(status);
+        member("requirements", requirements)
     };
     assert_eq!(requirement("active"), []);
     assert_eq!(requirement("removed"), []);
     assert_eq!(
         requirement("deleted"),
-        [schema_error("/requirements/0/status", Reason::Enum)]
+        [schema_error("/requirements/3/status", Reason::Enum)]
     );
     assert_eq!(
         member("open_questions", json!([{"text": "T", "resolved": false}])),
@@ -1212,7 +1275,7 @@ fn the_members_of_a_living_specification_have_their_forms() {
     // R6: keys are English; an Italian key in place of the English one is unknown, with the
     // English key, which is then missing, as the fix.
     let italian = with(without(specification(), "problem"), "problema", json!("x"));
-    let validation = validate(&read(vec![entry(italian)]));
+    let validation = validate(&read(linked(vec![entry(italian)])));
     assert_eq!(
         found(&validation.errors),
         [
@@ -1578,7 +1641,11 @@ fn a_type_whose_schemas_cannot_be_loaded_is_a_failure_of_the_engine() {
 
 #[test]
 fn a_format_error_of_the_id_has_its_own_code_and_keeps_its_fix() {
-    let validation = validate(&read(vec![entry(with(brief(), "id", json!("brief_12")))]));
+    let validation = validate(&read(linked(vec![entry(with(
+        brief(),
+        "id",
+        json!("brief_12"),
+    ))])));
     let [error] = &validation.errors[..] else {
         panic!("{:?}", validation.errors);
     };
@@ -1586,7 +1653,7 @@ fn a_format_error_of_the_id_has_its_own_code_and_keeps_its_fix() {
     assert_eq!(error.reason(), Reason::Syntax);
     assert_eq!(error.fix(), Some(&json!("BRIEF-0012")));
     // Another fault of the id keeps the code of the schema.
-    let validation = validate(&read(vec![entry(with(brief(), "id", json!(12)))]));
+    let validation = validate(&read(linked(vec![entry(with(brief(), "id", json!(12)))])));
     assert_eq!(
         found(&validation.errors),
         [(codes::ARTIFACT_SCHEMA, "/id".into(), Reason::Type)]
@@ -1597,7 +1664,7 @@ fn a_format_error_of_the_id_has_its_own_code_and_keeps_its_fix() {
 fn the_sequence_of_an_identifier_has_four_digits_up_to_9999_then_no_padding() {
     // SPEC-0001, Identifiers (R14): the canonical sequence is `[0-9]{4}|[1-9][0-9]{4,}`.
     for (id, fix) in [("TASK-107", "TASK-0107"), ("TASK-00107", "TASK-0107")] {
-        let validation = validate(&read(vec![entry(with(task(), "id", json!(id)))]));
+        let validation = validate(&read(linked(vec![entry(with(task(), "id", json!(id)))])));
         let [error] = &validation.errors[..] else {
             panic!("{id}: {:?}", validation.errors);
         };
@@ -1617,7 +1684,7 @@ fn the_sequence_of_an_identifier_has_four_digits_up_to_9999_then_no_padding() {
         with(task(), "id", json!("TASK-10000")),
         with(handover(), "id", json!("HANDOVER-12-3")),
     ];
-    let validation = validate(&read(accepted.into_iter().map(entry).collect()));
+    let validation = validate(&read(linked(accepted.into_iter().map(entry).collect())));
     assert_eq!(validation.errors, []);
     assert_eq!(validation.failures, []);
 }
@@ -1625,7 +1692,7 @@ fn the_sequence_of_an_identifier_has_four_digits_up_to_9999_then_no_padding() {
 #[test]
 fn ac1_the_invalid_milestone_is_refused_at_its_id_with_the_fix_m2_and_no_expected() {
     let document = with(milestone(), "id", json!("Milestone 2"));
-    let validation = validate(&read(vec![entry(document)]));
+    let validation = validate(&read(linked(vec![entry(document)])));
     let [error] = &validation.errors[..] else {
         panic!("{:?}", validation.errors);
     };
@@ -1638,7 +1705,7 @@ fn ac1_the_invalid_milestone_is_refused_at_its_id_with_the_fix_m2_and_no_expecte
 }
 
 /// The entry of `document` read from the file `file`, with the line of its `/id`.
-fn stored(document: Value, file: &str, id_line: u64) -> Value {
+pub(super) fn stored(document: Value, file: &str, id_line: u64) -> Value {
     json!({
         "format": "document", "document": document,
         "origin": {"file": file}, "lines": {"/id": id_line}
@@ -1654,11 +1721,11 @@ fn stored_at(file: &str, id_line: u64) -> Source {
 
 #[test]
 fn ac6_two_artifacts_with_one_identifier_are_both_refused_each_naming_the_other() {
-    let validation = validate(&read(vec![
+    let validation = validate(&read(linked(vec![
         stored(task(), "plan/items/TASK-0001.yaml", 3),
         entry(brief()),
         entry(titled(task(), 2)),
-    ]));
+    ])));
     assert_eq!(
         found(&validation.errors),
         [
@@ -1698,12 +1765,12 @@ fn a_refused_identifier_stays_out_of_the_index_and_errors_stay_in_document_order
     // The brief carries the identifier too, but its `id` is refused; the duplicate errors of
     // the three tasks come by document, around the format error of the brief, and each names
     // the two others.
-    let validation = validate(&read(vec![
+    let validation = validate(&read(linked(vec![
         entry(task()),
         entry(with(brief(), "id", json!("TASK-0001"))),
         entry(titled(task(), 2)),
         entry(titled(task(), 3)),
-    ]));
+    ])));
     let documents: Vec<(Option<u64>, Code)> = validation
         .errors
         .iter()
@@ -1732,10 +1799,10 @@ fn duplicates_are_found_in_the_same_pass_as_the_other_errors_of_their_documents(
     // ADR 0009 C3: a document with an error elsewhere than at its `id` is still indexed, so
     // both carriers are refused with `identifier_duplicate`, after the schema error of the
     // first.
-    let validation = validate(&read(vec![
+    let validation = validate(&read(linked(vec![
         entry(with(task(), "zz", json!(1))),
         entry(titled(task(), 1)),
-    ]));
+    ])));
     let found: Vec<(Option<u64>, Code, String)> = validation
         .errors
         .iter()
@@ -1758,7 +1825,7 @@ fn duplicates_are_found_in_the_same_pass_as_the_other_errors_of_their_documents(
 #[test]
 fn a_file_name_or_folder_number_that_names_another_identifier_gives_a_warning() {
     let specification = specification();
-    let validation = validate(&read(vec![
+    let validation = validate(&read(linked(vec![
         stored(brief(), "plan/briefs/BRIEF-0002.yaml", 4),
         stored(task(), "plan/items/TASK-0001.yaml", 3),
         stored(specification.clone(), "specs/0002-time-entries/spec.md", 1),
@@ -1768,7 +1835,7 @@ fn a_file_name_or_folder_number_that_names_another_identifier_gives_a_warning() 
             2,
         ),
         entry(titled(with(task(), "id", json!("TASK-0002")), 2)),
-    ]));
+    ])));
     assert_eq!(validation.errors, []);
     assert_eq!(
         found(&validation.warnings),
@@ -1789,11 +1856,11 @@ fn a_file_name_or_folder_number_that_names_another_identifier_gives_a_warning() 
     assert_eq!(spec_warning.document(), Some(2));
     assert_eq!(spec_warning.fix(), Some(&specification["id"]));
     // The same specification in the folder of its number gives none.
-    let validation = validate(&read(vec![stored(
+    let validation = validate(&read(linked(vec![stored(
         specification,
         "specs/0001-time-entries/spec.md",
         1,
-    )]));
+    )])));
     assert_eq!(validation.warnings, []);
 }
 
@@ -1848,11 +1915,11 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     // Every type has its schema built: a missing one is a failure of the engine, never a check
     // not built (decided by the maintainer on 2026-11-25).
     let types = built();
-    let input = read(vec![
+    let input = read(linked(vec![
         json!({"format": "markdown", "text": super::markdown::tests::EXAMPLE,
                "origin": {"file": "specs/0001-time-entries/spec.md"}}),
         entry(brief()),
-    ]);
+    ]));
     let validation = super::validate(&input, &types);
     assert_eq!(validation.errors, []);
     // The valid brief is read into its contract type (ADR 0030 G1), not left as a value.
@@ -1860,16 +1927,17 @@ fn checks_not_built_are_listed_once_with_their_reason() {
     // Each check not done is listed once, in the order of its identifier.
     let mut expected_not_done: Vec<String> = checks::NOT_BUILT
         .iter()
-        .chain([&checks::ARTIFACT_LOCATIONS])
+        .chain([&checks::ARTIFACT_LOCATIONS, &checks::ADR_CITATIONS])
         .map(|c| c.id().to_owned())
         .collect();
     expected_not_done.sort();
     let not_done: Vec<&str> = validation.not_done.iter().map(|n| n.check().id()).collect();
     assert_eq!(not_done, expected_not_done);
-    // The locations were not given: the documents were not discovered (AC37). Every other
-    // check is not built.
+    // The locations were not given: the documents were not discovered (AC37); nor were the
+    // ADRs of the project. Every other check is not built.
     for not in &validation.not_done {
-        let expected = if not.check() == &checks::ARTIFACT_LOCATIONS {
+        let given = [&checks::ARTIFACT_LOCATIONS, &checks::ADR_CITATIONS];
+        let expected = if given.contains(&not.check()) {
             NotDoneReason::InputAbsent
         } else {
             NotDoneReason::NotBuilt
@@ -1889,6 +1957,7 @@ fn checks_not_built_are_listed_once_with_their_reason() {
         checks::IDENTIFIER_FORMAT,
         checks::IDENTIFIER_DUPLICATE,
         checks::IDENTIFIER_LOCATION,
+        checks::LINKS,
         checks::TITLE_FORMAT,
         checks::TITLE_DUPLICATE,
     ]);
@@ -1904,26 +1973,28 @@ fn checks_not_built_are_listed_once_with_their_reason() {
             )
         })
         .collect();
+    // The two documents of the test come first; the targets of their links follow.
     assert_eq!(
-        summaries,
-        [
-            (Some("specification"), None, Some("SPEC-0001")),
-            (Some("brief"), None, Some("BRIEF-0001")),
-        ]
+        summaries.get(..2),
+        Some(
+            &[
+                (Some("specification"), None, Some("SPEC-0001")),
+                (Some("brief"), None, Some("BRIEF-0001")),
+            ][..]
+        )
     );
     assert_eq!(validation.warnings, []);
-    assert_eq!(
+    assert!(
         validation
             .not_done
             .iter()
-            .find(|n| n.check() == &checks::LINKS),
-        Some(&NotDone::new(checks::LINKS, NotDoneReason::NotBuilt))
+            .all(|n| n.check() != &checks::LINKS)
     );
 }
 
 #[test]
 fn errors_come_in_the_order_of_the_documents_then_of_their_values() {
-    let input = read(vec![
+    let input = read(linked(vec![
         entry(with(with(brief(), "status", json!("done")), "zz", json!(1))),
         entry(json!({"kind": 7})),
         entry(json!({"kind": "ticket"})),
@@ -1932,7 +2003,7 @@ fn errors_come_in_the_order_of_the_documents_then_of_their_values() {
             "schema_version",
             json!(2),
         )),
-    ]);
+    ]));
     let validation = validate(&input);
     assert_eq!(
         found(&validation.errors),
@@ -1963,7 +2034,7 @@ fn sources(origin: Value, lines: Option<Value>, document: Value) -> Vec<Option<S
     if let Some(lines) = lines {
         entry["lines"] = lines;
     }
-    validate(&read(vec![entry]))
+    validate(&read(linked(vec![entry])))
         .errors
         .iter()
         .map(|e| e.location().cloned())
@@ -2020,11 +2091,11 @@ fn the_source_of_an_error_is_the_line_of_its_value_or_of_the_nearest_value_holdi
 
 #[test]
 fn an_unreadable_entry_is_a_syntax_error_at_the_line_of_the_parser() {
-    let validation = validate(&read(vec![
+    let validation = validate(&read(linked(vec![
         entry(brief()),
         json!({"format": "unreadable", "origin": {"file": "plan/briefs/BRIEF-0002.yaml"},
                "error": {"line": 4, "message": "found a tab"}}),
-    ]));
+    ])));
     let [error] = &validation.errors[..] else {
         panic!("{:?}", validation.errors);
     };
@@ -2069,7 +2140,7 @@ fn an_unreadable_entry_needs_a_file_origin() {
 #[test]
 fn every_error_of_a_document_carries_its_index_and_errors_of_the_input_none() {
     // SPEC-0004 R2 as amended: the pointer is relative to the document named by `document`.
-    let validation = validate(&read(vec![
+    let validation = validate(&read(linked(vec![
         entry(brief()),
         entry(json!({"kind": "ticket"})),
         entry(with(
@@ -2077,7 +2148,7 @@ fn every_error_of_a_document_carries_its_index_and_errors_of_the_input_none() {
             "status",
             json!("done"),
         )),
-    ]));
+    ])));
     let documents: Vec<Option<u64>> = validation.errors.iter().map(Error::document).collect();
     assert_eq!(documents, [Some(1), Some(2)]);
     let envelope = run(
@@ -2320,7 +2391,7 @@ fn identifier_errors_come_after_the_schema_errors_of_their_document() {
         "aa",
         json!(1),
     );
-    let validation = validate(&read(vec![entry(document)]));
+    let validation = validate(&read(linked(vec![entry(document)])));
     assert_eq!(
         found(&validation.errors),
         [
@@ -2659,7 +2730,11 @@ fn an_input_without_input_kind_and_without_kind_is_missing_at_kind() {
 fn a_kind_naming_an_input_is_not_an_artifact_type() {
     // `kind` selects artifacts only: the name of an input there is outside the list.
     for name in ["commit", "pull_request"] {
-        let validation = validate(&read(vec![entry(with(commit(), "kind", json!(name)))]));
+        let validation = validate(&read(linked(vec![entry(with(
+            commit(),
+            "kind",
+            json!(name),
+        ))])));
         assert_eq!(
             found(&validation.errors),
             [schema_error("/kind", Reason::Enum)]
@@ -2689,7 +2764,7 @@ fn a_type_without_its_schema_is_a_failure_of_the_engine() {
         let mut types = built();
         types.retain(|k| k.id != id);
         assert_eq!(types.len(), built().len() - 1, "{id}");
-        let validation = super::validate(&read(vec![document]), &types);
+        let validation = super::validate(&read(linked(vec![document])), &types);
         assert_eq!(validation.errors, [], "{id}");
         assert_eq!(validation.failures.len(), 1, "{id}");
         assert_eq!(validation.failures[0].reason(), Reason::Internal, "{id}");

@@ -112,7 +112,7 @@ milestones:
           - { issue: 260, title: "Validate hand-over records and hand-over inputs", spec: "0001", status: done }
           - { issue: 261, title: "Validate the shape of pull request and commit inputs", spec: "0001", status: done }
           - { issue: 262, title: "Check identifier forms and uniqueness across the set", spec: "0001", status: done }
-          - { issue: 263, title: "Check links and the hierarchy between artifacts", spec: "0001", status: open }
+          - { issue: 263, title: "Check links and the hierarchy between artifacts", spec: "0001", status: done }
           - { issue: 264, title: "Check parts of artifacts and change deltas", spec: "0001", status: open }
           - { issue: 265, title: "Normalise living specifications from Markdown", spec: "0001", status: done }
           - { issue: 266, title: "Check epic and task titles", spec: "0001", status: done }

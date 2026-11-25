@@ -12,22 +12,29 @@
 //!   folder number for a living specification, names another identifier gives a warning with
 //!   the reason `conflict` at `/id` and `fix` its identifier. The identity is the `id`; the
 //!   name only helps a person find the file. A document sent directly gives none.
+//!
+//! The same index is the one the links resolve through (`links`, stage 4): an identifier is
+//! looked up there, never a path (ADR 0008).
 
-use wayloop_schemas::contract::rules::ID;
+use serde_json::{Map, Value};
+use wayloop_schemas::contract::rules::{ID, STATUS, SUPERSEDED_BY};
+use wayloop_schemas::validate::Status;
 
 use super::codes;
 use super::duplicates::{documents, shared};
-use super::input::{Entry, Place};
+use super::input::{Body, Entry, Place};
 use super::locations::named_identifier;
 use crate::{Error, Pointer, Reason, Related, Source};
 
 /// An artifact of the index: a document of a known kind whose `id` raised no error, by its
-/// index in the input, with its identifier and its entry.
+/// index in the input, with its identifier, its entry and, when it passed its schema, the
+/// document read into its contract type (ADR 0030 G1).
 #[derive(Debug, Clone)]
 pub(super) struct Indexed<'a> {
     pub(super) document: u64,
     pub(super) id: String,
     pub(super) entry: &'a Entry,
+    pub(super) read: Option<Map<String, Value>>,
 }
 
 /// The pointer of the identifier of an artifact.
@@ -41,9 +48,40 @@ impl Indexed<'_> {
         self.entry.source(&id_pointer())
     }
 
-    /// `error`, at `/id` of the artifact, with its document and the place it is stored.
-    fn of(&self, error: Error) -> Error {
+    /// `error`, of the artifact, with its document and the place where the value at its
+    /// pointer is stored.
+    pub(super) fn of(&self, error: Error) -> Error {
         self.entry.locate(error.with_document(self.document))
+    }
+
+    /// The document as read into its contract type, or as given when it did not pass its
+    /// schema.
+    fn document(&self) -> Option<&Map<String, Value>> {
+        match (&self.read, &self.entry.body) {
+            (Some(read), _) => Some(read),
+            (None, Body::Document { document, .. }) => Some(document),
+            (None, _) => None,
+        }
+    }
+
+    /// The status of the artifact; `None` when it gives none that any type allows.
+    pub(super) fn status(&self) -> Option<Status> {
+        let status = self.document()?.get(STATUS)?.as_str()?;
+        Status::from_id(status)
+    }
+
+    /// The identifiers of the artifacts that replace this one, as given; empty when none is.
+    pub(super) fn superseded_by(&self) -> Vec<String> {
+        let replacements = self.document().and_then(|d| d.get(SUPERSEDED_BY));
+        replacements
+            .and_then(Value::as_array)
+            .map(|ids| {
+                ids.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 }
 

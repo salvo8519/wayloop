@@ -1,5 +1,5 @@
 {
-  "description": "The Markdown form of a living specification does not carry kind and schema_version: both are listed in meta.defaults_applied with the index of their document, pointers relative to it and the reason implied_by_form, after the default of the command version (decided by the maintainer on 2026-11-25).",
+  "description": "The Markdown form of a living specification does not carry kind and schema_version: both are listed in meta.defaults_applied with the index of their document, pointers relative to it and the reason implied_by_form, after the default of the command version (decided by the maintainer on 2026-11-25). Rewritten with the maintainer's approval of 2026-11-25 (#263), one time: the valid plan set follows the specification, so that its links resolve (R3).",
   "covers": [
     "SPEC-0001 R12",
     "SPEC-0004 R3"
@@ -11,6 +11,188 @@
         "text": "# SPEC-0001: Time entries\n\n| | |\n| --- | --- |\n| Status | Implementing |\n| Milestone | M1 · First release |\n| Owner | @example-owner |\n| Related | COUNCIL-0001 |\n| Commit scope | core |\n\n## Problem\nFreelancers need to record time without leaving the terminal.\n\n## Scope\n**In scope:** Recording and listing time entries\n**Out of scope:** Export (a later specification)\n\n## User stories\n- STORY-0001\n- As a freelance developer, I want to see the total of a day, so that I check my timesheet.\n\n## Requirements (EARS)\n- **R1** *Record*: WHEN the user runs the record command, THE TOOL SHALL append one entry to the log.\n- **R2**: THE TOOL SHALL store durations in minutes.\n- **R3**: IF the duration is not positive, THEN THE TOOL SHALL refuse the entry.\n- **R4** (removed): THE TOOL SHALL ask for a project when none is given.\n\n## Acceptance criteria\n- **AC1** (R1, R2): Given an empty log, when an entry of 90 minutes is recorded, then the log holds one entry of 90 minutes. Verification: TDD.\n- **AC2** (R3): Given any duration of zero or less, when recorded, then it is refused. Verification: property test.\n- **AC3** (R1): Given the help of the record command, when read by a new user, then it explains duration and project. Verification: judge. Rubric: Score 1 to 5; 4 or more when duration format, project and one example are all stated.\n\n## Interfaces\n- timesheet record <duration> <project>\n\n## Open questions\n- [x] **Q1. Is a project required for every entry?**\n\n## Notes\nThe log format follows COUNCIL-0001 D1.\n",
         "origin": {
           "file": "specs/0001-time-entries/spec.md"
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "council_report",
+          "schema_version": 1,
+          "id": "COUNCIL-0001",
+          "title": "Council report on terminal time tracking",
+          "status": "approved",
+          "brief": "BRIEF-0001",
+          "mode": "one_mind",
+          "roles": [
+            "product_and_business",
+            "software_architecture",
+            "critic"
+          ],
+          "decisions": [
+            {
+              "id": "D1",
+              "statement": "Store entries in a local file, one line per entry.",
+              "reason": "Works offline and stays readable without the tool."
+            }
+          ],
+          "rejected_alternatives": [
+            {
+              "option": "A hosted service",
+              "reason": "Breaks the offline constraint."
+            }
+          ],
+          "dissent": [
+            {
+              "role": "product_and_business",
+              "position": "Synchronisation between devices matters from the first release.",
+              "decision": "D1"
+            }
+          ],
+          "risks": [
+            {
+              "description": "Concurrent writes from two terminals.",
+              "mitigation": "Append-only writes with a lock."
+            }
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "question": "Is synchronisation in the first milestone?",
+              "options": [
+                "Yes",
+                "No"
+              ],
+              "recommendation": "No",
+              "answer": "No"
+            }
+          ]
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "gate",
+          "schema_version": 1,
+          "id": "GATE-0001",
+          "title": "Approve the brief on terminal time tracking",
+          "status": "done",
+          "subject": "BRIEF-0001",
+          "issue": 2,
+          "approved_by": "@example-owner"
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "milestone",
+          "schema_version": 1,
+          "id": "M1",
+          "title": "Time entries",
+          "status": "implementing",
+          "gate": "A user records, lists and exports the entries of a month offline.",
+          "council_report": "COUNCIL-0001",
+          "due": "2027-03-31",
+          "tracker_number": 1
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "epic",
+          "schema_version": 1,
+          "id": "EPIC-0001",
+          "title": "Time entries are recorded from the terminal",
+          "status": "implementing",
+          "milestone": "M1",
+          "outcome": "A user records a time entry with one command and lists the entries of a day.",
+          "area": "core",
+          "issue": 10
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "story",
+          "schema_version": 1,
+          "id": "STORY-0001",
+          "title": "Record a time entry with one command",
+          "status": "implementing",
+          "epic": "EPIC-0001",
+          "as_a": "freelance developer",
+          "i_want": "to record a time entry with one command",
+          "so_that": "I do not leave the terminal",
+          "acceptance_criteria": [
+            {
+              "id": "AC1",
+              "given": "an empty log",
+              "when": "I run the record command with a duration and a project",
+              "then": "the log holds one entry with that duration and project"
+            }
+          ],
+          "specification": [
+            "SPEC-0001"
+          ],
+          "milestone": "M1",
+          "issue": 11
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "task",
+          "schema_version": 1,
+          "id": "TASK-0001",
+          "title": "timesheet record appends one entry to the log",
+          "status": "implementing",
+          "epic": "EPIC-0001",
+          "milestone": "M1",
+          "story": "STORY-0001",
+          "specification": [
+            {
+              "spec": "SPEC-0001",
+              "requirements": [
+                "R1",
+                "R2"
+              ]
+            }
+          ],
+          "verification": [
+            "tdd"
+          ],
+          "area": "core",
+          "depends_on": [],
+          "complexity": 3,
+          "parallel": false,
+          "issue": 12
         }
       }
     ]
@@ -30,7 +212,7 @@
       "/meta/defaults_applied/2/pointer": "/schema_version",
       "/meta/defaults_applied/2/value": 1,
       "/meta/defaults_applied/2/reason": "implied_by_form",
-      "/meta/input_hash": "b9cf3f6694bf94f9a89517fd3b50feff7430d7f26e0c89d0b648f5962aabbc7d"
+      "/meta/input_hash": "03af95d449743ca97615346f7e06c1dd5d1339e0d9ff2709521af00b7caf38a3"
     },
     "absent": [
       "/error",
@@ -38,7 +220,7 @@
     ],
     "lengths": {
       "/meta/defaults_applied": 3,
-      "/data/documents": 1
+      "/data/documents": 8
     }
   }
 }

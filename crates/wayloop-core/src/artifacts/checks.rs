@@ -33,10 +33,14 @@ pub const MARKDOWN: Check = Check::new("markdown");
 // The schema of each type is its own check, `schema_<kind>` (`kinds::schema_check`): in
 // `checks` when the schema is built, in `not_done` otherwise. The checks run on every set are
 // `markdown`, `document_kind`, `schema_version`, `schema_<kind>` of each built type,
-// `identifier_format`, `identifier_duplicate`, `identifier_location`, `title_format` and
-// `title_duplicate`, in that order, then `artifact_locations` when `locations` is given.
-/// Links between artifacts, the hierarchy and the citations of ADRs (R3, R4, R9, R15).
+// `identifier_format`, `identifier_duplicate`, `identifier_location`, `links`, `title_format`
+// and `title_duplicate`, in the order of the stages of the plan, then `adr_citations` when
+// `adrs` is given and `artifact_locations` when `locations` is given.
+/// Links between artifacts and the hierarchy of plan items (R3, R4, R9, R15).
 pub const LINKS: Check = Check::new("links");
+/// The citations `ADR <NNNN>` in `related` of a living specification against `adrs` (Q5 of
+/// SPEC-0001; Q3 of its plan); run when `adrs` is given, `input_absent` otherwise.
+pub const ADR_CITATIONS: Check = Check::new("adr_citations");
 /// Parts of artifacts and operations of change deltas (R18, R20).
 pub const PARTS: Check = Check::new("parts");
 /// Transitions and initial statuses against the default branch (R13, R19).
@@ -48,4 +52,4 @@ pub const NAMING: Check = Check::new("naming");
 pub const AREAS: Check = Check::new("areas");
 
 /// The checks of the whole set that this version of the engine does not run.
-pub const NOT_BUILT: [Check; 5] = [LINKS, PARTS, STATUSES, NAMING, AREAS];
+pub const NOT_BUILT: [Check; 4] = [PARTS, STATUSES, NAMING, AREAS];

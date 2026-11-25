@@ -405,17 +405,43 @@ fn the_examples_of_the_plan_items_load_into_the_documents_of_their_cases() {
 fn the_examples_of_the_council_reports_specifications_and_changes_load_into_their_cases() {
     // T8: the valid set of the plan items, then the superseded living specification and the
     // change delta, which no plan item links to.
-    let mut set = PLAN_SET.to_vec();
-    set.extend(["specification.superseded.valid.yaml", "change.valid.yaml"]);
     assert_cases_send_the_examples(
         "design-valid",
-        &set,
+        &design_set(),
         &[("specification-invalid", "specification.invalid.yaml")],
         &[
             "specification-judge-without-rubric",
             "change-operation-fields-by-op",
             "council-report-schema",
         ],
+    );
+}
+
+/// The examples of the case `design-valid`: the valid set of the plan items, then the
+/// superseded living specification and the change delta.
+fn design_set() -> Vec<&'static str> {
+    let mut set = PLAN_SET.to_vec();
+    set.extend(["specification.superseded.valid.yaml", "change.valid.yaml"]);
+    set
+}
+
+#[test]
+fn the_examples_of_broken_links_load_into_the_documents_of_their_cases() {
+    // T12: the cases of AC1 that break a link send the valid set of `design-valid`, then their
+    // example; the done task citing the superseded specification follows the same set.
+    assert_cases_send_the_examples(
+        "design-valid",
+        &design_set(),
+        &[
+            ("story-invalid", "story.invalid.yaml"),
+            (
+                "story-superseded-link-invalid",
+                "story.superseded-link.invalid.yaml",
+            ),
+            ("change-invalid", "change.invalid.yaml"),
+            ("council-report-invalid", "council_report.invalid.yaml"),
+        ],
+        &["task-done-superseded-specification"],
     );
 }
 
@@ -453,13 +479,11 @@ fn changed(document: &Value, member: &str, value: Option<Value>) -> Value {
 
 #[test]
 fn the_invalid_examples_of_later_checks_pass_the_schema() {
-    // These examples break links and operations of change deltas, checked by later tasks
-    // (T12, T13), not the schema: with the valid set they give only errors of those checks
-    // (R3, R4, R20), whichever checks are built.
-    let mut names = PLAN_SET.to_vec();
+    // These examples break links (T12) and operations of change deltas (T13), not the schema:
+    // with the valid set they give only the errors of the checks built, here the two missing
+    // links (R3), and nothing else.
+    let mut names = design_set();
     names.extend([
-        "specification.superseded.valid.yaml",
-        "change.valid.yaml",
         "council_report.invalid.yaml",
         "change.invalid.yaml",
         "change.conflict.invalid.yaml",
@@ -469,12 +493,29 @@ fn the_invalid_examples_of_later_checks_pass_the_schema() {
     // An internal failure or an `artifact_schema` error fails the test, as any code other than
     // those of the checks these examples break.
     let envelope = project.envelope();
-    let allowed = [
-        codes::LINK_MISSING,
-        codes::LINK_SUPERSEDED,
-        codes::DELTA_CONFLICT,
-    ];
-    assert_errors_only_of(&envelope, &allowed);
+    assert_errors_only_of(&envelope, &[codes::LINK_MISSING]);
+    // Exactly the link of each example the comment of its file names: the requirement of the
+    // change delta and the brief of the council report; `change.conflict.invalid.yaml` breaks
+    // only a rule of parts, which is not built yet.
+    let errors = envelope["error"]["errors"].as_array().unwrap();
+    let broken: Vec<(&str, &str)> = errors
+        .iter()
+        .map(|e| {
+            let file = e["source"]["file"].as_str().unwrap();
+            (file, e["pointer"].as_str().unwrap())
+        })
+        .collect();
+    // Files are read in the byte order of their paths.
+    assert_eq!(
+        broken,
+        [
+            (
+                "plan/items/change.invalid.yaml",
+                "/operations/0/requirement"
+            ),
+            ("plan/items/council_report.invalid.yaml", "/brief"),
+        ]
+    );
 }
 
 #[test]
@@ -898,7 +939,8 @@ fn a_document_beyond_its_bytes_is_unreadable_and_the_envelope_is_written() {
 #[test]
 fn the_living_specification_of_the_artifact_model_normalises_with_no_error() {
     // SPEC-0001 T14: the specification itself, in the Markdown form it defines, is read from
-    // its file as `markdown` and normalised by the core with no error.
+    // its file as `markdown` and normalised by the core with no error. Its links resolve (T12):
+    // the milestone it names, M0, lives in the tracker, so it is sent beside it.
     let path = "specs/0001-artifact-model/spec.md";
     let files = vec![StoredFile {
         path: ProjectPath::new(path),
@@ -906,7 +948,15 @@ fn the_living_specification_of_the_artifact_model_normalises_with_no_error() {
     }];
     let input = load(&repository(), files).unwrap();
     assert_eq!(input.documents[0].format, EntryFormat::Markdown);
-    let input = serde_json::to_value(input).unwrap();
+    let mut input = serde_json::to_value(input).unwrap();
+    let m0 = changed(
+        &wayloop_schemas::examples::milestone(),
+        "id",
+        Some(json!("M0")),
+    );
+    let m0 = changed(&m0, "council_report", None);
+    let documents = input["documents"].as_array_mut().unwrap();
+    documents.push(json!({"format": "document", "document": m0}));
     let envelope = run(Command::Validate, &input, &Context::default());
     let envelope = serde_json::to_value(&envelope).unwrap();
     assert_eq!(envelope.get("error"), None, "{envelope}");

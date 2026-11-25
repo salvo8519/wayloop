@@ -113,7 +113,7 @@ Prerequisites outside this specification:
   - Depends on: T7, T8.
   - Size: S. Maintainer (crates).
 
-- [ ] **T12 Check links and the hierarchy between artifacts**
+- [x] **T12 Check links and the hierarchy between artifacts**
   - Covers: R3, R4, R9 (cited specification and requirement exist), R15; AC2, AC5, AC6 (first half: links resolve after a move and a rename), AC7, AC14, AC24; AC1 (`story.invalid`, `story.superseded-link.invalid`, `change.invalid`, `council_report.invalid`). Issue: #263.
   - Files: `crates/wayloop-core/src/artifacts/links.rs`, `tests/contract/validate/v1/`.
   - Tests first: one test per AC above; a broken link of a `done` task is a warning `link_broken_terminal`; a superseded target gives `fix` with its `superseded_by`; an ADR citation with no ADR of that number gives a warning when `adrs` is given.

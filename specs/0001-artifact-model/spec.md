@@ -314,7 +314,7 @@ the gate issue with `Refs #<n>`. Whatever the file says, the ledger event is the
 - Identifier: `M<n>`, stored in the structured block of the milestone description.
 - Statuses: `draft`, `approved`, `implementing`, `done`, `superseded`.
 - Transitions: `draft` to `approved` (person: roadmap approval); `approved` to `implementing` (engine: first task claimed); `implementing` to `done` (person: gate met); `draft`, `approved` or `implementing` to `superseded` (person).
-- Required links: none. Optional: `council_report`, which must exist and be approved.
+- Required links: none. Optional: `council_report`, which must exist and be approved. Whether it is approved is checked with the statuses (R13), not with the links (decided by the maintainer on 2026-11-25).
 
 The milestone uses `tracker_number`, not `issue`: a tracker milestone is not an issue, and its
 number belongs to a sequence separate from issues and pull requests, so a field named `issue`
@@ -369,7 +369,7 @@ One per capability (ADR 0014). The Markdown layout is the template in
 | `owner` | string, tracker handle | yes | Person who approves changes |
 | `milestone` | milestone identifier | no | Milestone of the first delivery |
 | `commit_scope` | string, a scope of the project policy | yes | Scope used by commits that implement it |
-| `related` | list of strings | no | Identifiers of ADRs, issues and specifications; a citation `ADR <NNNN>` with no ADR of that number gives a warning (Q5) |
+| `related` | list of strings | no | Identifiers of ADRs, issues and specifications; a citation `ADR <NNNN>` with no ADR of that number gives the warning `adr_citation_missing` at the entry that holds it, when the numbers of the ADRs of the project are given (Q5; decided by the maintainer on 2026-11-25) |
 | `problem` | string | yes | Who needs this and why |
 | `scope_in` | list of strings, at least 1 | yes | What is specified |
 | `scope_out` | list of strings | no | What is left to other specifications |
@@ -385,7 +385,7 @@ One per capability (ADR 0014). The Markdown layout is the template in
 - Statuses: `draft`, `approved`, `surveyed`, `implementing`, `done`, `superseded`.
 - Transitions: `draft` to `approved` (person); `surveyed` to `approved` (person, SPEC-0011 R4); `approved` to `implementing` (engine: first task that cites the specification claimed); `implementing` to `done` (person, `specs/README.md`); any non-terminal status to `superseded` (person). A change delta updates the content of a specification in any status but `superseded`; it does not change the status.
 - Required links: every `requirements` entry of an acceptance criterion names an active requirement of the same document (R3).
-- Removed requirements stay in the list with `status: removed`. The record keeps the highest identifier ever used visible, so that an added requirement never reuses one (R20), and lets a task in a terminal status that cites it resolve with a warning.
+- Removed requirements stay in the list with `status: removed`. The record keeps the highest identifier ever used visible, so that an added requirement never reuses one (R20), and lets a task in a terminal status that cites it resolve with a warning. A removed requirement cited by an artifact in a non-terminal status is refused with `link_superseded` and the reason `state`, with no fix, since it has no replacement; an artifact in a terminal status gets the warning `link_broken_terminal` (decided by the maintainer on 2026-11-25).
 
 #### Markdown form of a living specification
 
@@ -545,7 +545,7 @@ field, so an agent that sends one, for example `tokens`, is refused with `unknow
 
 - Identifier: `HANDOVER-<issue>-<k>`, assigned by the engine when it records the event.
 - Statuses: none. A hand-over is immutable; a later one for the same issue takes its place in the next brief.
-- Required links: `issue`, a planned issue; `task`, when present, must exist and carry the same `issue`.
+- Required links: `issue`, a planned issue; `task`, when present, must exist and carry the same `issue`. A hand-over record is never changed, so it is terminal for R3: a missing `task` is a warning, and a superseded one is accepted. That `task` carries the same `issue` and that `issue` is a planned issue need the tracker, and `wayloop validate` does not check them yet (decided by the maintainer on 2026-11-25).
 
 The `step` values are the identifiers of `IssueStep` of `wayloop-schemas`, re-exported by
 `wayloop-core` (decided by the maintainer on 2026-11-24), written in `snake_case`, for example
@@ -677,6 +677,11 @@ folder number that differs from the identifier (section Where artifacts live; li
 is the warning `identifier_location` at `/id`, with `fix` the identifier, given only for an
 artifact read from a file of a location (decided by the maintainer on 2026-11-25).
 
+Errors of links (`link_missing`, `link_superseded`, `link_broken_terminal`) and of the
+hierarchy (`hierarchy_mismatch`) carry no `related`: the pointer and the message name the
+target. The `fix` of a link to a superseded target is always a list of identifiers, its
+`superseded_by`, also when it holds one (decided by the maintainer on 2026-11-25).
+
 `expected` lists accepted values, never a pattern. For a format error (`syntax`), `expected`
 is absent and `fix` carries a corrected value when one can be derived, for example `M2` for
 `Milestone 2`. A new meaning gets a new code, and codes are never renamed or reused (ADR 0009
@@ -688,6 +693,7 @@ C8).
 | R3, R4, R9 | `link_missing` | `missing` |
 | R4 | `link_superseded` | `state` |
 | R3 (terminal holder) | `link_broken_terminal` (warning) | `missing`, `state` |
+| Q5 | `adr_citation_missing` (warning) | `missing` |
 | R7 | `title_format` | `syntax` |
 | R8 | `title_duplicate` | `duplicate` |
 | R10 | `pull_request_link` | `missing`, `conflict` |

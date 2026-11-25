@@ -1,6 +1,6 @@
 # Invalid story. Breaks SPEC-0001 R4 (AC7): the linked specification is superseded.
 # Expected: the error names STORY-0003, pointer /specification/0, code link_superseded,
-# reason state, target SPEC-0003, fix SPEC-0001 (its superseded_by).
+# reason state, target SPEC-0003, fix [SPEC-0001] (the list of its superseded_by).
 kind: story
 schema_version: 1
 id: STORY-0003
