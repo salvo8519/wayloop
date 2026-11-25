@@ -1,5 +1,5 @@
 {
-  "description": "The story of the examples linked to the superseded specification SPEC-0003, after the valid set: refused with link_superseded at /specification/0, and the fix lists the identifiers of its superseded_by.",
+  "description": "The story of the examples linked to the superseded specification SPEC-0003, after the valid set: refused with link_superseded at /specification/0, the identifiers of its superseded_by in expected and, since there is one, SPEC-0001 as the fix.",
   "covers": [
     "SPEC-0001 R4",
     "SPEC-0001 AC1",
@@ -389,9 +389,10 @@
       "/error/errors/0/pointer": "/specification/0",
       "/error/errors/0/reason": "state",
       "/error/errors/0/document": 10,
-      "/error/errors/0/fix": [
+      "/error/errors/0/expected": [
         "SPEC-0001"
       ],
+      "/error/errors/0/fix": "SPEC-0001",
       "/meta/input_hash": "abf2901637e68c9c9878091122221d93372e856e2f561e0581102401d0d743e3"
     },
     "absent": [

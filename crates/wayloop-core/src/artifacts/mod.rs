@@ -19,6 +19,7 @@ pub mod kinds;
 mod links;
 pub mod locations;
 mod markdown;
+mod members;
 mod titles;
 mod validate;
 

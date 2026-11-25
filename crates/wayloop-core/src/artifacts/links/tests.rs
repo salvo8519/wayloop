@@ -9,7 +9,7 @@ use wayloop_schemas::examples::{
 };
 
 use crate::artifacts::tests::{
-    at, entry, found, project, read, read_input, stored, validate, with,
+    at, entry, found, linked, project, read, read_input, stored, validate, with,
 };
 use crate::artifacts::{Validation, checks, codes};
 use crate::{Code, Error, Reason};
@@ -144,7 +144,7 @@ fn ac6_links_to_a_living_specification_moved_and_renamed_still_resolve() {
 }
 
 #[test]
-fn ac7_a_story_linked_to_a_superseded_specification_gets_its_replacements_as_the_fix() {
+fn ac7_a_story_linked_to_a_superseded_specification_gets_its_replacements_and_the_fix() {
     let story = story_with("STORY-0003", "specification", json!(["SPEC-0003"]));
     let validation = validated(vec![story]);
     let error = only_error(&validation);
@@ -154,11 +154,14 @@ fn ac7_a_story_linked_to_a_superseded_specification_gets_its_replacements_as_the
     );
     assert_eq!(error.document(), after());
     assert!(error.message().contains("SPEC-0003"), "{error:?}");
-    assert_eq!(error.fix(), Some(&json!(["SPEC-0001"])));
+    // One replacement: the values accepted, and the fix applicable as is (decided by the
+    // maintainer on 2026-11-25).
+    assert_eq!(error.expected(), Some(&[json!("SPEC-0001")][..]));
+    assert_eq!(error.fix(), Some(&json!("SPEC-0001")));
 }
 
 #[test]
-fn the_fix_of_a_superseded_target_lists_every_replacement() {
+fn several_replacements_are_the_values_accepted_with_no_fix() {
     let replaced = with(epic(), "id", json!("EPIC-0002"));
     let replaced = with(replaced, "status", json!("superseded"));
     let replaced = with(replaced, "superseded_by", json!(["EPIC-0001", "EPIC-0003"]));
@@ -175,7 +178,12 @@ fn the_fix_of_a_superseded_target_lists_every_replacement() {
         found(&validation.errors),
         coded(codes::LINK_SUPERSEDED, "/epic", Reason::State)
     );
-    assert_eq!(error.fix(), Some(&json!(["EPIC-0001", "EPIC-0003"])));
+    assert_eq!(
+        error.expected(),
+        Some(&[json!("EPIC-0001"), json!("EPIC-0003")][..])
+    );
+    // No single value to apply as is.
+    assert_eq!(error.fix(), None);
 }
 
 /// A draft milestone `M2` of the examples.
@@ -253,7 +261,8 @@ fn ac24_a_done_task_citing_a_superseded_specification_passes_with_a_warning() {
     );
     assert_eq!(warning.document(), after());
     assert!(warning.message().contains("SPEC-0003"), "{warning:?}");
-    assert_eq!(warning.fix(), Some(&json!(["SPEC-0001"])));
+    assert_eq!(warning.expected(), Some(&[json!("SPEC-0001")][..]));
+    assert_eq!(warning.fix(), Some(&json!("SPEC-0001")));
 }
 
 #[test]
@@ -281,7 +290,7 @@ fn a_removed_requirement_is_not_in_force_for_a_task_and_a_warning_once_it_is_don
             Reason::State
         )
     );
-    assert_eq!(error.fix(), None);
+    assert_eq!((error.fix(), error.expected()), (None, None));
     let done = task_with("TASK-0002", "done", "specification", cited);
     let validation = validated(vec![done]);
     only_warning(&validation);
@@ -564,5 +573,194 @@ fn a_citation_of_an_adr_the_project_does_not_have_is_a_warning_at_its_entry() {
                 Reason::Missing
             ),
         ]
+    );
+}
+
+/// An epic of the examples called `id`, superseded by `replacements`.
+fn superseded_epic(id: &str, replacements: Value) -> Value {
+    let epic = with(with(epic(), "id", json!(id)), "status", json!("superseded"));
+    with(epic, "superseded_by", replacements)
+}
+
+#[test]
+fn a_replacement_must_not_be_superseded_and_a_chain_is_a_warning_of_its_holder() {
+    // Decided by the maintainer on 2026-11-25: `superseded_by` names artifacts in force. Its
+    // holder is superseded, so terminal: a self-reference or a cycle is a warning.
+    let validation = validated(vec![superseded_epic("EPIC-0002", json!(["EPIC-0002"]))]);
+    let warning = only_warning(&validation);
+    assert_eq!(
+        found(&validation.warnings),
+        coded(
+            codes::LINK_BROKEN_TERMINAL,
+            "/superseded_by/0",
+            Reason::State
+        )
+    );
+    assert_eq!(warning.fix(), Some(&json!("EPIC-0002")));
+    let cycle = vec![
+        superseded_epic("EPIC-0002", json!(["EPIC-0003"])),
+        superseded_epic("EPIC-0003", json!(["EPIC-0002"])),
+    ];
+    let validation = validated(cycle);
+    assert_eq!(validation.errors, []);
+    let warned: Vec<(Option<u64>, String)> = validation
+        .warnings
+        .iter()
+        .map(|w| (w.document(), w.pointer().to_string()))
+        .collect();
+    let first = after().unwrap();
+    assert_eq!(
+        warned,
+        [
+            (Some(first), "/superseded_by/0".to_owned()),
+            (Some(first + 1), "/superseded_by/0".to_owned()),
+        ]
+    );
+    // A draft epic is not terminal: its replacement, itself superseded, is an error.
+    let draft = with(
+        with(epic(), "id", json!("EPIC-0004")),
+        "status",
+        json!("draft"),
+    );
+    let draft = with(
+        with(draft, "issue", Value::Null),
+        "superseded_by",
+        json!(["EPIC-0002"]),
+    );
+    let replaced = superseded_epic("EPIC-0002", json!(["EPIC-0001"]));
+    let validation = validated(vec![replaced, draft]);
+    let error = only_error(&validation);
+    assert_eq!(
+        found(&validation.errors),
+        coded(codes::LINK_SUPERSEDED, "/superseded_by/0", Reason::State)
+    );
+    assert_eq!(error.fix(), Some(&json!("EPIC-0001")));
+}
+
+#[test]
+fn a_superseded_artifact_with_a_missing_link_gives_a_warning() {
+    let replaced = with(
+        superseded_epic("EPIC-0002", json!(["EPIC-0001"])),
+        "milestone",
+        json!("M9"),
+    );
+    let validation = validated(vec![replaced]);
+    only_warning(&validation);
+    assert_eq!(
+        found(&validation.warnings),
+        coded(codes::LINK_BROKEN_TERMINAL, "/milestone", Reason::Missing)
+    );
+}
+
+#[test]
+fn at_one_member_the_link_error_comes_before_the_hierarchy_error() {
+    // The milestone M9 does not exist, and differs from M1, the milestone of the epic.
+    let task = task_with("TASK-0002", "approved", "milestone", json!("M9"));
+    let validation = validated(vec![task]);
+    assert_eq!(
+        found(&validation.errors),
+        [
+            (
+                codes::LINK_MISSING,
+                "/milestone".to_owned(),
+                Reason::Missing
+            ),
+            (
+                codes::HIERARCHY_MISMATCH,
+                "/milestone".to_owned(),
+                Reason::Conflict
+            ),
+        ]
+    );
+}
+
+#[test]
+fn a_markdown_specification_with_an_error_of_its_own_is_not_checked_for_links_but_found() {
+    // Decided by the maintainer on 2026-11-25: one rule for every error of a document, of its
+    // schema or of the normalisation of its Markdown. The section Problem is given twice and
+    // the milestone M9 does not exist: only the repeated section is reported, and the story and
+    // the task that link the specification still find it.
+    let text = crate::artifacts::markdown::tests::EXAMPLE
+        .replacen("| Milestone | M1 ", "| Milestone | M9 ", 1)
+        .replacen("## Interfaces", "## Problem\nAgain.\n\n## Interfaces", 1);
+    assert_ne!(text, crate::artifacts::markdown::tests::EXAMPLE);
+    let markdown = json!({"format": "markdown", "text": text,
+                          "origin": {"file": "specs/0001-time-entries/spec.md"}});
+    let validation = validate(&read(linked(vec![markdown])));
+    assert_eq!(
+        found(&validation.errors),
+        coded(codes::ARTIFACT_SCHEMA, "/problem", Reason::Duplicate)
+    );
+    assert_eq!(validation.warnings, []);
+    // Without the repeated section, the broken milestone is reported.
+    let text = crate::artifacts::markdown::tests::EXAMPLE.replacen(
+        "| Milestone | M1 ",
+        "| Milestone | M9 ",
+        1,
+    );
+    let markdown = json!({"format": "markdown", "text": text,
+                          "origin": {"file": "specs/0001-time-entries/spec.md"}});
+    let validation = validate(&read(linked(vec![markdown])));
+    assert_eq!(
+        found(&validation.errors),
+        coded(codes::LINK_MISSING, "/milestone", Reason::Missing)
+    );
+}
+
+#[test]
+fn bare_numbers_after_a_citation_of_an_adr_cite_adrs_too() {
+    // Decided by the maintainer on 2026-11-25: `ADR 0002, 0003` cites two ADRs, in one entry
+    // or split into entries as the header row of a Markdown specification is.
+    let related = json!([
+        "ADR 0002, 0003",
+        "#6",
+        "0004",
+        "ADR 0005",
+        "0006",
+        "SPEC-0001",
+        "0007"
+    ]);
+    let validation = cited(related, &[2]);
+    let warned: Vec<(String, String)> = validation
+        .warnings
+        .iter()
+        .map(|w| (w.pointer().to_string(), w.message().to_owned()))
+        .collect();
+    let at: Vec<&str> = warned.iter().map(|(p, _)| p.as_str()).collect();
+    // 0003 in the first entry, 0005 and 0006; not 0004 after `#6`, nor 0007 after `SPEC-0001`.
+    assert_eq!(at, ["/related/0", "/related/3", "/related/4"]);
+    assert!(warned[0].1.contains("ADR 0003"), "{warned:?}");
+    assert!(warned[2].1.contains("ADR 0006"), "{warned:?}");
+}
+
+#[test]
+fn every_citation_of_a_large_set_is_one_lookup_in_the_requirements_of_its_specification() {
+    // Review B1: the requirements of each specification are read once into a map, so that a
+    // set with many requirements and many citations stays linear in their number. 3,000
+    // requirements cited by one task and named by one criterion, with one missing at the end.
+    const COUNT: usize = 3_000;
+    let ids: Vec<String> = (1..=COUNT).map(|k| format!("R{k}")).collect();
+    let requirements: Vec<Value> = ids
+        .iter()
+        .map(|id| json!({"id": id, "text": "THE TOOL SHALL record."}))
+        .collect();
+    let mut cited_ids: Vec<Value> = ids.iter().map(|id| json!(id)).collect();
+    cited_ids.push(json!(format!("R{}", COUNT + 1)));
+    let large = with(specification(), "id", json!("SPEC-0005"));
+    let large = with(
+        with(large, "status", json!("draft")),
+        "requirements",
+        json!(requirements),
+    );
+    let criteria = json!([{"id": "AC1", "requirements": ids, "text": "Given.",
+                           "verification": ["tdd"]}]);
+    let large = with(large, "acceptance_criteria", criteria);
+    let reference = json!([{"spec": "SPEC-0005", "requirements": cited_ids}]);
+    let task = task_with("TASK-0002", "approved", "specification", reference);
+    let validation = validated(vec![large, task]);
+    let pointer = format!("/specification/0/requirements/{COUNT}");
+    assert_eq!(
+        found(&validation.errors),
+        coded(codes::LINK_MISSING, &pointer, Reason::Missing)
     );
 }

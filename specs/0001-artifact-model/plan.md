@@ -96,8 +96,10 @@ pub struct Validation {
   into errors; (2) per document: kind, `schema_version` (R16), migration to the current
   version, schema (R1); (3) identifiers (R14) and the index by identifier; (4) links and
   hierarchy (R3, R4, R9, R15); (5) parts and deltas (R18, R20); (6) statuses against `base`
-  (R13, R19); (7) titles and naming (R7, R8, R10, R11). A document that fails stage 2 is kept
-  out of the index, so that its broken shape does not cause a wave of link errors elsewhere.
+  (R13, R19); (7) titles and naming (R7, R8, R10, R11). A document with an error of its own,
+  of stage 1 or 2, is not checked for links, so that its broken shape does not cause a wave of
+  link errors elsewhere; it stays in the index, as a target, when its `id` raised no error
+  (decided by the maintainer on 2026-11-25).
 - Error order is deterministic: by position of the document in the input, then by stage, then
   within a stage in the order of the schema pass: a value's own errors before the errors
   inside it, the members of an object in the byte order of their keys (so `/aa` before

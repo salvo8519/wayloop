@@ -10,11 +10,11 @@ use crate::Code;
 /// A document breaks the schema of its type (SPEC-0001 R1, R6, R12); also a document without
 /// a known `kind` and a file that did not parse.
 pub const ARTIFACT_SCHEMA: Code = Code::new("artifact_schema");
-/// A link of an artifact in a non-terminal status points to nothing (R3, R4, R9); a removed
-/// requirement cited by such an artifact is `link_superseded` (decided by the maintainer on
-/// 2026-11-25).
+/// A link of an artifact in a non-terminal status points to nothing (R3, R4, R9).
 pub const LINK_MISSING: Code = Code::new("link_missing");
-/// A link of an artifact in a non-terminal status points to a superseded artifact (R4).
+/// A link of an artifact in a non-terminal status points to a superseded artifact (R4), or
+/// cites a removed requirement, which has no replacement (decided by the maintainer on
+/// 2026-11-25).
 pub const LINK_SUPERSEDED: Code = Code::new("link_superseded");
 /// A broken link of an artifact in a terminal status: a warning (R3).
 pub const LINK_BROKEN_TERMINAL: Code = Code::new("link_broken_terminal");

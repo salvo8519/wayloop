@@ -1,5 +1,5 @@
 {
-  "description": "A done task that cites the superseded specification SPEC-0003: the set passes, with the warning link_broken_terminal at /specification/0/spec and the replacements of SPEC-0003 as the fix.",
+  "description": "A done task that cites the superseded specification SPEC-0003: the set passes, with the warning link_broken_terminal at /specification/0/spec, the replacement of SPEC-0003 in expected and as the fix.",
   "covers": [
     "SPEC-0001 R3",
     "SPEC-0001 R4",
@@ -392,9 +392,10 @@
       "/diagnostics/warnings/0/pointer": "/specification/0/spec",
       "/diagnostics/warnings/0/reason": "state",
       "/diagnostics/warnings/0/document": 10,
-      "/diagnostics/warnings/0/fix": [
+      "/diagnostics/warnings/0/expected": [
         "SPEC-0001"
       ],
+      "/diagnostics/warnings/0/fix": "SPEC-0001",
       "/meta/input_hash": "3786255da32267228a7b9573d0452c9912e2c5bf94287db8181a2d5afc310c8d"
     },
     "absent": [

@@ -161,14 +161,16 @@ hand-over has no title and no status; the summary of an input in `data.documents
 
 `artifact_locations` is listed in `diagnostics.not_done` with the reason `input_absent` when
 `locations` is not given: the documents were named or sent directly. `adr_citations` is listed
-there with the same reason when `adrs` is not given; the command line does not give it yet.
+there with the same reason when `adrs` is not given; the command line does not fill `adrs`
+yet (#344).
 
 ### Links
 
 Every link is resolved by identifier through the set, never by path: a living specification
 moved to another folder and renamed is still found. The links of an artifact are read only when
-it passed its schema, so that a broken document causes no wave of link errors; an artifact with
-other errors is still found as a target, as long as its `id` raised none. An item that lives
+it has no error of its own, of its schema or of the normalisation of its Markdown, so that a
+broken document causes no wave of link errors; such an artifact is still found as a target, as
+long as its `id` raised no error. An item that lives
 only in the tracker is not in the set until the tracker is read, so a link to it is missing.
 
 | Type | Members that link |
@@ -186,26 +188,35 @@ only in the tracker is not in the set until the tracker is read, so a link to it
 
 - A link to an identifier that no artifact of the set carries is `link_missing`, reason
   `missing`, at the member of the link.
-- A link to a superseded artifact is `link_superseded`, reason `state`, with `fix` the list of
-  the identifiers of its `superseded_by`, also when it holds one, for example `["SPEC-0001"]`.
-  `superseded_by`, `expanded_from` (the task a subtask was expanded from is superseded by it)
-  and `depends_on` accept a superseded target; a dependency on a superseded task is a rule of
-  the check `parts`.
+- A link to a superseded artifact is `link_superseded`, reason `state`, with the identifiers of
+  its `superseded_by` in `expected`, the values accepted at the pointer, and, when there is
+  exactly one, that identifier in `fix`, applicable as is, for example `"SPEC-0001"`. With
+  several replacements, `fix` is absent.
+- `superseded_by` names artifacts that are not superseded: a replacement that is itself
+  superseded, as in a chain or a self-reference, is a broken link of its holder.
+  `expanded_from` (the task a subtask was expanded from is superseded by it) and `depends_on`
+  accept a superseded target, since they record the history of the work; a dependency on a
+  superseded task is a rule of the check `parts`.
 - A cited requirement that the specification does not have is `link_missing`; a removed one is
-  `link_superseded`, reason `state`, with no fix. Requirements are checked only when the
-  specification is in the set and passed its schema.
+  `link_superseded`, reason `state`, with neither `expected` nor `fix`, since it has no
+  replacement. Requirements are checked only when the specification is in the set and passed
+  its schema.
 - A task or a story whose `milestone` differs from that of its epic, or a task whose `epic`
   differs from that of its story, is `hierarchy_mismatch`, reason `conflict`, at `/milestone` or
   `/epic`, with the member of the parent (`/epic` or `/story`) in `pointers` and the value
   reached through the parent in `expected`.
 - An artifact in status `done` or `superseded` is not changed again, and a hand-over record is
   never changed: each broken link of such an artifact is the warning `link_broken_terminal`,
-  with the reason of the error it replaces, and the hierarchy is not checked.
+  with the reason, `expected` and `fix` of the error it replaces, and the hierarchy is not
+  checked.
 - No error of a link or of the hierarchy carries `related`: the pointer and the message name the
   target.
-- A citation is the word `ADR`, a space and digits, for example `ADR 0014`; `ADR 14` cites the
-  same ADR. With `adrs`, a citation whose number is not listed is the warning
-  `adr_citation_missing`, reason `missing`, at the entry of `related` that holds it.
+- A citation is the word `ADR` followed by a number, for example `ADR 0014`; `ADR 14` cites the
+  same ADR. A bare number that follows a citation, in the same entry or in the entries right
+  after it, cites an ADR too: `ADR 0002, 0003` cites two, also when the header row `Related`
+  of a Markdown specification splits it into two entries. With `adrs`, a citation whose number
+  is not listed is the warning `adr_citation_missing`, reason `missing`, at the entry of
+  `related` that holds it.
 
 This version does not check that a milestone links an approved council report, nor that the
 task of a hand-over record carries its issue or that the issue is a task of the plan.
@@ -348,7 +359,7 @@ absent member. The input schema is closed: a member it does not list is refused.
 | `documents` | list of objects | yes | One entry per stored artifact or input; `[]` means none |
 | `base` | list of `{id, status}` | no | Statuses on the default branch of the artifacts of the set |
 | `policy` | object `{types, scopes, areas}`, each a list of names of the policy, identifiers of at least one character | no | The subset of the project policy the model reads. The check `title_format` reads its `types`; the check `areas` is listed as not done. Absent: the default policy applies, the policy of the Wayloop repository, and `meta.defaults_applied` lists it when the set holds an epic or a task, whose checks read it |
-| `adrs` | list of integers from 1 | no | Numbers of the ADRs of the project, for the check `adr_citations`. Absent: citations are not checked, and the check is not done |
+| `adrs` | list of integers from 1 | no | Numbers of the ADRs of the project, for the check `adr_citations`. Absent: citations are not checked, and the check is not done. Not filled by the command line yet (#344) |
 | `locations` | list of `plan_briefs`, `plan_council`, `plan_items`, `specs`, for the folders `plan/briefs`, `plan/council`, `plan/items` and `specs` | no | The folders of the locations that exist in the project, when the documents were discovered there; their order and a repeated folder have no meaning, they are not compared with the `file` origins of the documents, and `[]` means none, which gives the warning `artifact_location_missing`. Absent: the documents were named or sent directly, and the check `artifact_locations` is not done |
 | `language` | BCP 47 tag, for example `it` or `en-GB` | no | The language of the project. No check of this version reads it, so no default is applied or reported when it is absent; a check that needs it lists the default in `meta.defaults_applied` |
 
@@ -469,10 +480,10 @@ levels of objects (ADR 0009 C4). `related` is absent when there is no other docu
 | `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | A hand-over input breaks its schema, for example by setting a member that only the engine sets (`unknown_field`) |
 | `schema_version_unknown` | `enum` | 1 | The `schema_version` is not a version of the type or of the input; `expected` lists the known versions |
 | `identifier_format` | `syntax` | 1 | The `id` is not in the canonical form of its type; `fix` gives the corrected identifier when one can be derived |
-| `link_missing` | `missing` | 1 | A link names an identifier no artifact of the set carries, or a requirement its specification does not have (see Links) |
-| `link_superseded` | `state` | 1 | A link names a superseded artifact, with its replacements in `fix`, or a removed requirement |
-| `hierarchy_mismatch` | `conflict` | 1 | A task or a story names a milestone or an epic other than the one reached through its parent |
 | `identifier_duplicate` | `duplicate` | 1 | Two artifacts or more of the set carry one identifier: each is refused at `/id`, and each error names the others in `related`. Every document of a known `kind` whose `id` raised no error is compared, whatever its other errors, so the duplicates come in the same pass |
+| `link_missing` | `missing` | 1 | A link names an identifier no artifact of the set carries, or a requirement its specification does not have (see Links) |
+| `link_superseded` | `state` | 1 | A link names a superseded artifact, with its replacements in `expected` and, when there is one, in `fix`; or a removed requirement, with neither |
+| `hierarchy_mismatch` | `conflict` | 1 | A task or a story names a milestone or an epic other than the one reached through its parent |
 | `title_format` | `syntax` | 1 | The title of an epic or a task has a type prefix, a bracket tag at its start or end, or a final full stop: one error per rule at `/title`, each with `fix` the title with every rule applied, when anything is left |
 | `title_duplicate` | `duplicate` | 1 | Two epic or task titles or more, in any status except `superseded`, are equal after normalisation: each is refused at `/title`, and each error names the others in `related` |
 | `usage` | `syntax` | 2 | The command line is not understood; `command` is the command named, empty when none |
@@ -486,10 +497,10 @@ refused for them and the exit code does not change. They come in a fixed order: 
 
 | Code | Reason | Pointer | Meaning |
 | --- | --- | --- | --- |
-| `link_broken_terminal` | `missing`, `state` | The member of the link | A link of an artifact that is done or superseded, or of a hand-over record, is broken, as `link_missing` or `link_superseded` would say for another artifact |
+| `identifier_location` | `conflict` | `/id` | The artifact was read from `plan/briefs/<name>.yaml`, `plan/council/<name>.yaml`, `plan/items/<name>.yaml` or `specs/<number>-<capability>/spec.md` (`<number>` of ASCII digits, in any form), and `<name>`, or `SPEC-<number>`, differs from its `id`; `fix` is the `id`, which is the identity. A document sent directly, or read from another path, gives none |
+| `link_broken_terminal` | `missing`, `state` | The member of the link | A link of an artifact that is done or superseded, or of a hand-over record, is broken, as `link_missing` or `link_superseded` would say for another artifact, with the same `expected` and `fix` |
 | `adr_citation_missing` | `missing` | `/related/<i>` | A living specification cites an ADR whose number is not in `adrs` |
 | `artifact_location_missing` | `missing` | `/locations` | No folder of a location exists in the project where the documents were discovered, for example because the command ran in a subfolder of the project |
-| `identifier_location` | `conflict` | `/id` | The artifact was read from `plan/briefs/<name>.yaml`, `plan/council/<name>.yaml`, `plan/items/<name>.yaml` or `specs/<number>-<capability>/spec.md` (`<number>` of ASCII digits, in any form), and `<name>`, or `SPEC-<number>`, differs from its `id`; `fix` is the `id`, which is the identity. A document sent directly, or read from another path, gives none |
 
 An unknown member gets the closest member, when one is close, in `fix`: for example `problem`
 for `problema`.

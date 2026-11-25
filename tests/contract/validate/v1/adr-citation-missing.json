@@ -1,6 +1,7 @@
 {
-  "description": "A living specification that cites ADR 0008 and ADR 0042 in related, with adrs listing ADR 8 only: the set passes, with the warning adr_citation_missing at /related/2.",
+  "description": "A living specification that cites ADR 0008, ADR 0042 and, as a bare number after it, 0043 in related, with adrs listing ADR 8 only: the set passes, with the warning adr_citation_missing at /related/2 and at /related/3 (decided by the maintainer on 2026-11-25).",
   "covers": [
+    "SPEC-0001 Q5",
     "SPEC-0001 R3"
   ],
   "input": {
@@ -104,7 +105,8 @@
           "related": [
             "COUNCIL-0001",
             "ADR 0008",
-            "ADR 0042"
+            "ADR 0042",
+            "0043"
           ],
           "problem": "Freelancers need to record time without leaving the terminal.",
           "scope_in": [
@@ -366,13 +368,19 @@
       "/diagnostics/warnings/0/pointer": "/related/2",
       "/diagnostics/warnings/0/reason": "missing",
       "/diagnostics/warnings/0/document": 2,
-      "/meta/input_hash": "100b007be82936fa13ff26924d9f3e7f71f7aae233fc255cbdd9c7a024fb4338"
+      "/diagnostics/warnings/1/code": "adr_citation_missing",
+      "/diagnostics/warnings/1/pointer": "/related/3",
+      "/diagnostics/warnings/1/reason": "missing",
+      "/diagnostics/warnings/1/document": 2,
+      "/meta/input_hash": "ac0cde6e67c2b5f3ce2e44609e6d3f529cff69ca8f093158723252f76bb1a6de"
     },
     "absent": [
-      "/error"
+      "/error",
+      "/diagnostics/warnings/0/fix",
+      "/diagnostics/warnings/0/related"
     ],
     "lengths": {
-      "/diagnostics/warnings": 1
+      "/diagnostics/warnings": 2
     }
   }
 }

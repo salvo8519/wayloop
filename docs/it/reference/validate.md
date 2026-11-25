@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 7eb90577c4d5
+source_hash: 9c436d885edd
 ---
 # wayloop validate
 
@@ -171,15 +171,16 @@ quando è noto, la sua `origin`; nessun `kind`, `id` o `status`.
 `artifact_locations` è elencato in `diagnostics.not_done` con il motivo `input_absent` quando
 `locations` non è dato: i documenti sono stati indicati per nome o inviati direttamente.
 `adr_citations` vi è elencato con lo stesso motivo quando `adrs` non è dato; la riga di comando
-non lo fornisce ancora.
+non compila ancora `adrs` (#344).
 
 ### Collegamenti
 
 Ogni collegamento è risolto per identificativo all'interno dell'insieme, mai per percorso: una
 specifica viva spostata in un'altra cartella e rinominata viene comunque trovata. I collegamenti
-di un artefatto sono letti solo quando ha superato il suo schema, così che un documento
-difettoso non causi un'ondata di errori di collegamento; un artefatto con altri errori è
-comunque trovato come destinazione, purché il suo `id` non abbia dato errori. Un elemento che
+di un artefatto sono letti solo quando non ha errori propri, del suo schema o della
+normalizzazione del suo Markdown, così che un documento difettoso non causi un'ondata di errori
+di collegamento; un tale artefatto è comunque trovato come destinazione, purché il suo `id` non
+abbia dato errori. Un elemento che
 vive solo nell'issue tracker non è nell'insieme finché il tracker non viene letto, quindi un
 collegamento verso di esso è mancante.
 
@@ -199,29 +200,38 @@ collegamento verso di esso è mancante.
 - Un collegamento a un identificativo che nessun artefatto dell'insieme porta è
   `link_missing`, motivo `missing`, al membro del collegamento.
 - Un collegamento a un artefatto in stato `superseded` è `link_superseded`, motivo `state`, con
-  `fix` la lista degli identificativi del suo `superseded_by`, anche quando ne contiene uno, per
-  esempio `["SPEC-0001"]`. `superseded_by`, `expanded_from` (il task da cui un sottotask è stato
-  espanso è sostituito da esso) e `depends_on` accettano una destinazione in stato
-  `superseded`; una dipendenza da un task sostituito è una regola del controllo `parts`.
+  gli identificativi del suo `superseded_by` in `expected`, i valori accettati al puntatore, e,
+  quando ce n'è esattamente uno, quell'identificativo in `fix`, applicabile così com'è, per
+  esempio `"SPEC-0001"`. Con più sostituti, `fix` è assente.
+- `superseded_by` indica artefatti non in stato `superseded`: un sostituto a sua volta
+  sostituito, come in una catena o in un riferimento a sé stesso, è un collegamento interrotto
+  del suo titolare. `expanded_from` (il task da cui un sottotask è stato espanso è sostituito da
+  esso) e `depends_on` accettano una destinazione in stato `superseded`, perché registrano la
+  storia del lavoro; una dipendenza da un task sostituito è una regola del controllo `parts`.
 - Un requisito citato che la specifica non ha è `link_missing`; uno rimosso è
-  `link_superseded`, motivo `state`, senza correzione. I requisiti sono controllati solo quando
-  la specifica è nell'insieme e ha superato il suo schema.
+  `link_superseded`, motivo `state`, senza `expected` né `fix`, perché non ha sostituti. I
+  requisiti sono controllati solo quando la specifica è nell'insieme e ha superato il suo
+  schema.
 - Un task o una user story la cui `milestone` è diversa da quella della sua epic, o un task la
   cui `epic` è diversa da quella della sua user story, è `hierarchy_mismatch`, motivo
   `conflict`, in `/milestone` o `/epic`, con il membro del genitore (`/epic` o `/story`) in
   `pointers` e il valore raggiunto attraverso il genitore in `expected`.
 - Un artefatto in stato `done` o `superseded` non viene più modificato, e un record di passaggio
   di mano non viene mai modificato: ogni collegamento interrotto di un tale artefatto è l'avviso
-  `link_broken_terminal`, con il motivo dell'errore che sostituisce, e la gerarchia non è
-  controllata.
+  `link_broken_terminal`, con il motivo, `expected` e `fix` dell'errore che sostituisce, e la
+  gerarchia non è controllata.
 - Nessun errore di collegamento o di gerarchia porta `related`: il puntatore e il messaggio
   nominano la destinazione.
-- Una citazione è la parola `ADR`, uno spazio e delle cifre, per esempio `ADR 0014`; `ADR 14`
-  cita lo stesso ADR. Con `adrs`, una citazione il cui numero non è elencato è l'avviso
-  `adr_citation_missing`, motivo `missing`, alla voce di `related` che la contiene.
+- Una citazione è la parola `ADR` seguita da un numero, per esempio `ADR 0014`; `ADR 14` cita
+  lo stesso ADR. Un numero da solo che segue una citazione, nella stessa voce o nelle voci
+  subito dopo, cita anch'esso un ADR: `ADR 0002, 0003` ne cita due, anche quando la riga di
+  intestazione `Related` di una specifica in Markdown lo divide in due voci. Con `adrs`, una
+  citazione il cui numero non è elencato è l'avviso `adr_citation_missing`, motivo `missing`,
+  alla voce di `related` che la contiene.
 
 Questa versione non controlla che una milestone colleghi un verbale del comitato approvato, né
-che il task di un record di passaggio di mano porti la sua issue o che la issue sia un task del piano.
+che il task di un record di passaggio di mano porti la sua issue o che la issue sia un task del
+piano.
 
 Quando l'input stesso è rifiutato, o la riga di comando non è compresa, o l'input non può
 essere letto, nessun controllo viene eseguito: `diagnostics.checks` e `diagnostics.not_done`
@@ -365,7 +375,7 @@ un membro assente. Lo schema di input è chiuso: un membro che non elenca è rif
 | `documents` | lista di oggetti | sì | Una voce per ogni artefatto o input memorizzato; `[]` significa nessuno |
 | `base` | lista di `{id, status}` | no | Stati sul branch predefinito degli artefatti dell'insieme |
 | `policy` | oggetto `{types, scopes, areas}`, ciascuno una lista di nomi della policy, identificativi di almeno un carattere | no | La parte della policy del progetto che il modello legge. Il controllo `title_format` ne legge i `types`; il controllo `areas` è elencato come non eseguito. Assente: vale la policy predefinita, la policy del repository di Wayloop, e `meta.defaults_applied` la elenca quando l'insieme contiene un epic o un task, i cui controlli la leggono |
-| `adrs` | lista di interi da 1 | no | Numeri degli ADR del progetto, per il controllo `adr_citations`. Assente: le citazioni non sono controllate, e il controllo non è eseguito |
+| `adrs` | lista di interi da 1 | no | Numeri degli ADR del progetto, per il controllo `adr_citations`. Assente: le citazioni non sono controllate, e il controllo non è eseguito. Non ancora compilato dalla riga di comando (#344) |
 | `locations` | lista di `plan_briefs`, `plan_council`, `plan_items`, `specs`, per le cartelle `plan/briefs`, `plan/council`, `plan/items` e `specs` | no | Le cartelle delle posizioni che esistono nel progetto, quando i documenti vi sono stati scoperti; il loro ordine e una cartella ripetuta non hanno significato, non sono confrontate con le origini `file` dei documenti, e `[]` significa nessuna, e dà l'avviso `artifact_location_missing`. Assente: i documenti sono stati indicati per nome o inviati direttamente, e il controllo `artifact_locations` non è eseguito |
 | `language` | tag BCP 47, per esempio `it` o `en-GB` | no | La lingua del progetto. Nessun controllo di questa versione la legge, quindi quando è assente nessun default viene applicato né riportato; un controllo che ne ha bisogno elenca il default in `meta.defaults_applied` |
 
@@ -490,10 +500,10 @@ livelli di oggetti (ADR 0009 C4). `related` è assente quando non c'è un altro 
 | `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | Un input di passaggio di mano viola il suo schema, per esempio impostando un membro che solo il motore imposta (`unknown_field`) |
 | `schema_version_unknown` | `enum` | 1 | Lo `schema_version` non è una versione del tipo o dell'input; `expected` elenca le versioni note |
 | `identifier_format` | `syntax` | 1 | L'`id` non è nella forma canonica del suo tipo; `fix` dà l'identificativo corretto quando è possibile ricavarlo |
-| `link_missing` | `missing` | 1 | Un collegamento indica un identificativo che nessun artefatto dell'insieme porta, o un requisito che la sua specifica non ha (vedi Collegamenti) |
-| `link_superseded` | `state` | 1 | Un collegamento indica un artefatto in stato `superseded`, con i suoi sostituti in `fix`, o un requisito rimosso |
-| `hierarchy_mismatch` | `conflict` | 1 | Un task o una user story indicano una milestone o un'epic diversa da quella raggiunta attraverso il loro genitore |
 | `identifier_duplicate` | `duplicate` | 1 | Due o più artefatti dell'insieme portano lo stesso identificativo: ciascuno è rifiutato in `/id`, e ogni errore nomina gli altri in `related`. È confrontato ogni documento di un `kind` noto il cui `id` non ha dato errori, qualunque siano i suoi altri errori, così i duplicati arrivano nello stesso passaggio |
+| `link_missing` | `missing` | 1 | Un collegamento indica un identificativo che nessun artefatto dell'insieme porta, o un requisito che la sua specifica non ha (vedi Collegamenti) |
+| `link_superseded` | `state` | 1 | Un collegamento indica un artefatto in stato `superseded`, con i suoi sostituti in `expected` e, quando ce n'è uno, in `fix`; o un requisito rimosso, senza né l'uno né l'altro |
+| `hierarchy_mismatch` | `conflict` | 1 | Un task o una user story indicano una milestone o un'epic diversa da quella raggiunta attraverso il loro genitore |
 | `title_format` | `syntax` | 1 | Il titolo di un epic o di un task ha un prefisso di tipo, un tag tra parentesi quadre all'inizio o alla fine, o un punto finale: un errore per regola in `/title`, ciascuno con `fix` il titolo con tutte le regole applicate, quando ne resta qualcosa |
 | `title_duplicate` | `duplicate` | 1 | Due o più titoli di epic o task, in qualunque stato tranne `superseded`, sono uguali dopo la normalizzazione: ciascuno è rifiutato in `/title`, e ogni errore nomina gli altri in `related` |
 | `usage` | `syntax` | 2 | La riga di comando non è compresa; `command` è il comando indicato, vuoto quando nessuno |
@@ -507,10 +517,10 @@ Gli avvisi sono elencati in `diagnostics.warnings`, nella forma di un errore; il
 
 | Codice | Motivo | Puntatore | Significato |
 | --- | --- | --- | --- |
-| `link_broken_terminal` | `missing`, `state` | Il membro del collegamento | Un collegamento di un artefatto in stato `done` o `superseded`, o di un record di passaggio di mano, è interrotto, come direbbero `link_missing` o `link_superseded` per un altro artefatto |
+| `identifier_location` | `conflict` | `/id` | L'artefatto è stato letto da `plan/briefs/<name>.yaml`, `plan/council/<name>.yaml`, `plan/items/<name>.yaml` o `specs/<number>-<capability>/spec.md` (`<number>` di cifre ASCII, in qualunque forma), e `<name>`, o `SPEC-<number>`, è diverso dal suo `id`; `fix` è l'`id`, che è l'identità. Un documento inviato direttamente, o letto da un altro percorso, non ne dà |
+| `link_broken_terminal` | `missing`, `state` | Il membro del collegamento | Un collegamento di un artefatto in stato `done` o `superseded`, o di un record di passaggio di mano, è interrotto, come direbbero `link_missing` o `link_superseded` per un altro artefatto, con gli stessi `expected` e `fix` |
 | `adr_citation_missing` | `missing` | `/related/<i>` | Una specifica viva cita un ADR il cui numero non è in `adrs` |
 | `artifact_location_missing` | `missing` | `/locations` | Nel progetto in cui i documenti sono stati scoperti non esiste alcuna cartella di una posizione, per esempio perché il comando è stato eseguito in una sottocartella del progetto |
-| `identifier_location` | `conflict` | `/id` | L'artefatto è stato letto da `plan/briefs/<name>.yaml`, `plan/council/<name>.yaml`, `plan/items/<name>.yaml` o `specs/<number>-<capability>/spec.md` (`<number>` di cifre ASCII, in qualunque forma), e `<name>`, o `SPEC-<number>`, è diverso dal suo `id`; `fix` è l'`id`, che è l'identità. Un documento inviato direttamente, o letto da un altro percorso, non ne dà |
 
 Un membro sconosciuto riceve in `fix` il membro più vicino, quando ce n'è uno vicino: per
 esempio `problem` per `problema`.

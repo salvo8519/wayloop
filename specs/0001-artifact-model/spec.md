@@ -369,7 +369,7 @@ One per capability (ADR 0014). The Markdown layout is the template in
 | `owner` | string, tracker handle | yes | Person who approves changes |
 | `milestone` | milestone identifier | no | Milestone of the first delivery |
 | `commit_scope` | string, a scope of the project policy | yes | Scope used by commits that implement it |
-| `related` | list of strings | no | Identifiers of ADRs, issues and specifications; a citation `ADR <NNNN>` with no ADR of that number gives the warning `adr_citation_missing` at the entry that holds it, when the numbers of the ADRs of the project are given (Q5; decided by the maintainer on 2026-11-25) |
+| `related` | list of strings | no | Identifiers of ADRs, issues and specifications; a citation `ADR <NNNN>` with no ADR of that number gives the warning `adr_citation_missing` at the entry that holds it, when the numbers of the ADRs of the project are given in `adrs` (Q5; decided by the maintainer on 2026-11-25); a bare number that follows a citation, in the same entry or in the entries right after it, cites an ADR too, so `ADR 0002, 0003` cites two. The numbers are read from the ADRs of the project by #344; until then the command line does not give `adrs` (decided by the maintainer on 2026-11-25) |
 | `problem` | string | yes | Who needs this and why |
 | `scope_in` | list of strings, at least 1 | yes | What is specified |
 | `scope_out` | list of strings | no | What is left to other specifications |
@@ -679,8 +679,25 @@ artifact read from a file of a location (decided by the maintainer on 2026-11-25
 
 Errors of links (`link_missing`, `link_superseded`, `link_broken_terminal`) and of the
 hierarchy (`hierarchy_mismatch`) carry no `related`: the pointer and the message name the
-target. The `fix` of a link to a superseded target is always a list of identifiers, its
-`superseded_by`, also when it holds one (decided by the maintainer on 2026-11-25).
+target (decided by the maintainer on 2026-11-25).
+
+The fix of R4 (decided by the maintainer on 2026-11-25, replacing an earlier decision of the
+same day that made `fix` a list): for a link to a superseded target, `expected` lists every
+identifier of its `superseded_by`, the values accepted at the pointer, and `fix` is present
+only when there is exactly one, and is that identifier, applicable as is. A removed
+requirement has no replacement, so neither is given. `link_broken_terminal` carries the same
+`expected` and `fix` as the error it replaces.
+
+`superseded_by` is a link like any other: it names artifacts that are not superseded (R4). Its
+holder is superseded, so terminal, and a chain or a self-reference is the warning
+`link_broken_terminal`. `expanded_from` and `depends_on` of a task accept a superseded target:
+they record the history of the work, a subtask naming the task it supersedes, and a dependency
+on a superseded task is refused by R18 (decided by the maintainer on 2026-11-25).
+
+A document with an error of its own, of its schema or of the normalisation of its Markdown, is
+not checked for links (R3, R15), so that a broken document causes no wave of link errors; it
+remains a target of the links of the others, as long as its `id` raised no error (decided by
+the maintainer on 2026-11-25).
 
 `expected` lists accepted values, never a pattern. For a format error (`syntax`), `expected`
 is absent and `fix` carries a corrected value when one can be derived, for example `M2` for

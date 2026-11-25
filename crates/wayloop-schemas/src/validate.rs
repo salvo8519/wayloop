@@ -259,8 +259,9 @@ pub struct ValidateInput {
     /// The subset of the project policy. Absent: the default policy applies.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy: Option<Policy>,
-    /// Numbers of the ADRs of the project, for the warning on a citation `ADR <NNNN>` with no
-    /// ADR of that number. Absent: citations are not checked.
+    /// Numbers of the ADRs of the project, for the check `adr_citations`: the warning on a
+    /// citation `ADR <NNNN>` with no ADR of that number. Absent: citations are not checked, and
+    /// the check is listed in `diagnostics.not_done` with the reason `input_absent`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub adrs: Option<Vec<AdrNumber>>,
     /// Language of the project: the language of the prose of a document without its own

@@ -122,6 +122,10 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         let found = validation.errors.get_mut(first..).unwrap_or_default();
         let id_refused = found.iter().any(|error| *error.pointer() == id);
         let title_refused = found.iter().any(|error| *error.pointer() == title);
+        // One rule for the links (decided by the maintainer on 2026-11-25): a document with an
+        // error of its own, of the schema or of the normalisation of its Markdown, is not
+        // checked for links, and stays a target.
+        let clean = found.is_empty();
         for error in found {
             *error = error.clone().with_document(document);
         }
@@ -132,12 +136,14 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
             .collect();
         defaults.sort_by(|a, b| a.pointer().cmp(b.pointer()));
         validation.defaults_applied.extend(defaults);
-        if let (Some(_), Some(carried), false) = (summary.kind, &summary.id, id_refused) {
+        if let (Some(kind), Some(carried), false) = (summary.kind, &summary.id, id_refused) {
             index.push(Indexed {
                 document,
+                kind,
                 id: carried.clone(),
                 entry,
                 read,
+                clean,
             });
         }
         if !title_refused {
@@ -145,15 +151,32 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         }
         validation.documents.push(summary);
     }
-    let duplicates = identifiers::duplicates(&index);
-    let warnings = identifiers::locations(&index);
-    let linked = links::check(&index);
+    across(&index, &titled, input, &mut validation, &mut not_done);
+    validation.not_done = not_done.into_iter().collect();
+    validation
+}
+
+/// The stages across the set, on the artifacts of `index` and the titles of `titled`: the
+/// identifiers (stage 3), the links (stage 4), the titles (stage 7), the citations of ADRs when
+/// `adrs` is given, then the locations when `locations` is given; a check whose input is absent
+/// is added to `not_done`.
+fn across(
+    index: &[Indexed<'_>],
+    titled: &[Titled<'_>],
+    input: &Input,
+    validation: &mut Validation,
+    not_done: &mut BTreeSet<NotDone>,
+) {
+    let carriers = identifiers::carriers(index);
+    let duplicates = identifiers::duplicates(index, &carriers);
+    let warnings = identifiers::locations(index);
+    let linked = links::check(index, &carriers);
     validation.errors.extend(duplicates);
     validation.errors.extend(linked.errors);
-    let policy = policy(input, &mut validation);
+    let policy = policy(input, validation);
     validation
         .errors
-        .extend(titles::errors(&titled, &policy.types));
+        .extend(titles::errors(titled, &policy.types));
     // By document, then by stage: the stable sort keeps the order of the stages within each
     // document (plan of SPEC-0001, Entry point and validation function).
     validation.errors.sort_by_key(Error::document);
@@ -162,7 +185,7 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
     match &input.adrs {
         Some(adrs) => {
             validation.checks.push(checks::ADR_CITATIONS);
-            validation.warnings.extend(links::citations(&index, adrs));
+            validation.warnings.extend(links::citations(index, adrs));
         }
         None => {
             not_done.insert(NotDone::new(
@@ -185,8 +208,6 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
             ));
         }
     }
-    validation.not_done = not_done.into_iter().collect();
-    validation
 }
 
 /// The policy the checks read: the policy of `input`, or else the default policy, reported in
