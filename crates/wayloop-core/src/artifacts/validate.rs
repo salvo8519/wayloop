@@ -19,12 +19,15 @@ use serde_json::{Map, Value};
 use wayloop_schemas::artifact::ArtifactKind;
 use wayloop_schemas::contract::rules::{ID, KIND, STATUS};
 use wayloop_schemas::contract::{Part, VALIDATE};
-use wayloop_schemas::validate::{ArtifactFolder, DocumentSummary, InputKind, Origin, ValidateData};
+use wayloop_schemas::validate::{
+    ArtifactFolder, DocumentSummary, InputKind, Origin, Policy, ValidateData,
+};
 use wayloop_schemas::{DefaultApplied, Diagnostics, ErrorReport, NotDone, NotDoneReason, Outcome};
 
 use super::identifiers::{self, Indexed};
 use super::input::{self, Body, Entry, Input, Place};
 use super::kinds::{self, Checked, Kind, Loaded};
+use super::titles::{self, Titled};
 use super::{checks, codes, markdown};
 use crate::command::COMMAND_INPUT;
 use crate::{Check, Error, Pointer, Reason};
@@ -73,6 +76,8 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         checks::IDENTIFIER_FORMAT,
         checks::IDENTIFIER_DUPLICATE,
         checks::IDENTIFIER_LOCATION,
+        checks::TITLE_FORMAT,
+        checks::TITLE_DUPLICATE,
     ]);
     let mut validation = Validation {
         checks: run,
@@ -90,7 +95,10 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
     // error, whatever its other errors, so that duplicates are found in the same pass (ADR 0009
     // C3).
     let mut index = Vec::new();
+    // The index of the title stage, built in the same way (R7, R8).
+    let mut titled: Vec<Titled<'_>> = Vec::new();
     let id = identifiers::id_pointer();
+    let title = crate::naming::titles::pointer();
     // The position counts in u64, the type of `document`, so it needs no conversion.
     for ((document, entry), normalisation) in (0_u64..).zip(&entries).zip(normalisations) {
         let first = validation.errors.len();
@@ -111,6 +119,7 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         );
         let found = validation.errors.get_mut(first..).unwrap_or_default();
         let id_refused = found.iter().any(|error| *error.pointer() == id);
+        let title_refused = found.iter().any(|error| *error.pointer() == title);
         for error in found {
             *error = error.clone().with_document(document);
         }
@@ -128,11 +137,18 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
                 entry,
             });
         }
+        if !title_refused {
+            titled.extend(titles::titled(document, entry, &summary));
+        }
         validation.documents.push(summary);
     }
     let duplicates = identifiers::duplicates(&index);
     let warnings = identifiers::locations(&index);
     validation.errors.extend(duplicates);
+    let policy = policy(input, &mut validation);
+    validation
+        .errors
+        .extend(titles::errors(&titled, &policy.types));
     // By document, then by stage: the stable sort keeps the order of the stages within each
     // document (plan of SPEC-0001, Entry point and validation function).
     validation.errors.sort_by_key(Error::document);
@@ -153,6 +169,22 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
     }
     validation.not_done = not_done.into_iter().collect();
     validation
+}
+
+/// The policy the checks read: the policy of `input`, or else the default policy, reported in
+/// `validation` when a check reads it, that is when the set holds an epic or a task (R7, R21).
+/// It is a default of the input itself, so it comes before the defaults of the documents.
+fn policy<'i>(input: &'i Input, validation: &mut Validation) -> Cow<'i, Policy> {
+    if let Some(given) = &input.policy {
+        return Cow::Borrowed(given);
+    }
+    if titles::reads_policy(&validation.documents) {
+        match crate::policy::applied() {
+            Ok(default) => validation.defaults_applied.insert(0, default),
+            Err(failure) => validation.failures.push(*failure),
+        }
+    }
+    Cow::Owned(crate::policy::default_policy())
 }
 
 /// The warning of a project where no folder of a location exists, at the empty `locations`.

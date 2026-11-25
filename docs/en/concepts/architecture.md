@@ -67,7 +67,9 @@ wayloop-schemas    contract types, no I/O
   Schema of the contract types and performs no I/O, without its `preserve_order` feature, with
   the crates it reaches (`schemars_derive`, `serde_derive_internals`, `dyn-clone`, `ref-cast`,
   `ref-cast-impl`) ([ADR 0030](../project/adr/0030-contracts-generated-from-rust-types.md));
-  `wayloop-core` may also use `wayloop-schemas`, and `wayloop-schemas` no Wayloop crate.
+  `wayloop-core` may also use `wayloop-schemas`, and `unicode-normalization` and `caseless`,
+  which normalise and case-fold the titles of epics and tasks and perform no I/O, with
+  `tinyvec`, which they reach; `wayloop-schemas` uses no Wayloop crate.
   `scripts/check_core_io.py` resolves each pure crate on its own with `cargo tree` (normal
   dependencies, every target, all its features, the lock file left unchanged) and fails on
   every crate reached outside the allowlist, printing the path that reaches it and naming

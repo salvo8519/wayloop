@@ -51,33 +51,15 @@ impl Indexed<'_> {
 /// The errors of identifiers carried by more than one artifact of `index`, one per artifact,
 /// in the order of the index.
 pub(super) fn duplicates(index: &[Indexed<'_>]) -> Vec<Error> {
-    let mut carriers: BTreeMap<&str, Vec<&Indexed<'_>>> = BTreeMap::new();
-    for artifact in index {
-        carriers.entry(&artifact.id).or_default().push(artifact);
-    }
-    index
-        .iter()
-        .filter_map(|artifact| {
-            let others: Vec<Related> = carriers
-                .get(artifact.id.as_str())?
-                .iter()
-                .filter(|other| other.document != artifact.document)
-                .map(|other| Related::new(other.document, id_pointer(), other.source()))
-                .collect();
-            if others.is_empty() {
-                return None;
-            }
-            let listed: Vec<String> = others.iter().map(|o| o.document().to_string()).collect();
-            let documents = if listed.len() == 1 {
-                "document"
-            } else {
-                "documents"
-            };
+    let related = |a: &Indexed<'_>| Related::new(a.document, id_pointer(), a.source());
+    shared(index, |a| a.id.as_str(), related)
+        .into_iter()
+        .map(|(artifact, others)| {
             let message = format!(
-                "The identifier {} is also carried by the {documents} {} of the input; an \
-                 identifier is never reused.",
+                "The identifier {} is also carried by the {} of the input; an identifier is \
+                 never reused.",
                 artifact.id,
-                listed.join(", ")
+                documents(&others)
             );
             let error = Error::new(
                 codes::IDENTIFIER_DUPLICATE,
@@ -86,9 +68,47 @@ pub(super) fn duplicates(index: &[Indexed<'_>]) -> Vec<Error> {
                 Reason::Duplicate,
             )
             .with_related(others);
-            Some(artifact.of(error))
+            artifact.of(error)
         })
         .collect()
+}
+
+/// Each item of `items` whose `key` another item shares, with the others as `related`, in the
+/// order of `items`: the duplicates of the set (R8, R14).
+pub(super) fn shared<T>(
+    items: &[T],
+    key: impl Fn(&T) -> &str,
+    related: impl Fn(&T) -> Related,
+) -> Vec<(&T, Vec<Related>)> {
+    let mut carriers: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    for (position, item) in items.iter().enumerate() {
+        carriers.entry(key(item)).or_default().push(position);
+    }
+    items
+        .iter()
+        .enumerate()
+        .filter_map(|(position, item)| {
+            let others: Vec<Related> = carriers
+                .get(key(item))?
+                .iter()
+                .filter(|other| **other != position)
+                .filter_map(|other| items.get(*other))
+                .map(&related)
+                .collect();
+            (!others.is_empty()).then_some((item, others))
+        })
+        .collect()
+}
+
+/// The documents of `others` as a message names them: `document 3` or `documents 3, 5`.
+pub(super) fn documents(others: &[Related]) -> String {
+    let listed: Vec<String> = others.iter().map(|o| o.document().to_string()).collect();
+    let noun = if listed.len() == 1 {
+        "document"
+    } else {
+        "documents"
+    };
+    format!("{noun} {}", listed.join(", "))
 }
 
 /// The warnings of the artifacts of `index` read from a file whose path names another

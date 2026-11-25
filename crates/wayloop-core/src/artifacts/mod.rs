@@ -5,7 +5,7 @@
 //! The schemas are the snapshots under `schemas/artifacts/`, embedded in `wayloop-schemas` and
 //! read with the interpreter of [`crate::schema`]. A document is checked in stages: its
 //! `kind`, its `schema_version` (R16), the schema of that version (R1), the form of its `id`
-//! (R14); then the identifiers across the set (R14). A living specification sent as Markdown is
+//! (R14); then the identifiers (R14) and the titles of epics and tasks (R7, R8) across the set. A living specification sent as Markdown is
 //! first normalised into its document model (R12). The other checks across documents are listed
 //! in `diagnostics.not_done` until they are built.
 
@@ -16,6 +16,7 @@ mod input;
 pub mod kinds;
 pub mod locations;
 mod markdown;
+mod titles;
 mod validate;
 
 #[cfg(test)]

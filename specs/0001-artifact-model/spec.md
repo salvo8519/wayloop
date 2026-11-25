@@ -128,6 +128,11 @@ Types and scopes of commits, and the areas of epics and tasks, come from the pro
 which equals the policy of this repository, and it is listed in `meta.defaults_applied` (R21).
 `examples/policy.yaml` holds the subset of the policy the model reads.
 
+The default policy is listed once, `{pointer: "/policy", reason: "default_policy"}`, with the
+policy as its value, and only when a check reads the policy: when the set holds at least one
+epic or task, or an input whose check reads types or scopes (decided by the maintainer on
+2026-11-25).
+
 An `area` value is the area name without the label prefix: `core`, not `area:core`. The
 tracker adapter adds the prefix when it writes the label (SPEC-0005).
 
@@ -643,6 +648,10 @@ Titles (R7, R8):
 - Two titles are equal when they are equal after Unicode NFC normalisation, case folding,
   trimming and collapsing runs of white space into one space. Epic and task titles are compared
   with each other, in every status except `superseded`.
+- Each rule broken is one error `title_format`, in the order of this list; each carries in
+  `fix` the title with every rule applied, so a rule that appears once another is fixed counts
+  too, and no `fix` when nothing is left of the title (decided by the maintainer on
+  2026-11-25).
 
 ## Errors
 

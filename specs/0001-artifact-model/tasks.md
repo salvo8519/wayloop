@@ -147,9 +147,10 @@ Prerequisites outside this specification:
 
 ## Naming rules (#160)
 
-- [ ] **T16 Check epic and task titles**
+- [x] **T16 Check epic and task titles**
   - Covers: R7, R8; AC4, AC10; AC1 (`epic.invalid.yaml`). Issue: #266.
-  - Files: `crates/wayloop-core/src/naming/titles.rs`, `crates/wayloop-core/Cargo.toml`, `Cargo.lock`, `scripts/check_core_io.py`, `tests/process/test_check_core_io.py`.
+  - Files: `crates/wayloop-core/src/naming/titles.rs`, `crates/wayloop-core/src/artifacts/titles.rs`, `crates/wayloop-core/src/policy.rs`, `crates/wayloop-core/Cargo.toml`, `Cargo.lock`, `scripts/check_core_io.py`, `tests/process/test_check_core_io.py`, `tests/process/test_conventions.py`, ADR 0031.
+  - Builds the default policy (R21) and its report in `meta.defaults_applied`, which the prefix of a title reads when the input gives no policy (decided by the maintainer on 2026-11-25).
   - Tests first: prefix, bracket tag at either end, final full stop, each with pointer and `fix`; titles equal after NFC, case folding and white space refused across epics and tasks, superseded ones ignored; `wayloop init creates a project structure that validates` passes.
   - Verification: TDD.
   - Depends on: T7, D4.
@@ -165,7 +166,8 @@ Prerequisites outside this specification:
 
 - [ ] **T18 Check pull request links and apply the default policy**
   - Covers: R10, R21; AC11, AC23, AC30; AC1 (`pull_request.invalid.yaml`, and the whole example set passing). Issue: closes #160.
-  - Files: `crates/wayloop-core/src/naming/pull_request.rs`, `crates/wayloop-core/src/policy.rs`, `tests/process/test_conventions.py` (default policy equals `scripts/conventions.py`), `tests/contract/validate/v1/`.
+  - The default policy, its process test and its report in `meta.defaults_applied` were built in T16 (decided by the maintainer on 2026-11-25); T18 keeps the check `areas` and the links of pull requests, and reads the default policy of T16.
+  - Files: `crates/wayloop-core/src/naming/pull_request.rs`, `tests/contract/validate/v1/`.
   - Tests first: one test per AC; the label `no-issue` waives the rule and the waiver is returned in `data` for the ledger writer (the event itself is recorded with SPEC-0003); without `policy`, `meta.defaults_applied` lists the default policy.
   - Builds the check `areas`: the `area` of epics and tasks against the policy (R21), which moves from `diagnostics.not_done` to `checks`.
   - Verification: TDD, contract test.

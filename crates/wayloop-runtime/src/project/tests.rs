@@ -379,7 +379,8 @@ fn assert_cases_send_the_examples(
 
 #[test]
 fn the_examples_of_the_plan_items_load_into_the_documents_of_their_cases() {
-    // T7: the cases of gates, milestones, epics, stories and tasks send the examples directly.
+    // T7: the cases of gates, milestones, epics, stories and tasks send the examples directly;
+    // T16: the invalid epic too.
     assert_cases_send_the_examples(
         "plan-valid",
         &PLAN_SET,
@@ -387,6 +388,7 @@ fn the_examples_of_the_plan_items_load_into_the_documents_of_their_cases() {
             ("gate-invalid", "gate.invalid.yaml"),
             ("task-invalid", "task.invalid.yaml"),
             ("milestone-invalid", "milestone.invalid.yaml"),
+            ("epic-invalid", "epic.invalid.yaml"),
         ],
         &[
             "story-italian-prose",

@@ -118,9 +118,11 @@ def test_the_allowlists_are_those_reviewed() -> None:
             "ref-cast-impl",
         }
     )
+    # Unicode normalisation and case folding of the core (SPEC-0001 plan, D4), with tinyvec.
+    unicode = frozenset({"unicode-normalization", "caseless", "tinyvec"})
     assert {
         "wayloop-schemas": serde | schemars,
-        "wayloop-core": serde | schemars | {"wayloop-schemas"},
+        "wayloop-core": serde | schemars | unicode | {"wayloop-schemas"},
     } == core_io.PURE_CRATES
 
 
