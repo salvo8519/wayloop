@@ -12,10 +12,12 @@
 //! A document the interpreter has accepted, migrated to the current version of its type, is
 //! read into its contract type (ADR 0030 G1); a failure there is a defect of the engine.
 
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 
 use serde_json::{Map, Value};
 use wayloop_schemas::artifact::ArtifactKind;
+use wayloop_schemas::contract::rules::{ID, KIND, STATUS};
 use wayloop_schemas::contract::{Part, VALIDATE};
 use wayloop_schemas::validate::{ArtifactFolder, DocumentSummary, InputKind, Origin, ValidateData};
 use wayloop_schemas::{DefaultApplied, Diagnostics, ErrorReport, NotDone, NotDoneReason, Outcome};
@@ -41,7 +43,7 @@ pub(crate) struct Validation {
     /// The checks run.
     pub(crate) checks: Vec<Check>,
     /// The defaults applied to the documents, each with the index of its document, in the order
-    /// of the documents, then of their pointers.
+    /// of the documents, then in the byte order of their pointers.
     pub(crate) defaults_applied: Vec<DefaultApplied>,
     /// Failures of the engine itself, with the reason `internal`; when there is one, the
     /// result is a failure, whatever the errors.
@@ -83,13 +85,30 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
     // The index of the identifier stage: every artifact of a known kind whose `id` raised no
     // error, whatever its other errors, so that duplicates are found in the same pass (ADR 0009
     // C3).
+    // Stage 1: each living specification sent as Markdown is normalised into its document
+    // model, so that every later stage, the identifiers included, reads it with its lines.
+    let (entries, normalisations): (Vec<Cow<'_, Entry>>, Vec<markdown::Normalised>) =
+        input.documents.iter().map(normalised).unzip();
     let mut index = Vec::new();
     let id = identifiers::id_pointer();
     // The position counts in u64, the type of `document`, so it needs no conversion.
-    for (document, entry) in (0_u64..).zip(&input.documents) {
+    for ((document, entry), normalisation) in (0_u64..).zip(&entries).zip(normalisations) {
         let first = validation.errors.len();
         let first_default = validation.defaults_applied.len();
-        let summary = check_entry(entry, kinds, &mut validation, &mut not_done);
+        validation.errors.extend(normalisation.errors);
+        validation
+            .defaults_applied
+            .extend(normalisation.defaults_applied);
+        let checked_from = validation.errors.len();
+        let summary = check_entry(entry, kinds, &mut validation);
+        // An error of the schema at a member the normalisation withheld is not reported twice.
+        let checked = validation.errors.split_off(checked_from);
+        let withheld = &normalisation.withheld;
+        validation.errors.extend(
+            checked
+                .into_iter()
+                .filter(|e| !withheld.contains(e.pointer())),
+        );
         let found = validation.errors.get_mut(first..).unwrap_or_default();
         let id_refused = found.iter().any(|error| *error.pointer() == id);
         for error in found {
@@ -166,12 +185,7 @@ fn no_schema(what: &str, id: &str) -> Error {
 }
 
 /// Checks one entry, adding what it found to `validation`, and gives its summary.
-fn check_entry(
-    entry: &Entry,
-    kinds: &[Loaded],
-    validation: &mut Validation,
-    not_done: &mut BTreeSet<NotDone>,
-) -> DocumentSummary {
+fn check_entry(entry: &Entry, kinds: &[Loaded], validation: &mut Validation) -> DocumentSummary {
     let origin = entry.given.clone();
     let located = |error: Error| entry.locate(error);
     match &entry.body {
@@ -194,7 +208,12 @@ fn check_entry(
             validation.errors.push(error);
             summary(None, None, origin)
         }
-        Body::Markdown { text } => from_markdown(entry, text, kinds, validation, not_done),
+        Body::Markdown { .. } => {
+            let message = "A living specification sent as Markdown reached the checks without \
+                           its normalisation.";
+            validation.failures.push(Error::internal(message));
+            summary(None, None, origin)
+        }
         Body::Document {
             document,
             input_kind: Some(input_kind),
@@ -213,8 +232,8 @@ fn check_entry(
             document,
             input_kind: None,
         } => {
-            let at = Pointer::root().join("kind");
-            let kind = match document.get("kind").filter(|v| !v.is_null()) {
+            let at = Pointer::root().join(KIND);
+            let kind = match document.get(KIND).filter(|v| !v.is_null()) {
                 None => {
                     let message = "The required field `kind` is missing.".to_owned();
                     validation.errors.push(located(Error::new(
@@ -256,45 +275,29 @@ fn check_entry(
     }
 }
 
-/// Normalises the living specification `text` of `entry` into its document model (R12), adds
-/// the faults the model cannot hold, then checks the document as one sent in normalised form,
-/// at the lines it was read from. An error of the schema at a member the normalisation
-/// withheld, such as a verification with no mapped word, is not reported twice.
-fn from_markdown(
-    entry: &Entry,
-    text: &str,
-    kinds: &[Loaded],
-    validation: &mut Validation,
-    not_done: &mut BTreeSet<NotDone>,
-) -> DocumentSummary {
+/// `entry` ready for the checks, with what its normalisation gave: a living specification sent
+/// as Markdown becomes the entry of its document model, at the lines it was read from, with the
+/// faults the model cannot hold, its defaults and the members withheld (R12); any other entry
+/// is kept as given, with nothing.
+fn normalised(entry: &Entry) -> (Cow<'_, Entry>, markdown::Normalised) {
+    let Body::Markdown { text } = &entry.body else {
+        return (Cow::Borrowed(entry), markdown::Normalised::default());
+    };
     let file = match &entry.origin {
         Some(Place::File(file)) => Some(file),
         _ => None,
     };
-    let normalised = markdown::normalise(text, file);
-    let withheld = normalised.withheld;
-    validation.errors.extend(normalised.errors);
-    validation
-        .defaults_applied
-        .extend(normalised.defaults_applied);
+    let mut normalisation = markdown::normalise(text, file);
     let document = Entry {
         given: entry.given.clone(),
         origin: entry.origin.clone(),
         body: Body::Document {
-            document: normalised.document,
+            document: core::mem::take(&mut normalisation.document),
             input_kind: None,
         },
-        lines: normalised.lines,
+        lines: core::mem::take(&mut normalisation.lines),
     };
-    let first = validation.errors.len();
-    let summary = check_entry(&document, kinds, validation, not_done);
-    let checked = validation.errors.split_off(first);
-    validation.errors.extend(
-        checked
-            .into_iter()
-            .filter(|e| !withheld.contains(e.pointer())),
-    );
-    summary
+    (Cow::Owned(document), normalisation)
 }
 
 /// Checks `document` against the schemas of its type `loaded`, adding its errors, located by
@@ -349,16 +352,16 @@ fn summary(
     // summarised.
     let artifact = if input_kind.is_some() { None } else { document };
     DocumentSummary {
-        kind: text(artifact, "kind").and_then(|k| ArtifactKind::from_id(&k)),
+        kind: text(artifact, KIND).and_then(|k| ArtifactKind::from_id(&k)),
         input_kind,
-        id: text(artifact, "id"),
-        status: text(artifact, "status"),
+        id: text(artifact, ID),
+        status: text(artifact, STATUS),
         origin,
     }
 }
 
 /// What `validate` gave: its outcome, its diagnostics and the defaults it applied to the
-/// documents, in the order of the documents, then of their pointers.
+/// documents, in the order of the documents, then in the byte order of their pointers.
 pub(crate) type Ran = (Outcome<ValidateData>, Diagnostics, Vec<DefaultApplied>);
 
 /// The outcome of `validate` on the canonical `input`, with its diagnostics and its defaults:

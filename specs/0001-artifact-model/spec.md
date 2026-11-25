@@ -438,6 +438,17 @@ has the code `artifact_schema` and carries the line it names in `source`:
   section fills, the first of its two members for `## Scope` (`/scope_in`) and `## User stories`
   (`/stories`), with the line of the second heading; its content is not read. `duplicate` is
   therefore a reason of `artifact_schema` (Errors).
+- A paragraph `**In scope:**` or `**Out of scope:**` given twice in `## Scope` is refused with
+  the reason `duplicate` at `/scope_in` or `/scope_out`, with the line of the second marker; its
+  content is not read.
+- A fenced block opens with three or more backticks or tildes and closes only with a run of the
+  same character at least as long; a line inside it is never a title, a heading, a header row,
+  an item or a marker of Scope.
+- A row of the header table is skipped only when both its cells are empty or made only of `-`,
+  `:` and spaces; any other row is a header row, refused as above when its label is unknown.
+- Every Markdown file named explicitly is read as a living specification, wherever it is;
+  outside a folder `specs/<NNNN>-<capability>/` it has no `capability`, which is then refused
+  with the reason `missing`.
 - Text outside the title, the header rows and the sections, or in `## Scope` before its
   paragraphs, is refused with the reason `syntax` at the root, with its line.
 - A paragraph in a section read as a list is one entry, as a list item is: a requirement

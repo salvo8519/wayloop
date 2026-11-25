@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 3e31059686c6
+source_hash: 5f78b0f66293
 ---
 # Architettura
 

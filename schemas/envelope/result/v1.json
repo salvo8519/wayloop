@@ -12,7 +12,7 @@
       "description": "A default the engine applied on behalf of the caller (ADR 0009 C2): an entry of `meta.defaults_applied`, `{pointer, value, reason, message, document}`. `message` and `document` are optional and left out of the serialised form when not given. The value applied is never null: null means not given (C2). `document` has the meaning it has in an error (ADR 0009, amended on 2026-11-25).",
       "properties": {
         "document": {
-          "description": "Index, from 0, in the input array `documents` of the document the entry belongs to; its `pointer` is then relative to that document. Absent for an entry of the input itself (SPEC-0004 R2).",
+          "description": "Index, from 0, in the input array `documents` of the document the error or default belongs to; its `pointer` is then relative to that document. Absent for an error or a default of the input itself (SPEC-0004 R2).",
           "minimum": 0,
           "type": "integer"
         },
@@ -83,7 +83,7 @@
           "description": "Stable `snake_case` code of the error; codes are never renamed or reused (ADR 0009 C8)."
         },
         "document": {
-          "description": "Index, from 0, in the input array `documents` of the document the entry belongs to; its `pointer` is then relative to that document. Absent for an entry of the input itself (SPEC-0004 R2).",
+          "description": "Index, from 0, in the input array `documents` of the document the error or default belongs to; its `pointer` is then relative to that document. Absent for an error or a default of the input itself (SPEC-0004 R2).",
           "minimum": 0,
           "type": "integer"
         },
@@ -106,7 +106,7 @@
           "description": "RFC 6901 pointer to the faulty value: into the document given by `document` for an error of a document, into the input sent otherwise; empty for the whole document or the whole input. With the code `command_input` and the reason `enum`, the pointer `\"\"` designates the context of the command, its requested version, which has no place in the input."
         },
         "pointers": {
-          "description": "Pointers to the other values involved, such as both sides of a conflict; absent when none is given.",
+          "description": "Pointers to the other values involved, such as both sides of a conflict, relative to the same document as `pointer`: the one given by `document`, or the input sent; absent when none is given.",
           "items": {
             "$ref": "#/$defs/Pointer"
           },
@@ -145,7 +145,7 @@
           "description": "Stable `snake_case` code of the error; codes are never renamed or reused (ADR 0009 C8)."
         },
         "document": {
-          "description": "Index, from 0, in the input array `documents` of the document the entry belongs to; its `pointer` is then relative to that document. Absent for an entry of the input itself (SPEC-0004 R2).",
+          "description": "Index, from 0, in the input array `documents` of the document the error or default belongs to; its `pointer` is then relative to that document. Absent for an error or a default of the input itself (SPEC-0004 R2).",
           "minimum": 0,
           "type": "integer"
         },
@@ -176,7 +176,7 @@
           "description": "RFC 6901 pointer to the faulty value: into the document given by `document` for an error of a document, into the input sent otherwise; empty for the whole document or the whole input. With the code `command_input` and the reason `enum`, the pointer `\"\"` designates the context of the command, its requested version, which has no place in the input."
         },
         "pointers": {
-          "description": "Pointers to the other values involved, such as both sides of a conflict; absent when none is given.",
+          "description": "Pointers to the other values involved, such as both sides of a conflict, relative to the same document as `pointer`: the one given by `document`, or the input sent; absent when none is given.",
           "items": {
             "$ref": "#/$defs/Pointer"
           },

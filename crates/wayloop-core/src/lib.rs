@@ -78,7 +78,7 @@ pub fn run(command: Command, input: &Value, context: &Context) -> Envelope<Value
         ),
         Ok((version, mut defaults)) => {
             // The defaults of the input itself come first, then those of its documents, in the
-            // order of the documents and of their pointers.
+            // order of the documents, then in the byte order of their pointers.
             let (outcome, diagnostics) = match command {
                 Command::Validate => {
                     let (outcome, diagnostics, of_documents) = artifacts::run(input);

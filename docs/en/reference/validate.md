@@ -38,7 +38,8 @@ subfolder, it finds none and validates an empty set, with exit code 0 and the wa
 `specs/_templates/`). A location reached through a symbolic link is treated as absent, and
 links, special files and names that are not UTF-8 inside a location are skipped. With paths it
 reads those files only, as one set: each path is relative to the current folder, has no `..`
-segment and no `\`, and names a YAML file (`.yaml`) or a Markdown file (`.md`); a path whose
+segment and no `\`, and names a YAML file (`.yaml`) or a Markdown file (`.md`), which is read
+as a living specification wherever it is (see Living specifications in Markdown); a path whose
 file, once its links are resolved, is outside the project or has another extension is refused
 as a usage error, and a path that is not a regular file (a folder, a pipe, a device) cannot be
 read (exit code 3). A set of more than 10,000 files, discovered or named, is refused as a usage
@@ -162,17 +163,21 @@ be read, no check runs: `diagnostics.checks` and `diagnostics.not_done` are then
 ### Living specifications in Markdown
 
 A living specification is stored as `specs/<NNNN>-<capability>/spec.md`, in the layout of the
-template `specs/_templates/spec.md`. The engine reads it line by line, without a Markdown
-parser, into the document model of the type `specification`, then applies the schema. The form does
-not carry `kind` and `schema_version`: they are written as `specification` and the current
-version, and listed in `meta.defaults_applied` with the index of the document in `document`,
-the pointers `/kind` and `/schema_version` and the reason `implied_by_form`; every error carries the
-line it was read from in `source`. Headings, header rows and status words are English, whatever
-the language of the project; prose is in the language of the project.
+template `specs/_templates/spec.md`. Every Markdown file named on the command line is read as
+a living specification, wherever it is; outside a folder `specs/<NNNN>-<capability>/` it has
+no `capability`, which is then refused with the reason `missing`. The engine reads the file
+line by line, without a Markdown parser, into the document model of the type `specification`,
+then applies the schema; every error carries the line it was read from in `source`. The form
+does not carry `kind` and `schema_version`: they are written as `specification` and the
+current version, and listed in `meta.defaults_applied` with the index of the document in
+`document`, the pointers `/kind` and `/schema_version` and the reason `implied_by_form`.
+Headings, header rows and status words are English, whatever the language of the project;
+prose is in the language of the project.
 
 | Markdown | Member |
 | --- | --- |
 | `# SPEC-<seq>: <title>` | `id`, `title`; without a colon, the whole text is the title |
+| Header rows, a table below the title | One row per member below; a row whose two cells are both empty or made only of `-`, `:` and spaces, such as the head and the separator of the table, is skipped |
 | Folder `specs/<NNNN>-<capability>/` | `capability`; absent when the file is elsewhere or sent without a file |
 | Header row `Status` | `status`, in lower case: `Draft` gives `draft` |
 | Header row `Milestone` | `milestone`, the first word: `M0` of `M0 · Foundations` |
@@ -191,12 +196,14 @@ the language of the project; prose is in the language of the project.
 A list item ends at the next item, the next heading or a blank line; its following lines, and
 a line indented after a blank line, continue it and are joined with a space. A paragraph in a
 section read as a list is one entry, so a requirement written without its `**R<k>**` is
-refused at its `id`. A line inside a fenced block (` ``` ` or `~~~`) is never a heading.
+refused at its `id`. A fenced block opens with three or more backticks or tildes and closes
+only with a run of the same character at least as long; a line inside it is never a title, a
+heading, a header row, an item or a marker of Scope.
 
 A section whose heading is not in the table, a translated heading such as `## Requisiti`
 included, is kept in `extra_sections`; a required member whose section is missing is then
-refused with the reason `missing`, for example at `/requirements`. A section present but empty gives an empty value, which the schema refuses
-when the member needs one.
+refused with the reason `missing`, for example at `/requirements`. A section present but
+empty gives an empty value, which the schema refuses when the member needs one.
 
 The verification words are matched without regard to case in the text after `Verification:`
 up to the first full stop, in the order they appear; other words are ignored, so
@@ -217,9 +224,11 @@ Four faults have no member in the document model and are refused by the normalis
 the code `artifact_schema` and their line: a verification text with no word of the table
 (`enum` at `/acceptance_criteria/<i>/verification`, the words in `expected`; the schema then
 reports nothing more at that member), a header row that is not one of the table or repeats one
-(`unknown_field`, at the label as written, for example `/Stato`), a section of the template
-given twice (`duplicate`, at the member of the section, `/scope_in` for Scope and `/stories`
-for User stories, with the line of the second heading; its content is not read), and text
+(`unknown_field`, at the label as written, for example `/Stato`), a section of the template or
+a paragraph of Scope given twice (`duplicate`, at the member it fills, `/scope_in` for the
+section Scope and `/stories` for User stories, `/scope_in` or `/scope_out` for a repeated
+`**In scope:**` or `**Out of scope:**`, with the line of the second heading or marker; its
+content is not read), and text
 outside the title, the header rows and the sections, or in the section Scope before its
 paragraphs (`syntax`, at the root). Every other value is written as read and checked by the
 schema at its member: text of a criterion after its verification words that does not start
@@ -310,18 +319,20 @@ does not know and accepts enum values it does not know.
 - `diagnostics.checks` lists the checks run and `diagnostics.not_done` the checks not run.
 - `meta.command_version` is the version that ran. Without `--command-version`,
   `meta.defaults_applied` lists `{"pointer": "", "value": 1, "reason":
-  "current_command_version"}`: the pointer is empty because the version is a setting of the
+  "current_command_version", "message": "No version of the command was requested: version 1
+  runs."}`: the pointer is empty because the version is a setting of the
   context, not a member of the input. When `--command-version` names a version the engine
   does not run, the refusal has the pointer `""` too, and `meta.command_version` is the current
   version, whose shape the envelope has; when the input is also text the engine cannot read as
   JSON, the same report lists the version first, then the error of the text. A usage error
   reports the current version of the command it names, and 1 when it names no known command.
-- The defaults of the documents follow the default of the command version, in the order of the
-  documents, then of their pointers. Each carries `document`, the index of its document from 0,
-  as an error does, and its `pointer` is relative to that document: a living specification sent
-  as Markdown gives `{"pointer": "/kind", "value": "specification", "reason":
-  "implied_by_form", "document": <i>}` and the same for `/schema_version` with the current
-  version.
+- The defaults of the documents follow the default of the command version, in the order of
+  the documents, then in the byte order of their pointers. Each carries `document`, the index
+  of its document from 0, as an error does, and its `pointer` is relative to that document: a
+  living specification sent as Markdown gives `{"pointer": "/kind", "value":
+  "specification", "reason": "implied_by_form", "message": "The Markdown form of a living
+  specification does not carry `kind`.", "document": <i>}` and the same for `/schema_version`
+  with the current version. The wording of `message` is not part of the contract.
 - `meta.input_hash` is the SHA-256 of the canonical JSON (RFC 8785) of the input without its
   members set to null, so an input with `"base": null` has the hash of the input without
   `base`. For text the engine refuses to read as JSON (not JSON, a key repeated in one object,

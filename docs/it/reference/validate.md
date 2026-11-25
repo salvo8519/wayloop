@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 43746974222e
+source_hash: affa9cf8174f
 ---
 # wayloop validate
 
@@ -43,7 +43,8 @@ salvato: `plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` e
 attraverso un link simbolico è trattata come assente, e dentro una posizione i link, i file
 speciali e i nomi non UTF-8 sono saltati. Con dei percorsi legge solo quei file, come un unico
 insieme: ogni percorso è relativo alla cartella corrente, non ha segmenti `..` né `\`, e indica
-un file YAML (`.yaml`) o un file Markdown (`.md`); un percorso il cui file, risolti i link, è
+un file YAML (`.yaml`) o un file Markdown (`.md`), letto come specifica viva ovunque si trovi
+(vedi Specifiche vive in Markdown); un percorso il cui file, risolti i link, è
 fuori dal progetto o ha un'altra estensione è rifiutato come errore d'uso, e un percorso che non
 è un file regolare (una cartella, una pipe, un dispositivo) non può essere letto (codice di
 uscita 3). Un insieme di più di 10.000 file, trovati o indicati, è rifiutato come errore d'uso.
@@ -172,18 +173,21 @@ sono allora vuoti.
 ### Specifiche vive in Markdown
 
 Una specifica viva è memorizzata come `specs/<NNNN>-<capability>/spec.md`, con la struttura del
-modello `specs/_templates/spec.md`. Il motore la legge riga per riga, senza un parser Markdown,
-nel modello di documento del tipo `specification`, poi applica lo schema. La forma non riporta
-`kind` e `schema_version`: sono scritti come `specification` e la versione corrente, ed elencati
-in `meta.defaults_applied` con l'indice del documento in `document`, i puntatori `/kind` e
-`/schema_version` e il motivo `implied_by_form`; ogni errore riporta in `source`
-la riga da cui il valore è stato letto. Titoli di sezione, righe di intestazione e parole di
-stato sono in inglese, qualunque sia la lingua del progetto; la prosa è nella lingua del
-progetto.
+modello `specs/_templates/spec.md`. Ogni file Markdown indicato sulla riga di comando è letto
+come specifica viva, ovunque si trovi; fuori da una cartella `specs/<NNNN>-<capability>/` non
+ha `capability`, che è quindi rifiutata con il motivo `missing`. Il motore legge il file riga
+per riga, senza un parser Markdown, nel modello di documento del tipo `specification`, poi
+applica lo schema; ogni errore riporta in `source` la riga da cui il valore è stato letto. La
+forma non riporta `kind` e `schema_version`: sono scritti come `specification` e la versione
+corrente, ed elencati in `meta.defaults_applied` con l'indice del documento in `document`, i
+puntatori `/kind` e `/schema_version` e il motivo `implied_by_form`. Titoli di sezione, righe
+di intestazione e parole di stato sono in inglese, qualunque sia la lingua del progetto; la
+prosa è nella lingua del progetto.
 
 | Markdown | Membro |
 | --- | --- |
 | `# SPEC-<seq>: <title>` | `id`, `title`; senza i due punti, tutto il testo è il titolo |
+| Righe di intestazione, una tabella sotto il titolo | Una riga per ciascun membro qui sotto; una riga le cui due celle sono entrambe vuote o fatte solo di `-`, `:` e spazi, come l'intestazione e il separatore della tabella, è saltata |
 | Cartella `specs/<NNNN>-<capability>/` | `capability`; assente quando il file è altrove o è inviato senza file |
 | Riga di intestazione `Status` | `status`, in minuscolo: `Draft` dà `draft` |
 | Riga di intestazione `Milestone` | `milestone`, la prima parola: `M0` di `M0 · Foundations` |
@@ -202,14 +206,15 @@ progetto.
 Un elemento di elenco termina al successivo elemento, al successivo titolo di sezione o a una
 riga vuota; le righe che lo seguono, e una riga rientrata dopo una riga vuota, lo continuano e
 sono unite con uno spazio. Un paragrafo in una sezione letta come elenco è una voce, quindi un
-requisito scritto senza il suo `**R<k>**` è rifiutato al suo `id`. Una riga dentro un blocco
-delimitato (` ``` ` o `~~~`) non è mai un titolo di sezione.
+requisito scritto senza il suo `**R<k>**` è rifiutato al suo `id`. Un blocco delimitato si apre
+con tre o più backtick o tilde e si chiude solo con una sequenza dello stesso carattere almeno
+altrettanto lunga; una riga al suo interno non è mai un titolo, un titolo di sezione, una riga
+di intestazione, un elemento di elenco o un marcatore di Scope.
 
 Una sezione il cui titolo non è nella tabella, compreso un titolo tradotto come `## Requisiti`,
 è conservata in `extra_sections`; un membro obbligatorio la cui sezione manca è quindi
-rifiutato con il motivo `missing`, per esempio in `/requirements`.
-Una sezione presente ma vuota dà un valore vuoto, che lo schema rifiuta quando il membro ne
-richiede uno.
+rifiutato con il motivo `missing`, per esempio in `/requirements`. Una sezione presente ma
+vuota dà un valore vuoto, che lo schema rifiuta quando il membro ne richiede uno.
 
 Le parole di verifica sono riconosciute senza distinguere maiuscole e minuscole nel testo dopo
 `Verification:` fino al primo punto, nell'ordine in cui compaiono; le altre parole sono
@@ -231,9 +236,10 @@ normalizzazione, con il codice `artifact_schema` e la loro riga: un testo di ver
 alcuna parola della tabella (`enum` in `/acceptance_criteria/<i>/verification`, le parole in
 `expected`; lo schema poi non riporta altro su quel membro), una riga di intestazione che non è
 nella tabella o ne ripete una (`unknown_field`, all'etichetta come scritta, per esempio
-`/Stato`), una sezione del modello data due volte (`duplicate`, al membro della sezione,
-`/scope_in` per Scope e `/stories` per User stories, con la riga del secondo titolo; il suo
-contenuto non viene letto), e testo fuori dal titolo, dalle righe di intestazione e dalle
+`/Stato`), una sezione del modello o un paragrafo di Scope dati due volte (`duplicate`, al
+membro che riempiono, `/scope_in` per la sezione Scope e `/stories` per User stories,
+`/scope_in` o `/scope_out` per un `**In scope:**` o un `**Out of scope:**` ripetuto, con la riga
+del secondo titolo o marcatore; il loro contenuto non viene letto), e testo fuori dal titolo, dalle righe di intestazione e dalle
 sezioni, o nella sezione Scope prima dei suoi paragrafi (`syntax`, alla radice). Ogni altro
 valore è scritto come letto e controllato dallo schema al suo membro: il testo di un criterio
 dopo le sue parole di verifica che non inizia con `Rubric:` è aggiunto al suo `text`, e la
@@ -326,7 +332,8 @@ che non conosce e accetta i valori di enum che non conosce.
 - `diagnostics.checks` elenca i controlli eseguiti e `diagnostics.not_done` quelli non eseguiti.
 - `meta.command_version` è la versione eseguita. Senza `--command-version`,
   `meta.defaults_applied` elenca `{"pointer": "", "value": 1, "reason":
-  "current_command_version"}`: il puntatore è vuoto perché la versione è un'impostazione del
+  "current_command_version", "message": "No version of the command was requested: version 1
+  runs."}`: il puntatore è vuoto perché la versione è un'impostazione del
   contesto, non un membro dell'input. Quando `--command-version` indica una versione che il
   motore non esegue, anche il rifiuto ha il puntatore `""`, e `meta.command_version` è la
   versione corrente, di cui l'envelope ha la forma; quando l'input è anche un testo che il
@@ -334,10 +341,12 @@ che non conosce e accetta i valori di enum che non conosce.
   del testo. Un errore d'uso riporta la versione corrente del comando che indica, e 1 quando
   non indica un comando noto.
 - I valori predefiniti dei documenti seguono quello della versione del comando, nell'ordine dei
-  documenti, poi dei loro puntatori. Ognuno porta `document`, l'indice del suo documento da 0,
-  come un errore, e il suo `pointer` è relativo a quel documento: una specifica viva inviata in
-  Markdown dà `{"pointer": "/kind", "value": "specification", "reason": "implied_by_form",
-  "document": <i>}` e lo stesso per `/schema_version` con la versione corrente.
+  documenti, poi nell'ordine dei byte dei loro puntatori. Ognuno porta `document`, l'indice del
+  suo documento da 0, come un errore, e il suo `pointer` è relativo a quel documento: una
+  specifica viva inviata in Markdown dà `{"pointer": "/kind", "value": "specification",
+  "reason": "implied_by_form", "message": "The Markdown form of a living specification does
+  not carry `kind`.", "document": <i>}` e lo stesso per `/schema_version` con la versione
+  corrente. Il testo di `message` non fa parte del contratto.
 - `meta.input_hash` è lo SHA-256 del JSON canonico (RFC 8785) dell'input senza i suoi membri
   impostati a `null`, quindi un input con `"base": null` ha l'hash dell'input senza `base`. Per
   un testo che il motore rifiuta di leggere come JSON (non JSON, una chiave ripetuta in un

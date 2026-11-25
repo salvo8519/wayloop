@@ -455,7 +455,7 @@ fn text_of_the_scope_before_its_paragraphs_is_refused_and_an_empty_row_gives_no_
 fn kind_and_schema_version_are_listed_as_defaults_of_their_document() {
     // Decided by the maintainer on 2026-11-25: the Markdown form does not carry them, so the
     // envelope lists both in `meta.defaults_applied` with the index of the document, after the
-    // default of the input itself, in the order of the documents and of their pointers.
+    // default of the input itself, in the order of the documents, then in the byte order of their pointers.
     let input = json!({"documents": [
         {"format": "document", "document": examples::specification()},
         {"format": "markdown", "text": EXAMPLE, "origin": {"file": FILE}},
@@ -501,5 +501,209 @@ fn kind_and_schema_version_are_listed_as_defaults_of_their_document() {
             ),
             (Some(2), "/schema_version".into(), json!(1), implied),
         ]
+    );
+}
+
+#[test]
+fn a_repeated_scope_marker_is_refused_at_its_member_and_line() {
+    // Review B1, decided by the maintainer on 2026-11-25.
+    let text = example_with(
+        "**Out of scope:** Export (a later specification)",
+        "**Out of scope:** Export (a later specification)\n**In scope:** Again\n**Out of scope:** Twice",
+    );
+    let (document, errors) = normalised(&text);
+    assert_eq!(
+        found(&errors),
+        [
+            (
+                codes::ARTIFACT_SCHEMA,
+                "/scope_in".into(),
+                Reason::Duplicate
+            ),
+            (
+                codes::ARTIFACT_SCHEMA,
+                "/scope_out".into(),
+                Reason::Duplicate
+            )
+        ]
+    );
+    assert_eq!(
+        errors[0].location(),
+        Some(&at_line(line_of(&text, "**In scope:** Again")))
+    );
+    assert_eq!(
+        errors[1].location(),
+        Some(&at_line(line_of(&text, "**Out of scope:** Twice")))
+    );
+    // The repeated paragraphs are not read.
+    assert_eq!(
+        document["scope_in"],
+        json!(["Recording and listing time entries"])
+    );
+    assert_eq!(
+        document["scope_out"],
+        json!(["Export (a later specification)"])
+    );
+}
+
+#[test]
+fn a_fence_closes_only_on_its_character_with_a_run_at_least_as_long() {
+    // Review B2: a shorter run, or the other character, inside a block is text.
+    let block = "````text\n```\n~~~\n## Problem\n````";
+    let text = example_with("The log format follows COUNCIL-0001 D1.", block);
+    let (document, errors) = normalised(&text);
+    assert_eq!(errors, []);
+    assert_eq!(
+        document["extra_sections"],
+        json!([{"heading": "Notes", "text": block}])
+    );
+    assert_eq!(
+        document["problem"],
+        json!(examples::specification()["problem"])
+    );
+}
+
+#[test]
+fn a_title_inside_a_fenced_block_is_not_the_title() {
+    // Review B3: the fenced lines before the title are text outside the form.
+    let text = format!("```\n# SPEC-0009: Fake\n```\n{EXAMPLE}");
+    let (document, errors) = normalised(&text);
+    assert_eq!(document["id"], json!("SPEC-0001"));
+    assert_eq!(document["title"], json!("Time entries"));
+    let syntax = (codes::ARTIFACT_SCHEMA, String::new(), Reason::Syntax);
+    assert_eq!(found(&errors), [syntax.clone(), syntax.clone(), syntax]);
+    assert_eq!(
+        errors[1].location(),
+        Some(&at_line(line_of(&text, "# SPEC-0009")))
+    );
+}
+
+#[test]
+fn a_header_row_is_skipped_only_when_both_cells_are_rules_or_empty() {
+    // Review B4: an empty label with a value is a row the form does not know.
+    let text = example_with("| --- | --- |", "| --- | --- |\n| :-: | |\n| | @someone |");
+    let errors = validated(&text);
+    assert_eq!(
+        found(&errors),
+        [(codes::ARTIFACT_SCHEMA, "/".into(), Reason::UnknownField)]
+    );
+    assert_eq!(
+        errors[0].location(),
+        Some(&at_line(line_of(&text, "| | @someone")))
+    );
+}
+
+#[test]
+fn any_markdown_file_is_read_as_a_living_specification_without_capability_outside_its_folder() {
+    // S5, confirmed by the maintainer on 2026-11-25: a Markdown file named explicitly, here
+    // notes, is read as a living specification and refused as one.
+    let input = json!({"documents": [
+        {"format": "markdown", "text": "# Notes\n", "origin": {"file": "docs/notes.md"}}
+    ]});
+    let validation =
+        crate::artifacts::validate(&input::read(&input).unwrap(), &kinds::built().unwrap());
+    assert_eq!(validation.failures, []);
+    assert_eq!(
+        validation.documents[0].kind,
+        Some(wayloop_schemas::artifact::ArtifactKind::Specification)
+    );
+    let pointers: Vec<String> = validation
+        .errors
+        .iter()
+        .map(|e| e.pointer().to_string())
+        .collect();
+    assert!(pointers.contains(&"/capability".to_owned()), "{pointers:?}");
+    assert!(pointers.contains(&"/id".to_owned()), "{pointers:?}");
+}
+
+#[test]
+fn a_repeated_scope_or_user_stories_section_is_refused_at_its_first_member() {
+    // S6: the first of the two members of the section.
+    for (heading, pointer) in [("## Scope", "/scope_in"), ("## User stories", "/stories")] {
+        let text = example_with("## Notes", &format!("{heading}\n- Again\n\n## Notes"));
+        assert_eq!(
+            found(&validated(&text)),
+            [(codes::ARTIFACT_SCHEMA, pointer.into(), Reason::Duplicate)],
+            "{heading}"
+        );
+    }
+}
+
+#[test]
+fn the_first_section_is_still_checked_when_its_heading_repeats() {
+    // S6: the repeated heading is refused, and the first section keeps its own errors.
+    let text = example_with("- **R2**: THE TOOL", "- THE TOOL");
+    let text = text.replacen(
+        "## Notes",
+        "## Requirements (EARS)\n- **R5**: Again.\n\n## Notes",
+        1,
+    );
+    assert_eq!(
+        found(&validated(&text)),
+        [
+            (
+                codes::ARTIFACT_SCHEMA,
+                "/requirements".into(),
+                Reason::Duplicate
+            ),
+            (
+                codes::ARTIFACT_SCHEMA,
+                "/requirements/1/id".into(),
+                Reason::Missing
+            )
+        ]
+    );
+}
+
+#[test]
+fn text_after_the_verification_words_that_is_not_a_rubric_is_added_to_the_text() {
+    // S6, decided by the maintainer on 2026-11-25: nothing written is dropped.
+    let text = example_with(
+        "Verification: TDD.",
+        "Verification: TDD. See the log format.",
+    );
+    let (document, errors) = normalised(&text);
+    assert_eq!(errors, []);
+    assert_eq!(
+        document["acceptance_criteria"][0]["text"],
+        json!(
+            "Given an empty log, when an entry of 90 minutes is recorded, then the log holds \
+             one entry of 90 minutes. See the log format."
+        )
+    );
+}
+
+#[test]
+fn two_living_specifications_with_one_identifier_are_located_at_their_title_lines() {
+    // The identifier stage reads the normalised entry, so its errors carry the line.
+    let other = "specs/0002-time-entries/spec.md";
+    let input = json!({"documents": [
+        {"format": "markdown", "text": EXAMPLE, "origin": {"file": FILE}},
+        {"format": "markdown", "text": EXAMPLE, "origin": {"file": other}}
+    ]});
+    let validation =
+        crate::artifacts::validate(&input::read(&input).unwrap(), &kinds::built().unwrap());
+    let title = line_of(EXAMPLE, "# SPEC-0001");
+    assert_eq!(
+        found(&validation.errors),
+        [
+            (codes::IDENTIFIER_DUPLICATE, "/id".into(), Reason::Duplicate),
+            (codes::IDENTIFIER_DUPLICATE, "/id".into(), Reason::Duplicate)
+        ]
+    );
+    assert_eq!(validation.errors[0].location(), Some(&at_line(title)));
+    let related = validation.errors[0].related().unwrap();
+    assert_eq!(
+        serde_json::to_value(related).unwrap(),
+        json!([{"document": 1, "pointer": "/id", "file": other, "line": title.get()}])
+    );
+    // The folder of the second names SPEC-0002: a warning at the line of the title.
+    assert_eq!(validation.warnings[0].pointer().to_string(), "/id");
+    assert_eq!(
+        validation.warnings[0].location(),
+        Some(&Source::File {
+            file: ProjectPath::new(other),
+            line: Some(title)
+        })
     );
 }

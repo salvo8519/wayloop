@@ -4,24 +4,26 @@
 //!
 //! The text is read line by line, without a Markdown parser: the title `# SPEC-<seq>: <title>`,
 //! the header rows of the table below it, and one `##` section after another. A line inside a
-//! fenced block (` ``` ` or `~~~`) is never a heading. Headings, header rows and status words are
-//! English whatever the language of the project (R6); a section whose heading is not one of
-//! [`SECTIONS`], a translated heading included, is kept as prose in `extra_sections`, and a
-//! required member whose section is missing is then refused by the schema with the reason
-//! `missing`.
+//! fenced block, opened by three or more backticks or tildes and closed by a run of the same
+//! character at least as long, is never a title, a heading, a header row, an item or a marker.
+//! Headings, header rows and status words are English whatever the language of the project
+//! (R6); a section whose heading is not one of [`SECTIONS`], a translated heading included, is
+//! kept as prose in `extra_sections`, and a required member whose section is missing is then
+//! refused by the schema with the reason `missing`.
 //!
 //! Every value written gets the line it was read from, so that an error of the schema carries
-//! the file and the line in `source`; the root is at line 1. The few faults that have no member
-//! in the document model are refused here, with the code `artifact_schema` and their line: a
-//! header row that is not one of [`HEADER_ROWS`] or repeats one (`unknown_field`, at the row as
-//! written), a section of the template that repeats one already read (`duplicate`, at the member
-//! of the section, with the line of the second heading; its content is not read), text outside
-//! the title, the header and the sections (`syntax`, at the root), and a verification text with
-//! no word of [`VERIFICATION_WORDS`] (`enum`, the words in `expected`). These choices were
-//! decided by the maintainer on 2026-11-25 (SPEC-0001, Markdown form of a living
-//! specification).
-//! The document is otherwise written as read, never corrected: a malformed value is refused by
-//! the schema at its member.
+//! the file and the line in `source`; the root is at line 1. `kind` and `schema_version`, which
+//! the form does not carry, are written and listed as defaults of the document. The faults that
+//! have no member in the document model are refused here, with the code `artifact_schema` and
+//! their line: a header row that is not one of [`HEADER_ROWS`] or repeats one (`unknown_field`,
+//! at the row as written); a section of the template, or a paragraph `**In scope:**` or
+//! `**Out of scope:**`, given a second time (`duplicate`, at the member it fills, with the line
+//! of its second heading or marker; its content is not read); text outside the title, the
+//! header and the sections, or in Scope before its paragraphs (`syntax`, at the root); and a
+//! verification text with no word of [`VERIFICATION_WORDS`] (`enum`, the words in `expected`).
+//! These choices were decided by the maintainer on 2026-11-25 (SPEC-0001, Markdown form of a
+//! living specification). The document is otherwise written as read, never corrected: a
+//! malformed value is refused by the schema at its member.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -31,7 +33,7 @@ use serde_json::{Map, Value};
 use wayloop_schemas::Format;
 use wayloop_schemas::artifact::{ArtifactKind, RequirementStatus, Verification};
 use wayloop_schemas::contract::SPECIFICATION;
-use wayloop_schemas::contract::rules::STATUS;
+use wayloop_schemas::contract::rules::{ID, KIND, SCHEMA_VERSION, STATUS};
 use wayloop_schemas::value::{Line, ProjectPath};
 use wayloop_schemas::{DefaultApplied, DefaultReason};
 
@@ -82,12 +84,16 @@ enum RowValue {
 /// document model and how its value is written.
 const HEADER_ROWS: [(&str, &str, RowValue); 7] = [
     ("Status", STATUS, RowValue::Status),
-    ("Milestone", "milestone", RowValue::FirstWord),
-    ("Owner", "owner", RowValue::Text),
-    ("Related", "related", RowValue::List(&[',', ';'])),
-    ("Commit scope", "commit_scope", RowValue::Text),
-    ("Superseded by", "superseded_by", RowValue::List(&[','])),
-    ("Language", "language", RowValue::Text),
+    ("Milestone", member::MILESTONE, RowValue::FirstWord),
+    ("Owner", member::OWNER, RowValue::Text),
+    ("Related", member::RELATED, RowValue::List(&[',', ';'])),
+    ("Commit scope", member::COMMIT_SCOPE, RowValue::Text),
+    (
+        "Superseded by",
+        member::SUPERSEDED_BY,
+        RowValue::List(&[',']),
+    ),
+    ("Language", member::LANGUAGE, RowValue::Text),
 ];
 
 /// The sections of the template of a living specification.
@@ -102,39 +108,61 @@ enum Section {
     OpenQuestions,
 }
 
-/// The members of the document model written from the sections.
-const PROBLEM: &str = "problem";
-const STORIES: &str = "stories";
-const REQUIREMENTS: &str = "requirements";
-const ACCEPTANCE_CRITERIA: &str = "acceptance_criteria";
-const INTERFACES: &str = "interfaces";
-const OPEN_QUESTIONS: &str = "open_questions";
-
-impl Section {
-    /// The member a section fills, the first of the two of Scope and User stories: where a
-    /// repeated section is refused.
-    const fn member(self) -> &'static str {
-        match self {
-            Section::Problem => PROBLEM,
-            Section::Scope => SCOPE_PARTS[0].1,
-            Section::UserStories => STORIES,
-            Section::Requirements => REQUIREMENTS,
-            Section::AcceptanceCriteria => ACCEPTANCE_CRITERIA,
-            Section::Interfaces => INTERFACES,
-            Section::OpenQuestions => OPEN_QUESTIONS,
-        }
-    }
+/// The names of the members of the document model of a living specification that the
+/// normalisation writes, each defined once; `kind`, `schema_version`, `id` and `status` are
+/// those of every artifact, in `rules`.
+mod member {
+    pub(super) const TITLE: &str = "title";
+    pub(super) const CAPABILITY: &str = "capability";
+    pub(super) const MILESTONE: &str = "milestone";
+    pub(super) const OWNER: &str = "owner";
+    pub(super) const RELATED: &str = "related";
+    pub(super) const COMMIT_SCOPE: &str = "commit_scope";
+    pub(super) const SUPERSEDED_BY: &str = "superseded_by";
+    pub(super) const LANGUAGE: &str = "language";
+    pub(super) const PROBLEM: &str = "problem";
+    pub(super) const SCOPE_IN: &str = "scope_in";
+    pub(super) const SCOPE_OUT: &str = "scope_out";
+    pub(super) const STORIES: &str = "stories";
+    pub(super) const USER_STORIES: &str = "user_stories";
+    pub(super) const REQUIREMENTS: &str = "requirements";
+    pub(super) const ACCEPTANCE_CRITERIA: &str = "acceptance_criteria";
+    pub(super) const INTERFACES: &str = "interfaces";
+    pub(super) const OPEN_QUESTIONS: &str = "open_questions";
+    pub(super) const EXTRA_SECTIONS: &str = "extra_sections";
+    /// Members of the parts: requirements, acceptance criteria, open questions and extra
+    /// sections.
+    pub(super) const NAME: &str = "name";
+    pub(super) const TEXT: &str = "text";
+    pub(super) const VERIFICATION: &str = "verification";
+    pub(super) const RUBRIC: &str = "rubric";
+    pub(super) const RESOLVED: &str = "resolved";
+    pub(super) const HEADING: &str = "heading";
 }
 
-/// The heading of each section of the template, as written after `## `.
-const SECTIONS: [(&str, Section); 7] = [
-    ("Problem", Section::Problem),
-    ("Scope", Section::Scope),
-    ("User stories", Section::UserStories),
-    ("Requirements (EARS)", Section::Requirements),
-    ("Acceptance criteria", Section::AcceptanceCriteria),
-    ("Interfaces", Section::Interfaces),
-    ("Open questions", Section::OpenQuestions),
+/// The sections of the template: the heading as written after `## `, the section, and the
+/// member it fills, the first of the two of Scope and User stories, where a repeated section
+/// is refused.
+const SECTIONS: [(&str, Section, &str); 7] = [
+    ("Problem", Section::Problem, member::PROBLEM),
+    ("Scope", Section::Scope, member::SCOPE_IN),
+    ("User stories", Section::UserStories, member::STORIES),
+    (
+        "Requirements (EARS)",
+        Section::Requirements,
+        member::REQUIREMENTS,
+    ),
+    (
+        "Acceptance criteria",
+        Section::AcceptanceCriteria,
+        member::ACCEPTANCE_CRITERIA,
+    ),
+    ("Interfaces", Section::Interfaces, member::INTERFACES),
+    (
+        "Open questions",
+        Section::OpenQuestions,
+        member::OPEN_QUESTIONS,
+    ),
 ];
 
 /// The words of a verification text and the value each gives, in the order of SPEC-0001; a
@@ -154,23 +182,25 @@ pub(crate) const VERIFICATION_WORDS: [(&str, Verification); 11] = [
 ];
 
 /// The title line: `# ` and the identifier, a colon and the title.
-const TITLE: &str = "# ";
+const TITLE_MARKER: &str = "# ";
 /// A section heading.
 const HEADING: &str = "## ";
 /// The markers of the paragraphs of the section Scope and their members.
 const SCOPE_PARTS: [(&str, &str); 2] = [
-    ("**In scope:**", "scope_in"),
-    ("**Out of scope:**", "scope_out"),
+    ("**In scope:**", member::SCOPE_IN),
+    ("**Out of scope:**", member::SCOPE_OUT),
 ];
 /// The markers of a list item.
 const ITEM_MARKERS: [&str; 3] = ["- ", "* ", "+ "];
-/// The markers of a fenced block.
-const FENCES: [&str; 2] = ["```", "~~~"];
+/// The characters of a fence, which opens a fenced block with a run of at least
+/// [`FENCE_RUN`] of one of them.
+const FENCE_CHARACTERS: [char; 2] = ['`', '~'];
+const FENCE_RUN: usize = 3;
 /// The emphasis around the identifier of a part.
 const BOLD: &str = "**";
 /// The words before the verification and the rubric of an acceptance criterion.
-const VERIFICATION: &str = "Verification:";
-const RUBRIC: &str = "Rubric:";
+const VERIFICATION_MARKER: &str = "Verification:";
+const RUBRIC_MARKER: &str = "Rubric:";
 /// The checkboxes of an open question, unresolved and resolved.
 const CHECKBOXES: [(&str, bool); 3] = [("[ ] ", false), ("[x] ", true), ("[X] ", true)];
 
@@ -203,10 +233,10 @@ pub(crate) fn normalise(text: &str, file: Option<&ProjectPath>) -> Normalised {
     if let Some(first) = lines.first() {
         out.at(&Pointer::root(), first.line);
     }
-    out.implied("kind", ArtifactKind::Specification.id());
-    out.implied("schema_version", SPECIFICATION.version.get());
+    out.implied(KIND, ArtifactKind::Specification.id());
+    out.implied(SCHEMA_VERSION, SPECIFICATION.version.get());
     if let Some(capability) = file.and_then(|f| locations::specification_capability(f.as_str())) {
-        out.put("capability", capability, None);
+        out.put(member::CAPABILITY, capability, None);
     }
     let start = lines
         .iter()
@@ -218,44 +248,47 @@ pub(crate) fn normalise(text: &str, file: Option<&ProjectPath>) -> Normalised {
     let mut extra: Vec<(Line, Value)> = Vec::new();
     for (heading, content) in sections(body) {
         let title = heading.text.get(HEADING.len()..).unwrap_or_default().trim();
-        let known = SECTIONS
-            .iter()
-            .find(|(name, _)| *name == title)
-            .map(|(_, section)| *section);
-        if let Some(section) = known.filter(|section| read.contains(section)) {
-            let message = format!("The section `{title}` is given more than once.");
-            let pointer = Pointer::root().join(section.member());
-            let error = Error::new(codes::ARTIFACT_SCHEMA, message, pointer, Reason::Duplicate);
-            out.refuse(error, heading.line);
-        } else if let Some(section) = known {
-            read.push(section);
-            out.section(section, heading.line, content);
-        } else {
-            let mut prose_section = Map::new();
-            prose_section.insert("heading".to_owned(), title.into());
-            if let Some(text) = prose(content) {
-                prose_section.insert("text".to_owned(), text.into());
+        let known = SECTIONS.iter().find(|(name, _, _)| *name == title);
+        match known {
+            Some((_, section, filled)) if read.contains(section) => {
+                out.duplicate(&format!("section `{title}`"), filled, heading.line);
             }
-            extra.push((heading.line, Value::Object(prose_section)));
+            Some((_, section, _)) => {
+                read.push(*section);
+                out.section(*section, heading.line, content);
+            }
+            None => {
+                let mut prose_section = Map::new();
+                prose_section.insert(member::HEADING.to_owned(), title.into());
+                if let Some(text) = prose(content) {
+                    prose_section.insert(member::TEXT.to_owned(), text.into());
+                }
+                extra.push((heading.line, Value::Object(prose_section)));
+            }
         }
     }
     if let Some((first, _)) = extra.first() {
-        out.list("extra_sections", *first, extra);
+        out.list(member::EXTRA_SECTIONS, *first, extra);
     }
     out.normalised
 }
 
-/// The lines of `text`, numbered from 1 and marked when inside a fenced block.
+/// The lines of `text`, numbered from 1 and marked when inside a fenced block. A fence is a run
+/// of at least [`FENCE_RUN`] of one character of [`FENCE_CHARACTERS`] at the start of a line;
+/// the block it opens is closed only by a run of the same character at least as long, so a
+/// shorter run or the other character inside it is text.
 fn numbered(text: &str) -> Vec<Numbered<'_>> {
-    let mut fence = false;
+    let mut open: Option<(char, usize)> = None;
     core::iter::successors(Some(NonZeroU64::MIN), |n| n.checked_add(1))
         .zip(text.lines())
         .map(|(n, text)| {
-            let marker = FENCES.iter().any(|f| text.trim_start().starts_with(f));
-            let fenced = fence || marker;
-            if marker {
-                fence = !fence;
-            }
+            let run = fence_run(text);
+            let fenced = open.is_some() || run.is_some();
+            open = match (open, run) {
+                (None, Some(run)) => Some(run),
+                (Some((c, len)), Some((r, run_len))) if r == c && run_len >= len => None,
+                (still, _) => still,
+            };
             Numbered {
                 line: Line::new(n),
                 text,
@@ -263,6 +296,17 @@ fn numbered(text: &str) -> Vec<Numbered<'_>> {
             }
         })
         .collect()
+}
+
+/// The fence at the start of `text`, its character and the length of its run, when it is one.
+fn fence_run(text: &str) -> Option<(char, usize)> {
+    let trimmed = text.trim_start();
+    let first = trimmed
+        .chars()
+        .next()
+        .filter(|c| FENCE_CHARACTERS.contains(c))?;
+    let run = trimmed.chars().take_while(|c| *c == first).count();
+    (run >= FENCE_RUN).then_some((first, run))
 }
 
 /// The sections of `body`, which starts with a heading: each heading and the lines up to the
@@ -432,6 +476,26 @@ impl Writer<'_> {
         self.normalised.errors.push(error);
     }
 
+    /// Refuses text where the form has none, at `line`, with the reason `syntax` at the root.
+    fn stray(&mut self, message: &str, line: Line) {
+        let error = Error::new(
+            codes::ARTIFACT_SCHEMA,
+            message,
+            Pointer::root(),
+            Reason::Syntax,
+        );
+        self.refuse(error, line);
+    }
+
+    /// Refuses `what`, given a second time at `line`, with the reason `duplicate` at the
+    /// member `filled` (decided by the maintainer on 2026-11-25); its content is not read.
+    fn duplicate(&mut self, what: &str, filled: &str, line: Line) {
+        let message = format!("The {what} is given more than once.");
+        let pointer = Pointer::root().join(filled);
+        let error = Error::new(codes::ARTIFACT_SCHEMA, message, pointer, Reason::Duplicate);
+        self.refuse(error, line);
+    }
+
     /// The title and the header rows; any other text is refused.
     fn preamble(&mut self, lines: &[Numbered<'_>]) {
         let mut titled = false;
@@ -441,7 +505,8 @@ impl Writer<'_> {
             if text.is_empty() {
                 continue;
             }
-            if let Some(title) = line.text.strip_prefix(TITLE).filter(|_| !titled) {
+            let title = line.text.strip_prefix(TITLE_MARKER);
+            if let Some(title) = title.filter(|_| !titled && !line.fenced) {
                 titled = true;
                 self.title(title.trim(), line.line);
             } else if text.starts_with('|') && !line.fenced {
@@ -449,13 +514,7 @@ impl Writer<'_> {
             } else {
                 let message = "Text outside the title, the header rows and the sections of a \
                                living specification.";
-                let error = Error::new(
-                    codes::ARTIFACT_SCHEMA,
-                    message,
-                    Pointer::root(),
-                    Reason::Syntax,
-                );
-                self.refuse(error, line.line);
+                self.stray(message, line.line);
             }
         }
     }
@@ -467,21 +526,22 @@ impl Writer<'_> {
             None => (None, text),
         };
         if let Some(id) = id.filter(|id| !id.is_empty()) {
-            self.put("id", id, Some(line));
+            self.put(ID, id, Some(line));
         }
         if !title.is_empty() {
-            self.put("title", title, Some(line));
+            self.put(member::TITLE, title, Some(line));
         }
     }
 
-    /// A header row `| <label> | <value> |`; the head and the separator of the table are
-    /// skipped. `rows` holds the labels read already.
+    /// A header row `| <label> | <value> |`; the head and the separator of the table, rows
+    /// whose two cells are both empty or made only of `-`, `:` and spaces, are skipped. `rows`
+    /// holds the labels read already.
     fn row<'a>(&mut self, text: &'a str, line: Line, rows: &mut Vec<&'a str>) {
         let inner = text.trim_matches('|');
         let (label, value) = inner.split_once('|').unwrap_or((inner, ""));
         let (label, value) = (label.trim(), value.trim_end_matches('|').trim());
-        let separator = label.chars().all(|c| matches!(c, '-' | ':' | ' '));
-        if separator {
+        let rule = |cell: &str| cell.chars().all(|c| matches!(c, '-' | ':' | ' '));
+        if rule(label) && rule(value) {
             return;
         }
         let known = HEADER_ROWS
@@ -526,25 +586,22 @@ impl Writer<'_> {
 
     /// The section `section`, whose heading is at `line`.
     fn section(&mut self, section: Section, line: Line, content: &[Numbered<'_>]) {
-        let plain = |entries: Vec<Entry>| -> Vec<(Line, Value)> {
-            entries
-                .into_iter()
-                .map(|e| (e.line, Value::from(e.text)))
-                .collect()
-        };
         match section {
-            Section::Problem => self.put(PROBLEM, prose(content).unwrap_or_default(), Some(line)),
+            Section::Problem => {
+                let text = prose(content).unwrap_or_default();
+                self.put(member::PROBLEM, text, Some(line));
+            }
             Section::Scope => self.scope(content),
             Section::UserStories => {
                 let (stories, prose_stories): (Vec<Entry>, Vec<Entry>) = entries(content)
                     .into_iter()
                     .partition(|e| format::accepts(Format::StoryId, &e.text));
-                self.list(STORIES, line, plain(stories));
-                self.list("user_stories", line, plain(prose_stories));
+                self.list(member::STORIES, line, plain(stories));
+                self.list(member::USER_STORIES, line, plain(prose_stories));
             }
             Section::Requirements => {
                 let values = parts(content, requirement);
-                self.list(REQUIREMENTS, line, values);
+                self.list(member::REQUIREMENTS, line, values);
             }
             Section::AcceptanceCriteria => {
                 let mut values = Vec::new();
@@ -552,9 +609,9 @@ impl Writer<'_> {
                     let (value, refused) = criterion(&entry.text);
                     if let Some(error) = refused {
                         let pointer = Pointer::root()
-                            .join(ACCEPTANCE_CRITERIA)
+                            .join(member::ACCEPTANCE_CRITERIA)
                             .join_index(i)
-                            .join("verification");
+                            .join(member::VERIFICATION);
                         self.normalised.withheld.insert(pointer.clone());
                         let error =
                             Error::new(codes::ARTIFACT_SCHEMA, error, pointer, Reason::Enum)
@@ -563,12 +620,12 @@ impl Writer<'_> {
                     }
                     values.push((entry.line, value));
                 }
-                self.list(ACCEPTANCE_CRITERIA, line, values);
+                self.list(member::ACCEPTANCE_CRITERIA, line, values);
             }
-            Section::Interfaces => self.list(INTERFACES, line, plain(entries(content))),
+            Section::Interfaces => self.list(member::INTERFACES, line, plain(entries(content))),
             Section::OpenQuestions => {
                 let values = parts(content, question);
-                self.list(OPEN_QUESTIONS, line, values);
+                self.list(member::OPEN_QUESTIONS, line, values);
             }
         }
     }
@@ -578,43 +635,47 @@ impl Writer<'_> {
     /// before them is refused; a section with neither gives no member, so `scope_in` is then
     /// missing.
     fn scope(&mut self, content: &[Numbered<'_>]) {
-        let mut parts: Vec<(&str, Line, Vec<Numbered<'_>>)> = Vec::new();
+        // Each paragraph: its member, the line of its marker, its lines, and whether it is read;
+        // a marker given a second time is refused and its paragraph is not read.
+        let mut parts: Vec<(&str, Line, Vec<Numbered<'_>>, bool)> = Vec::new();
         for numbered in content {
             let marker = SCOPE_PARTS
                 .iter()
-                .find_map(|(m, key)| Some((*key, numbered.text.strip_prefix(m)?)));
+                .filter(|_| !numbered.fenced)
+                .find_map(|(m, key)| Some((*m, *key, numbered.text.strip_prefix(m)?)));
             match (marker, parts.last_mut()) {
-                (Some((key, rest)), _) => parts.push((
-                    key,
-                    numbered.line,
-                    vec![Numbered {
+                (Some((m, key, rest)), _) => {
+                    let first = !parts.iter().any(|(k, _, _, read)| *k == key && *read);
+                    if !first {
+                        self.duplicate(&format!("paragraph `{m}`"), key, numbered.line);
+                    }
+                    let opening = Numbered {
                         text: rest,
                         ..*numbered
-                    }],
-                )),
-                (None, Some((_, _, lines))) => lines.push(*numbered),
+                    };
+                    parts.push((key, numbered.line, vec![opening], first));
+                }
+                (None, Some((_, _, lines, _))) => lines.push(*numbered),
                 (None, None) if numbered.text.trim().is_empty() => {}
                 (None, None) => {
                     let message = "Text of the section Scope outside its paragraphs \
                                    `**In scope:**` and `**Out of scope:**`.";
-                    let error = Error::new(
-                        codes::ARTIFACT_SCHEMA,
-                        message,
-                        Pointer::root(),
-                        Reason::Syntax,
-                    );
-                    self.refuse(error, numbered.line);
+                    self.stray(message, numbered.line);
                 }
             }
         }
-        for (key, at, lines) in parts {
-            let values = entries(&lines)
-                .into_iter()
-                .map(|e| (e.line, Value::from(e.text)))
-                .collect();
-            self.list(key, at, values);
+        for (key, at, lines, _) in parts.into_iter().filter(|(_, _, _, read)| *read) {
+            self.list(key, at, plain(entries(&lines)));
         }
     }
+}
+
+/// `entries` as texts, each at its line.
+fn plain(entries: Vec<Entry>) -> Vec<(Line, Value)> {
+    entries
+        .into_iter()
+        .map(|e| (e.line, Value::from(e.text)))
+        .collect()
 }
 
 /// The entries of `content`, each read into a part by `read`, at its line.
@@ -631,14 +692,14 @@ fn requirement(item: &str) -> Map<String, Value> {
     let mut part = Map::new();
     let (id, mut rest) = label(item);
     if let Some(id) = id {
-        part.insert("id".to_owned(), id.into());
+        part.insert(ID.to_owned(), id.into());
     }
     if let Some((name, after)) = rest
         .strip_prefix('*')
         .and_then(|r| r.split_once('*'))
         .filter(|_| id.is_some())
     {
-        part.insert("name".to_owned(), name.into());
+        part.insert(member::NAME.to_owned(), name.into());
         rest = after.trim_start();
     }
     let removed = format!("({})", RequirementStatus::Removed.id());
@@ -646,7 +707,7 @@ fn requirement(item: &str) -> Map<String, Value> {
         part.insert(STATUS.to_owned(), RequirementStatus::Removed.id().into());
         rest = after;
     }
-    part.insert("text".to_owned(), after_colon(rest).into());
+    part.insert(member::TEXT.to_owned(), after_colon(rest).into());
     part
 }
 
@@ -656,21 +717,26 @@ fn criterion(item: &str) -> (Value, Option<String>) {
     let mut part = Map::new();
     let (id, mut rest) = label(item);
     if let Some(id) = id {
-        part.insert("id".to_owned(), id.into());
+        part.insert(ID.to_owned(), id.into());
     }
-    if let Some((cited, after)) = rest.strip_prefix('(').and_then(|r| r.split_once(')')) {
+    // The requirements cited follow the identifier; without one, a leading parenthesis is text.
+    let cited = rest
+        .strip_prefix('(')
+        .and_then(|r| r.split_once(')'))
+        .filter(|_| id.is_some());
+    if let Some((cited, after)) = cited {
         let cited: Vec<Value> = cited
             .split(',')
             .map(str::trim)
             .filter(|r| !r.is_empty())
             .map(Value::from)
             .collect();
-        part.insert("requirements".to_owned(), cited.into());
+        part.insert(member::REQUIREMENTS.to_owned(), cited.into());
         rest = after;
     }
     let rest = after_colon(rest);
     let mut refused = None;
-    let text = match rest.split_once(VERIFICATION) {
+    let text = match rest.split_once(VERIFICATION_MARKER) {
         None => rest.to_owned(),
         Some((text, after)) => {
             let (words, tail) = after.split_once('.').unwrap_or((after, ""));
@@ -682,12 +748,12 @@ fn criterion(item: &str) -> (Value, Option<String>) {
                 ));
             } else {
                 let values: Vec<Value> = values.iter().map(|v| v.id().into()).collect();
-                part.insert("verification".to_owned(), values.into());
+                part.insert(member::VERIFICATION.to_owned(), values.into());
             }
             let tail = tail.trim();
-            match tail.strip_prefix(RUBRIC) {
+            match tail.strip_prefix(RUBRIC_MARKER) {
                 Some(rubric) => {
-                    part.insert("rubric".to_owned(), rubric.trim().into());
+                    part.insert(member::RUBRIC.to_owned(), rubric.trim().into());
                     text.trim().to_owned()
                 }
                 // Text after the verification is not dropped: it stays in the criterion.
@@ -696,7 +762,7 @@ fn criterion(item: &str) -> (Value, Option<String>) {
             }
         }
     };
-    part.insert("text".to_owned(), text.into());
+    part.insert(member::TEXT.to_owned(), text.into());
     (Value::Object(part), refused)
 }
 
@@ -709,7 +775,7 @@ fn question(item: &str) -> Map<String, Value> {
         .find_map(|(box_, resolved)| Some((*resolved, item.strip_prefix(box_)?)));
     let rest = match checked {
         Some((resolved, rest)) => {
-            part.insert("resolved".to_owned(), resolved.into());
+            part.insert(member::RESOLVED.to_owned(), resolved.into());
             rest.trim()
         }
         None => item,
@@ -723,7 +789,7 @@ fn question(item: &str) -> Map<String, Value> {
     };
     let text = match identified {
         Some((id, question, after)) => {
-            part.insert("id".to_owned(), id.into());
+            part.insert(ID.to_owned(), id.into());
             [question, after]
                 .iter()
                 .filter(|t| !t.is_empty())
@@ -733,6 +799,6 @@ fn question(item: &str) -> Map<String, Value> {
         }
         None => rest.to_owned(),
     };
-    part.insert("text".to_owned(), text.into());
+    part.insert(member::TEXT.to_owned(), text.into());
     part
 }

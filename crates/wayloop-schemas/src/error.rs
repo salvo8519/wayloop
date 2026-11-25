@@ -375,7 +375,8 @@ pub struct Error {
     /// input. With the code `command_input` and the reason `enum`, the pointer `""` designates
     /// the context of the command, its requested version, which has no place in the input.
     pointer: Pointer,
-    /// Pointers to the other values involved, such as both sides of a conflict; absent when
+    /// Pointers to the other values involved, such as both sides of a conflict, relative to the
+    /// same document as `pointer`: the one given by `document`, or the input sent; absent when
     /// none is given.
     #[serde(skip_serializing_if = "Option::is_none")]
     pointers: Option<Vec<Pointer>>,
@@ -412,8 +413,8 @@ pub struct Error {
 /// The meaning of the member `document` of an error and of an entry of `meta.defaults_applied`,
 /// one text for both (SPEC-0004 R2; ADR 0009, amended on 2026-11-20 and 2026-11-25).
 pub(crate) const DOCUMENT_INDEX: &str = "Index, from 0, in the input array `documents` of the \
-    document the entry belongs to; its `pointer` is then relative to that document. Absent for \
-    an entry of the input itself (SPEC-0004 R2).";
+    document the error or default belongs to; its `pointer` is then relative to that document. \
+    Absent for an error or a default of the input itself (SPEC-0004 R2).";
 
 impl Error {
     /// A refusal with its stable `code` (never renamed or reused, ADR 0009 C8), a `message`
