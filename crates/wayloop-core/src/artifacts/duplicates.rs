@@ -19,13 +19,15 @@ pub(super) fn carriers<'t, T>(
     carriers
 }
 
-/// Each item of `items` whose `key` another item shares, with the others as `related`, in the
-/// order of `items`: the duplicates of the set (R8, R14).
+/// Each item of `items` whose `key` another item shares, with one other carrier as `related`,
+/// in the order of `items`: the duplicates of the set (R8, R14). No error copies a list that
+/// grows with the input (decided by the maintainer on 2026-11-25): every later carrier names
+/// the first, and the first names the second, so the report stays linear in the carriers.
 pub(super) fn shared<'t, T>(
     items: &'t [T],
     key: impl Fn(&'t T) -> &'t str + Copy,
     related: impl Fn(&T) -> Related,
-) -> Vec<(&'t T, Vec<Related>)> {
+) -> Vec<(&'t T, Related)> {
     shared_in(items, &carriers(items, key), key, related)
 }
 
@@ -35,28 +37,19 @@ pub(super) fn shared_in<'t, T>(
     carriers: &BTreeMap<&str, Vec<&'t T>>,
     key: impl Fn(&'t T) -> &'t str,
     related: impl Fn(&T) -> Related,
-) -> Vec<(&'t T, Vec<Related>)> {
+) -> Vec<(&'t T, Related)> {
     items
         .iter()
         .filter_map(|item| {
-            let others: Vec<Related> = carriers
-                .get(key(item))?
-                .iter()
-                .filter(|other| !core::ptr::eq(**other, item))
-                .map(|other| related(other))
-                .collect();
-            (!others.is_empty()).then_some((item, others))
+            let [first, second, ..] = carriers.get(key(item))?.as_slice() else {
+                return None;
+            };
+            let named = if core::ptr::eq(*first, item) {
+                second
+            } else {
+                first
+            };
+            Some((item, related(named)))
         })
         .collect()
-}
-
-/// The documents of `others` as a message names them: `document 3` or `documents 3, 5`.
-pub(super) fn documents(others: &[Related]) -> String {
-    let listed: Vec<String> = others.iter().map(|o| o.document().to_string()).collect();
-    let noun = if listed.len() == 1 {
-        "document"
-    } else {
-        "documents"
-    };
-    format!("{noun} {}", listed.join(", "))
 }

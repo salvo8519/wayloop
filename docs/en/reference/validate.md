@@ -10,10 +10,10 @@ specifications, change deltas, tasks, hand-over records and the inputs (pull req
 and hand-over inputs) are validated against their schemas. A living specification written in
 Markdown is first normalised into its document model (see Living specifications in Markdown
 below). Across documents, identifiers are checked for uniqueness and against the path of their
-file, the links between artifacts are resolved (see Links below), and the titles of epics and
-tasks are checked for their form and their uniqueness; the other checks across documents
-(parts, statuses, naming, areas) are not run by this version and are listed in
-`diagnostics.not_done`.
+file, the links between artifacts are resolved (see Links below), the parts of artifacts and the
+operations of change deltas are checked (see Parts below), and the titles of epics and tasks are
+checked for their form and their uniqueness; the other checks across documents (statuses,
+naming, areas) are not run by this version and are listed in `diagnostics.not_done`.
 
 This page describes version 1 of the command, as built from source. Its contract is the pair
 of schema snapshots `schemas/commands/validate/v1.json` (input) and
@@ -85,6 +85,7 @@ path, goes to standard error.
 | `identifier_duplicate` | No two artifacts of the set carry one identifier |
 | `identifier_location` | The file name of a brief, a council report or a plan item, and the folder number of a living specification, name the `id` of the artifact; a warning otherwise |
 | `links` | Each link of an artifact resolves to an artifact of the set, not superseded where that matters, each requirement it cites is in force, and a task or a story belongs to the milestone and the epic of its parents (see Links below) |
+| `parts` | No part identifier is given twice in its list, a dissent names a decision of its report, a recommendation or an answer is one of the options of its question, a task depends neither on itself, nor on a superseded task, nor on a cycle, a change delta has at most one operation per requirement and no member its `op` refuses, and neither a task nor an acceptance criterion is verified by `none` beside a technique (see Parts below) |
 | `adr_citations` | Each citation `ADR <NNNN>` in `related` of a living specification names an ADR of `adrs`; with `adrs` only |
 | `title_format` | The title of each epic and task has no type prefix, no bracket tag at its start or end and no final full stop (see Titles of epics and tasks below) |
 | `title_duplicate` | No two titles of epics and tasks, in any status except `superseded`, are equal after normalisation |
@@ -98,7 +99,6 @@ Any other check the engine did not run is never skipped silently:
 
 | Check | Not run on |
 | --- | --- |
-| `parts` | The set: parts of artifacts and operations of change deltas |
 | `statuses` | The set: transitions and initial statuses against `base` |
 | `naming` | The set: branch names, commit headers and pull request links |
 | `areas` | The set: the `area` of each epic and task against the areas of the project policy |
@@ -137,13 +137,7 @@ living specification has six, `draft`, `approved`, `surveyed`, `implementing`, `
 (`D<k>`, `Q<k>`, `R<k>`, `AC<k>`) and that a question of a council report has at least two
 options, not that a part is unique, that a dissent names a decision of its report, that a
 recommendation or an answer is one of the options or that a change delta has one operation per
-requirement: that is the check `parts`.
-
-An operation of a change delta must not carry a member its `op` refuses: `requirement` on
-`added`, `text` on `removed` and `renamed` (a rename with a new text is one `modified`
-operation), and `name` on `removed`. The schema cannot state the absence of a member under a
-condition, so this version accepts these members; the check `parts` is to refuse each with
-`artifact_schema`, `unknown_field` and `/operations/<i>/op` in `pointers`.
+requirement: that is the check `parts` (see Parts below).
 
 A hand-over comes in two forms of one version. The input is what an agent submits at the end of
 a session, with `input_kind: handover_input` and no `kind`: `schema_version`, `step`,
@@ -188,15 +182,23 @@ until the tracker is read, so a link to it is missing.
 
 - A link to an identifier that no artifact of the set carries is `link_missing`, reason
   `missing`, at the member of the link.
-- A link to a superseded artifact is `link_superseded`, reason `state`, with the identifiers of
-  its `superseded_by` in `expected`, the values accepted at the pointer, and, when there is
-  exactly one, that identifier in `fix`, applicable as is, for example `"SPEC-0001"`. With
-  several replacements, `fix` is absent.
+- A link to a superseded artifact is `link_superseded`, reason `state`. Its replacements are the
+  identifiers of its `superseded_by`. With exactly one, that identifier is in `fix`, applicable
+  as is, for example `"SPEC-0001"`, and `expected` lists it alone. With several, neither `fix`
+  nor `expected` is given: no error copies a list that grows with the input, so one entry of
+  `related` points to where the list is, `{document, pointer: "/superseded_by"}` of the target
+  with the members of its `source`, and the message names only the target. When the target is
+  the document of the error itself, as in a self-reference in its `superseded_by`, `pointers`
+  holds `/superseded_by` instead, since `related` names only other documents. A `fix` is a value
+  valid at its pointer, not a guarantee that the set becomes valid once it is applied.
 - `superseded_by` names artifacts that are not superseded: a replacement that is itself
   superseded, as in a chain or a self-reference, is a broken link of its holder.
   `expanded_from` (the task a subtask was expanded from is superseded by it) and `depends_on`
   accept a superseded target, since they record the history of the work; a dependency on a
   superseded task is a rule of the check `parts`.
+- The replacements never include the superseded target itself, nor the artifact that holds the
+  link, which never names itself: `[holder, X]` and `[target, X]` give the fix `X`; when none is
+  left, `expected`, `fix` and `related` are absent.
 - A cited requirement that the specification does not have is `link_missing`; a removed one is
   `link_superseded`, reason `state`, with neither `expected` nor `fix`, since it has no
   replacement. Requirements are checked only when the specification is in the set and passed
@@ -207,10 +209,10 @@ until the tracker is read, so a link to it is missing.
   reached through the parent in `expected`.
 - An artifact in status `done` or `superseded` is not changed again, and a hand-over record is
   never changed: each broken link of such an artifact is the warning `link_broken_terminal`,
-  with the reason, `expected` and `fix` of the error it replaces, and the hierarchy is not
-  checked.
-- No error of a link or of the hierarchy carries `related`: the pointer and the message name the
-  target.
+  with the reason, `expected`, `fix` and `related` of the error it replaces, and the hierarchy
+  is not checked.
+- No other error of a link or of the hierarchy carries `related`: the pointer and the message
+  name the target.
 - A citation is the word `ADR` followed by a number, for example `ADR 0014`; `ADR 14` cites the
   same ADR. A bare number that follows a citation, in the same entry or in the entries right
   after it, cites an ADR too: `ADR 0002, 0003` cites two, also when the header row `Related`
@@ -224,6 +226,42 @@ task of a hand-over record carries its issue or that the issue is a task of the 
 
 When the input itself is refused, or the command line is not understood, or the input cannot
 be read, no check runs: `diagnostics.checks` and `diagnostics.not_done` are then empty.
+
+### Parts
+
+The parts of an artifact are read once it passed its schema. Each rule below refuses the value
+at its pointer. The errors of this check come after those of the links and before those of the
+titles, also the ones with the code `artifact_schema`. Only a dependency on a superseded task
+with several replacements names another document in `related`, as a link does.
+
+| Rule | Code | Reason | Pointer | Other members |
+| --- | --- | --- | --- | --- |
+| A part identifier given twice in its list: `decisions` and `questions` of a council report; `requirements`, `acceptance_criteria` and `open_questions` of a living specification; `acceptance_criteria` of a user story | `part_invalid` | `duplicate` | The `id` of each part after the first that carries it | `pointers`: the `id` of the first, then its own |
+| A dissent that names a decision the report does not have | `part_invalid` | `missing` | `/dissent/<i>/decision` | `pointers`: `/decisions` |
+| A recommendation or an answer that is not one of the options of its question | `part_invalid` | `enum` | `/questions/<i>/recommendation` or `/questions/<i>/answer` | `expected`: each option once, in its order; `pointers`: `/questions/<i>/options` |
+| A task that depends on itself | `part_invalid` | `conflict` | `/depends_on/<i>` | `pointers`: `/id` |
+| A task that depends on a superseded task | `part_invalid` | `conflict` | `/depends_on/<i>` | `expected`, `fix` or `related` as for a link to a superseded artifact (see Links) |
+| A task that depends on a task that leads back to it, directly or through other tasks | `part_invalid` | `conflict` | `/depends_on/<i>` of each dependency on the cycle | none; no `related` |
+| Two operations of a change delta on one requirement | `delta_conflict` | `conflict` | `/operations/<i>` of each operation after the first on that requirement | `pointers`: the first operation, then its own |
+| A member that the `op` of an operation refuses: `requirement` on `added`, `text` on `removed` and `renamed` (a rename with a new text is one `modified` operation), `name` on `removed` | `artifact_schema` | `unknown_field` | `/operations/<i>/<member>` | `pointers`: `/operations/<i>/op` |
+| A task or an acceptance criterion of a living specification whose `verification` holds `none` beside a technique | `artifact_schema` | `enum` | `/verification/<i>` or `/acceptance_criteria/<i>/verification/<j>` of each `none` | `expected`: the techniques; `pointers`: the first technique of the list |
+
+The schema cannot state the absence of a member under a condition, so the members an `op`
+refuses are refused by this check. A requirement refused on an `added` operation names no
+requirement, so it conflicts with no other operation. The order of the verification values and
+a repeated value carry no meaning: `[none, none]` and `[tdd, tdd]` pass.
+
+The dependencies of a task are checked only when the task has no error of its own and is not
+done or superseded, since such a task is not changed again; the dependencies of a task that is
+done or superseded are not part of the graph of dependencies either. Every task of the set is a
+target, as long as its `id` raised no error. Every dependency on a cycle is refused, not only
+the one that closed it, since the order of the documents does not say which one did. A
+dependency on a task that no artifact of the set carries is an error of the links only.
+
+When a change delta is merged, an added requirement gets the identifier after the highest
+number ever used in its living specification, removed requirements included: with `R1` to `R3`
+and `R4` removed, it is `R5`. The engine gives that identifier with one function of its core;
+the merge itself is not a command of this version.
 
 ### Living specifications in Markdown
 
@@ -446,11 +484,12 @@ Every error found is listed in `error.errors`; the first one is repeated at the 
    order for the rules the schema cannot state.
 2. Otherwise, the errors of the documents, in the order of the documents; within a document, by
    stage (kind, version and schema first, then identifier, then the identifiers across the set,
-   then the links, then the form of the title and the titles across the set); within a stage,
-   in the order of the schema pass: the members of an object in the byte order of their keys
-   (`/aa` before `/zz`), the elements of an array by index, absent members after present ones,
-   in the order in which the schema lists them as required. The errors of the name of a member
-   come before the errors of its value, at the same pointer.
+   then the links, then the parts, then the form of the title and the titles across the set);
+   within a stage, in the order of the schema pass: the members of an object in the byte order
+   of their keys (`/aa` before `/zz`), the elements of an array by index, absent members after
+   present ones, in the order in which the schema lists them as required. An error of the code
+   `artifact_schema` found by the check `parts` comes in the stage of the parts. The errors of
+   the name of a member come before the errors of its value, at the same pointer.
 
 Every `pointer` of the result is an RFC 6901 pointer; the schemas of the output and of the
 envelope give it the format `json-pointer`, which a JSON Schema validator checks when format
@@ -468,25 +507,27 @@ it is stored:
 | absent | absent |
 
 An error whose condition involves other documents, such as two artifacts with one identifier,
-names each of them in `related`: `{document, pointer}`, with the members of the `source` of
-that document (`file` and `line`, `issue` or `milestone`) in the entry itself when it was
-stored. They are not nested in a member `source`, so that the envelope keeps at most four
-levels of objects (ADR 0009 C4). `related` is absent when there is no other document, never
-`[]`.
+names one of them in `related`, so that no error copies a list that grows with the input:
+`{document, pointer}`, with the members of the `source` of that document (`file` and `line`,
+`issue` or `milestone`) in the entry itself when it was stored. They are not nested in a member
+`source`, so that the envelope keeps at most four levels of objects (ADR 0009 C4). `related` is
+absent when there is no other document, never `[]`.
 
 | Code | Reasons | Exit code | Meaning |
 | --- | --- | --- | --- |
 | `command_input` | `syntax`, `duplicate`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `conflict` | 1 | The canonical input is refused: it is not JSON, repeats a key, holds a number beyond a double, or breaks its schema or a rule of the section Input; or `--command-version` requests a version the engine does not run (`enum`, the known versions in `expected`) |
-| `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `duplicate` | 1 | A document breaks the schema of its type or of its input (a pull request, a commit); also a document without a `kind`, or with a `kind` outside the list (`enum`, with the types in `expected`), a `schema_version` that is missing, not an integer (reported with every other error against the current version) or beyond plus or minus (2^53 - 1) (`range`), a file that did not parse (`syntax`, at the pointer of the whole document, with its line in `source`), and the faults of a living specification in Markdown, among them a section given twice (`duplicate`; see Living specifications in Markdown) |
+| `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `duplicate` | 1 | A document breaks the schema of its type or of its input (a pull request, a commit); also a document without a `kind`, or with a `kind` outside the list (`enum`, with the types in `expected`), a `schema_version` that is missing, not an integer (reported with every other error against the current version) or beyond plus or minus (2^53 - 1) (`range`), a file that did not parse (`syntax`, at the pointer of the whole document, with its line in `source`), the faults of a living specification in Markdown, among them a section given twice (`duplicate`; see Living specifications in Markdown), a member the `op` of an operation refuses (`unknown_field`) and `none` beside a technique in the `verification` of a task or of an acceptance criterion (`enum`; see Parts) |
 | `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | A hand-over input breaks its schema, for example by setting a member that only the engine sets (`unknown_field`) |
 | `schema_version_unknown` | `enum` | 1 | The `schema_version` is not a version of the type or of the input; `expected` lists the known versions |
 | `identifier_format` | `syntax` | 1 | The `id` is not in the canonical form of its type; `fix` gives the corrected identifier when one can be derived |
-| `identifier_duplicate` | `duplicate` | 1 | Two artifacts or more of the set carry one identifier: each is refused at `/id`, and each error names the others in `related`. Every document of a known `kind` whose `id` raised no error is compared, whatever its other errors, so the duplicates come in the same pass |
+| `identifier_duplicate` | `duplicate` | 1 | Two artifacts or more of the set carry one identifier: each is refused at `/id`, and names one other in `related`, the first the second, each later one the first. Every document of a known `kind` whose `id` raised no error is compared, whatever its other errors, so the duplicates come in the same pass |
 | `link_missing` | `missing` | 1 | A link names an identifier no artifact of the set carries, or a requirement its specification does not have (see Links) |
-| `link_superseded` | `state` | 1 | A link names a superseded artifact, with its replacements in `expected` and, when there is one, in `fix`; or a removed requirement, with neither |
+| `link_superseded` | `state` | 1 | A link names a superseded artifact: with exactly one replacement, it is in `expected` and `fix`; with several, `related` names the `superseded_by` of the target; or a removed requirement, with neither |
 | `hierarchy_mismatch` | `conflict` | 1 | A task or a story names a milestone or an epic other than the one reached through its parent |
+| `part_invalid` | `duplicate`, `missing`, `enum`, `conflict` | 1 | A part identifier given twice in its list, a dissent naming no decision of its report, a recommendation or an answer outside the options of its question, or a dependency of a task on itself, on a superseded task or on a cycle (see Parts) |
+| `delta_conflict` | `conflict` | 1 | Two operations of a change delta or more on one requirement: each after the first is refused, with the first in `pointers` |
 | `title_format` | `syntax` | 1 | The title of an epic or a task has a type prefix, a bracket tag at its start or end, or a final full stop: one error per rule at `/title`, each with `fix` the title with every rule applied, when anything is left |
-| `title_duplicate` | `duplicate` | 1 | Two epic or task titles or more, in any status except `superseded`, are equal after normalisation: each is refused at `/title`, and each error names the others in `related` |
+| `title_duplicate` | `duplicate` | 1 | Two epic or task titles or more, in any status except `superseded`, are equal after normalisation: each is refused at `/title`, and names one other in `related`, the first the second, each later one the first |
 | `usage` | `syntax` | 2 | The command line is not understood; `command` is the command named, empty when none |
 | `input_unreadable` | `missing`, `state` | 3 | The input file, a file named or a folder of the project does not exist (`missing`) or cannot be read (`state`); the envelope holds no path |
 | `internal_error` | `internal` | 5 | The engine could not compute the result; the input may be valid |
@@ -499,7 +540,7 @@ refused for them and the exit code does not change. They come in a fixed order: 
 | Code | Reason | Pointer | Meaning |
 | --- | --- | --- | --- |
 | `identifier_location` | `conflict` | `/id` | The artifact was read from `plan/briefs/<name>.yaml`, `plan/council/<name>.yaml`, `plan/items/<name>.yaml` or `specs/<number>-<capability>/spec.md` (`<number>` of ASCII digits, in any form), and `<name>`, or `SPEC-<number>`, differs from its `id`; `fix` is the `id`, which is the identity. A document sent directly, or read from another path, gives none |
-| `link_broken_terminal` | `missing`, `state` | The member of the link | A link of an artifact that is done or superseded, or of a hand-over record, is broken, as `link_missing` or `link_superseded` would say for another artifact, with the same `expected` and `fix` |
+| `link_broken_terminal` | `missing`, `state` | The member of the link | A link of an artifact that is done or superseded, or of a hand-over record, is broken, as `link_missing` or `link_superseded` would say for another artifact, with the same `expected`, `fix` and `related` |
 | `adr_citation_missing` | `missing` | `/related/<i>` | A living specification cites an ADR whose number is not in `adrs` |
 | `artifact_location_missing` | `missing` | `/locations` | No folder of a location exists in the project where the documents were discovered, for example because the command ran in a subfolder of the project |
 

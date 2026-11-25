@@ -428,7 +428,8 @@ fn design_set() -> Vec<&'static str> {
 #[test]
 fn the_examples_of_broken_links_load_into_the_documents_of_their_cases() {
     // T12: the cases of AC1 that break a link send the valid set of `design-valid`, then their
-    // example; the done task citing the superseded specification follows the same set.
+    // example; the done task citing the superseded specification follows the same set. T13: the
+    // conflicting change delta too.
     assert_cases_send_the_examples(
         "design-valid",
         &design_set(),
@@ -440,8 +441,12 @@ fn the_examples_of_broken_links_load_into_the_documents_of_their_cases() {
             ),
             ("change-invalid", "change.invalid.yaml"),
             ("council-report-invalid", "council_report.invalid.yaml"),
+            ("change-conflict-invalid", "change.conflict.invalid.yaml"),
         ],
-        &["task-done-superseded-specification"],
+        &[
+            "task-done-superseded-specification",
+            "task-verification-none-beside-a-technique",
+        ],
     );
 }
 
@@ -480,8 +485,8 @@ fn changed(document: &Value, member: &str, value: Option<Value>) -> Value {
 #[test]
 fn the_invalid_examples_of_later_checks_pass_the_schema() {
     // These examples break links (T12) and operations of change deltas (T13), not the schema:
-    // with the valid set they give only the errors of the checks built, here the two missing
-    // links (R3), and nothing else.
+    // with the valid set they give only the errors of those checks, the two missing links (R3)
+    // and the two operations on one requirement (R20), and nothing else.
     let mut names = design_set();
     names.extend([
         "council_report.invalid.yaml",
@@ -493,10 +498,10 @@ fn the_invalid_examples_of_later_checks_pass_the_schema() {
     // An internal failure or an `artifact_schema` error fails the test, as any code other than
     // those of the checks these examples break.
     let envelope = project.envelope();
-    assert_errors_only_of(&envelope, &[codes::LINK_MISSING]);
-    // Exactly the link of each example the comment of its file names: the requirement of the
-    // change delta and the brief of the council report; `change.conflict.invalid.yaml` breaks
-    // only a rule of parts, which is not built yet.
+    assert_errors_only_of(&envelope, &[codes::LINK_MISSING, codes::DELTA_CONFLICT]);
+    // Exactly the fault each example names in the comment of its file: the second operation on
+    // R2 of the conflicting change delta, the requirement of the other change delta and the
+    // brief of the council report.
     let errors = envelope["error"]["errors"].as_array().unwrap();
     let broken: Vec<(&str, &str)> = errors
         .iter()
@@ -509,6 +514,7 @@ fn the_invalid_examples_of_later_checks_pass_the_schema() {
     assert_eq!(
         broken,
         [
+            ("plan/items/change.conflict.invalid.yaml", "/operations/1"),
             (
                 "plan/items/change.invalid.yaml",
                 "/operations/0/requirement"

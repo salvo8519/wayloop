@@ -142,6 +142,23 @@ pub(super) fn read_input(input: Value) -> Input {
     input::read(&input).unwrap()
 }
 
+/// The [`project`] with `extra` after it, validated; `extra` starts at the index
+/// `project().len()`.
+pub(super) fn validated(extra: Vec<Value>) -> super::Validation {
+    let entries = project().into_iter().chain(extra).map(entry).collect();
+    validate(&read(entries))
+}
+
+/// The only error of `validation`, which has no failure and no warning.
+pub(super) fn the_only_error(validation: &super::Validation) -> &Error {
+    assert_eq!(validation.failures, []);
+    assert_eq!(validation.warnings, []);
+    let [error] = &validation.errors[..] else {
+        panic!("{:?}", validation.errors);
+    };
+    error
+}
+
 pub(super) fn found(errors: &[Error]) -> Vec<(Code, String, Reason)> {
     errors
         .iter()
@@ -260,6 +277,10 @@ fn the_kinds_and_their_checks_are_snake_case_and_unique() {
             checks::TITLE_FORMAT,
             checks::TITLE_DUPLICATE,
             checks::MARKDOWN,
+            checks::LINKS,
+            checks::PARTS,
+            checks::ADR_CITATIONS,
+            checks::ARTIFACT_LOCATIONS,
         ]
         .iter()
         .map(|c| c.id().to_owned()),
@@ -1764,8 +1785,9 @@ fn ac6_two_artifacts_with_one_identifier_are_both_refused_each_naming_the_other(
 #[test]
 fn a_refused_identifier_stays_out_of_the_index_and_errors_stay_in_document_order() {
     // The brief carries the identifier too, but its `id` is refused; the duplicate errors of
-    // the three tasks come by document, around the format error of the brief, and each names
-    // the two others.
+    // the three tasks come by document, around the format error of the brief. No error copies
+    // a list that grows with the input (decided by the maintainer on 2026-11-25): the first
+    // carrier names the second, and each later carrier names the first.
     let validation = validate(&read(linked(vec![
         entry(task()),
         entry(with(brief(), "id", json!("TASK-0001"))),
@@ -1786,13 +1808,13 @@ fn a_refused_identifier_stays_out_of_the_index_and_errors_stay_in_document_order
             (Some(3), codes::IDENTIFIER_DUPLICATE),
         ]
     );
-    let named: Vec<u64> = validation.errors[0]
-        .related()
-        .unwrap()
+    let named: Vec<Vec<u64>> = validation
+        .errors
         .iter()
-        .map(Related::document)
+        .filter(|e| e.code() == &codes::IDENTIFIER_DUPLICATE)
+        .map(|e| e.related().unwrap().iter().map(Related::document).collect())
         .collect();
-    assert_eq!(named, [2, 3]);
+    assert_eq!(named, [vec![2], vec![0], vec![0]]);
 }
 
 #[test]
@@ -1959,6 +1981,7 @@ fn checks_not_built_are_listed_once_with_their_reason() {
         checks::IDENTIFIER_DUPLICATE,
         checks::IDENTIFIER_LOCATION,
         checks::LINKS,
+        checks::PARTS,
         checks::TITLE_FORMAT,
         checks::TITLE_DUPLICATE,
     ]);
@@ -2605,7 +2628,8 @@ fn the_oracle_agrees_with_the_interpreter_on_inputs() {
 #[test]
 fn input_kind_selects_the_schema() {
     // The pull request sent as a commit: its members other than the body are unknown to the
-    // commit, which misses its header. Present members in byte order, then absent ones in the order of `required`.
+    // commit, which misses its header. Present members in byte order, then absent ones in the
+    // order of `required`.
     assert_eq!(
         input_errors(pull_request(), InputKind::Commit),
         [
@@ -2950,11 +2974,7 @@ fn a_title_refused_by_its_schema_is_left_out_of_the_title_stage() {
 }
 
 #[test]
-fn a_duplicate_names_the_other_documents_in_its_message() {
-    let one = [Related::new(3, at("/id"), None)];
-    let two = [one[0].clone(), Related::new(5, at("/title"), None)];
-    assert_eq!(super::duplicates::documents(&one), "document 3");
-    assert_eq!(super::duplicates::documents(&two), "documents 3, 5");
+fn a_duplicate_names_the_other_document_in_its_message() {
     let validation = validate(&read(linked(vec![
         entry(task()),
         entry(epic()),

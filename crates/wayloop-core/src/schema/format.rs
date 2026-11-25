@@ -69,6 +69,16 @@ pub(crate) fn accepts(format: Format, text: &str) -> bool {
     shape(format).accepts(text)
 }
 
+/// The prefix of `format` when it is the identifier of a part of an artifact, such as `R` of a
+/// requirement; `None` for any other format.
+pub(crate) const fn part_prefix(format: Format) -> Option<&'static str> {
+    if let Shape::Part(prefix) = shape(format) {
+        Some(prefix)
+    } else {
+        None
+    }
+}
+
 /// A corrected value for `text`, when one can be derived and `format` accepts it.
 pub(crate) fn fix(format: Format, text: &str) -> Option<String> {
     shape(format).fix(text)
@@ -321,7 +331,7 @@ fn is_tracker_handle(text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{Shape, accepts, shape};
+    use super::{Shape, accepts, part_prefix, shape};
     use wayloop_schemas::Format;
 
     #[test]
@@ -335,7 +345,13 @@ mod tests {
                     assert!(accepts(format, &format!("{prefix}-0001")), "{name}");
                 }
             }
+            assert_eq!(
+                part_prefix(format).is_some(),
+                matches!(shape(format), Shape::Part(_)),
+                "{name}"
+            );
             if let Shape::Part(prefix) = shape(format) {
+                assert_eq!(part_prefix(format), Some(prefix));
                 assert!(name.ends_with("-id"), "{name}");
                 assert!(accepts(format, &format!("{prefix}1")), "{name}");
             }

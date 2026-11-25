@@ -1,0 +1,135 @@
+{
+  "description": "Three briefs with one identifier, sent directly: each is refused with identifier_duplicate at /id and names one other carrier in related, the first naming the second and each later one the first, so that the report stays linear in the carriers (decided by the maintainer on 2026-11-25).",
+  "covers": [
+    "SPEC-0001 R14",
+    "SPEC-0001 AC6"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        }
+      },
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 1,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/error/errors/0/code": "identifier_duplicate",
+      "/error/errors/0/pointer": "/id",
+      "/error/errors/0/reason": "duplicate",
+      "/error/errors/0/document": 0,
+      "/error/errors/0/related/0/document": 1,
+      "/error/errors/0/related/0/pointer": "/id",
+      "/error/errors/1/code": "identifier_duplicate",
+      "/error/errors/1/pointer": "/id",
+      "/error/errors/1/reason": "duplicate",
+      "/error/errors/1/document": 1,
+      "/error/errors/1/related/0/document": 0,
+      "/error/errors/1/related/0/pointer": "/id",
+      "/error/errors/2/code": "identifier_duplicate",
+      "/error/errors/2/pointer": "/id",
+      "/error/errors/2/reason": "duplicate",
+      "/error/errors/2/document": 2,
+      "/error/errors/2/related/0/document": 0,
+      "/error/errors/2/related/0/pointer": "/id",
+      "/meta/input_hash": "c2b9f028ca743fdeee6e55912bb96871d70aedfc8fba9d80b3a6b8f7a51c847c"
+    },
+    "absent": [
+      "/data",
+      "/error/errors/0/source",
+      "/error/errors/0/related/0/file"
+    ],
+    "lengths": {
+      "/error/errors": 3,
+      "/error/errors/0/related": 1,
+      "/error/errors/1/related": 1,
+      "/error/errors/2/related": 1
+    }
+  }
+}

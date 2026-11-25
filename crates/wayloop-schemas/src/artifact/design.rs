@@ -116,6 +116,9 @@ impl OperationKind {
 
     /// The operations that give the text of the requirement.
     pub const WITH_TEXT: [OperationKind; 2] = [OperationKind::Added, OperationKind::Modified];
+
+    /// The operations that refuse a `name`: a removed requirement keeps the name it had.
+    pub const WITHOUT_NAME: [OperationKind; 1] = [OperationKind::Removed];
 }
 
 /// A decision of a council report.
