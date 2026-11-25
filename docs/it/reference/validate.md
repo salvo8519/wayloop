@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 9c436d885edd
+source_hash: 8d6139225ca6
 ---
 # wayloop validate
 
@@ -180,9 +180,8 @@ specifica viva spostata in un'altra cartella e rinominata viene comunque trovata
 di un artefatto sono letti solo quando non ha errori propri, del suo schema o della
 normalizzazione del suo Markdown, così che un documento difettoso non causi un'ondata di errori
 di collegamento; un tale artefatto è comunque trovato come destinazione, purché il suo `id` non
-abbia dato errori. Un elemento che
-vive solo nell'issue tracker non è nell'insieme finché il tracker non viene letto, quindi un
-collegamento verso di esso è mancante.
+abbia dato errori. Un elemento che vive solo nell'issue tracker non è nell'insieme finché il
+tracker non viene letto, quindi un collegamento verso di esso è mancante.
 
 | Tipo | Membri che collegano |
 | --- | --- |
@@ -225,9 +224,10 @@ collegamento verso di esso è mancante.
 - Una citazione è la parola `ADR` seguita da un numero, per esempio `ADR 0014`; `ADR 14` cita
   lo stesso ADR. Un numero da solo che segue una citazione, nella stessa voce o nelle voci
   subito dopo, cita anch'esso un ADR: `ADR 0002, 0003` ne cita due, anche quando la riga di
-  intestazione `Related` di una specifica in Markdown lo divide in due voci. Con `adrs`, una
-  citazione il cui numero non è elencato è l'avviso `adr_citation_missing`, motivo `missing`,
-  alla voce di `related` che la contiene.
+  intestazione `Related` di una specifica in Markdown lo divide in due voci. Una parola che apre
+  una parentesi chiude la sequenza: `ADR 0014 (2026)` cita solo 0014, mentre `(ADR 0008)` cita
+  0008. Con `adrs`, una citazione il cui numero non è elencato è l'avviso
+  `adr_citation_missing`, motivo `missing`, alla voce di `related` che la contiene.
 
 Questa versione non controlla che una milestone colleghi un verbale del comitato approvato, né
 che il task di un record di passaggio di mano porti la sua issue o che la issue sia un task del

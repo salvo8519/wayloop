@@ -13,7 +13,8 @@
 //!   adapter of SPEC-0005 sends tracker items (plan, Canonical input).
 //! - A link to a superseded artifact is `link_superseded` with the reason `state`, its
 //!   replacements, the `superseded_by` of the target, in `expected`, and in `fix` the one
-//!   replacement when there is exactly one (R4; decided by the maintainer on 2026-11-25).
+//!   replacement when there is exactly one (R4; decided by the maintainer on 2026-11-25); a
+//!   target whose only replacement is itself offers none, so both are left out.
 //!   `superseded_by` itself must name artifacts that are not superseded. `expanded_from` and
 //!   `depends_on` of a task accept a superseded target: they record the history of the work, a
 //!   subtask names the task it was expanded from, which it supersedes, and a dependency on a
@@ -31,7 +32,7 @@
 //!   the value reached through the parent in `expected` (R15).
 //! - A citation of an ADR in `related` of a living specification, the word `ADR` followed by a
 //!   number, and each bare number that follows it in the same entry or in the entries right
-//!   after it, as in `ADR 0002, 0003`, names an ADR; with no ADR of that number among `adrs`, it
+//!   after it, as in `ADR 0002, 0003`, up to a word that opens a bracket, names an ADR; with no ADR of that number among `adrs`, it
 //!   is the warning `adr_citation_missing` with the reason `missing` at the entry that holds it
 //!   (Q5; decided by the maintainer on 2026-11-25). `ADR 0014` and `ADR 14` cite the same ADR.
 //!   It runs only when `adrs` is given.
@@ -54,7 +55,7 @@ use super::identifiers::{Carriers, Indexed};
 use super::members::{
     ACCEPTANCE_CRITERIA, BRIEF, COUNCIL_REPORT, DEPENDS_ON, EPIC, EXPANDED_FROM, ID, MILESTONE, OP,
     OPERATIONS, RELATED, REQUIREMENT, REQUIREMENTS, SPEC, SPECIFICATION, STATUS, STORIES, STORY,
-    SUBJECT, SUPERSEDED_BY, TASK, TASKS, elements, text, texts,
+    SUBJECT, SUPERSEDED_BY, TASK, TASKS, elements, text, texts, texts_in,
 };
 use crate::{Error, Pointer, Reason};
 
@@ -155,7 +156,9 @@ const fn rules(kind: ArtifactKind) -> &'static [Rule] {
 type Requirements<'d> = BTreeMap<&'d str, RequirementStatus>;
 
 /// The requirements of every living specification of `index` that passed its schema, by the
-/// index of its document: built once, so that each citation is one lookup.
+/// index of its document: built once, so that each citation is one lookup. When a requirement
+/// identifier is listed twice, the first wins, as the first carrier of an identifier does for a
+/// link; the duplicate is a fault of the parts (R18).
 fn requirements<'i>(index: &'i [Indexed<'_>]) -> BTreeMap<u64, Requirements<'i>> {
     index
         .iter()
@@ -169,7 +172,11 @@ fn requirements<'i>(index: &'i [Indexed<'_>]) -> BTreeMap<u64, Requirements<'i>>
                     status.map_or(Some(RequirementStatus::Active), RequirementStatus::from_id)?;
                 Some((id, status))
             });
-            Some((artifact.document, listed.collect()))
+            let mut requirements = Requirements::new();
+            for (id, status) in listed {
+                requirements.entry(id).or_insert(status);
+            }
+            Some((artifact.document, requirements))
         })
         .collect()
 }
@@ -276,7 +283,11 @@ impl<'i, 'a> Links<'_, 'i, 'a> {
         if accepts == Accepts::Any || found.status() != Some(Status::Superseded) {
             return;
         }
-        let replacements = found.superseded_by();
+        // A target that names only itself as its replacement offers none.
+        let mut replacements = found.superseded_by();
+        if replacements == [target] {
+            replacements.clear();
+        }
         let message = if replacements.is_empty() {
             format!("{holder} links {target}, which is superseded.")
         } else {
@@ -294,17 +305,9 @@ impl<'i, 'a> Links<'_, 'i, 'a> {
         let Some(requirements) = self.requirements.get(&specification.document) else {
             return;
         };
-        let listed = part.get(REQUIREMENTS).and_then(Value::as_array);
-        for (j, requirement) in listed
-            .map(Vec::as_slice)
-            .unwrap_or_default()
-            .iter()
-            .enumerate()
-        {
-            if let Some(requirement) = requirement.as_str() {
-                let at = at.join(REQUIREMENTS).join_index(j);
-                self.requirement(at, requirements, &specification.id, requirement);
-            }
+        for (j, requirement) in texts_in(part, REQUIREMENTS) {
+            let at = at.join(REQUIREMENTS).join_index(j);
+            self.requirement(at, requirements, &specification.id, requirement);
         }
     }
 
@@ -444,15 +447,20 @@ pub(super) fn citations(index: &[Indexed<'_>], adrs: &BTreeSet<u64>) -> Vec<Erro
 /// The numbers of ADRs that `entry` cites, as written, and whether it ends in a citation, so
 /// that an entry that follows with a bare number cites an ADR too. `continued` says whether the
 /// entry before ended in one. Words are separated by spaces, commas and semicolons; a
-/// citation is the word `ADR`, then each word of ASCII digits that follows it.
+/// citation is the word `ADR`, then each word of ASCII digits that follows it, until a word
+/// that is not one. A word that opens a bracket ends the run, so `ADR 0014 (2026)` cites 0014
+/// only, while `(ADR 0008)` cites 0008.
 fn cited_adrs(entry: &str, continued: bool) -> (Vec<&str>, bool) {
     const WORD: &str = "ADR";
     let separator = |c: char| c.is_whitespace() || c == ',' || c == ';';
     let mut cited = Vec::new();
     let mut citing = continued;
     for word in entry.split(separator).filter(|w| !w.is_empty()) {
+        let opens = word.starts_with(['(', '[']);
         let word = word.trim_matches(|c| matches!(c, '(' | ')' | '[' | ']' | '.'));
-        if word == WORD {
+        if opens && word != WORD {
+            citing = false;
+        } else if word == WORD {
             citing = true;
         } else if citing && !word.is_empty() && word.bytes().all(|b| b.is_ascii_digit()) {
             cited.push(word);

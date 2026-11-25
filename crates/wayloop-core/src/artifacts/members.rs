@@ -3,8 +3,8 @@
 //! for the core (AGENTS.md, one source for every value). The members every artifact has,
 //! `kind`, `schema_version`, `id`, `title`, `status` and `superseded_by`, are those of
 //! `wayloop_schemas::contract::rules`; the ones the readers of this module use are re-exported
-//! here, and no name is defined in both places. Two readers of members, [`text`] and
-//! [`texts`], serve every check that reads a document the schema accepted.
+//! here, and no name is defined in both places. The readers of members, [`text`], [`texts`],
+//! [`elements`] and [`texts_in`], serve every check that reads a document the schema accepted.
 
 use serde_json::{Map, Value};
 pub(super) use wayloop_schemas::contract::rules::{ID, STATUS, SUPERSEDED_BY};
@@ -75,4 +75,13 @@ pub(super) fn texts<'d>(
     key: &str,
 ) -> impl Iterator<Item = (usize, &'d str)> {
     elements(document, key).filter_map(|(i, v)| Some((i, v.as_str()?)))
+}
+
+/// The texts of the list at `key` of `value`, when it is an object, each with its index: the
+/// reader of a list inside a part of a document, such as the requirements of a reference.
+pub(super) fn texts_in<'d>(value: &'d Value, key: &str) -> impl Iterator<Item = (usize, &'d str)> {
+    value
+        .as_object()
+        .into_iter()
+        .flat_map(move |members| texts(members, key))
 }

@@ -170,8 +170,8 @@ Every link is resolved by identifier through the set, never by path: a living sp
 moved to another folder and renamed is still found. The links of an artifact are read only when
 it has no error of its own, of its schema or of the normalisation of its Markdown, so that a
 broken document causes no wave of link errors; such an artifact is still found as a target, as
-long as its `id` raised no error. An item that lives
-only in the tracker is not in the set until the tracker is read, so a link to it is missing.
+long as its `id` raised no error. An item that lives only in the tracker is not in the set
+until the tracker is read, so a link to it is missing.
 
 | Type | Members that link |
 | --- | --- |
@@ -214,9 +214,10 @@ only in the tracker is not in the set until the tracker is read, so a link to it
 - A citation is the word `ADR` followed by a number, for example `ADR 0014`; `ADR 14` cites the
   same ADR. A bare number that follows a citation, in the same entry or in the entries right
   after it, cites an ADR too: `ADR 0002, 0003` cites two, also when the header row `Related`
-  of a Markdown specification splits it into two entries. With `adrs`, a citation whose number
-  is not listed is the warning `adr_citation_missing`, reason `missing`, at the entry of
-  `related` that holds it.
+  of a Markdown specification splits it into two entries. A word that opens a bracket ends the
+  run: `ADR 0014 (2026)` cites 0014 only, while `(ADR 0008)` cites 0008. With `adrs`, a
+  citation whose number is not listed is the warning `adr_citation_missing`, reason `missing`,
+  at the entry of `related` that holds it.
 
 This version does not check that a milestone links an approved council report, nor that the
 task of a hand-over record carries its issue or that the issue is a task of the plan.

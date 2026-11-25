@@ -592,7 +592,8 @@ fn a_replacement_must_not_be_superseded_and_a_chain_is_a_warning_of_its_holder()
             Reason::State
         )
     );
-    assert_eq!(warning.fix(), Some(&json!("EPIC-0002")));
+    // The only replacement of the target is the target itself: no value to offer.
+    assert_eq!((warning.fix(), warning.expected()), (None, None));
     let cycle = vec![
         superseded_epic("EPIC-0002", json!(["EPIC-0003"])),
         superseded_epic("EPIC-0003", json!(["EPIC-0002"])),
@@ -726,10 +727,11 @@ fn bare_numbers_after_a_citation_of_an_adr_cite_adrs_too() {
 }
 
 #[test]
-fn every_citation_of_a_large_set_is_one_lookup_in_the_requirements_of_its_specification() {
-    // Review B1: the requirements of each specification are read once into a map, so that a
-    // set with many requirements and many citations stays linear in their number. 3,000
-    // requirements cited by one task and named by one criterion, with one missing at the end.
+fn every_citation_of_a_large_set_is_checked_against_the_requirements_of_its_specification() {
+    // Correctness on a large set: 3,000 requirements cited by one task and named by one
+    // criterion, with one missing at the end, all found. The work is bounded by the structure,
+    // one map of the requirements of each specification built once (review B1), which this
+    // test does not measure.
     const COUNT: usize = 3_000;
     let ids: Vec<String> = (1..=COUNT).map(|k| format!("R{k}")).collect();
     let requirements: Vec<Value> = ids
@@ -755,4 +757,40 @@ fn every_citation_of_a_large_set_is_one_lookup_in_the_requirements_of_its_specif
         found(&validation.errors),
         coded(codes::LINK_MISSING, &pointer, Reason::Missing)
     );
+}
+
+#[test]
+fn a_word_that_opens_a_bracket_ends_a_run_of_cited_adrs() {
+    // Review N6: a year in brackets after a citation is not an ADR; a citation in brackets is.
+    let validation = cited(json!(["ADR 0014 (2026)", "(ADR 0015)", "[2027]"]), &[]);
+    let warned: Vec<(String, String)> = validation
+        .warnings
+        .iter()
+        .map(|w| (w.pointer().to_string(), w.message().to_owned()))
+        .collect();
+    let at: Vec<&str> = warned.iter().map(|(p, _)| p.as_str()).collect();
+    assert_eq!(at, ["/related/0", "/related/1"]);
+    assert!(warned[0].1.contains("ADR 0014"), "{warned:?}");
+    assert!(warned[1].1.contains("ADR 0015"), "{warned:?}");
+}
+
+#[test]
+fn a_requirement_listed_twice_is_read_as_its_first_entry() {
+    // Review N4: the first entry of a duplicated requirement identifier wins, as the first
+    // carrier of an identifier does; here R1 active, then R1 removed.
+    let mut requirements = specification()["requirements"].clone();
+    requirements
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"id": "R1", "text": "Again.", "status": "removed"}));
+    let draft = with(specification(), "id", json!("SPEC-0005"));
+    let draft = with(
+        with(draft, "status", json!("draft")),
+        "requirements",
+        requirements,
+    );
+    let cited = json!([{"spec": "SPEC-0005", "requirements": ["R1"]}]);
+    let task = task_with("TASK-0002", "approved", "specification", cited);
+    let validation = validated(vec![draft, task]);
+    assert_eq!(validation.errors, []);
 }
