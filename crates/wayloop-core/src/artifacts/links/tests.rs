@@ -9,7 +9,7 @@ use wayloop_schemas::examples::{
 };
 
 use crate::artifacts::tests::{
-    at, entry, found, linked, project, read, read_input, stored, validate, with,
+    at, entry, found, linked, project, read, read_input, stored, titled, validate, with,
 };
 use crate::artifacts::{Validation, checks, codes};
 use crate::{Code, Error, Reason};
@@ -49,9 +49,17 @@ fn coded(code: Code, pointer: &str, reason: Reason) -> Vec<(Code, String, Reason
     vec![(code, pointer.to_owned(), reason)]
 }
 
+/// `document`, an epic or a task of the examples, called `id`, with a title no other epic or
+/// task of the project has (R8): its sequence, from 100 for an epic.
+fn item(document: Value, id: &str) -> Value {
+    let sequence: u32 = id.rsplit('-').next().unwrap().parse().unwrap();
+    let offset = if id.starts_with("EPIC") { 100 } else { 0 };
+    titled(with(document, "id", json!(id)), offset + sequence)
+}
+
 /// A task of the examples called `id` in `status`, with `member` set to `value`.
 fn task_with(id: &str, status: &str, member: &str, value: Value) -> Value {
-    let task = with(with(task(), "id", json!(id)), "status", json!(status));
+    let task = with(item(task(), id), "status", json!(status));
     with(task, member, value)
 }
 
@@ -162,14 +170,10 @@ fn ac7_a_story_linked_to_a_superseded_specification_gets_its_replacements_and_th
 
 #[test]
 fn several_replacements_are_the_values_accepted_with_no_fix() {
-    let replaced = with(epic(), "id", json!("EPIC-0002"));
+    let replaced = item(epic(), "EPIC-0002");
     let replaced = with(replaced, "status", json!("superseded"));
     let replaced = with(replaced, "superseded_by", json!(["EPIC-0001", "EPIC-0003"]));
-    let replacement = with(
-        with(epic(), "id", json!("EPIC-0003")),
-        "status",
-        json!("draft"),
-    );
+    let replacement = with(item(epic(), "EPIC-0003"), "status", json!("draft"));
     let replacement = with(replacement, "issue", Value::Null);
     let story = story_with("STORY-0002", "epic", json!("EPIC-0002"));
     let validation = validated(vec![replaced, replacement, story]);
@@ -228,11 +232,7 @@ fn a_story_whose_milestone_differs_from_that_of_its_epic_is_refused() {
 
 #[test]
 fn a_task_whose_epic_differs_from_that_of_its_story_is_refused_naming_both() {
-    let other = with(
-        with(epic(), "id", json!("EPIC-0002")),
-        "status",
-        json!("approved"),
-    );
+    let other = with(item(epic(), "EPIC-0002"), "status", json!("approved"));
     let other = with(other, "issue", Value::Null);
     let refused = task_with("TASK-0002", "approved", "epic", json!("EPIC-0002"));
     let validation = validated(vec![other, refused]);
@@ -384,11 +384,7 @@ fn every_link_of_every_type_resolves_through_the_set() {
             "/council_report",
         ),
         (
-            with(
-                with(epic(), "id", json!("EPIC-0002")),
-                "status",
-                json!("approved"),
-            ),
+            with(item(epic(), "EPIC-0002"), "status", json!("approved")),
             "milestone",
             json!("M9"),
             "/milestone",
@@ -578,7 +574,7 @@ fn a_citation_of_an_adr_the_project_does_not_have_is_a_warning_at_its_entry() {
 
 /// An epic of the examples called `id`, superseded by `replacements`.
 fn superseded_epic(id: &str, replacements: Value) -> Value {
-    let epic = with(with(epic(), "id", json!(id)), "status", json!("superseded"));
+    let epic = with(item(epic(), id), "status", json!("superseded"));
     with(epic, "superseded_by", replacements)
 }
 
@@ -617,11 +613,7 @@ fn a_replacement_must_not_be_superseded_and_a_chain_is_a_warning_of_its_holder()
         ]
     );
     // A draft epic is not terminal: its replacement, itself superseded, is an error.
-    let draft = with(
-        with(epic(), "id", json!("EPIC-0004")),
-        "status",
-        json!("draft"),
-    );
+    let draft = with(item(epic(), "EPIC-0004"), "status", json!("draft"));
     let draft = with(
         with(draft, "issue", Value::Null),
         "superseded_by",

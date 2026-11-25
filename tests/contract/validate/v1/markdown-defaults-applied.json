@@ -1,5 +1,5 @@
 {
-  "description": "The Markdown form of a living specification does not carry kind and schema_version: both are listed in meta.defaults_applied with the index of their document, pointers relative to it and the reason implied_by_form, after the default of the command version (decided by the maintainer on 2026-11-25). Rewritten with the maintainer's approval of 2026-11-25 (#263), one time: the valid plan set follows the specification, so that its links resolve (R3).",
+  "description": "The Markdown form of a living specification does not carry kind and schema_version: both are listed in meta.defaults_applied with the index of their document, pointers relative to it and the reason implied_by_form, after the default of the command version (decided by the maintainer on 2026-11-25). Rewritten with the maintainer's approval of 2026-11-25 (#263), one time: the valid plan set follows the specification, so that its links resolve (R3), and the policy of the examples is given for the same reason, so that the epics and tasks of that set add no default of the policy.",
   "covers": [
     "SPEC-0001 R12",
     "SPEC-0004 R3"
@@ -195,7 +195,33 @@
           "issue": 12
         }
       }
-    ]
+    ],
+    "policy": {
+      "types": [
+        "feat",
+        "fix",
+        "perf",
+        "refactor",
+        "docs",
+        "test",
+        "build",
+        "ci",
+        "chore",
+        "revert"
+      ],
+      "scopes": [
+        "core",
+        "cli",
+        "docs",
+        "specs",
+        "ci"
+      ],
+      "areas": [
+        "core",
+        "cli",
+        "docs"
+      ]
+    }
   },
   "expect": {
     "exit_code": 0,
@@ -212,7 +238,7 @@
       "/meta/defaults_applied/2/pointer": "/schema_version",
       "/meta/defaults_applied/2/value": 1,
       "/meta/defaults_applied/2/reason": "implied_by_form",
-      "/meta/input_hash": "03af95d449743ca97615346f7e06c1dd5d1339e0d9ff2709521af00b7caf38a3"
+      "/meta/input_hash": "38e5f498f83c3fc033431834ac57e1f08cc941b382093c4c5c9c6bb56db54269"
     },
     "absent": [
       "/error",

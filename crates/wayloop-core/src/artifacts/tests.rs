@@ -1664,7 +1664,8 @@ fn a_format_error_of_the_id_has_its_own_code_and_keeps_its_fix() {
 fn the_sequence_of_an_identifier_has_four_digits_up_to_9999_then_no_padding() {
     // SPEC-0001, Identifiers (R14): the canonical sequence is `[0-9]{4}|[1-9][0-9]{4,}`.
     for (id, fix) in [("TASK-107", "TASK-0107"), ("TASK-00107", "TASK-0107")] {
-        let validation = validate(&read(linked(vec![entry(with(task(), "id", json!(id)))])));
+        let task = titled(with(task(), "id", json!(id)), 1);
+        let validation = validate(&read(linked(vec![entry(task)])));
         let [error] = &validation.errors[..] else {
             panic!("{id}: {:?}", validation.errors);
         };
@@ -1681,7 +1682,7 @@ fn the_sequence_of_an_identifier_has_four_digits_up_to_9999_then_no_padding() {
         assert_eq!(error.expected(), None);
     }
     let accepted = [
-        with(task(), "id", json!("TASK-10000")),
+        titled(with(task(), "id", json!("TASK-10000")), 1),
         with(handover(), "id", json!("HANDOVER-12-3")),
     ];
     let validation = validate(&read(linked(accepted.into_iter().map(entry).collect())));
@@ -2781,9 +2782,9 @@ fn a_type_without_its_schema_is_a_failure_of_the_engine() {
 
 /// Validates the set `documents` with the subset of the policy `policy`.
 fn validate_with_policy(documents: Vec<Value>, policy: Value) -> super::Validation {
-    let input = json!({"documents": documents, "policy": policy});
-    assert_eq!(input_schema().validate(&input, COMMAND_INPUT), []);
-    validate(&input::read(&input).unwrap())
+    validate(&read_input(
+        json!({"documents": linked(documents), "policy": policy}),
+    ))
 }
 
 /// The subset of the policy of `examples/policy.yaml`: its types are those of the default
@@ -2804,7 +2805,7 @@ fn ac1_the_invalid_epic_is_refused_for_its_bracket_tag_with_the_title_as_fix() {
         "title",
         json!("[EPIC] Monthly export of time entries"),
     );
-    let validation = validate(&read(vec![entry(epic()), entry(invalid)]));
+    let validation = validate(&read(linked(vec![entry(epic()), entry(invalid)])));
     assert_eq!(
         found(&validation.errors),
         [(codes::TITLE_FORMAT, "/title".into(), Reason::Syntax)]
@@ -2868,7 +2869,7 @@ fn ac10_a_task_title_that_starts_with_a_command_name_passes() {
 fn ac4_titles_equal_after_normalisation_are_refused_across_epics_and_tasks() {
     // The epic and the task share a title after NFC, case folding and white space; each is
     // refused at `/title` and names the other.
-    let validation = validate(&read(vec![
+    let validation = validate(&read(linked(vec![
         entry(with(
             epic(),
             "title",
@@ -2879,7 +2880,7 @@ fn ac4_titles_equal_after_normalisation_are_refused_across_epics_and_tasks() {
             "plan/items/TASK-0001.yaml",
             3,
         ),
-    ]));
+    ])));
     assert_eq!(
         found(&validation.errors),
         vec![
@@ -2926,12 +2927,12 @@ fn a_superseded_title_is_not_compared_and_other_kinds_are_not_checked() {
         "title",
         task()["title"].clone(),
     );
-    let validation = validate(&read(vec![
+    let validation = validate(&read(linked(vec![
         entry(task()),
         entry(superseded),
         entry(with(brief(), "title", json!("[BRIEF] Time entries."))),
         entry(with(milestone(), "title", task()["title"].clone())),
-    ]));
+    ])));
     assert_eq!(validation.errors, []);
 }
 
@@ -2940,10 +2941,10 @@ fn a_title_refused_by_its_schema_is_left_out_of_the_title_stage() {
     // A title that is too long is an error of the schema only: no error of form or duplicate
     // is added at the same pointer.
     let long = format!("{}.", "x".repeat(130));
-    let validation = validate(&read(vec![
+    let validation = validate(&read(linked(vec![
         entry(with(task(), "title", json!(long))),
         entry(with(titled(epic(), 1), "title", json!(long))),
-    ]));
+    ])));
     let codes: Vec<Code> = validation.errors.iter().map(|e| e.code().clone()).collect();
     assert_eq!(codes, [codes::ARTIFACT_SCHEMA, codes::ARTIFACT_SCHEMA]);
 }
@@ -2954,7 +2955,11 @@ fn a_duplicate_names_the_other_documents_in_its_message() {
     let two = [one[0].clone(), Related::new(5, at("/title"), None)];
     assert_eq!(super::duplicates::documents(&one), "document 3");
     assert_eq!(super::duplicates::documents(&two), "documents 3, 5");
-    let validation = validate(&read(vec![entry(task()), entry(epic()), entry(task())]));
+    let validation = validate(&read(linked(vec![
+        entry(task()),
+        entry(epic()),
+        entry(task()),
+    ])));
     let messages: Vec<&str> = validation.errors.iter().map(Error::message).collect();
     assert!(
         messages[0].contains("the document 2 of the input"),
@@ -2975,10 +2980,10 @@ fn without_a_policy_the_default_policy_gives_the_types_and_is_reported_once() {
     // before the defaults of the documents, only when a check reads it.
     let markdown = json!({"format": "markdown", "text": super::markdown::tests::EXAMPLE,
                           "origin": {"file": "specs/0001-time-entries/spec.md"}});
-    let validation = validate(&read(vec![
+    let validation = validate(&read(linked(vec![
         markdown.clone(),
         entry(with(epic(), "title", json!("chore: Time entries"))),
-    ]));
+    ])));
     assert_eq!(
         found(&validation.errors),
         [(codes::TITLE_FORMAT, "/title".into(), Reason::Syntax)]
@@ -2996,7 +3001,8 @@ fn without_a_policy_the_default_policy_gives_the_types_and_is_reported_once() {
             (Some(0), "/schema_version", "implied_by_form"),
         ]
     );
-    // No epic or task: no check reads the policy, so no default is reported.
+    // No epic or task, so not their targets either: no check reads the policy, so no default is
+    // reported.
     let validation = validate(&read(vec![markdown, entry(brief())]));
     assert!(
         validation
@@ -3019,11 +3025,11 @@ fn a_title_longer_than_the_schema_allows_is_not_read_by_the_title_stage() {
     // the title stage reads no title beyond the limit of the schema, and the set is checked in
     // a bounded time.
     let long = ".".repeat(100_000);
-    let validation = validate(&read(vec![entry(with(
+    let validation = validate(&read(linked(vec![entry(with(
         with(epic(), "schema_version", json!(9)),
         "title",
         json!(long),
-    ))]));
+    ))])));
     let codes: Vec<Code> = validation.errors.iter().map(|e| e.code().clone()).collect();
     assert_eq!(codes, [codes::SCHEMA_VERSION_UNKNOWN]);
     // At the limit, the title is read.
@@ -3031,7 +3037,11 @@ fn a_title_longer_than_the_schema_allows_is_not_read_by_the_title_stage() {
         "{}.",
         "x".repeat(wayloop_schemas::contract::rules::TITLE_MAX_CHARS - 1)
     );
-    let validation = validate(&read(vec![entry(with(epic(), "title", json!(at_limit)))]));
+    let validation = validate(&read(linked(vec![entry(with(
+        epic(),
+        "title",
+        json!(at_limit),
+    ))])));
     let codes: Vec<Code> = validation.errors.iter().map(|e| e.code().clone()).collect();
     assert_eq!(codes, [codes::TITLE_FORMAT]);
 }
