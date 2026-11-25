@@ -60,13 +60,12 @@ use super::members::{
 use crate::schema::format;
 use crate::{Error, Pointer, Reason};
 
-/// The prefix of a requirement identifier, `R`, from the one table of formats.
+/// The prefix of a requirement identifier, `R`, from the one table of formats; a format without
+/// a prefix stops the build, so the prefix is never silently empty.
 const REQUIREMENT_PREFIX: &str = match format::part_prefix(Format::RequirementId) {
     Some(prefix) => prefix,
-    None => "",
+    None => panic!("the format of a requirement identifier has no prefix"),
 };
-// The format of a requirement identifier is a part with a prefix, checked when the crate builds.
-const _: () = assert!(!REQUIREMENT_PREFIX.is_empty());
 
 /// The identifier that the next requirement added to a living specification gets when a change
 /// delta is merged (SPEC-0001 R20; SPEC-0009): `R<k>`, with `k` one more than the highest
