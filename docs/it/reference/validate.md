@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: affa9cf8174f
+source_hash: 078f5285091e
 ---
 # wayloop validate
 
@@ -208,8 +208,8 @@ riga vuota; le righe che lo seguono, e una riga rientrata dopo una riga vuota, l
 sono unite con uno spazio. Un paragrafo in una sezione letta come elenco è una voce, quindi un
 requisito scritto senza il suo `**R<k>**` è rifiutato al suo `id`. Un blocco delimitato si apre
 con tre o più backtick o tilde e si chiude solo con una sequenza dello stesso carattere almeno
-altrettanto lunga; una riga al suo interno non è mai un titolo, un titolo di sezione, una riga
-di intestazione, un elemento di elenco o un marcatore di Scope.
+altrettanto lunga, seguita solo da spazi; una riga al suo interno non è mai un titolo, un
+titolo di sezione, una riga di intestazione, un elemento di elenco o un marcatore di Scope.
 
 Una sezione il cui titolo non è nella tabella, compreso un titolo tradotto come `## Requisiti`,
 è conservata in `extra_sections`; un membro obbligatorio la cui sezione manca è quindi

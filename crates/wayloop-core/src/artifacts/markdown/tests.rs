@@ -707,3 +707,31 @@ fn two_living_specifications_with_one_identifier_are_located_at_their_title_line
         })
     );
 }
+
+#[test]
+fn a_closing_fence_is_followed_only_by_spaces() {
+    // Review round 2, S1, as in the CommonMark specification: inside an open block, a run followed by an info string
+    // is text; a run followed by spaces closes the block.
+    let block = "```\n```rust\n## Problem\n```   ";
+    let text = example_with("The log format follows COUNCIL-0001 D1.", block);
+    let (document, errors) = normalised(&text);
+    assert_eq!(errors, []);
+    assert_eq!(
+        document["extra_sections"],
+        json!([{"heading": "Notes", "text": block}])
+    );
+    // After the block closes, the next heading is read again.
+    let after = example_with(
+        "The log format follows COUNCIL-0001 D1.",
+        "```\n```  \n## Extra",
+    );
+    let (document, _) = normalised(&after);
+    assert_eq!(document["extra_sections"][1]["heading"], json!("Extra"));
+}
+
+#[test]
+fn a_header_row_without_a_label_says_so() {
+    let text = example_with("| --- | --- |", "| --- | --- |\n| | @someone |");
+    let (_, errors) = normalised(&text);
+    assert_eq!(errors[0].message(), "A header row has no label.");
+}

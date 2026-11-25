@@ -275,8 +275,9 @@ pub(crate) fn normalise(text: &str, file: Option<&ProjectPath>) -> Normalised {
 
 /// The lines of `text`, numbered from 1 and marked when inside a fenced block. A fence is a run
 /// of at least [`FENCE_RUN`] of one character of [`FENCE_CHARACTERS`] at the start of a line;
-/// the block it opens is closed only by a run of the same character at least as long, so a
-/// shorter run or the other character inside it is text.
+/// the block it opens is closed only by a run of the same character at least as long, followed
+/// only by spaces, so a shorter run, the other character or a run followed by text, such as
+/// an info string, inside it is text.
 fn numbered(text: &str) -> Vec<Numbered<'_>> {
     let mut open: Option<(char, usize)> = None;
     core::iter::successors(Some(NonZeroU64::MIN), |n| n.checked_add(1))
@@ -285,8 +286,10 @@ fn numbered(text: &str) -> Vec<Numbered<'_>> {
             let run = fence_run(text);
             let fenced = open.is_some() || run.is_some();
             open = match (open, run) {
-                (None, Some(run)) => Some(run),
-                (Some((c, len)), Some((r, run_len))) if r == c && run_len >= len => None,
+                (None, Some((c, len, _))) => Some((c, len)),
+                (Some((c, len)), Some((r, run_len, bare))) if r == c && run_len >= len && bare => {
+                    None
+                }
                 (still, _) => still,
             };
             Numbered {
@@ -298,15 +301,19 @@ fn numbered(text: &str) -> Vec<Numbered<'_>> {
         .collect()
 }
 
-/// The fence at the start of `text`, its character and the length of its run, when it is one.
-fn fence_run(text: &str) -> Option<(char, usize)> {
+/// The fence at the start of `text`, when it is one: its character, the length of its run, and
+/// whether only spaces follow the run, which a closing fence requires, as in the `CommonMark`
+/// specification.
+fn fence_run(text: &str) -> Option<(char, usize, bool)> {
     let trimmed = text.trim_start();
     let first = trimmed
         .chars()
         .next()
         .filter(|c| FENCE_CHARACTERS.contains(c))?;
+    let after = trimmed.trim_start_matches(first);
     let run = trimmed.chars().take_while(|c| *c == first).count();
-    (run >= FENCE_RUN).then_some((first, run))
+    let bare = after.chars().all(|c| c == ' ');
+    (run >= FENCE_RUN).then_some((first, run, bare))
 }
 
 /// The sections of `body`, which starts with a heading: each heading and the lines up to the
@@ -549,9 +556,14 @@ impl Writer<'_> {
             .find(|(name, _, _)| *name == label)
             .filter(|_| !rows.contains(&label));
         let Some((_, key, how)) = known else {
-            let message = format!(
-                "The header row `{label}` is not a row of a living specification, or repeats one."
-            );
+            let message = if label.is_empty() {
+                "A header row has no label.".to_owned()
+            } else {
+                format!(
+                    "The header row `{label}` is not a row of a living specification, or \
+                     repeats one."
+                )
+            };
             let error = Error::new(
                 codes::ARTIFACT_SCHEMA,
                 message,

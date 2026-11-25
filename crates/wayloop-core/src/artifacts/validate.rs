@@ -82,13 +82,13 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         .iter()
         .map(|c| NotDone::new(c.clone(), NotDoneReason::NotBuilt))
         .collect();
-    // The index of the identifier stage: every artifact of a known kind whose `id` raised no
-    // error, whatever its other errors, so that duplicates are found in the same pass (ADR 0009
-    // C3).
     // Stage 1: each living specification sent as Markdown is normalised into its document
     // model, so that every later stage, the identifiers included, reads it with its lines.
     let (entries, normalisations): (Vec<Cow<'_, Entry>>, Vec<markdown::Normalised>) =
         input.documents.iter().map(normalised).unzip();
+    // The index of the identifier stage: every artifact of a known kind whose `id` raised no
+    // error, whatever its other errors, so that duplicates are found in the same pass (ADR 0009
+    // C3).
     let mut index = Vec::new();
     let id = identifiers::id_pointer();
     // The position counts in u64, the type of `document`, so it needs no conversion.

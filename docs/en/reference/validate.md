@@ -197,8 +197,8 @@ A list item ends at the next item, the next heading or a blank line; its followi
 a line indented after a blank line, continue it and are joined with a space. A paragraph in a
 section read as a list is one entry, so a requirement written without its `**R<k>**` is
 refused at its `id`. A fenced block opens with three or more backticks or tildes and closes
-only with a run of the same character at least as long; a line inside it is never a title, a
-heading, a header row, an item or a marker of Scope.
+only with a run of the same character at least as long, followed only by spaces; a line inside
+it is never a title, a heading, a header row, an item or a marker of Scope.
 
 A section whose heading is not in the table, a translated heading such as `## Requisiti`
 included, is kept in `extra_sections`; a required member whose section is missing is then

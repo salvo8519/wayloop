@@ -441,11 +441,6 @@ has the code `artifact_schema` and carries the line it names in `source`:
 - A paragraph `**In scope:**` or `**Out of scope:**` given twice in `## Scope` is refused with
   the reason `duplicate` at `/scope_in` or `/scope_out`, with the line of the second marker; its
   content is not read.
-- A fenced block opens with three or more backticks or tildes and closes only with a run of the
-  same character at least as long; a line inside it is never a title, a heading, a header row,
-  an item or a marker of Scope.
-- A row of the header table is skipped only when both its cells are empty or made only of `-`,
-  `:` and spaces; any other row is a header row, refused as above when its label is unknown.
 - Every Markdown file named explicitly is read as a living specification, wherever it is;
   outside a folder `specs/<NNNN>-<capability>/` it has no `capability`, which is then refused
   with the reason `missing`.
@@ -458,6 +453,15 @@ has the code `artifact_schema` and carries the line it names in `source`:
 - A title line without a colon is the title, and `id` is missing.
 - The root of the document is at line 1, as for a YAML file, so a missing member, and
   `capability`, which comes from the folder, carry line 1.
+
+Two rules correct defects found by the review of #338, approved by the maintainer as fixes of
+defects on 2026-11-25:
+
+- A fenced block opens with three or more backticks or tildes and closes only with a run of the
+  same character at least as long, followed only by spaces; a line inside it is never a title,
+  a heading, a header row, an item or a marker of Scope.
+- A row of the header table is skipped only when both its cells are empty or made only of `-`,
+  `:` and spaces; any other row is a header row, refused as above when its label is unknown.
 
 Most specifications of this repository predate these rules (acceptance criteria without their
 requirements, open questions without identifiers, extra sections). A migration task that
@@ -667,7 +671,7 @@ C8).
 
 | Requirement | Code | Reasons |
 | --- | --- | --- |
-| R1, R6, R12 | `artifact_schema` | `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `syntax`, `requires`, `duplicate` (a repeated section of a Markdown specification) |
+| R1, R6, R12 | `artifact_schema` | `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `syntax`, `requires`, `duplicate` (a repeated section or a repeated paragraph of Scope of a Markdown specification) |
 | R3, R4, R9 | `link_missing` | `missing` |
 | R4 | `link_superseded` | `state` |
 | R3 (terminal holder) | `link_broken_terminal` (warning) | `missing`, `state` |
