@@ -212,7 +212,7 @@ diagnostics, the meta and the error report inside it are defined once for every 
 | `data` | The result; present only when the command succeeded |
 | `error` | The error report ([above](#errors-are-values)); present only when the command was refused or failed, and then `data` is absent |
 | `diagnostics` | `warnings` in the shape of an error; `not_done`, one `{check, reason}` for each check not run, with the reason `not_built` (the part of the engine that runs it is not built yet) or `input_absent` (the input it needs was not given); `checks`, the checks run. Each list is always written, `[]` when empty |
-| `meta` | `engine_version`, `envelope_version` (1), `command_version`, `input_hash`, `dry_run` and `defaults_applied`: one `{pointer, value, reason, message}` for each default the engine applied, where `reason` is an identifier and `message`, for people, is optional |
+| `meta` | `engine_version`, `envelope_version` (1), `command_version`, `input_hash`, `dry_run` and `defaults_applied`: one `{pointer, value, reason, message, document}` for each default the engine applied, where `reason` is an identifier, `message`, for people, is optional, and `document`, optional, is the index of the document the default belongs to, as in an error |
 
 Every identifier in the envelope (a check, a reason, an error code) is a stable `snake_case`
 value, documented with the command that writes it; clients accept values they do not know

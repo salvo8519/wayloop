@@ -12,18 +12,20 @@
 //! A document the interpreter has accepted, migrated to the current version of its type, is
 //! read into its contract type (ADR 0030 G1); a failure there is a defect of the engine.
 
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 
 use serde_json::{Map, Value};
 use wayloop_schemas::artifact::ArtifactKind;
+use wayloop_schemas::contract::rules::{ID, KIND, STATUS};
 use wayloop_schemas::contract::{Part, VALIDATE};
 use wayloop_schemas::validate::{ArtifactFolder, DocumentSummary, InputKind, Origin, ValidateData};
-use wayloop_schemas::{Diagnostics, ErrorReport, NotDone, NotDoneReason, Outcome};
+use wayloop_schemas::{DefaultApplied, Diagnostics, ErrorReport, NotDone, NotDoneReason, Outcome};
 
 use super::identifiers::{self, Indexed};
 use super::input::{self, Body, Entry, Input, Place};
 use super::kinds::{self, Checked, Kind, Loaded};
-use super::{checks, codes};
+use super::{checks, codes, markdown};
 use crate::command::COMMAND_INPUT;
 use crate::{Check, Error, Pointer, Reason};
 
@@ -40,6 +42,9 @@ pub(crate) struct Validation {
     pub(crate) not_done: Vec<NotDone>,
     /// The checks run.
     pub(crate) checks: Vec<Check>,
+    /// The defaults applied to the documents, each with the index of its document, in the order
+    /// of the documents, then in the byte order of their pointers.
+    pub(crate) defaults_applied: Vec<DefaultApplied>,
     /// Failures of the engine itself, with the reason `internal`; when there is one, the
     /// result is a failure, whatever the errors.
     pub(crate) failures: Vec<Error>,
@@ -58,7 +63,11 @@ pub(crate) fn validate(input: &Input, kinds: &[Kind]) -> Validation {
 
 /// Validates `input` with the types `kinds`.
 pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
-    let mut run = vec![checks::DOCUMENT_KIND, checks::SCHEMA_VERSION];
+    let mut run = vec![
+        checks::MARKDOWN,
+        checks::DOCUMENT_KIND,
+        checks::SCHEMA_VERSION,
+    ];
     run.extend(kinds.iter().map(|k| kinds::schema_check(k.id)));
     run.extend([
         checks::IDENTIFIER_FORMAT,
@@ -73,20 +82,45 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
         .iter()
         .map(|c| NotDone::new(c.clone(), NotDoneReason::NotBuilt))
         .collect();
+    // Stage 1: each living specification sent as Markdown is normalised into its document
+    // model, so that every later stage, the identifiers included, reads it with its lines.
+    let (entries, normalisations): (Vec<Cow<'_, Entry>>, Vec<markdown::Normalised>) =
+        input.documents.iter().map(normalised).unzip();
     // The index of the identifier stage: every artifact of a known kind whose `id` raised no
     // error, whatever its other errors, so that duplicates are found in the same pass (ADR 0009
     // C3).
     let mut index = Vec::new();
     let id = identifiers::id_pointer();
     // The position counts in u64, the type of `document`, so it needs no conversion.
-    for (document, entry) in (0_u64..).zip(&input.documents) {
+    for ((document, entry), normalisation) in (0_u64..).zip(&entries).zip(normalisations) {
         let first = validation.errors.len();
-        let summary = check_entry(entry, kinds, &mut validation, &mut not_done);
+        let first_default = validation.defaults_applied.len();
+        validation.errors.extend(normalisation.errors);
+        validation
+            .defaults_applied
+            .extend(normalisation.defaults_applied);
+        let checked_from = validation.errors.len();
+        let summary = check_entry(entry, kinds, &mut validation);
+        // An error of the schema at a member the normalisation withheld is not reported twice.
+        let checked = validation.errors.split_off(checked_from);
+        let withheld = &normalisation.withheld;
+        validation.errors.extend(
+            checked
+                .into_iter()
+                .filter(|e| !withheld.contains(e.pointer())),
+        );
         let found = validation.errors.get_mut(first..).unwrap_or_default();
         let id_refused = found.iter().any(|error| *error.pointer() == id);
         for error in found {
             *error = error.clone().with_document(document);
         }
+        let defaults = validation.defaults_applied.split_off(first_default);
+        let mut defaults: Vec<DefaultApplied> = defaults
+            .into_iter()
+            .map(|d| d.with_document(document))
+            .collect();
+        defaults.sort_by(|a, b| a.pointer().cmp(b.pointer()));
+        validation.defaults_applied.extend(defaults);
         if let (Some(_), Some(carried), false) = (summary.kind, &summary.id, id_refused) {
             index.push(Indexed {
                 document,
@@ -138,10 +172,6 @@ fn no_location() -> Error {
     )
 }
 
-fn not_built(not_done: &mut BTreeSet<NotDone>, check: Check) {
-    not_done.insert(NotDone::new(check, NotDoneReason::NotBuilt));
-}
-
 /// The failure of the engine when the type `id`, an artifact type or an input kind named by
 /// `what`, has no schema loaded: every type of SPEC-0001 has its schema built (`kinds::built`),
 /// so one without is a defect of the engine, never a check left out (decided by the maintainer
@@ -155,12 +185,7 @@ fn no_schema(what: &str, id: &str) -> Error {
 }
 
 /// Checks one entry, adding what it found to `validation`, and gives its summary.
-fn check_entry(
-    entry: &Entry,
-    kinds: &[Loaded],
-    validation: &mut Validation,
-    not_done: &mut BTreeSet<NotDone>,
-) -> DocumentSummary {
+fn check_entry(entry: &Entry, kinds: &[Loaded], validation: &mut Validation) -> DocumentSummary {
     let origin = entry.given.clone();
     let located = |error: Error| entry.locate(error);
     match &entry.body {
@@ -183,8 +208,10 @@ fn check_entry(
             validation.errors.push(error);
             summary(None, None, origin)
         }
-        Body::Markdown => {
-            not_built(not_done, checks::MARKDOWN);
+        Body::Markdown { .. } => {
+            let message = "A living specification sent as Markdown reached the checks without \
+                           its normalisation.";
+            validation.failures.push(Error::internal(message));
             summary(None, None, origin)
         }
         Body::Document {
@@ -205,8 +232,8 @@ fn check_entry(
             document,
             input_kind: None,
         } => {
-            let at = Pointer::root().join("kind");
-            let kind = match document.get("kind").filter(|v| !v.is_null()) {
+            let at = Pointer::root().join(KIND);
+            let kind = match document.get(KIND).filter(|v| !v.is_null()) {
                 None => {
                     let message = "The required field `kind` is missing.".to_owned();
                     validation.errors.push(located(Error::new(
@@ -246,6 +273,31 @@ fn check_entry(
             summary(Some(document), None, origin)
         }
     }
+}
+
+/// `entry` ready for the checks, with what its normalisation gave: a living specification sent
+/// as Markdown becomes the entry of its document model, at the lines it was read from, with the
+/// faults the model cannot hold, its defaults and the members withheld (R12); any other entry
+/// is kept as given, with nothing.
+fn normalised(entry: &Entry) -> (Cow<'_, Entry>, markdown::Normalised) {
+    let Body::Markdown { text } = &entry.body else {
+        return (Cow::Borrowed(entry), markdown::Normalised::default());
+    };
+    let file = match &entry.origin {
+        Some(Place::File(file)) => Some(file),
+        _ => None,
+    };
+    let mut normalisation = markdown::normalise(text, file);
+    let document = Entry {
+        given: entry.given.clone(),
+        origin: entry.origin.clone(),
+        body: Body::Document {
+            document: core::mem::take(&mut normalisation.document),
+            input_kind: None,
+        },
+        lines: core::mem::take(&mut normalisation.lines),
+    };
+    (Cow::Owned(document), normalisation)
 }
 
 /// Checks `document` against the schemas of its type `loaded`, adding its errors, located by
@@ -300,27 +352,33 @@ fn summary(
     // summarised.
     let artifact = if input_kind.is_some() { None } else { document };
     DocumentSummary {
-        kind: text(artifact, "kind").and_then(|k| ArtifactKind::from_id(&k)),
+        kind: text(artifact, KIND).and_then(|k| ArtifactKind::from_id(&k)),
         input_kind,
-        id: text(artifact, "id"),
-        status: text(artifact, "status"),
+        id: text(artifact, ID),
+        status: text(artifact, STATUS),
         origin,
     }
 }
 
-/// The outcome of `validate` on the canonical `input`, with its diagnostics: the input is
-/// checked against the input schema of the command and its rules, then the set is validated.
-/// No check of this version applies a default.
-pub(crate) fn run(input: &Value) -> (Outcome<ValidateData>, Diagnostics) {
+/// What `validate` gave: its outcome, its diagnostics and the defaults it applied to the
+/// documents, in the order of the documents, then in the byte order of their pointers.
+pub(crate) type Ran = (Outcome<ValidateData>, Diagnostics, Vec<DefaultApplied>);
+
+/// The outcome of `validate` on the canonical `input`, with its diagnostics and its defaults:
+/// the input is checked against the input schema of the command and its rules, then the set is
+/// validated. The defaults are those of the documents, `kind` and `schema_version` of a living
+/// specification sent as Markdown; none when the input is refused or the engine fails before
+/// the set is validated.
+pub(crate) fn run(input: &Value) -> Ran {
     match kinds::built() {
         Ok(kinds) => run_with(input, &kinds),
         Err(failure) => alone(failed(*failure)),
     }
 }
 
-/// An outcome with no diagnostics.
-fn alone(outcome: Outcome<ValidateData>) -> (Outcome<ValidateData>, Diagnostics) {
-    (outcome, Diagnostics::default())
+/// An outcome with no diagnostics and no defaults.
+fn alone(outcome: Outcome<ValidateData>) -> Ran {
+    (outcome, Diagnostics::default(), Vec::new())
 }
 
 /// The failure of `error`, an internal error.
@@ -340,7 +398,7 @@ fn not_an_outcome() -> Outcome<ValidateData> {
 }
 
 /// [`run`] with the types `kinds`.
-pub(crate) fn run_with(input: &Value, kinds: &[Kind]) -> (Outcome<ValidateData>, Diagnostics) {
+pub(crate) fn run_with(input: &Value, kinds: &[Kind]) -> Ran {
     let Some(snapshot) = VALIDATE.embedded(Part::Schema, VALIDATE.version) else {
         let path = VALIDATE.path(Part::Schema, VALIDATE.version);
         return alone(failed(Error::internal(format!(
@@ -373,5 +431,5 @@ pub(crate) fn run_with(input: &Value, kinds: &[Kind]) -> (Outcome<ValidateData>,
         })
         .unwrap_or_else(not_an_outcome),
     };
-    (outcome, diagnostics)
+    (outcome, diagnostics, validation.defaults_applied)
 }

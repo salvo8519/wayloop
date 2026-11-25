@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 43746974222e
+source_hash: 078f5285091e
 ---
 # wayloop validate
 
@@ -9,13 +9,13 @@ altri tipi del modello degli artefatti) e di input (pull request, commit, passag
 rispetto ai loro schemi, in un solo passaggio, e riporta ogni errore con il puntatore del valore
 errato e il luogo in cui è memorizzato. Non modifica nulla.
 
-Oggi brief, verbali del comitato, issue di gate, milestone, epic, user story, specifiche vive in
-forma normalizzata, modifiche a delta, task, record di passaggio di mano e gli input (pull
-request, commit e input di passaggio di mano) sono validati rispetto ai loro schemi. Una
-specifica viva inviata in Markdown è accettata senza controllo, e i controlli non eseguiti sono
-elencati in `diagnostics.not_done`. Tra documenti, gli identificativi sono controllati per
-unicità e rispetto al percorso del loro file; gli altri controlli tra documenti (collegamenti,
-parti, stati, nomi, aree) sono elencati come non eseguiti.
+Oggi brief, verbali del comitato, issue di gate, milestone, epic, user story, specifiche vive,
+modifiche a delta, task, record di passaggio di mano e gli input (pull request, commit e input
+di passaggio di mano) sono validati rispetto ai loro schemi. Una specifica viva scritta in
+Markdown viene prima normalizzata nel suo modello di documento (vedi Specifiche vive in Markdown
+più sotto). Tra documenti, gli identificativi sono controllati per unicità e rispetto al
+percorso del loro file; gli altri controlli tra documenti (collegamenti, parti, stati, nomi,
+aree) non sono eseguiti da questa versione e sono elencati in `diagnostics.not_done`.
 
 Questa pagina descrive la versione 1 del comando, compilata dai sorgenti. Il suo contratto è la
 coppia di snapshot di schema `schemas/commands/validate/v1.json` (input) e
@@ -43,7 +43,8 @@ salvato: `plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` e
 attraverso un link simbolico è trattata come assente, e dentro una posizione i link, i file
 speciali e i nomi non UTF-8 sono saltati. Con dei percorsi legge solo quei file, come un unico
 insieme: ogni percorso è relativo alla cartella corrente, non ha segmenti `..` né `\`, e indica
-un file YAML (`.yaml`) o un file Markdown (`.md`); un percorso il cui file, risolti i link, è
+un file YAML (`.yaml`) o un file Markdown (`.md`), letto come specifica viva ovunque si trovi
+(vedi Specifiche vive in Markdown); un percorso il cui file, risolti i link, è
 fuori dal progetto o ha un'altra estensione è rifiutato come errore d'uso, e un percorso che non
 è un file regolare (una cartella, una pipe, un dispositivo) non può essere letto (codice di
 uscita 3). Un insieme di più di 10.000 file, trovati o indicati, è rifiutato come errore d'uso.
@@ -78,6 +79,7 @@ letto; il messaggio per una persona, con il percorso, va sullo standard error.
 
 | Controllo | Cosa fa |
 | --- | --- |
+| `markdown` | Ogni specifica viva inviata in Markdown viene normalizzata nel suo modello di documento, poi controllata come documento del tipo `specification` (vedi Specifiche vive in Markdown più sotto) |
 | `document_kind` | Ogni documento ha un `kind` tra `brief`, `council_report`, `gate`, `milestone`, `epic`, `story`, `specification`, `change`, `task` e `handover`, oppure è un input con `input_kind` |
 | `schema_version` | Lo `schema_version` di ogni documento è una versione che il suo tipo conosce; un documento di una versione precedente viene migrato alla versione corrente dopo aver superato lo schema della propria versione |
 | `schema_<kind>`: `schema_brief`, `schema_change`, `schema_council_report`, `schema_epic`, `schema_gate`, `schema_handover`, `schema_milestone`, `schema_specification`, `schema_story`, `schema_task` | Ogni documento del tipo supera lo schema della sua versione (`schemas/artifacts/<kind>/v1.json`): membri obbligatori, membri sconosciuti, tipi, valori ammessi, lunghezze, formati, e i membri che uno stato, una verifica o un'operazione richiedono (vedi sotto) |
@@ -97,7 +99,6 @@ eseguito non è mai saltato in silenzio:
 
 | Controllo | Non eseguito su |
 | --- | --- |
-| `markdown` | Una specifica viva inviata in Markdown |
 | `links` | L'insieme: collegamenti tra artefatti, gerarchia, citazioni di ADR |
 | `parts` | L'insieme: parti degli artefatti e operazioni delle modifiche a delta |
 | `statuses` | L'insieme: transizioni e stati iniziali rispetto a `base` |
@@ -168,6 +169,82 @@ quando è noto, la sua `origin`; nessun `kind`, `id` o `status`.
 Quando l'input stesso è rifiutato, o la riga di comando non è compresa, o l'input non può
 essere letto, nessun controllo viene eseguito: `diagnostics.checks` e `diagnostics.not_done`
 sono allora vuoti.
+
+### Specifiche vive in Markdown
+
+Una specifica viva è memorizzata come `specs/<NNNN>-<capability>/spec.md`, con la struttura del
+modello `specs/_templates/spec.md`. Ogni file Markdown indicato sulla riga di comando è letto
+come specifica viva, ovunque si trovi; fuori da una cartella `specs/<NNNN>-<capability>/` non
+ha `capability`, che è quindi rifiutata con il motivo `missing`. Il motore legge il file riga
+per riga, senza un parser Markdown, nel modello di documento del tipo `specification`, poi
+applica lo schema; ogni errore riporta in `source` la riga da cui il valore è stato letto. La
+forma non riporta `kind` e `schema_version`: sono scritti come `specification` e la versione
+corrente, ed elencati in `meta.defaults_applied` con l'indice del documento in `document`, i
+puntatori `/kind` e `/schema_version` e il motivo `implied_by_form`. Titoli di sezione, righe
+di intestazione e parole di stato sono in inglese, qualunque sia la lingua del progetto; la
+prosa è nella lingua del progetto.
+
+| Markdown | Membro |
+| --- | --- |
+| `# SPEC-<seq>: <title>` | `id`, `title`; senza i due punti, tutto il testo è il titolo |
+| Righe di intestazione, una tabella sotto il titolo | Una riga per ciascun membro qui sotto; una riga le cui due celle sono entrambe vuote o fatte solo di `-`, `:` e spazi, come l'intestazione e il separatore della tabella, è saltata |
+| Cartella `specs/<NNNN>-<capability>/` | `capability`; assente quando il file è altrove o è inviato senza file |
+| Riga di intestazione `Status` | `status`, in minuscolo: `Draft` dà `draft` |
+| Riga di intestazione `Milestone` | `milestone`, la prima parola: `M0` di `M0 · Foundations` |
+| Righe di intestazione `Owner`, `Commit scope`, `Language` | `owner`, `commit_scope`, `language`, come scritte |
+| Riga di intestazione `Related` | `related`, divisa a ogni virgola e punto e virgola |
+| Riga di intestazione `Superseded by` | `superseded_by`, divisa a ogni virgola |
+| `## Problem` | `problem`, il testo come scritto |
+| `## Scope`, paragrafi `**In scope:**` e `**Out of scope:**` | `scope_in`, `scope_out`: una voce per ogni elemento di elenco, oppure il paragrafo come una voce |
+| `## User stories` | un elemento che è solo un identificativo `STORY` va in `stories`, ogni altro in `user_stories` |
+| `## Requirements (EARS)`, elementi `- **R<k>**: <text>`, `- **R<k>** *<name>*: <text>`, `- **R<k>** (removed): <text>` | `requirements` |
+| `## Acceptance criteria`, elementi `- **AC<k>** (R<i>, R<j>): <text> Verification: <words>. Rubric: <text>` | `acceptance_criteria`; `Rubric:` è facoltativo |
+| `## Interfaces` | `interfaces`, una voce per elemento |
+| `## Open questions`, elementi `- [ ] <text>` e `- [x] <text>`, che possono iniziare con `**Q<k>. <question>**` | `open_questions` |
+| Ogni altra sezione `##` | `extra_sections`, `{heading, text}`, conservata come prosa e non validata |
+
+Un elemento di elenco termina al successivo elemento, al successivo titolo di sezione o a una
+riga vuota; le righe che lo seguono, e una riga rientrata dopo una riga vuota, lo continuano e
+sono unite con uno spazio. Un paragrafo in una sezione letta come elenco è una voce, quindi un
+requisito scritto senza il suo `**R<k>**` è rifiutato al suo `id`. Un blocco delimitato si apre
+con tre o più backtick o tilde e si chiude solo con una sequenza dello stesso carattere almeno
+altrettanto lunga, seguita solo da spazi; una riga al suo interno non è mai un titolo, un
+titolo di sezione, una riga di intestazione, un elemento di elenco o un marcatore di Scope.
+
+Una sezione il cui titolo non è nella tabella, compreso un titolo tradotto come `## Requisiti`,
+è conservata in `extra_sections`; un membro obbligatorio la cui sezione manca è quindi
+rifiutato con il motivo `missing`, per esempio in `/requirements`. Una sezione presente ma
+vuota dà un valore vuoto, che lo schema rifiuta quando il membro ne richiede uno.
+
+Le parole di verifica sono riconosciute senza distinguere maiuscole e minuscole nel testo dopo
+`Verification:` fino al primo punto, nell'ordine in cui compaiono; le altre parole sono
+ignorate, quindi `property test for production, TDD for validation` dà `[property, tdd]`:
+
+| Parola | Valore |
+| --- | --- |
+| `TDD` | `tdd` |
+| `BDD`, `BDD scenario` | `bdd` |
+| `end-to-end` | `end_to_end` |
+| `property`, `property test` | `property` |
+| `contract`, `contract test` | `contract` |
+| `benchmark` | `benchmark` |
+| `judge` | `judge` |
+| `none` | `none` |
+
+Quattro difetti non hanno un membro nel modello di documento e sono rifiutati dalla
+normalizzazione, con il codice `artifact_schema` e la loro riga: un testo di verifica senza
+alcuna parola della tabella (`enum` in `/acceptance_criteria/<i>/verification`, le parole in
+`expected`; lo schema poi non riporta altro su quel membro), una riga di intestazione che non è
+nella tabella o ne ripete una (`unknown_field`, all'etichetta come scritta, per esempio
+`/Stato`), una sezione del modello o un paragrafo di Scope dati due volte (`duplicate`, al
+membro che riempiono, `/scope_in` per la sezione Scope e `/stories` per User stories,
+`/scope_in` o `/scope_out` per un `**In scope:**` o un `**Out of scope:**` ripetuto, con la riga
+del secondo titolo o marcatore; il loro contenuto non viene letto), e testo fuori dal titolo, dalle righe di intestazione e dalle
+sezioni, o nella sezione Scope prima dei suoi paragrafi (`syntax`, alla radice). Ogni altro
+valore è scritto come letto e controllato dallo schema al suo membro: il testo di un criterio
+dopo le sue parole di verifica che non inizia con `Rubric:` è aggiunto al suo `text`, e la
+radice è alla riga 1, come per un file YAML, quindi un membro mancante e `capability` riportano
+la riga 1.
 
 ### Input pull request e commit
 
@@ -255,13 +332,21 @@ che non conosce e accetta i valori di enum che non conosce.
 - `diagnostics.checks` elenca i controlli eseguiti e `diagnostics.not_done` quelli non eseguiti.
 - `meta.command_version` è la versione eseguita. Senza `--command-version`,
   `meta.defaults_applied` elenca `{"pointer": "", "value": 1, "reason":
-  "current_command_version"}`: il puntatore è vuoto perché la versione è un'impostazione del
+  "current_command_version", "message": "No version of the command was requested: version 1
+  runs."}`: il puntatore è vuoto perché la versione è un'impostazione del
   contesto, non un membro dell'input. Quando `--command-version` indica una versione che il
   motore non esegue, anche il rifiuto ha il puntatore `""`, e `meta.command_version` è la
   versione corrente, di cui l'envelope ha la forma; quando l'input è anche un testo che il
   motore non può leggere come JSON, lo stesso rapporto elenca prima la versione, poi l'errore
   del testo. Un errore d'uso riporta la versione corrente del comando che indica, e 1 quando
   non indica un comando noto.
+- I valori predefiniti dei documenti seguono quello della versione del comando, nell'ordine dei
+  documenti, poi nell'ordine dei byte dei loro puntatori. Ognuno porta `document`, l'indice del
+  suo documento da 0, come un errore, e il suo `pointer` è relativo a quel documento: una
+  specifica viva inviata in Markdown dà `{"pointer": "/kind", "value": "specification",
+  "reason": "implied_by_form", "message": "The Markdown form of a living specification does
+  not carry `kind`.", "document": <i>}` e lo stesso per `/schema_version` con la versione
+  corrente. Il testo di `message` non fa parte del contratto.
 - `meta.input_hash` è lo SHA-256 del JSON canonico (RFC 8785) dell'input senza i suoi membri
   impostati a `null`, quindi un input con `"base": null` ha l'hash dell'input senza `base`. Per
   un testo che il motore rifiuta di leggere come JSON (non JSON, una chiave ripetuta in un
@@ -311,7 +396,7 @@ livelli di oggetti (ADR 0009 C4). `related` è assente quando non c'è un altro 
 | Codice | Motivi | Codice di uscita | Significato |
 | --- | --- | --- | --- |
 | `command_input` | `syntax`, `duplicate`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `conflict` | 1 | L'input canonico è rifiutato: non è JSON, ripete una chiave, contiene un numero oltre un double, o viola il suo schema o una regola della sezione Input; oppure `--command-version` richiede una versione che il motore non esegue (`enum`, le versioni note in `expected`) |
-| `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | Un documento viola lo schema del suo tipo o del suo input (una pull request, un commit); anche un documento senza `kind`, o con un `kind` fuori dalla lista (`enum`, con i tipi in `expected`), uno `schema_version` assente, non intero (riportato con ogni altro errore rispetto alla versione corrente) od oltre più o meno (2^53 - 1) (`range`), e un file che non è stato possibile analizzare (`syntax`, al puntatore dell'intero documento, con la sua riga in `source`) |
+| `artifact_schema` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires`, `duplicate` | 1 | Un documento viola lo schema del suo tipo o del suo input (una pull request, un commit); anche un documento senza `kind`, o con un `kind` fuori dalla lista (`enum`, con i tipi in `expected`), uno `schema_version` assente, non intero (riportato con ogni altro errore rispetto alla versione corrente) od oltre più o meno (2^53 - 1) (`range`), un file che non è stato possibile analizzare (`syntax`, al puntatore dell'intero documento, con la sua riga in `source`), e i difetti di una specifica viva in Markdown, tra cui una sezione data due volte (`duplicate`; vedi Specifiche vive in Markdown) |
 | `handover_input` | `syntax`, `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `requires` | 1 | Un input di passaggio di mano viola il suo schema, per esempio impostando un membro che solo il motore imposta (`unknown_field`) |
 | `schema_version_unknown` | `enum` | 1 | Lo `schema_version` non è una versione del tipo o dell'input; `expected` elenca le versioni note |
 | `identifier_format` | `syntax` | 1 | L'`id` non è nella forma canonica del suo tipo; `fix` dà l'identificativo corretto quando è possibile ricavarlo |

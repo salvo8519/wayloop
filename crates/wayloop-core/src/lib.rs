@@ -65,7 +65,8 @@ pub use wayloop_schemas::{
 /// with the pointer `""`, since the version is a setting of the context and has no place in
 /// the input; a version the engine does not run is refused with [`COMMAND_INPUT`], reason
 /// `enum`, the known versions in `expected` and the pointer `""`, and its envelope reports the
-/// current version in `meta.command_version`: the version whose shape the envelope has.
+/// current version in `meta.command_version`: the version whose shape the envelope has. The
+/// defaults the command applies to the documents of the input follow, each with its `document`.
 #[must_use]
 pub fn run(command: Command, input: &Value, context: &Context) -> Envelope<Value> {
     let (outcome, diagnostics, version, defaults_applied) = match requested(command, *context) {
@@ -75,10 +76,13 @@ pub fn run(command: Command, input: &Value, context: &Context) -> Envelope<Value
             command.version(),
             Vec::new(),
         ),
-        Ok((version, defaults)) => {
+        Ok((version, mut defaults)) => {
+            // The defaults of the input itself come first, then those of its documents, in the
+            // order of the documents, then in the byte order of their pointers.
             let (outcome, diagnostics) = match command {
                 Command::Validate => {
-                    let (outcome, diagnostics) = artifacts::run(input);
+                    let (outcome, diagnostics, of_documents) = artifacts::run(input);
+                    defaults.extend(of_documents);
                     (as_value(outcome), diagnostics)
                 }
             };

@@ -375,7 +375,8 @@ pub struct Error {
     /// input. With the code `command_input` and the reason `enum`, the pointer `""` designates
     /// the context of the command, its requested version, which has no place in the input.
     pointer: Pointer,
-    /// Pointers to the other values involved, such as both sides of a conflict; absent when
+    /// Pointers to the other values involved, such as both sides of a conflict, relative to the
+    /// same document as `pointer`: the one given by `document`, or the input sent; absent when
     /// none is given.
     #[serde(skip_serializing_if = "Option::is_none")]
     pointers: Option<Vec<Pointer>>,
@@ -393,9 +394,9 @@ pub struct Error {
     /// Where the faulty value is stored; absent for a document sent directly.
     #[serde(skip_serializing_if = "Option::is_none")]
     source: Option<Source>,
-    /// Index, from 0, in the input array `documents` of the document the error belongs to;
-    /// absent for an error of the input itself (SPEC-0004 R2).
+    /// The document the error belongs to: see [`DOCUMENT_INDEX`].
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(description = DOCUMENT_INDEX)]
     document: Option<u64>,
     /// The other places of the same condition, each in another document of the input, such
     /// as each other artifact that carries the same identifier; absent when there is none,
@@ -408,6 +409,12 @@ pub struct Error {
     #[schemars(length(min = 1))]
     related: Option<Vec<Related>>,
 }
+
+/// The meaning of the member `document` of an error and of an entry of `meta.defaults_applied`,
+/// one text for both (SPEC-0004 R2; ADR 0009, amended on 2026-11-20 and 2026-11-25).
+pub(crate) const DOCUMENT_INDEX: &str = "Index, from 0, in the input array `documents` of the \
+    document the error or default belongs to; its `pointer` is then relative to that document. \
+    Absent for an error or a default of the input itself (SPEC-0004 R2).";
 
 impl Error {
     /// A refusal with its stable `code` (never renamed or reused, ADR 0009 C8), a `message`

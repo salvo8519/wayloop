@@ -15,6 +15,8 @@
 
 use std::collections::BTreeMap;
 
+use wayloop_schemas::contract::rules::ID;
+
 use super::codes;
 use super::input::{Entry, Place};
 use super::locations::named_identifier;
@@ -31,7 +33,7 @@ pub(super) struct Indexed<'a> {
 
 /// The pointer of the identifier of an artifact.
 pub(super) fn id_pointer() -> Pointer {
-    Pointer::root().join("id")
+    Pointer::root().join(ID)
 }
 
 impl Indexed<'_> {

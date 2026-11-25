@@ -892,3 +892,24 @@ fn a_document_beyond_its_bytes_is_unreadable_and_the_envelope_is_written() {
     let envelope = project.envelope();
     assert_eq!(envelope["error"]["reason"], "syntax", "{envelope}");
 }
+
+#[test]
+fn the_living_specification_of_the_artifact_model_normalises_with_no_error() {
+    // SPEC-0001 T14: the specification itself, in the Markdown form it defines, is read from
+    // its file as `markdown` and normalised by the core with no error.
+    let path = "specs/0001-artifact-model/spec.md";
+    let files = vec![StoredFile {
+        path: ProjectPath::new(path),
+        stored: Stored::Markdown,
+    }];
+    let input = load(&repository(), files).unwrap();
+    assert_eq!(input.documents[0].format, EntryFormat::Markdown);
+    let input = serde_json::to_value(input).unwrap();
+    let envelope = run(Command::Validate, &input, &Context::default());
+    let envelope = serde_json::to_value(&envelope).unwrap();
+    assert_eq!(envelope.get("error"), None, "{envelope}");
+    let summary = &envelope["data"]["documents"][0];
+    assert_eq!(summary["kind"], "specification");
+    assert_eq!(summary["id"], "SPEC-0001");
+    assert_eq!(summary["origin"]["file"], path);
+}

@@ -17,6 +17,12 @@ use crate::ident::string_schema;
 /// The name of the member that holds the status of an artifact (SPEC-0001, Common rules), the
 /// member the conditions on a status test.
 pub const STATUS: &str = "status";
+/// The name of the member that holds the type of an artifact (SPEC-0001, Common rules).
+pub const KIND: &str = "kind";
+/// The name of the member that holds the version of the schema of a document (SPEC-0001 R16).
+pub const SCHEMA_VERSION: &str = "schema_version";
+/// The name of the member that holds the identifier of an artifact (SPEC-0001 R2, R14).
+pub const ID: &str = "id";
 
 /// Requires the members `then` whenever the member `when` is present.
 pub fn require_if_present(schema: &mut Schema, when: &str, then: &[&str]) {

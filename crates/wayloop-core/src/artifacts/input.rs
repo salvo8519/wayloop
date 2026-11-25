@@ -66,8 +66,8 @@ pub(crate) enum Body {
         document: Map<String, Value>,
         input_kind: Option<InputKind>,
     },
-    /// The text of a living specification.
-    Markdown,
+    /// The text of a living specification, normalised by the core (R12).
+    Markdown { text: String },
     /// A file that did not parse, with the line and the message of the parser.
     Unreadable { line: Line, message: String },
 }
@@ -135,7 +135,9 @@ fn entry(entry: DocumentEntry) -> Result<Entry, Box<Error>> {
             document: entry.document.ok_or_else(missing)?.0,
             input_kind: entry.input_kind,
         },
-        EntryFormat::Markdown => Body::Markdown,
+        EntryFormat::Markdown => Body::Markdown {
+            text: entry.text.ok_or_else(missing)?,
+        },
         EntryFormat::Unreadable => {
             let error = entry.error.ok_or_else(missing)?;
             Body::Unreadable {

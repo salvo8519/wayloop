@@ -182,9 +182,15 @@ impl Location {
 /// `<number>-<capability>`: ASCII digits, a hyphen and a capability of at least one character;
 /// `SPEC-` and the number, in whatever form it is written.
 fn folder_identifier(folder: &str) -> Option<String> {
+    folder_parts(folder).map(|(number, _)| format!("SPEC-{number}"))
+}
+
+/// The number and the capability of `folder` when it is `<number>-<capability>`: ASCII digits,
+/// a hyphen and a capability of at least one character, both as written.
+fn folder_parts(folder: &str) -> Option<(&str, &str)> {
     let (number, capability) = folder.split_once('-')?;
     let digits = !number.is_empty() && number.bytes().all(|b| b.is_ascii_digit());
-    (digits && !capability.is_empty()).then(|| format!("SPEC-{number}"))
+    (digits && !capability.is_empty()).then_some((number, capability))
 }
 
 /// Whether `folder` is `<NNNN>-<capability>`: a folder named after a specification whose
@@ -203,6 +209,20 @@ pub(crate) fn named_identifier(path: &str) -> Option<String> {
         let below = location.below(path)?;
         location.names(&below)
     })
+}
+
+/// The capability of the living specification stored at `path`, the `<capability>` of
+/// `specs/<number>-<capability>/spec.md`, as written (SPEC-0001, Markdown form of a living
+/// specification); `None` for any other path, such as a Markdown file named outside a folder
+/// of a specification.
+pub(crate) fn specification_capability(path: &str) -> Option<&str> {
+    let below = path
+        .strip_prefix(ArtifactFolder::Specs.path())?
+        .strip_prefix('/')?;
+    match below.split('/').collect::<Vec<_>>().as_slice() {
+        [folder, file] if *file == SPECIFICATION => folder_parts(folder).map(|(_, c)| c),
+        _ => None,
+    }
 }
 
 /// A stored file to read: its path in the project and how it is read.

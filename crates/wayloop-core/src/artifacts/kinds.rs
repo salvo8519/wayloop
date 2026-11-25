@@ -14,6 +14,7 @@ use core::num::NonZeroU32;
 
 use serde_json::{Map, Value};
 use wayloop_schemas::artifact::ArtifactKind;
+use wayloop_schemas::contract::rules::SCHEMA_VERSION;
 use wayloop_schemas::contract::{Area, CONTRACTS, Contract, Embedded, HANDOVER, Part, Reread};
 use wayloop_schemas::number::{SAFE_INTEGER, integer, is_safe};
 use wayloop_schemas::validate::InputKind;
@@ -243,9 +244,9 @@ impl Loaded {
     /// has the code of the type, `artifact_schema` except for the hand-over input.
     pub(crate) fn check(&self, document: &Map<String, Value>) -> Checked {
         let code = &self.code;
-        let at = Pointer::root().join("schema_version");
+        let at = Pointer::root().join(SCHEMA_VERSION);
         let value = Value::Object(document.clone());
-        let given = document.get("schema_version").filter(|v| !v.is_null());
+        let given = document.get(SCHEMA_VERSION).filter(|v| !v.is_null());
         let Some(version) = given.and_then(integer) else {
             // Missing or not an integer: the schema of the current version reports it, with
             // every other error of the document, in one pass (ADR 0009 C3).

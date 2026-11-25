@@ -424,6 +424,45 @@ with no mapped word is refused with the reason `enum` and the words below in `ex
 | `judge` | `judge` |
 | `none` | `none` |
 
+Cases the tables above leave open (decided by the maintainer on 2026-11-25). Each refusal below
+has the code `artifact_schema` and carries the line it names in `source`:
+
+- `kind` and `schema_version`, which the Markdown form does not carry, are written as
+  `specification` and the current version of its schema, and listed in `meta.defaults_applied`
+  as two entries with `document`, the pointers `/kind` and `/schema_version` and the reason
+  `implied_by_form` (SPEC-0004 R3).
+- A header row whose label is not in the table, or that repeats a row already read, is refused
+  with the reason `unknown_field` at the pointer of the label as written, for example `/Stato`,
+  with the line of the row.
+- A section of the template given twice is refused with the reason `duplicate` at the member the
+  section fills, the first of its two members for `## Scope` (`/scope_in`) and `## User stories`
+  (`/stories`), with the line of the second heading; its content is not read. `duplicate` is
+  therefore a reason of `artifact_schema` (Errors).
+- A paragraph `**In scope:**` or `**Out of scope:**` given twice in `## Scope` is refused with
+  the reason `duplicate` at `/scope_in` or `/scope_out`, with the line of the second marker; its
+  content is not read.
+- Every Markdown file named explicitly is read as a living specification, wherever it is;
+  outside a folder `specs/<NNNN>-<capability>/` it has no `capability`, which is then refused
+  with the reason `missing`.
+- Text outside the title, the header rows and the sections, or in `## Scope` before its
+  paragraphs, is refused with the reason `syntax` at the root, with its line.
+- A paragraph in a section read as a list is one entry, as a list item is: a requirement
+  written without its `**R<k>**` is then refused at its `id`.
+- Text of an acceptance criterion after the verification words that does not start with
+  `Rubric:` is appended to its `text`, so that nothing written is dropped.
+- A title line without a colon is the title, and `id` is missing.
+- The root of the document is at line 1, as for a YAML file, so a missing member, and
+  `capability`, which comes from the folder, carry line 1.
+
+Two rules correct defects found by the review of #338, approved by the maintainer as fixes of
+defects on 2026-11-25:
+
+- A fenced block opens with three or more backticks or tildes and closes only with a run of the
+  same character at least as long, followed only by spaces; a line inside it is never a title,
+  a heading, a header row, an item or a marker of Scope.
+- A row of the header table is skipped only when both its cells are empty or made only of `-`,
+  `:` and spaces; any other row is a header row, refused as above when its label is unknown.
+
 Most specifications of this repository predate these rules (acceptance criteria without their
 requirements, open questions without identifiers, extra sections). A migration task that
 brings them to this form (#229) must be done before `wayloop validate` runs on this repository.
@@ -632,7 +671,7 @@ C8).
 
 | Requirement | Code | Reasons |
 | --- | --- | --- |
-| R1, R6, R12 | `artifact_schema` | `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `syntax`, `requires` |
+| R1, R6, R12 | `artifact_schema` | `missing`, `unknown_field`, `type`, `enum`, `length`, `range`, `syntax`, `requires`, `duplicate` (a repeated section or a repeated paragraph of Scope of a Markdown specification) |
 | R3, R4, R9 | `link_missing` | `missing` |
 | R4 | `link_superseded` | `state` |
 | R3 (terminal holder) | `link_broken_terminal` (warning) | `missing`, `state` |
