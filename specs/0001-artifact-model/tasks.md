@@ -149,7 +149,7 @@ Prerequisites outside this specification:
 
 - [x] **T16 Check epic and task titles**
   - Covers: R7, R8; AC4, AC10; AC1 (`epic.invalid.yaml`). Issue: #266.
-  - Files: `crates/wayloop-core/src/naming/titles.rs`, `crates/wayloop-core/src/artifacts/titles.rs`, `crates/wayloop-core/src/policy.rs`, `crates/wayloop-core/Cargo.toml`, `Cargo.lock`, `scripts/check_core_io.py`, `tests/process/test_check_core_io.py`, `tests/process/test_conventions.py`, ADR 0031.
+  - Files: `crates/wayloop-core/src/naming/mod.rs`, `crates/wayloop-core/src/naming/titles.rs`, `crates/wayloop-core/src/artifacts/titles.rs`, `crates/wayloop-core/src/artifacts/duplicates.rs`, `crates/wayloop-core/src/artifacts/identifiers.rs`, `crates/wayloop-core/src/artifacts/validate.rs`, `crates/wayloop-core/src/artifacts/input.rs`, `crates/wayloop-core/src/artifacts/checks.rs`, `crates/wayloop-core/src/policy.rs`, `crates/wayloop-schemas/src/contract/rules.rs` (`TITLE`, `TITLE_MAX_CHARS`), `crates/wayloop-core/Cargo.toml`, `Cargo.lock`, `scripts/check_core_io.py`, `tests/process/test_check_core_io.py`, `tests/process/test_conventions.py`, `tests/contract/validate/v1/`, `docs/en/reference/validate.md` and its Italian edition, `docs/en/project/adr/0031-unicode-crates-in-the-core.md`.
   - Builds the default policy (R21) and its report in `meta.defaults_applied`, which the prefix of a title reads when the input gives no policy (decided by the maintainer on 2026-11-25).
   - Tests first: prefix, bracket tag at either end, final full stop, each with pointer and `fix`; titles equal after NFC, case folding and white space refused across epics and tasks, superseded ones ignored; `wayloop init creates a project structure that validates` passes.
   - Verification: TDD.

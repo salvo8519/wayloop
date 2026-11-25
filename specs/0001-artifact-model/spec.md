@@ -641,12 +641,15 @@ characters turned into one hyphen, and cut after five words. When nothing is lef
 
 Titles (R7, R8):
 
-- A type prefix is a leading `<word>:` or `<word>(<anything>):` where `<word>` is a type of
-  the policy, without regard to case.
-- A bracket tag is a group `[...]` at the start or at the end of the title.
+- A type prefix is a leading `<word>[(<anything>)][!]:`, that is `<word>:`,
+  `<word>(<anything>):`, `<word>!:` or `<word>(<anything>)!:`, where `<word>` is a type of the
+  policy, without regard to case (the breaking mark `!` decided by the maintainer on
+  2026-11-25).
+- A bracket tag is a group `[...]` at the start or at the end of the title, closed by its
+  matching bracket, nested brackets counted; an unbalanced group is not a tag.
 - A final full stop is a title that ends with `.`.
-- Two titles are equal when they are equal after Unicode NFC normalisation, case folding,
-  trimming and collapsing runs of white space into one space. Epic and task titles are compared
+- Two titles are equal when they are equal after Unicode NFC normalisation, full case folding,
+  NFC normalisation again, trimming and collapsing runs of white space into one space. Epic and task titles are compared
   with each other, in every status except `superseded`.
 - Each rule broken is one error `title_format`, in the order of this list; each carries in
   `fix` the title with every rule applied, so a rule that appears once another is fixed counts

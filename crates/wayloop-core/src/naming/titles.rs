@@ -5,29 +5,61 @@
 //! `syntax` at `/title`, each with `fix` the title with every rule applied, when anything is
 //! left of it. A title that starts with a command name, such as `wayloop init`, has no prefix.
 //!
-//! [`key`] is the form in which two titles are compared (R8): Unicode NFC, then case folding,
-//! then trimmed, with every run of white space collapsed into one space.
+//! [`key`] is the form in which two titles are compared (R8): Unicode NFC, full case folding,
+//! NFC again, then trimmed, with every run of white space collapsed into one space.
+//!
+//! The rules are applied until none is broken, so their cost grows with the square of the
+//! length of the title; the callers pass titles of at most `TITLE_MAX_CHARS` characters, the
+//! limit of the schema.
 
 use caseless::default_case_fold_str;
 use unicode_normalization::UnicodeNormalization as _;
+use wayloop_schemas::contract::rules::TITLE;
 use wayloop_schemas::value::PolicyName;
 
 use crate::artifacts::codes;
 use crate::{Error, Pointer, Reason};
-
-/// The member that holds the title of an artifact.
-pub(crate) const TITLE: &str = "title";
 
 /// The pointer of the title of an artifact.
 pub(crate) fn pointer() -> Pointer {
     Pointer::root().join(TITLE)
 }
 
-/// Every error of the form of `title`, whose type prefixes are the types `types` of the policy,
-/// in the order of the grammar: prefix, bracket tag, full stop. A rule broken once another is
-/// fixed counts too, for example the prefix of `[EPIC] feat: Export`.
-pub(crate) fn format(title: &str, types: &[PolicyName]) -> Vec<Error> {
-    let (fix, broken) = corrected(title, types);
+/// The types of the policy that a title may not start with, case-folded once.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Prefixes {
+    folded: Vec<String>,
+    /// The length of the longest type, in characters: a prefix word is never longer.
+    longest: usize,
+}
+
+impl Prefixes {
+    /// The prefixes of the types `types` of the policy.
+    pub(crate) fn new(types: &[PolicyName]) -> Self {
+        let folded: Vec<String> = types
+            .iter()
+            .map(|t| default_case_fold_str(t.as_str()))
+            .collect();
+        let longest = types
+            .iter()
+            .map(|t| t.as_str().chars().count())
+            .max()
+            .unwrap_or_default();
+        Self { folded, longest }
+    }
+
+    /// Whether `word` is one of the types, without regard to case.
+    fn contains(&self, word: &str) -> bool {
+        let word = default_case_fold_str(word);
+        self.folded.contains(&word)
+    }
+}
+
+/// Every error of the form of `title`, whose type prefixes are `prefixes`, in the order of the
+/// grammar: prefix, bracket tag, full stop. A rule broken once another is fixed counts too, for
+/// example the prefix of `[EPIC] feat: Export`.
+pub(crate) fn format(title: &str, prefixes: &Prefixes) -> Vec<Error> {
+    let (fix, broken) = corrected(title, prefixes);
     Rule::ALL
         .into_iter()
         .filter(|rule| broken.contains(rule))
@@ -59,12 +91,17 @@ impl Rule {
     /// The rules in the order of the grammar.
     const ALL: [Rule; 3] = [Rule::Prefix, Rule::Tag, Rule::FullStop];
 
-    /// `text` without what breaks the rule, or `None` when the rule holds.
-    fn without<'t>(self, text: &'t str, types: &[PolicyName]) -> Option<&'t str> {
+    /// `text` without what breaks the rule, or `None` when the rule holds. A run of final full
+    /// stops is removed at once.
+    fn without<'t>(self, text: &'t str, prefixes: &Prefixes) -> Option<&'t str> {
         match self {
-            Rule::Prefix => without_prefix(text, types),
+            Rule::Prefix => without_prefix(text, prefixes),
             Rule::Tag => without_tag(text),
-            Rule::FullStop => text.trim_end().strip_suffix('.'),
+            Rule::FullStop => {
+                let text = text.trim_end();
+                text.ends_with('.')
+                    .then(|| text.trim_end_matches(|c: char| c == '.' || c.is_whitespace()))
+            }
         }
     }
 
@@ -87,53 +124,95 @@ impl Rule {
 pub(crate) fn key(title: &str) -> String {
     let composed: String = title.nfc().collect();
     let folded = default_case_fold_str(&composed);
-    folded.split_whitespace().collect::<Vec<_>>().join(" ")
+    let recomposed: String = folded.nfc().collect();
+    recomposed.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// `title` without its type prefix `<word>:` or `<word>(<anything>):`, when the word is one of
-/// `types` without regard to case.
-fn without_prefix<'t>(title: &'t str, types: &[PolicyName]) -> Option<&'t str> {
+/// `title` without its type prefix `<word>[(<anything>)][!]:`, when the word is one of
+/// `prefixes` without regard to case. The word is looked for only within the length of the
+/// longest type.
+fn without_prefix<'t>(title: &'t str, prefixes: &Prefixes) -> Option<&'t str> {
     let text = title.trim_start();
-    let end = text.find([':', '('])?;
+    let (end, _) = text
+        .char_indices()
+        .take(prefixes.longest.saturating_add(1))
+        .find(|(_, c)| matches!(c, ':' | '(' | '!'))?;
     let (word, rest) = text.split_at_checked(end)?;
     let rest = match rest.strip_prefix('(') {
-        Some(scoped) => scoped.split_once("):")?.1,
-        None => rest.strip_prefix(':')?,
+        Some(scoped) => scoped.split_once(')')?.1,
+        None => rest,
     };
-    let word = default_case_fold_str(word);
-    types
-        .iter()
-        .any(|t| default_case_fold_str(t.as_str()) == word)
-        .then_some(rest)
+    let rest = rest.strip_prefix('!').unwrap_or(rest);
+    let rest = rest.strip_prefix(':')?;
+    prefixes.contains(word).then_some(rest)
 }
 
-/// `title` without a bracket tag `[...]` at its start, or else at its end.
+/// `title` without a bracket tag `[...]` at its start, or else at its end. The tag ends at the
+/// bracket that closes the first one, counting nested brackets; an unbalanced group is no tag.
 fn without_tag(title: &str) -> Option<&str> {
     let text = title.trim();
-    let at_start = text
-        .strip_prefix('[')
-        .and_then(|inner| inner.split_once(']'))
-        .map(|(_, rest)| rest);
-    at_start.or_else(|| {
-        text.strip_suffix(']')
-            .and_then(|inner| inner.rsplit_once('['))
-            .map(|(rest, _)| rest)
-    })
+    leading_tag_end(text)
+        .and_then(|end| text.get(end..))
+        .or_else(|| trailing_tag_start(text).and_then(|start| text.get(..start)))
+}
+
+/// The byte index after the bracket that closes the `[` at the start of `text`.
+fn leading_tag_end(text: &str) -> Option<usize> {
+    if !text.starts_with('[') {
+        return None;
+    }
+    let mut depth = 0_usize;
+    for (at, c) in text.char_indices() {
+        match c {
+            '[' => depth += 1,
+            ']' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(at + c.len_utf8());
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The byte index of the bracket that opens the `]` at the end of `text`.
+fn trailing_tag_start(text: &str) -> Option<usize> {
+    if !text.ends_with(']') {
+        return None;
+    }
+    let mut depth = 0_usize;
+    for (at, c) in text.char_indices().rev() {
+        match c {
+            ']' => depth += 1,
+            '[' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(at);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 /// `title` with every rule applied until none is broken, trimmed, empty when nothing is left,
 /// and the rules it broke. Each step removes at least one character, so the loop ends.
-fn corrected<'t>(title: &'t str, types: &[PolicyName]) -> (&'t str, Vec<Rule>) {
+fn corrected<'t>(title: &'t str, prefixes: &Prefixes) -> (&'t str, Vec<Rule>) {
     let mut text = title.trim();
     let mut broken = Vec::new();
     loop {
         let next = Rule::ALL
             .into_iter()
-            .find_map(|rule| Some((rule, rule.without(text, types)?)));
+            .find_map(|rule| Some((rule, rule.without(text, prefixes)?)));
         let Some((rule, shorter)) = next else {
             return (text, broken);
         };
-        broken.push(rule);
+        if !broken.contains(&rule) {
+            broken.push(rule);
+        }
         text = shorter.trim();
     }
 }
@@ -142,17 +221,19 @@ fn corrected<'t>(title: &'t str, types: &[PolicyName]) -> (&'t str, Vec<Rule>) {
 mod tests {
     use wayloop_schemas::value::PolicyName;
 
-    use super::{format, key};
+    use super::{Prefixes, format, key};
     use crate::Reason;
     use crate::artifacts::codes;
 
-    /// The types of `examples/policy.yaml` of SPEC-0001.
-    fn types() -> Vec<PolicyName> {
-        [
-            "feat", "fix", "perf", "refactor", "docs", "test", "build", "ci", "chore", "revert",
-        ]
-        .map(PolicyName::new)
-        .to_vec()
+    /// The prefixes of the types of the default policy, which are those of
+    /// `examples/policy.yaml` of SPEC-0001.
+    fn types() -> Prefixes {
+        prefixes(&crate::policy::TYPES)
+    }
+
+    fn prefixes(types: &[&str]) -> Prefixes {
+        let names: Vec<PolicyName> = types.iter().map(|t| PolicyName::new(*t)).collect();
+        Prefixes::new(&names)
     }
 
     /// The fixes of the errors of `title`, one per rule broken; each error is a `title_format`
@@ -182,6 +263,9 @@ mod tests {
             "Feat:Monthly export of time entries",
             "FIX(export): Monthly export of time entries",
             "docs(a: b): Monthly export of time entries",
+            // The breaking mark of a commit header (decided by the maintainer on 2026-11-25).
+            "feat!: Monthly export of time entries",
+            "feat(core)!: Monthly export of time entries",
         ] {
             assert_eq!(
                 fixes(title),
@@ -200,14 +284,16 @@ mod tests {
             "feature: monthly export",
             "feat monthly export",
             "feat(export) monthly export",
+            "feat(export)! monthly export",
+            "feat!! monthly export",
         ] {
             assert_eq!(fixes(title), NONE, "{title}");
         }
         // With another policy, its types are the prefixes.
-        let export = [PolicyName::new("Export")];
+        let export = prefixes(&["Export"]);
         assert_eq!(format("export: monthly totals", &export).len(), 1);
         assert_eq!(format("feat: monthly totals", &export), []);
-        assert_eq!(format("feat: monthly totals", &[]), []);
+        assert_eq!(format("feat: monthly totals", &prefixes(&[])), []);
     }
 
     #[test]
@@ -225,10 +311,15 @@ mod tests {
                 "{title}"
             );
         }
-        // A bracket inside the title, or one not closed, is no tag.
+        // A nested tag ends at the bracket that closes its first one.
+        assert_eq!(fixes("[a [b]] Export"), [Some("Export".to_owned())]);
+        assert_eq!(fixes("Export [a [b]]"), [Some("Export".to_owned())]);
+        // A bracket inside the title, or an unbalanced group, is no tag.
         assert_eq!(fixes("Export the [month] of time entries"), NONE);
         assert_eq!(fixes("[Export the month of time entries"), NONE);
         assert_eq!(fixes("Export the month of time entries]"), NONE);
+        assert_eq!(fixes("Export the [month] of entries]"), NONE);
+        assert_eq!(fixes("[Export the [month] of entries"), NONE);
     }
 
     #[test]
@@ -287,6 +378,12 @@ mod tests {
         assert_eq!(key(composed), "export of the café entries");
         // Case folding, not lower-casing: the sharp s folds to `ss`, the final sigma to sigma.
         assert_eq!(key("Stra\u{df}e"), key("STRASSE"));
+        // NFC again after folding: a folded letter composes with its combining mark.
+        assert_eq!(
+            key("Export \u{17f}\u{301} entries"),
+            key("Export \u{15b} entries")
+        );
+        assert_eq!(key("Stra\u{df}\u{301}e"), key("STRAS\u{15a}E"));
         assert_eq!(
             key("\u{3a3}\u{3bf}\u{3c6}\u{3bf}\u{3c2}"),
             key("\u{3c3}\u{3bf}\u{3c6}\u{3bf}\u{3c3}")
@@ -297,5 +394,13 @@ mod tests {
             "monthly export of entries"
         );
         assert_ne!(key("Monthly export"), key("Monthly exports"));
+    }
+
+    #[test]
+    fn a_long_run_of_full_stops_is_removed_in_one_step() {
+        let title = format!("Export{}", ".".repeat(100_000));
+        let errors = format(&title, &prefixes(&[]));
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].fix().and_then(|f| f.as_str()), Some("Export"));
     }
 }

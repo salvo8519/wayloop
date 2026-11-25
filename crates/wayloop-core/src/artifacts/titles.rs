@@ -11,13 +11,14 @@
 
 use serde_json::Value;
 use wayloop_schemas::artifact::{ArtifactKind, PlanItemStatus};
+use wayloop_schemas::contract::rules::{TITLE, TITLE_MAX_CHARS};
 use wayloop_schemas::validate::DocumentSummary;
 use wayloop_schemas::value::PolicyName;
 
 use super::codes;
-use super::identifiers::{documents, shared};
+use super::duplicates::{documents, shared};
 use super::input::{Body, Entry};
-use crate::naming::titles::{self, TITLE};
+use crate::naming::titles::{self, Prefixes};
 use crate::{Error, Reason, Related};
 
 /// The kinds whose titles are checked (R7, R8).
@@ -27,7 +28,7 @@ const TITLED: [ArtifactKind; 2] = [ArtifactKind::Epic, ArtifactKind::Task];
 #[derive(Debug, Clone)]
 pub(super) struct Titled<'a> {
     document: u64,
-    title: String,
+    title: &'a str,
     /// The normalised title (R8).
     key: String,
     superseded: bool,
@@ -51,7 +52,9 @@ impl Titled<'_> {
 }
 
 /// The epic or task of `entry`, the document `document` summarised by `summary`, when its title
-/// is a string; `None` for any other document.
+/// is a string of at most `TITLE_MAX_CHARS` characters; `None` for any other document. A longer
+/// title is an error of the schema, or of a document whose schema did not run (an unknown
+/// version), and is never read here, so the cost of the rules stays bounded.
 pub(super) fn titled<'a>(
     document: u64,
     entry: &'a Entry,
@@ -63,11 +66,14 @@ pub(super) fn titled<'a>(
     let Body::Document { document: body, .. } = &entry.body else {
         return None;
     };
-    let title = body.get(TITLE).and_then(Value::as_str)?.to_owned();
+    let title = body.get(TITLE).and_then(Value::as_str)?;
+    if title.chars().nth(TITLE_MAX_CHARS).is_some() {
+        return None;
+    }
     let superseded = summary.status.as_deref() == Some(PlanItemStatus::Superseded.id());
     Some(Titled {
         document,
-        key: titles::key(&title),
+        key: titles::key(title),
         title,
         superseded,
         entry,
@@ -88,9 +94,14 @@ fn is_titled(summary: &DocumentSummary) -> bool {
 /// Every error of the titles of `index`, whose type prefixes are `types`: the errors of form in
 /// the order of the index, then the duplicates in the same order.
 pub(super) fn errors(index: &[Titled<'_>], types: &[PolicyName]) -> Vec<Error> {
+    let prefixes = Prefixes::new(types);
     let mut errors: Vec<Error> = index
         .iter()
-        .flat_map(|t| titles::format(&t.title, types).into_iter().map(|e| t.of(e)))
+        .flat_map(|t| {
+            titles::format(t.title, &prefixes)
+                .into_iter()
+                .map(|e| t.of(e))
+        })
         .collect();
     let compared: Vec<&Titled<'_>> = index.iter().filter(|t| !t.superseded).collect();
     let duplicates = shared(&compared, |t| t.key.as_str(), |t| t.related());

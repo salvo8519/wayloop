@@ -23,6 +23,10 @@ pub const KIND: &str = "kind";
 pub const SCHEMA_VERSION: &str = "schema_version";
 /// The name of the member that holds the identifier of an artifact (SPEC-0001 R2, R14).
 pub const ID: &str = "id";
+/// The name of the member that holds the title of an artifact (SPEC-0001, Common rules).
+pub const TITLE: &str = "title";
+/// The greatest length of the title of an artifact, in characters (Unicode code points).
+pub const TITLE_MAX_CHARS: usize = 120;
 
 /// Requires the members `then` whenever the member `when` is present.
 pub fn require_if_present(schema: &mut Schema, when: &str, then: &[&str]) {

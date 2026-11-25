@@ -35,4 +35,4 @@ consequences. A decision is changed only by a new record that supersedes it.
 | [0028](0028-one-contract-on-every-channel.md) | One contract on every channel, translation adapters and a channel reconciler | Accepted |
 | [0029](0029-merge-waived-by-policy.md) | Merge of small changes waived by policy, recorded as a waiver | Accepted |
 | [0030](0030-contracts-generated-from-rust-types.md) | Contracts generated from Rust types, versioned snapshots with a history | Accepted |
-| [0031](0031-unicode-crates-in-the-core.md) | Unicode normalisation and case folding in the core with two unicode-rs crates | Proposed |
+| [0031](0031-unicode-crates-in-the-core.md) | Unicode normalisation and case folding in the core with two unicode-rs crates | Accepted |

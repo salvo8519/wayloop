@@ -69,7 +69,9 @@ wayloop-schemas    contract types, no I/O
   `ref-cast-impl`) ([ADR 0030](../project/adr/0030-contracts-generated-from-rust-types.md));
   `wayloop-core` may also use `wayloop-schemas`, and `unicode-normalization` and `caseless`,
   which normalise and case-fold the titles of epics and tasks and perform no I/O, with
-  `tinyvec`, which they reach; `wayloop-schemas` uses no Wayloop crate.
+  `tinyvec`, which they reach
+  ([ADR 0031](../project/adr/0031-unicode-crates-in-the-core.md)); `wayloop-schemas` uses no
+  Wayloop crate.
   `scripts/check_core_io.py` resolves each pure crate on its own with `cargo tree` (normal
   dependencies, every target, all its features, the lock file left unchanged) and fails on
   every crate reached outside the allowlist, printing the path that reaches it and naming

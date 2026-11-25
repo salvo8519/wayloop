@@ -2711,11 +2711,11 @@ fn validate_with_policy(documents: Vec<Value>, policy: Value) -> super::Validati
     validate(&input::read(&input).unwrap())
 }
 
-/// The subset of the policy of `examples/policy.yaml`.
+/// The subset of the policy of `examples/policy.yaml`: its types are those of the default
+/// policy; its scopes and areas are fewer, as the example gives them.
 fn policy() -> Value {
     json!({
-        "types": ["feat", "fix", "perf", "refactor", "docs", "test", "build", "ci", "chore",
-                  "revert"],
+        "types": crate::policy::TYPES,
         "scopes": ["core", "cli", "docs", "specs", "ci"],
         "areas": ["core", "cli", "docs"]
     })
@@ -2877,8 +2877,8 @@ fn a_title_refused_by_its_schema_is_left_out_of_the_title_stage() {
 fn a_duplicate_names_the_other_documents_in_its_message() {
     let one = [Related::new(3, at("/id"), None)];
     let two = [one[0].clone(), Related::new(5, at("/title"), None)];
-    assert_eq!(super::identifiers::documents(&one), "document 3");
-    assert_eq!(super::identifiers::documents(&two), "documents 3, 5");
+    assert_eq!(super::duplicates::documents(&one), "document 3");
+    assert_eq!(super::duplicates::documents(&two), "documents 3, 5");
     let validation = validate(&read(vec![entry(task()), entry(epic()), entry(task())]));
     let messages: Vec<&str> = validation.errors.iter().map(Error::message).collect();
     assert!(
@@ -2936,4 +2936,27 @@ fn without_a_policy_the_default_policy_gives_the_types_and_is_reported_once() {
     );
     assert_eq!(validation.errors, []);
     assert_eq!(validation.defaults_applied, []);
+}
+
+#[test]
+fn a_title_longer_than_the_schema_allows_is_not_read_by_the_title_stage() {
+    // A document of an unknown version skips its schema, so its title is not limited there:
+    // the title stage reads no title beyond the limit of the schema, and the set is checked in
+    // a bounded time.
+    let long = ".".repeat(100_000);
+    let validation = validate(&read(vec![entry(with(
+        with(epic(), "schema_version", json!(9)),
+        "title",
+        json!(long),
+    ))]));
+    let codes: Vec<Code> = validation.errors.iter().map(|e| e.code().clone()).collect();
+    assert_eq!(codes, [codes::SCHEMA_VERSION_UNKNOWN]);
+    // At the limit, the title is read.
+    let at_limit = format!(
+        "{}.",
+        "x".repeat(wayloop_schemas::contract::rules::TITLE_MAX_CHARS - 1)
+    );
+    let validation = validate(&read(vec![entry(with(epic(), "title", json!(at_limit)))]));
+    let codes: Vec<Code> = validation.errors.iter().map(|e| e.code().clone()).collect();
+    assert_eq!(codes, [codes::TITLE_FORMAT]);
 }

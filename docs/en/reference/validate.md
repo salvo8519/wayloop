@@ -266,13 +266,14 @@ request, are the check `naming`, which this version does not run.
 ### Titles of epics and tasks
 
 The title of an epic or a task names the work, without its type and without the markers of a
-tracker. Its schema gives its length; the checks `title_format` and `title_duplicate` read every
-epic and task whose `title` raised no error, whatever its other errors.
+tracker. Its schema gives its length, at most 120 characters; the checks `title_format` and
+`title_duplicate` read every epic and task whose `title` raised no error and is within that
+length, whatever its other errors.
 
 | Rule | Example refused | `fix` |
 | --- | --- | --- |
-| No type prefix: a leading `<word>:` or `<word>(<anything>):` where `<word>` is a type of the policy, without regard to case | `feat(core): Record time entries` | `Record time entries` |
-| No bracket tag `[...]` at the start or at the end | `[EPIC] Monthly export of time entries` | `Monthly export of time entries` |
+| No type prefix: a leading `<word>:`, `<word>(<anything>):`, `<word>!:` or `<word>(<anything>)!:` where `<word>` is a type of the policy, without regard to case | `feat(core)!: Record time entries` | `Record time entries` |
+| No bracket tag `[...]` at the start or at the end, closed by its matching bracket, nested brackets counted; an unbalanced group is no tag | `[EPIC] Monthly export of time entries` | `Monthly export of time entries` |
 | No final full stop | `Monthly export of time entries.` | `Monthly export of time entries` |
 
 A word that is not a type of the policy is not a prefix: `wayloop init creates a project
@@ -281,11 +282,11 @@ the table, and each `fix` is the title with every rule applied, so a rule reveal
 another counts too: `[EPIC] feat: Export.` gives three errors whose `fix` is `Export`. When
 nothing is left of the title, the error has no `fix`.
 
-Two titles are equal when they are equal after Unicode NFC normalisation, case folding,
-trimming and collapsing every run of white space into one space: `Export of the café entries`
-and ` EXPORT of the  CAFÉ entries` are one title. Epic and task titles are compared with each
-other, in every status except `superseded`. Case folding is the full folding of Unicode: the
-sharp s `ß` equals `ss`, and the final sigma equals sigma.
+Two titles are equal when they are equal after Unicode NFC normalisation, case folding, NFC
+normalisation again, trimming and collapsing every run of white space into one space: `Export of
+the café entries` and ` EXPORT of the  CAFÉ entries` are one title. Epic and task titles are
+compared with each other, in every status except `superseded`. Case folding is the full folding
+of Unicode: the sharp s `ß` equals `ss`, and the final sigma equals sigma.
 
 ## Input
 
@@ -356,12 +357,13 @@ does not know and accepts enum values it does not know.
 - When the input has no `policy` and the set holds an epic or a task, the default policy
   follows the default of the command version: `{"pointer": "/policy", "value": {"types": [...],
   "scopes": [...], "areas": [...]}, "reason": "default_policy", "message": ...}`, with no
-  `document`, since it is a default of the input itself. Its types are `feat`, `fix`, `perf`,
-  `refactor`, `docs`, `test`, `build`, `ci`, `chore` and `revert`.
-- The defaults of the documents follow the defaults of the command version and the policy, in the order of
-  the documents, then in the byte order of their pointers. Each carries `document`, the index
-  of its document from 0, as an error does, and its `pointer` is relative to that document: a
-  living specification sent as Markdown gives `{"pointer": "/kind", "value":
+  `document`, since it is a default of the input itself. Its types and scopes are those of the
+  [conventions](../project/conventions.md#commits) of the Wayloop repository, and its areas
+  those of its `area:` labels.
+- The defaults of the documents follow the defaults of the command version and the policy, in
+  the order of the documents, then in the byte order of their pointers. Each carries `document`,
+  the index of its document from 0, as an error does, and its `pointer` is relative to that
+  document: a living specification sent as Markdown gives `{"pointer": "/kind", "value":
   "specification", "reason": "implied_by_form", "message": "The Markdown form of a living
   specification does not carry `kind`.", "document": <i>}` and the same for `/schema_version`
   with the current version. The wording of `message` is not part of the contract.
@@ -380,12 +382,13 @@ Every error found is listed in `error.errors`; the first one is repeated at the 
 1. The errors of the input itself (code `command_input`) come first and stop the command: no
    document is checked. They follow the schema pass of the input schema, then the entries in
    order for the rules the schema cannot state.
-2. Otherwise, the errors of the documents, in the order of the documents; within a document,
-   by stage (kind, version and schema first, then identifier, then the identifiers across the
-   set, then the form of the title and the titles across the set); within a stage, in the order of the schema pass: the members of an object in the byte
-   order of their keys (`/aa` before `/zz`), the elements of an array by index, absent members
-   after present ones, in the order in which the schema lists them as required. The errors of
-   the name of a member come before the errors of its value, at the same pointer.
+2. Otherwise, the errors of the documents, in the order of the documents; within a document, by
+   stage (kind, version and schema first, then identifier, then the identifiers across the set,
+   then the form of the title and the titles across the set); within a stage, in the order of
+   the schema pass: the members of an object in the byte order of their keys (`/aa` before
+   `/zz`), the elements of an array by index, absent members after present ones, in the order in
+   which the schema lists them as required. The errors of the name of a member come before the
+   errors of its value, at the same pointer.
 
 Every `pointer` of the result is an RFC 6901 pointer; the schemas of the output and of the
 envelope give it the format `json-pointer`, which a JSON Schema validator checks when format

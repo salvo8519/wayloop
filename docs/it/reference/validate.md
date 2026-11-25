@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: bc89447b0d23
+source_hash: 7eb90577c4d5
 ---
 # wayloop validate
 
@@ -278,14 +278,14 @@ non esegue.
 ### Titoli di epic e task
 
 Il titolo di un epic o di un task nomina il lavoro, senza il suo tipo e senza i marcatori di un
-tracker. Il suo schema ne fissa la lunghezza; i controlli `title_format` e `title_duplicate`
-leggono ogni epic e ogni task il cui `title` non ha dato errori, qualunque siano i suoi altri
-errori.
+tracker. Il suo schema ne fissa la lunghezza, al massimo 120 caratteri; i controlli
+`title_format` e `title_duplicate` leggono ogni epic e ogni task il cui `title` non ha dato
+errori e rientra in quella lunghezza, qualunque siano i suoi altri errori.
 
 | Regola | Esempio rifiutato | `fix` |
 | --- | --- | --- |
-| Nessun prefisso di tipo: un `<word>:` o `<word>(<anything>):` iniziale dove `<word>` è un tipo della policy, senza distinzione tra maiuscole e minuscole | `feat(core): Record time entries` | `Record time entries` |
-| Nessun tag tra parentesi quadre `[...]` all'inizio o alla fine | `[EPIC] Monthly export of time entries` | `Monthly export of time entries` |
+| Nessun prefisso di tipo: un `<word>:`, `<word>(<anything>):`, `<word>!:` o `<word>(<anything>)!:` iniziale dove `<word>` è un tipo della policy, senza distinzione tra maiuscole e minuscole | `feat(core)!: Record time entries` | `Record time entries` |
+| Nessun tag tra parentesi quadre `[...]` all'inizio o alla fine, chiuso dalla parentesi corrispondente, contando quelle annidate; un gruppo non bilanciato non è un tag | `[EPIC] Monthly export of time entries` | `Monthly export of time entries` |
 | Nessun punto finale | `Monthly export of time entries.` | `Monthly export of time entries` |
 
 Una parola che non è un tipo della policy non è un prefisso: `wayloop init creates a project
@@ -294,12 +294,12 @@ nell'ordine della tabella, e ogni `fix` è il titolo con tutte le regole applica
 anche una regola che emerge togliendone un'altra: `[EPIC] feat: Export.` dà tre errori il cui
 `fix` è `Export`. Quando del titolo non resta nulla, l'errore non ha `fix`.
 
-Due titoli sono uguali quando lo sono dopo la normalizzazione Unicode NFC, il case folding, la
-rimozione degli spazi iniziali e finali e la riduzione di ogni sequenza di spazi bianchi a un
-solo spazio: `Export of the café entries` e ` EXPORT of the  CAFÉ entries` sono un solo titolo.
-I titoli di epic e task sono confrontati tra loro, in ogni stato tranne `superseded`. Il case
-folding è quello completo di Unicode: la s tedesca `ß` equivale a `ss`, e il sigma finale al
-sigma.
+Due titoli sono uguali quando lo sono dopo la normalizzazione Unicode NFC, il case folding, di
+nuovo la normalizzazione NFC, la rimozione degli spazi iniziali e finali e la riduzione di ogni
+sequenza di spazi bianchi a un solo spazio: `Export of the café entries` e ` EXPORT of the  CAFÉ
+entries` sono un solo titolo. I titoli di epic e task sono confrontati tra loro, in ogni stato
+tranne `superseded`. Il case folding è quello completo di Unicode: la s tedesca `ß` equivale a
+`ss`, e il sigma finale al sigma.
 
 ## Input
 
@@ -372,15 +372,17 @@ che non conosce e accetta i valori di enum che non conosce.
 - Quando l'input non ha `policy` e l'insieme contiene un epic o un task, la policy predefinita
   segue il valore predefinito della versione del comando: `{"pointer": "/policy", "value":
   {"types": [...], "scopes": [...], "areas": [...]}, "reason": "default_policy", "message":
-  ...}`, senza `document`, perché è un valore predefinito dell'input stesso. I suoi tipi sono
-  `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore` e `revert`.
+  ...}`, senza `document`, perché è un valore predefinito dell'input stesso. I suoi tipi e
+  scope sono quelli delle
+  [convenzioni](https://salvo8519.github.io/wayloop/project/conventions/#commits) del
+  repository di Wayloop, e le sue aree quelle delle sue etichette `area:`.
 - I valori predefiniti dei documenti seguono quelli della versione del comando e della policy,
-  nell'ordine dei documenti, poi nell'ordine dei byte dei loro puntatori. Ognuno porta `document`, l'indice del
-  suo documento da 0, come un errore, e il suo `pointer` è relativo a quel documento: una
-  specifica viva inviata in Markdown dà `{"pointer": "/kind", "value": "specification",
-  "reason": "implied_by_form", "message": "The Markdown form of a living specification does
-  not carry `kind`.", "document": <i>}` e lo stesso per `/schema_version` con la versione
-  corrente. Il testo di `message` non fa parte del contratto.
+  nell'ordine dei documenti, poi nell'ordine dei byte dei loro puntatori. Ognuno porta
+  `document`, l'indice del suo documento da 0, come un errore, e il suo `pointer` è relativo a
+  quel documento: una specifica viva inviata in Markdown dà `{"pointer": "/kind", "value":
+  "specification", "reason": "implied_by_form", "message": "The Markdown form of a living
+  specification does not carry `kind`.", "document": <i>}` e lo stesso per `/schema_version` con
+  la versione corrente. Il testo di `message` non fa parte del contratto.
 - `meta.input_hash` è lo SHA-256 del JSON canonico (RFC 8785) dell'input senza i suoi membri
   impostati a `null`, quindi un input con `"base": null` ha l'hash dell'input senza `base`. Per
   un testo che il motore rifiuta di leggere come JSON (non JSON, una chiave ripetuta in un
@@ -398,12 +400,12 @@ Ogni errore trovato è elencato in `error.errors`; il primo è ripetuto al livel
    nessun documento viene controllato. Seguono il passaggio dello schema di input, poi le voci
    in ordine per le regole che lo schema non può esprimere.
 2. Altrimenti, gli errori dei documenti, nell'ordine dei documenti; dentro un documento, per
-   fase (prima tipo, versione e schema, poi identificativo, poi gli identificativi
-   dell'insieme, poi la forma del titolo e i titoli dell'insieme); dentro una fase, nell'ordine del passaggio dello schema: i membri di un
-   oggetto nell'ordine dei byte delle loro chiavi (`/aa` prima di `/zz`), gli elementi di un
-   array per indice, i membri assenti dopo quelli presenti, nell'ordine in cui lo schema li
-   elenca come obbligatori. Gli errori del nome di un membro vengono prima degli errori del suo
-   valore, allo stesso puntatore.
+   fase (prima tipo, versione e schema, poi identificativo, poi gli identificativi dell'insieme,
+   poi la forma del titolo e i titoli dell'insieme); dentro una fase, nell'ordine del passaggio
+   dello schema: i membri di un oggetto nell'ordine dei byte delle loro chiavi (`/aa` prima di
+   `/zz`), gli elementi di un array per indice, i membri assenti dopo quelli presenti,
+   nell'ordine in cui lo schema li elenca come obbligatori. Gli errori del nome di un membro
+   vengono prima degli errori del suo valore, allo stesso puntatore.
 
 Ogni `pointer` del risultato è un puntatore RFC 6901; gli schemi dell'output e dell'envelope gli
 danno il formato `json-pointer`, che un validatore JSON Schema controlla quando la verifica dei

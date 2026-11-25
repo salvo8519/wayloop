@@ -13,11 +13,10 @@
 //!   the reason `conflict` at `/id` and `fix` its identifier. The identity is the `id`; the
 //!   name only helps a person find the file. A document sent directly gives none.
 
-use std::collections::BTreeMap;
-
 use wayloop_schemas::contract::rules::ID;
 
 use super::codes;
+use super::duplicates::{documents, shared};
 use super::input::{Entry, Place};
 use super::locations::named_identifier;
 use crate::{Error, Pointer, Reason, Related, Source};
@@ -71,44 +70,6 @@ pub(super) fn duplicates(index: &[Indexed<'_>]) -> Vec<Error> {
             artifact.of(error)
         })
         .collect()
-}
-
-/// Each item of `items` whose `key` another item shares, with the others as `related`, in the
-/// order of `items`: the duplicates of the set (R8, R14).
-pub(super) fn shared<T>(
-    items: &[T],
-    key: impl Fn(&T) -> &str,
-    related: impl Fn(&T) -> Related,
-) -> Vec<(&T, Vec<Related>)> {
-    let mut carriers: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
-    for (position, item) in items.iter().enumerate() {
-        carriers.entry(key(item)).or_default().push(position);
-    }
-    items
-        .iter()
-        .enumerate()
-        .filter_map(|(position, item)| {
-            let others: Vec<Related> = carriers
-                .get(key(item))?
-                .iter()
-                .filter(|other| **other != position)
-                .filter_map(|other| items.get(*other))
-                .map(&related)
-                .collect();
-            (!others.is_empty()).then_some((item, others))
-        })
-        .collect()
-}
-
-/// The documents of `others` as a message names them: `document 3` or `documents 3, 5`.
-pub(super) fn documents(others: &[Related]) -> String {
-    let listed: Vec<String> = others.iter().map(|o| o.document().to_string()).collect();
-    let noun = if listed.len() == 1 {
-        "document"
-    } else {
-        "documents"
-    };
-    format!("{noun} {}", listed.join(", "))
 }
 
 /// The warnings of the artifacts of `index` read from a file whose path names another
