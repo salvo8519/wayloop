@@ -3,8 +3,10 @@
 Three checks, used by `just`, pre-commit, CI and the Claude Code Stop hook:
 
   coverage   every ADR file has its row in the ADR index and its navigation entry, with a valid
-             status line; every specification has a valid status; every page of the navigation
-             exists and every page is in the navigation
+             status line, and every other Markdown file of the ADR folder but its index is
+             reported as a malformed ADR name (scripts/_adr.py); every specification has a
+             valid status; every page of the navigation exists and every page is in the
+             navigation
   claims     public pages (the README files, docs/en and docs/it outside project/) contain no
              plans in prose: what comes next is stated only in the roadmap page
   impact     files changed in a way that needs documentation (engine, command line, schemas,
@@ -31,11 +33,11 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+import _adr
 import _git
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs" / "en"
-ADR_DIR = DOCS / "project" / "adr"
 ADR_STATUS = re.compile(
     r"^Status: (Proposed|Accepted|Rejected|Superseded by ADR \d{4}|Deprecated)\b", re.MULTILINE
 )
@@ -165,21 +167,30 @@ def nav_pages(nav: Any) -> list[str]:
 
 def coverage_problems(root: Path = ROOT) -> list[str]:
     docs = root / "docs" / "en"
-    adr_dir = docs / "project" / "adr"
+    adr_dir = root / _adr.FOLDER
     nav = nav_pages(
         tomllib.loads((root / "zensical.toml").read_text(encoding="utf-8"))["project"]["nav"]
     )
-    index = (adr_dir / "index.md").read_text(encoding="utf-8")
+    index = (adr_dir / _adr.INDEX).read_text(encoding="utf-8")
     problems: list[str] = []
-    for adr in sorted(adr_dir.glob("[0-9][0-9][0-9][0-9]-*.md")):
-        number, rel = adr.name[:4], f"project/adr/{adr.name}"
+    for adr in sorted(adr_dir.glob("*.md")):
+        found = _adr.adr_number(adr.name)
+        if found is None:
+            if adr.name != _adr.INDEX:
+                problems.append(
+                    f"{_adr.FOLDER}/{adr.name}: not an ADR file name, <number>-<slug>.md with a "
+                    "number from 0001 (four digits, or five or more without a leading zero)"
+                )
+            continue
+        # The number as the name spells it: four digits, or more without a leading zero.
+        number, rel = f"{found:04d}", f"project/adr/{adr.name}"
         if f"[{number}]({adr.name})" not in index:
-            problems.append(f"ADR {number}: no row in docs/en/project/adr/index.md")
+            problems.append(f"ADR {number}: no row in {_adr.FOLDER}/{_adr.INDEX}")
         if rel not in nav:
             problems.append(f"ADR {number}: {rel} is not in the navigation of zensical.toml")
         if not ADR_STATUS.search(adr.read_text(encoding="utf-8")):
             problems.append(f"ADR {number}: no valid 'Status:' line")
-    for row in re.findall(r"\]\((\d{4}-[^)]+\.md)\)", index):
+    for row in re.findall(rf"\]\(((?:{_adr.NUMBER})-[^)]+\.md)\)", index):
         if not (adr_dir / row).exists():
             problems.append(f"ADR index links {row}, which does not exist")
     for spec in sorted((root / "specs").glob("[0-9][0-9][0-9][0-9]-*/spec.md")):

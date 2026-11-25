@@ -54,6 +54,21 @@ impl Drop for TempProject {
     }
 }
 
+/// Whether the envelope of `validate` lists `check` in `diagnostics.checks` and not in
+/// `diagnostics.not_done`: the check ran.
+#[must_use]
+pub fn ran(envelope: &serde_json::Value, check: &str) -> bool {
+    let diagnostics = &envelope["diagnostics"];
+    let listed = |member: &str| {
+        diagnostics[member]
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+    };
+    listed("checks").iter().any(|c| c == check)
+        && !listed("not_done").iter().any(|n| n["check"] == check)
+}
+
 #[cfg(test)]
 mod tests {
     use super::TempProject;

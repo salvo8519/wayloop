@@ -7,14 +7,16 @@
 //!
 //! - [`discover`] lists the files below each location of the core, down to its depth, and
 //!   passes their paths, relative to the root with `/` separators, to the core, which refuses
-//!   more than [`MAX_FILES`](locations::MAX_FILES) of them. A location whose folder, or a
-//!   parent of it below the root, is a symbolic link is treated as absent, as is a missing
-//!   one; below a location, a link, a special file and a name that is not UTF-8 are skipped.
-//!   Discovery therefore lists no folder and no file outside the project.
-//! - [`load`] resolves the root and every file through their links and refuses, with
-//!   [`LoadError::Refused`], a file whose resolved path is not inside the resolved root or does
-//!   not have the extension of its path, so that a link cannot turn another file into an
-//!   artifact. It refuses a path that is not a regular file (a folder, a pipe, a device) as an
+//!   more than [`MAX_FILES`](locations::MAX_FILES) of them; it keeps at most
+//!   [`MAX_LISTED`] paths that the core reads and lists no further, so a folder of any size
+//!   takes bounded memory. A location whose folder, or a parent of it below the root, is a
+//!   symbolic link or not a folder is treated as absent, as is a missing one; below a
+//!   location, a link, a special file and a name that is not UTF-8 are skipped. Discovery
+//!   therefore lists no folder and no file outside the project.
+//! - [`project_input`] loads the files: it resolves the root and every file through their
+//!   links and refuses, with [`LoadError::Refused`], a file whose resolved path is not inside
+//!   the resolved root or does not have the extension of its path, so that a link cannot turn
+//!   another file into an artifact. It refuses a path that is not a regular file (a folder, a pipe, a device) as an
 //!   error of the environment before opening it, so that a read never blocks. It reads at most
 //!   [`MAX_FILE_BYTES`] of a file and counts at most [`MAX_PROJECT_BYTES`] for the whole set:
 //!   the bytes read and the counted bytes of every document built, an estimate of their
@@ -24,6 +26,10 @@
 //!   bound of the set or of a document, is not UTF-8 or does not parse becomes an `unreadable`
 //!   entry with the line of the fault and a message, which the core reports as a `syntax`
 //!   error of the file (R12); it is never loaded and never aborts the run.
+//! - [`adrs`] lists the files of the folder of the ADRs that the core names, as a location is
+//!   listed and within the same bound, and passes their paths to the core, which keeps the
+//!   numbers of the ADRs; with no such folder, `adrs` stays absent and the core does not check
+//!   the citations of ADRs.
 //!
 //! The entries carry the path of their file as their origin, so every error of the core gives
 //! the file and the line of the faulty value in `source` (R12).
@@ -37,13 +43,13 @@ use std::io::{self, Read as _};
 use std::path::{Component, Path, PathBuf};
 
 use wayloop_core::artifacts::locations::{
-    self, LOCATIONS, MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, MAX_PROJECT_BYTES, Refused, Stored,
-    StoredFile,
+    self, ADR_DEPTH, ADR_FOLDER, LOCATIONS, MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, MAX_LISTED,
+    MAX_PROJECT_BYTES, Refused, Stored, StoredFile,
 };
 use wayloop_schemas::validate::{
     ArtifactFolder, DocumentEntry, EntryFormat, FreeDocument, Origin, ParseError, ValidateInput,
 };
-use wayloop_schemas::value::ProjectPath;
+use wayloop_schemas::value::{AdrNumber, ProjectPath};
 
 use crate::refusal::fault;
 use crate::yaml;
@@ -127,7 +133,7 @@ pub struct Discovery {
 ///
 /// [`LoadError::Read`] when a folder of a location exists but cannot be listed;
 /// [`LoadError::Refused`] when the project holds more than
-/// [`MAX_FILES`](locations::MAX_FILES) artifacts.
+/// [`MAX_FILES`](locations::MAX_FILES) artifacts, of which at most [`MAX_LISTED`] are listed.
 pub fn discover(root: &Path) -> Result<Discovery, LoadError> {
     let mut found = Vec::new();
     let mut folders = Vec::new();
@@ -136,13 +142,16 @@ pub fn discover(root: &Path) -> Result<Discovery, LoadError> {
         // A folder reached through a link is not a location of the project.
         if is_real_folder(root, folder.path())? {
             folders.push(folder);
-            list(root, folder.path(), location.depth(), &mut found)?;
+            list(
+                root,
+                folder.path(),
+                location.depth(),
+                locations::is_stored,
+                &mut found,
+            )?;
         }
     }
-    let files = locations::discovered(found).map_err(|refused| LoadError::Refused {
-        path: None,
-        refused,
-    })?;
+    let files = locations::discovered(found).map_err(refused_set)?;
     Ok(Discovery {
         files,
         locations: folders,
@@ -154,23 +163,72 @@ pub fn discover(root: &Path) -> Result<Discovery, LoadError> {
 ///
 /// # Errors
 ///
-/// As [`discover`] and [`load`].
+/// As [`discover`] and [`project_input`].
 pub fn discovered_input(root: &Path) -> Result<ValidateInput, LoadError> {
     let found = discover(root)?;
     Ok(ValidateInput {
         locations: Some(found.locations),
-        ..load(root, found.files)?
+        ..project_input(root, found.files)?
     })
 }
 
+/// The canonical input of `validate` for `files` of the project at `root`, the files given,
+/// discovered or named: the files, loaded as by `load`, and the numbers of the ADRs of the
+/// project, as by [`adrs`], so that the citations of ADRs are checked however the files were
+/// chosen (#344, decided by the maintainer on 2026-11-25).
+///
+/// # Errors
+///
+/// [`LoadError::Refused`] for the first file that, once its links are resolved, is outside
+/// the root or has another extension than its path; [`LoadError::Read`] for the root or the
+/// first file that cannot be read or is not a regular file; and as [`adrs`].
+pub fn project_input(root: &Path, files: Vec<StoredFile>) -> Result<ValidateInput, LoadError> {
+    let adrs = adrs(root)?;
+    Ok(ValidateInput {
+        adrs,
+        ..load(root, files)?
+    })
+}
+
+/// The numbers of the ADRs of the project at `root`, which the core reads from the names of
+/// the files in [`ADR_FOLDER`] ([`locations::adr_numbers`]; SPEC-0001 Q5, #344); `None` when
+/// that folder does not exist, is not a folder or is reached through a link, as a location.
+/// Below it, a link, a special file and a name that is not UTF-8 are skipped; a folder with no
+/// file of an ADR gives no number.
+///
+/// # Errors
+///
+/// [`LoadError::Read`] when the folder, or a parent of it, exists but cannot be read;
+/// [`LoadError::Refused`] when it holds more than [`MAX_FILES`](locations::MAX_FILES) ADRs,
+/// of which at most [`MAX_LISTED`] are listed.
+pub fn adrs(root: &Path) -> Result<Option<Vec<AdrNumber>>, LoadError> {
+    if !is_real_folder(root, ADR_FOLDER)? {
+        return Ok(None);
+    }
+    let mut found = Vec::new();
+    list(root, ADR_FOLDER, ADR_DEPTH, locations::is_adr, &mut found)?;
+    let numbers = locations::adr_numbers(found).map_err(refused_set)?;
+    Ok(Some(numbers))
+}
+
+/// The refusal of a whole set, at no path.
+fn refused_set(refused: Refused) -> LoadError {
+    LoadError::Refused {
+        path: None,
+        refused,
+    }
+}
+
 /// Whether `folder`, a path below `root` with `/` separators, is a folder reached without a
-/// link: every segment exists and none is a symbolic link.
+/// link: every segment exists, is a folder and is not a symbolic link. A file, a link or a
+/// special file where a folder is expected makes it absent.
 fn is_real_folder(root: &Path, folder: &str) -> Result<bool, ReadError> {
     let mut path = root.to_path_buf();
     for segment in folder.split('/') {
         path.push(segment);
         match fs::symlink_metadata(&path) {
-            Ok(meta) if meta.file_type().is_symlink() => return Ok(false),
+            // The metadata of a link is that of the link, which is not a folder.
+            Ok(meta) if !meta.is_dir() => return Ok(false),
             Ok(_) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
             Err(error) => return Err(ReadError::new(&path, error)),
@@ -180,17 +238,22 @@ fn is_real_folder(root: &Path, folder: &str) -> Result<bool, ReadError> {
 }
 
 /// Adds to `found` the paths of the regular files below `folder`, a folder reached without a
-/// link, `depth` levels down at most. A folder inside it is entered when the listing says it
-/// is a folder, which a symbolic link is not.
+/// link, `depth` levels down at most, that `keep` accepts, until `found` holds [`MAX_LISTED`]
+/// paths: the listing stops there, and the core refuses the set. A folder inside it is entered
+/// when the listing says it is a folder, which a symbolic link is not.
 pub(crate) fn list(
     root: &Path,
     folder: &str,
     depth: usize,
+    keep: fn(&str) -> bool,
     found: &mut Vec<String>,
 ) -> Result<(), ReadError> {
     let path = root.join(folder);
     let entries = fs::read_dir(&path).map_err(|e| ReadError::new(&path, e))?;
     for entry in entries {
+        if found.len() >= MAX_LISTED {
+            break;
+        }
         let entry = entry.map_err(|e| ReadError::new(&path, e))?;
         let kind = entry
             .file_type()
@@ -201,8 +264,8 @@ pub(crate) fn list(
         };
         let below = format!("{folder}/{name}");
         if kind.is_dir() && depth > 1 {
-            list(root, &below, depth - 1, found)?;
-        } else if kind.is_file() {
+            list(root, &below, depth - 1, keep, found)?;
+        } else if kind.is_file() && keep(&below) {
             found.push(below);
         }
     }
@@ -233,7 +296,7 @@ pub fn segments(path: &Path) -> Vec<String> {
 /// [`LoadError::Refused`] for the first file that, once its links are resolved, is outside
 /// the root or has another extension than its path; [`LoadError::Read`] for the root or the
 /// first file that cannot be read or is not a regular file.
-pub fn load(root: &Path, files: Vec<StoredFile>) -> Result<ValidateInput, LoadError> {
+pub(crate) fn load(root: &Path, files: Vec<StoredFile>) -> Result<ValidateInput, LoadError> {
     load_within(root, files, MAX_PROJECT_BYTES)
 }
 

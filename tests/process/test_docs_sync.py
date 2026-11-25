@@ -36,6 +36,18 @@ def test_an_adr_without_index_row_or_navigation_entry_is_reported(site: Path) ->
     assert any("0099-example.md is not in the navigation" in p for p in problems)
 
 
+def test_a_malformed_name_in_the_adr_folder_is_reported(site: Path) -> None:
+    # #344, decided by the maintainer on 2026-11-25: every Markdown file of the folder but its
+    # index is an ADR by the rule of the engine (scripts/_adr.py).
+    folder = site / "docs/en/project/adr"
+    for name in ("014-three-digits.md", "notes.md", "01234-leading-zero.md"):
+        (folder / name).write_text("# Notes\n", encoding="utf-8")
+    problems = ds.coverage_problems(site)
+    for name in ("014-three-digits.md", "notes.md", "01234-leading-zero.md"):
+        assert any(p.startswith(f"docs/en/project/adr/{name}: not an ADR") for p in problems)
+    assert not any("index.md: not an ADR" in p for p in problems)
+
+
 def test_an_adr_needs_a_valid_status(site: Path) -> None:
     text = adr(site).read_text(encoding="utf-8")
     adr(site).write_text(

@@ -231,8 +231,11 @@ type `breaking`, `feature`, `improvement` or `fix`, unless the pull request is l
 ## Documentation in sync
 
 - `scripts/docs_sync.py coverage`: every ADR has its row in the ADR index, its entry in the
-  navigation and a valid status line; every specification has a valid status; every page of
-  the navigation exists and every page is in the navigation.
+  navigation and a valid status line; every Markdown file of `docs/en/project/adr/` but
+  `index.md` is named `<number>-<slug>.md`, the number a sequence from `0001` (four digits, or
+  five or more without a leading zero), the rule `wayloop validate` reads the ADRs with
+  (`scripts/_adr.py`); every specification has a valid status; every page of the navigation
+  exists and every page is in the navigation.
 - `scripts/docs_sync.py claims`: public pages state no plans in prose (rule "Plans in public
   pages" above).
 - `scripts/docs_sync.py impact`: a change to the engine (every crate but the command line),

@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 7b121e26ae6e
+source_hash: 77fc56848d8b
 ---
 # wayloop validate
 
@@ -40,20 +40,31 @@ $ wayloop validate --input - [--command-version <n>]
 Senza `--input`, il comando legge il progetto nella cartella corrente, che deve essere la
 radice del progetto. Indica in `locations` le cartelle delle posizioni che ha trovato; eseguito
 da una sottocartella, non ne trova nessuna e valida un insieme vuoto, con codice di uscita 0 e
-l'avviso `artifact_location_missing`. Senza percorsi legge ogni artefatto
-salvato: `plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` e
+l'avviso `artifact_location_missing`. Senza percorsi legge ogni artefatto salvato:
+`plan/briefs/*.yaml`, `plan/council/*.yaml`, `plan/items/*.yaml` e
 `specs/<NNNN>-<capability>/spec.md` (quindi non `specs/_templates/`). Una posizione raggiunta
-attraverso un link simbolico è trattata come assente, e dentro una posizione i link, i file
-speciali e i nomi non UTF-8 sono saltati. Con dei percorsi legge solo quei file, come un unico
-insieme: ogni percorso è relativo alla cartella corrente, non ha segmenti `..` né `\`, e indica
-un file YAML (`.yaml`) o un file Markdown (`.md`), letto come specifica viva ovunque si trovi
-(vedi Specifiche vive in Markdown); un percorso il cui file, risolti i link, è
-fuori dal progetto o ha un'altra estensione è rifiutato come errore d'uso, e un percorso che non
-è un file regolare (una cartella, una pipe, un dispositivo) non può essere letto (codice di
-uscita 3). Un insieme di più di 10.000 file, trovati o indicati, è rifiutato come errore d'uso.
-In entrambi i casi i file sono letti nell'ordine per byte dei loro percorsi, ognuno in una voce
-di `documents` con il suo percorso come origine `file` e, per lo YAML, la riga di ogni valore
-in `lines`; così ogni errore indica in `source` il file e la riga del valore errato.
+attraverso un link simbolico, o che è un file e non una cartella, è trattata come assente, e
+dentro una posizione i link, i file speciali e i nomi non UTF-8 sono saltati. Con dei percorsi
+legge solo quei file, come un unico insieme: ogni percorso è relativo alla cartella corrente,
+non ha segmenti `..` né `\`, e indica un file YAML (`.yaml`) o un file Markdown (`.md`), letto
+come specifica viva ovunque si trovi (vedi Specifiche vive in Markdown); un percorso il cui
+file, risolti i link, è fuori dal progetto o ha un'altra estensione è rifiutato come errore
+d'uso, e un percorso che non è un file regolare (una cartella, una pipe, un dispositivo) non
+può essere letto (codice di uscita 3). Un insieme di più di 10.000 file, trovati o indicati, è
+rifiutato come errore d'uso; la ricerca smette di elencare al primo file oltre quel limite. In
+entrambi i casi i file sono letti nell'ordine per byte dei loro percorsi, ognuno in una voce di
+`documents` con il suo percorso come origine `file` e, per lo YAML, la riga di ogni valore in
+`lines`; così ogni errore indica in `source` il file e la riga del valore errato.
+
+Che i file siano trovati o indicati, il comando dà anche in `adrs` i numeri degli ADR del
+progetto, letti dai nomi dei file direttamente in `docs/en/project/adr/`: un file
+`<number>-<slug>.md` è l'ADR di quel numero, dove il numero è un numero di sequenza da `0001`
+(quattro cifre, o cinque o più senza zero iniziale) e lo slug ha almeno un carattere; ogni
+altro file, come `index.md`, non è un ADR ed è ignorato. Dentro la cartella i link, i file
+speciali e i nomi non UTF-8 sono saltati, e una cartella senza alcun file di ADR dà
+`adrs: []`, così ogni citazione è segnalata. Quando la cartella non esiste, è un file o è
+raggiunta attraverso un link simbolico, `adrs` non è dato e il controllo `adr_citations` non è
+eseguito. Una cartella con più di 10.000 file di ADR è rifiutata come errore d'uso.
 
 I file YAML sono letti con lo schema core di YAML 1.2: `no`, `on`, `yes` e le date come
 `2026-11-17` sono stringhe, e un valore tra virgolette è sempre una stringa. Un file è
@@ -164,8 +175,8 @@ quando è noto, la sua `origin`; nessun `kind`, `id` o `status`.
 
 `artifact_locations` è elencato in `diagnostics.not_done` con il motivo `input_absent` quando
 `locations` non è dato: i documenti sono stati indicati per nome o inviati direttamente.
-`adr_citations` vi è elencato con lo stesso motivo quando `adrs` non è dato; la riga di comando
-non compila ancora `adrs` (#344).
+`adr_citations` vi è elencato con lo stesso motivo quando `adrs` non è dato: l'input è stato
+inviato direttamente senza di esso, o il progetto non ha la cartella `docs/en/project/adr/`.
 
 ### Collegamenti
 
@@ -418,7 +429,7 @@ un membro assente. Lo schema di input è chiuso: un membro che non elenca è rif
 | `documents` | lista di oggetti | sì | Una voce per ogni artefatto o input memorizzato; `[]` significa nessuno |
 | `base` | lista di `{id, status}` | no | Stati sul branch predefinito degli artefatti dell'insieme |
 | `policy` | oggetto `{types, scopes, areas}`, ciascuno una lista di nomi della policy, identificativi di almeno un carattere | no | La parte della policy del progetto che il modello legge. Il controllo `title_format` ne legge i `types`; il controllo `areas` è elencato come non eseguito. Assente: vale la policy predefinita, la policy del repository di Wayloop, e `meta.defaults_applied` la elenca quando l'insieme contiene un epic o un task, i cui controlli la leggono |
-| `adrs` | lista di interi da 1 | no | Numeri degli ADR del progetto, per il controllo `adr_citations`. Assente: le citazioni non sono controllate, e il controllo non è eseguito. Non ancora compilato dalla riga di comando (#344) |
+| `adrs` | lista di interi da 1 | no | Numeri degli ADR del progetto, per il controllo `adr_citations`. Assente: le citazioni non sono controllate, e il controllo non è eseguito. La riga di comando lo compila dai nomi dei file di `docs/en/project/adr/` quando quella cartella esiste |
 | `locations` | lista di `plan_briefs`, `plan_council`, `plan_items`, `specs`, per le cartelle `plan/briefs`, `plan/council`, `plan/items` e `specs` | no | Le cartelle delle posizioni che esistono nel progetto, quando i documenti vi sono stati scoperti; il loro ordine e una cartella ripetuta non hanno significato, non sono confrontate con le origini `file` dei documenti, e `[]` significa nessuna, e dà l'avviso `artifact_location_missing`. Assente: i documenti sono stati indicati per nome o inviati direttamente, e il controllo `artifact_locations` non è eseguito |
 | `language` | tag BCP 47, per esempio `it` o `en-GB` | no | La lingua del progetto. Nessun controllo di questa versione la legge, quindi quando è assente nessun default viene applicato né riportato; un controllo che ne ha bisogno elenca il default in `meta.defaults_applied` |
 

@@ -37,17 +37,30 @@ of the project. It gives the folders of the locations it found in `locations`; r
 subfolder, it finds none and validates an empty set, with exit code 0 and the warning
 `artifact_location_missing`. With no path it reads every stored artifact: `plan/briefs/*.yaml`,
 `plan/council/*.yaml`, `plan/items/*.yaml` and `specs/<NNNN>-<capability>/spec.md` (so not
-`specs/_templates/`). A location reached through a symbolic link is treated as absent, and
-links, special files and names that are not UTF-8 inside a location are skipped. With paths it
-reads those files only, as one set: each path is relative to the current folder, has no `..`
-segment and no `\`, and names a YAML file (`.yaml`) or a Markdown file (`.md`), which is read
-as a living specification wherever it is (see Living specifications in Markdown); a path whose
-file, once its links are resolved, is outside the project or has another extension is refused
-as a usage error, and a path that is not a regular file (a folder, a pipe, a device) cannot be
-read (exit code 3). A set of more than 10,000 files, discovered or named, is refused as a usage
-error. Either way the files are read in the byte order of their paths, each into one entry of
-`documents` with its path as its `file` origin and, for YAML, the line of each value in
-`lines`; so every error gives the file and the line of the faulty value in `source`.
+`specs/_templates/`). A location reached through a symbolic link, or that is a file and not a
+folder, is treated as absent, and links, special files and names that are not UTF-8 inside a
+location are skipped. With paths it reads those files only, as one set: each path is relative
+to the current folder, has no `..` segment and no `\`, and names a YAML file (`.yaml`) or a
+Markdown file (`.md`), which is read as a living specification wherever it is (see Living
+specifications in Markdown); a path whose file, once its links are resolved, is outside the
+project or has another extension is refused as a usage error, and a path that is not a regular
+file (a folder, a pipe, a device) cannot be read (exit code 3). A set of more than 10,000
+files, discovered or named, is refused as a usage error; discovery stops listing at the first
+file beyond that bound. Either way the files are read in the byte order of their paths, each
+into one entry of `documents` with its path as its `file` origin and, for YAML, the line of
+each value in `lines`; so every error gives the file and the line of the faulty value in
+`source`.
+
+Discovered or named, the command also gives in `adrs` the numbers of the ADRs of the project,
+read from the names of the files directly in `docs/en/project/adr/`: a file
+`<number>-<slug>.md` is the ADR of that number, where the number is a sequence number from
+`0001` (four digits, or five or more without a leading zero) and the slug has at least one
+character; any other file, such as `index.md`, is not an ADR and is ignored. Links, special
+files and names that are not UTF-8 inside the folder are skipped, and a folder with no file of
+an ADR gives `adrs: []`, so that every citation is warned. When the folder does not exist, is
+a file or is reached through a symbolic link, `adrs` is not given and the check
+`adr_citations` is not done. A folder with more than 10,000 files of ADRs is refused as a
+usage error.
 
 YAML files are read with the YAML 1.2 core schema: `no`, `on`, `yes` and dates such as
 `2026-11-17` are strings, and a quoted value is always a string. A file is refused, as an
@@ -155,8 +168,8 @@ hand-over has no title and no status; the summary of an input in `data.documents
 
 `artifact_locations` is listed in `diagnostics.not_done` with the reason `input_absent` when
 `locations` is not given: the documents were named or sent directly. `adr_citations` is listed
-there with the same reason when `adrs` is not given; the command line does not fill `adrs`
-yet (#344).
+there with the same reason when `adrs` is not given: the input was sent directly without it,
+or the project has no folder `docs/en/project/adr/`.
 
 ### Links
 
@@ -398,7 +411,7 @@ absent member. The input schema is closed: a member it does not list is refused.
 | `documents` | list of objects | yes | One entry per stored artifact or input; `[]` means none |
 | `base` | list of `{id, status}` | no | Statuses on the default branch of the artifacts of the set |
 | `policy` | object `{types, scopes, areas}`, each a list of names of the policy, identifiers of at least one character | no | The subset of the project policy the model reads. The check `title_format` reads its `types`; the check `areas` is listed as not done. Absent: the default policy applies, the policy of the Wayloop repository, and `meta.defaults_applied` lists it when the set holds an epic or a task, whose checks read it |
-| `adrs` | list of integers from 1 | no | Numbers of the ADRs of the project, for the check `adr_citations`. Absent: citations are not checked, and the check is not done. Not filled by the command line yet (#344) |
+| `adrs` | list of integers from 1 | no | Numbers of the ADRs of the project, for the check `adr_citations`. Absent: citations are not checked, and the check is not done. The command line fills it from the file names of `docs/en/project/adr/` when that folder exists |
 | `locations` | list of `plan_briefs`, `plan_council`, `plan_items`, `specs`, for the folders `plan/briefs`, `plan/council`, `plan/items` and `specs` | no | The folders of the locations that exist in the project, when the documents were discovered there; their order and a repeated folder have no meaning, they are not compared with the `file` origins of the documents, and `[]` means none, which gives the warning `artifact_location_missing`. Absent: the documents were named or sent directly, and the check `artifact_locations` is not done |
 | `language` | BCP 47 tag, for example `it` or `en-GB` | no | The language of the project. No check of this version reads it, so no default is applied or reported when it is absent; a check that needs it lists the default in `meta.defaults_applied` |
 

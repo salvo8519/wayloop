@@ -7,16 +7,20 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use wayloop_core::artifacts::codes;
-use wayloop_core::artifacts::locations::{MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, Stored, StoredFile};
+use wayloop_core::artifacts::locations::{
+    ADR_DEPTH, ADR_FOLDER, MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, MAX_LISTED, Stored, StoredFile,
+    adr_numbers, is_adr,
+};
 use wayloop_core::{Command, Context, run};
 use wayloop_schemas::Code;
 use wayloop_schemas::validate::{ArtifactFolder, EntryFormat, ValidateInput};
-use wayloop_schemas::value::ProjectPath;
+use wayloop_schemas::value::{AdrNumber, ProjectPath};
 
 use super::{
-    Content, LoadError, discover, discovered_input, entry, list, load, load_within, segments,
+    Content, LoadError, adrs, discover, discovered_input, entry, list, load, load_within,
+    project_input, segments,
 };
-use crate::test_support::TempProject;
+use crate::test_support::{TempProject, ran};
 use wayloop_core::artifacts::locations::Refused;
 
 /// The root of the repository.
@@ -129,7 +133,7 @@ fn a_location_is_listed_down_to_its_depth_only() {
         (3, &["a/b/c/three.yaml", "a/b/two.yaml", "a/one.yaml"][..]),
     ] {
         let mut found = Vec::new();
-        list(project.root(), "a", depth, &mut found).unwrap();
+        list(project.root(), "a", depth, |_| true, &mut found).unwrap();
         found.sort();
         assert_eq!(found, expected, "depth {depth}");
     }
@@ -276,26 +280,27 @@ fn a_special_file_is_an_error_of_the_environment_not_a_blocking_read() {
     }
 }
 
-#[cfg(unix)]
 #[test]
-fn a_location_below_a_file_is_an_error_of_the_environment() {
-    let project = Project::new("plan-is-a-file", &[("plan", b"a file")]);
-    let Err(LoadError::Read(error)) = discover(project.root()) else {
-        panic!("a read error");
-    };
-    assert!(error.path().ends_with("plan/briefs"), "{error}");
+fn a_file_where_a_location_is_expected_is_not_a_location() {
+    // Review of #344, B4: a regular file is not a folder, where the location or a parent of it
+    // is expected; the location is absent, not an error of the environment.
+    for (name, file) in [
+        ("plan-is-a-file", "plan"),
+        ("briefs-is-a-file", "plan/briefs"),
+    ] {
+        let project = Project::new(name, &[(file, b"a file")]);
+        let discovery = discover(project.root()).unwrap();
+        assert_eq!(discovery.files, [], "{file}");
+        assert!(
+            !discovery.locations.contains(&ArtifactFolder::PlanBriefs),
+            "{file}"
+        );
+    }
 }
 
-#[cfg(unix)]
 #[test]
-fn a_location_that_cannot_be_listed_is_an_error_of_the_environment() {
-    let project = Project::new("not-a-folder", &[("plan/briefs", b"a file")]);
-    let Err(LoadError::Read(error)) = discover(project.root()) else {
-        panic!("a read error");
-    };
-    assert!(error.path().ends_with("plan/briefs"), "{error}");
-    assert!(error.to_string().contains("plan/briefs"), "{error}");
-    assert!(std::error::Error::source(&error).is_some());
+fn a_named_file_that_does_not_exist_is_an_error_of_the_environment() {
+    let project = Project::new("missing-file", &[]);
     let missing = load(
         project.root(),
         vec![StoredFile {
@@ -308,6 +313,9 @@ fn a_location_that_cannot_be_listed_is_an_error_of_the_environment() {
         panic!("{missing:?}");
     };
     assert_eq!(missing.error().kind(), std::io::ErrorKind::NotFound);
+    assert!(missing.path().ends_with("plan/items/TASK-0001.yaml"));
+    assert!(missing.to_string().contains("TASK-0001.yaml"), "{missing}");
+    assert!(std::error::Error::source(&missing).is_some());
 }
 
 #[test]
@@ -942,18 +950,147 @@ fn a_document_beyond_its_bytes_is_unreadable_and_the_envelope_is_written() {
     assert_eq!(envelope["error"]["reason"], "syntax", "{envelope}");
 }
 
+/// The numbers of `adrs`, as integers.
+fn numbers(adrs: Option<Vec<AdrNumber>>) -> Option<Vec<u64>> {
+    adrs.map(|adrs| adrs.into_iter().map(|n| n.get().get()).collect())
+}
+
+#[test]
+fn the_adrs_of_the_project_are_read_from_the_names_of_their_files() {
+    // #344: the numbers of `docs/en/project/adr/<number>-<slug>.md`, for the check
+    // `adr_citations`; the index, a malformed name and a deeper file are not ADRs. The cases
+    // of the rule are in the core.
+    let project = Project::new(
+        "adrs",
+        &[
+            (
+                "docs/en/project/adr/0014-specifications-by-capability.md",
+                b"# ADR",
+            ),
+            ("docs/en/project/adr/index.md", b"# ADRs"),
+            ("docs/en/project/adr/014-three-digits.md", b"# ADR"),
+            ("docs/en/project/adr/deeper/0005-x.md", b"# ADR"),
+        ],
+    );
+    assert_eq!(numbers(adrs(project.root()).unwrap()), Some(vec![14]));
+    assert_eq!(numbers(project.input().adrs), Some(vec![14]));
+    assert!(ran(&project.envelope(), "adr_citations"));
+    // Named files are checked against the ADRs of the project too.
+    let given = project_input(project.root(), Vec::new()).unwrap();
+    assert_eq!(numbers(given.adrs), Some(vec![14]));
+}
+
+#[test]
+fn the_rule_of_the_names_of_adrs_is_the_one_of_the_scripts() {
+    // Review of #344, B2: the cases shared with `scripts/_adr.py` (tests/process/test_adr.py),
+    // read here because the core performs no I/O and embeds no file outside its crate.
+    let path = repository().join("tests/process/adr_names.json");
+    let cases: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+    assert_eq!(cases["folder"], ADR_FOLDER);
+    let mut expected = Vec::new();
+    for case in cases["names"].as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        let path = format!("{ADR_FOLDER}/{name}");
+        let number = case["number"].as_u64();
+        assert_eq!(is_adr(&path), number.is_some(), "{name}");
+        let read = numbers(Some(adr_numbers([path]).unwrap()));
+        assert_eq!(read, Some(number.into_iter().collect()), "{name}");
+        expected.extend(number);
+    }
+    expected.sort_unstable();
+    let all = cases["names"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|case| format!("{ADR_FOLDER}/{}", case["name"].as_str().unwrap()));
+    assert_eq!(numbers(Some(adr_numbers(all).unwrap())), Some(expected));
+}
+
+#[test]
+fn a_project_without_the_folder_of_the_adrs_does_not_give_them() {
+    let project = Project::new("no-adrs", &[("docs/en/index.md", b"# Docs")]);
+    assert_eq!(adrs(project.root()).unwrap(), None);
+    assert_eq!(project.input().adrs, None);
+    assert_eq!(
+        project_input(project.root(), Vec::new()).unwrap().adrs,
+        None
+    );
+    let envelope = project.envelope();
+    let not_done = envelope["diagnostics"]["not_done"].as_array().unwrap();
+    let absent = json!({"check": "adr_citations", "reason": "input_absent"});
+    assert!(not_done.contains(&absent), "{not_done:?}");
+    // The folder with no ADR in it: the project has none, and every citation is warned.
+    let empty = Project::new("empty-adrs", &[("docs/en/project/adr/index.md", b"# ADRs")]);
+    assert_eq!(numbers(empty.input().adrs), Some(Vec::new()));
+    assert!(ran(&empty.envelope(), "adr_citations"));
+}
+
+#[test]
+fn a_file_where_the_folder_of_the_adrs_is_expected_is_not_that_folder() {
+    // Review of #344, B4: a regular file is not a folder; the ADRs are absent, not an error.
+    let project = Project::new("adr-is-a-file", &[("docs/en/project/adr", b"not a folder")]);
+    assert_eq!(adrs(project.root()).unwrap(), None);
+    let parent = Project::new("adr-parent-is-a-file", &[("docs/en/project", b"a file")]);
+    assert_eq!(adrs(parent.root()).unwrap(), None);
+}
+
+#[test]
+fn a_listing_stops_at_its_bound_and_the_set_is_refused() {
+    // Review of #344, B3: a folder of any size is listed up to `MAX_LISTED` kept paths only.
+    let project = Project::new("many-adrs", &[]);
+    let folder = project.root().join(ADR_FOLDER);
+    fs::create_dir_all(&folder).unwrap();
+    for n in 1..=MAX_LISTED + 1 {
+        fs::write(folder.join(format!("{}-x.md", 10_000 + n)), b"").unwrap();
+        fs::write(folder.join(format!("{}-x.txt", 10_000 + n)), b"").unwrap();
+    }
+    let mut found = Vec::new();
+    list(project.root(), ADR_FOLDER, ADR_DEPTH, is_adr, &mut found).unwrap();
+    assert_eq!(found.len(), MAX_LISTED);
+    assert!(found.iter().all(|path| is_adr(path)), "{:?}", found.first());
+    match adrs(project.root()) {
+        Err(LoadError::Refused {
+            path: None,
+            refused: Refused::TooManyFiles,
+        }) => {}
+        other => panic!("{other:?}"),
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn the_folder_of_the_adrs_reached_through_a_link_is_not_read() {
+    use std::os::unix::fs::symlink;
+    let outside = Project::new("adrs-outside", &[("adr/0001-x.md", b"# ADR")]);
+    let project = Project::new("adrs-linked", &[]);
+    fs::create_dir_all(project.root().join("docs/en/project")).unwrap();
+    symlink(outside.root().join("adr"), project.root().join(ADR_FOLDER)).unwrap();
+    assert_eq!(adrs(project.root()).unwrap(), None);
+    // A linked file in the folder is skipped, as below a location.
+    let linked_file = Project::new("adrs-linked-file", &[("docs/en/project/adr/index.md", b"")]);
+    symlink(
+        outside.root().join("adr/0001-x.md"),
+        linked_file.root().join(ADR_FOLDER).join("0001-x.md"),
+    )
+    .unwrap();
+    assert_eq!(numbers(adrs(linked_file.root()).unwrap()), Some(Vec::new()));
+}
+
 #[test]
 fn the_living_specification_of_the_artifact_model_normalises_with_no_error() {
     // SPEC-0001 T14: the specification itself, in the Markdown form it defines, is read from
     // its file as `markdown` and normalised by the core with no error. Its links resolve (T12):
-    // the milestone it names, M0, lives in the tracker, so it is sent beside it.
+    // the milestone it names, M0, lives in the tracker, so it is sent beside it. The ADRs it
+    // cites are those of the repository (#344): the check `adr_citations` runs and warns of
+    // none.
     let path = "specs/0001-artifact-model/spec.md";
     let files = vec![StoredFile {
         path: ProjectPath::new(path),
         stored: Stored::Markdown,
     }];
-    let input = load(&repository(), files).unwrap();
+    let input = project_input(&repository(), files).unwrap();
     assert_eq!(input.documents[0].format, EntryFormat::Markdown);
+    assert_ne!(input.adrs, None);
     let mut input = serde_json::to_value(input).unwrap();
     let m0 = changed(
         &wayloop_schemas::examples::milestone(),
@@ -966,6 +1103,8 @@ fn the_living_specification_of_the_artifact_model_normalises_with_no_error() {
     let envelope = run(Command::Validate, &input, &Context::default());
     let envelope = serde_json::to_value(&envelope).unwrap();
     assert_eq!(envelope.get("error"), None, "{envelope}");
+    assert!(ran(&envelope, "adr_citations"), "{envelope}");
+    assert_eq!(envelope["diagnostics"]["warnings"], json!([]), "{envelope}");
     let summary = &envelope["data"]["documents"][0];
     assert_eq!(summary["kind"], "specification");
     assert_eq!(summary["id"], "SPEC-0001");
