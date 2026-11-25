@@ -206,7 +206,7 @@ struct SourceForm {
     /// Path of the file relative to the root of the project.
     #[serde(skip_serializing_if = "Option::is_none")]
     file: Option<ProjectPath>,
-    /// Line of the faulty value in `file`, counted from 1; absent when it is not known, never
+    /// Line of the value in `file`, counted from 1; absent when it is not known, never
     /// guessed.
     #[serde(skip_serializing_if = "Option::is_none")]
     line: Option<Line>,
@@ -223,17 +223,29 @@ fn line_with_file(schema: &mut Schema) {
     rules::require_if_present(schema, "line", &["file"]);
 }
 
+/// Why the members of a source are not one form.
+const NOT_ONE_SOURCE: &str =
+    "a source is exactly one of {file, line}, {file}, {issue} and {milestone}";
+
+impl SourceForm {
+    /// The source these members give, `None` when they give none; an error when they are not
+    /// exactly one form. The one reading of the forms, for `source` and for `related`.
+    fn read<E: serde::de::Error>(self) -> Result<Option<Source>, E> {
+        match (self.file, self.line, self.issue, self.milestone) {
+            (None, None, None, None) => Ok(None),
+            (Some(file), line, None, None) => Ok(Some(Source::File { file, line })),
+            (None, None, Some(issue), None) => Ok(Some(Source::Issue { issue })),
+            (None, None, None, Some(milestone)) => Ok(Some(Source::Milestone { milestone })),
+            _ => Err(E::custom(NOT_ONE_SOURCE)),
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for Source {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let form = SourceForm::deserialize(deserializer)?;
-        match (form.file, form.line, form.issue, form.milestone) {
-            (Some(file), line, None, None) => Ok(Source::File { file, line }),
-            (None, None, Some(issue), None) => Ok(Source::Issue { issue }),
-            (None, None, None, Some(milestone)) => Ok(Source::Milestone { milestone }),
-            _ => Err(D::Error::custom(
-                "a source is exactly one of {file, line}, {file}, {issue} and {milestone}",
-            )),
-        }
+        SourceForm::deserialize(deserializer)?
+            .read()?
+            .ok_or_else(|| D::Error::custom(NOT_ONE_SOURCE))
     }
 }
 
@@ -247,11 +259,111 @@ impl JsonSchema for Source {
     }
 }
 
-/// A refusal of the engine, with the fields of ADR 0009 C3, its `source`, and `document`, the
-/// index of the document of the input it belongs to (SPEC-0004 R2).
+/// Another place of the condition of an error, in another document of the input: the member
+/// `related` of an error (ADR 0009, amendment of 2026-11-25; SPEC-0004 R2). An error names
+/// each document involved besides its own, for example each other artifact that carries the
+/// same identifier (SPEC-0001 R14).
 ///
-/// `pointers`, `expected`, `fix`, `source` and `document` are optional and left out of the
-/// serialised form when not given; a list given empty is written `[]` (C2).
+/// The members of its [`Source`] are written in the entry itself, not in a member `source`:
+/// an entry of `related` in the list `errors` of a report is already the fourth level of
+/// objects of the envelope, the most ADR 0009 C4 allows. They follow the rules of `source`:
+/// at most one form is given, none when the other document was sent directly, and the schema
+/// checks only that `line` comes with `file`; the type refuses members of two forms.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Related {
+    /// Index, from 0, in the input array `documents` of the other document.
+    document: u64,
+    /// RFC 6901 pointer to the value involved, relative to that document.
+    pointer: Pointer,
+    /// Where that value is stored; absent when the other document was sent directly.
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    source: Option<Source>,
+}
+
+/// Another place of the condition of an error, in another document of the input: its index
+/// in `documents`, the pointer of the value relative to that document, and where the value is
+/// stored with the members of `source` (`file`, with `line` when known; `issue`; `milestone`),
+/// none of them when the document was sent directly. At most one form is given; the schema
+/// checks only that `line` comes with `file`.
+// The schema of `Related` and the form it is read from: the members of a source in the entry,
+// with the rule of `Source`, which the flattened `SourceForm` brings (ADR 0009 C4: no fifth
+// level of objects).
+#[derive(Deserialize, JsonSchema)]
+#[schemars(rename = "Related")]
+struct RelatedForm {
+    /// Index, from 0, in the input array `documents` of the other document.
+    document: u64,
+    /// RFC 6901 pointer to the value involved, relative to that document.
+    pointer: Pointer,
+    #[serde(flatten)]
+    source: SourceForm,
+}
+
+impl<'de> Deserialize<'de> for Related {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let form = RelatedForm::deserialize(deserializer)?;
+        Ok(Self {
+            document: form.document,
+            pointer: form.pointer,
+            source: form.source.read()?,
+        })
+    }
+}
+
+impl JsonSchema for Related {
+    fn schema_name() -> Cow<'static, str> {
+        RelatedForm::schema_name()
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        RelatedForm::json_schema(generator)
+    }
+}
+
+impl Related {
+    /// The value at `pointer` of the document at the index `document` of the input, stored at
+    /// `source` when the document was read from the repository or the tracker.
+    #[must_use]
+    pub const fn new(document: u64, pointer: Pointer, source: Option<Source>) -> Self {
+        Self {
+            document,
+            pointer,
+            source,
+        }
+    }
+
+    /// Index of the other document.
+    #[must_use]
+    pub const fn document(&self) -> u64 {
+        self.document
+    }
+
+    /// Pointer to the value involved, relative to the other document.
+    #[must_use]
+    pub const fn pointer(&self) -> &Pointer {
+        &self.pointer
+    }
+
+    /// Where the value is stored; `None` for a document sent directly.
+    #[must_use]
+    pub const fn location(&self) -> Option<&Source> {
+        self.source.as_ref()
+    }
+}
+
+/// `related` as read: an empty list is no other place, read as absent, the one form the type
+/// writes (C2).
+fn non_empty<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Vec<Related>>, D::Error> {
+    Ok(Option::<Vec<Related>>::deserialize(deserializer)?.filter(|r| !r.is_empty()))
+}
+
+/// A refusal of the engine, with the fields of ADR 0009 C3, its `source`, `document`, the
+/// index of the document of the input it belongs to, and `related`, the other documents
+/// involved (SPEC-0004 R2).
+///
+/// `pointers`, `expected`, `fix`, `source`, `document` and `related` are optional and left out
+/// of the serialised form when not given; a list given empty is written `[]` (C2), except
+/// `related`, which is never empty.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Error {
     /// Stable `snake_case` code of the error; codes are never renamed or reused (ADR 0009 C8).
@@ -273,8 +385,9 @@ pub struct Error {
     /// absent when not given.
     #[serde(skip_serializing_if = "Option::is_none")]
     expected: Option<Vec<Value>>,
-    /// The closest member for a misspelt key, or a corrected value; absent when none can be
-    /// derived.
+    /// The closest member for a misspelt key, or a corrected value; for a warning whose stored
+    /// place is misnamed, the identifier the place should be named after; absent when none can
+    /// be derived.
     #[serde(skip_serializing_if = "Option::is_none")]
     fix: Option<Value>,
     /// Where the faulty value is stored; absent for a document sent directly.
@@ -284,6 +397,16 @@ pub struct Error {
     /// absent for an error of the input itself (SPEC-0004 R2).
     #[serde(skip_serializing_if = "Option::is_none")]
     document: Option<u64>,
+    /// The other places of the same condition, each in another document of the input, such
+    /// as each other artifact that carries the same identifier; absent when there is none,
+    /// never empty.
+    #[serde(
+        default,
+        deserialize_with = "non_empty",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[schemars(length(min = 1))]
+    related: Option<Vec<Related>>,
 }
 
 impl Error {
@@ -302,6 +425,7 @@ impl Error {
             fix: None,
             source: None,
             document: None,
+            related: None,
         }
     }
 
@@ -338,8 +462,9 @@ impl Error {
         self
     }
 
-    /// The error with a suggested fix: the closest field for a misspelt key, or a corrected
-    /// value.
+    /// The error with a suggested fix: the closest field for a misspelt key, a corrected
+    /// value, or, for a warning whose stored place is misnamed, the identifier the place should
+    /// be named after.
     #[must_use]
     pub fn with_fix(mut self, fix: impl Into<Value>) -> Self {
         // A null fix is no fix: null means not given (ADR 0009 C2).
@@ -360,6 +485,20 @@ impl Error {
     pub const fn with_document(mut self, index: u64) -> Self {
         self.document = Some(index);
         self
+    }
+
+    /// The error with the other places of its condition, each in another document; none
+    /// leaves `related` out, since it is never empty.
+    #[must_use]
+    pub fn with_related(mut self, related: impl IntoIterator<Item = Related>) -> Self {
+        self.related = Some(related.into_iter().collect()).filter(|r: &Vec<Related>| !r.is_empty());
+        self
+    }
+
+    /// The other places of the condition; `None` when there is none.
+    #[must_use]
+    pub fn related(&self) -> Option<&[Related]> {
+        self.related.as_deref()
     }
 
     /// Index of the document the error belongs to; `None` for an error of the input itself.
@@ -555,7 +694,7 @@ impl std::error::Error for ErrorReport {}
 
 #[cfg(test)]
 mod tests {
-    use super::{Code, Error, ErrorReport, Pointer, Reason, Source};
+    use super::{Code, Error, ErrorReport, Pointer, Reason, Related, Source};
     use crate::fixtures::{INVALID_INPUT, at, number, unknown_then_missing};
     use crate::value::{IssueNumber, Line, MilestoneNumber, ProjectPath};
     use serde_json::json;
@@ -814,6 +953,88 @@ mod tests {
                 serde_json::to_value(&error).unwrap()["document"],
                 json!(index)
             );
+        }
+    }
+
+    #[test]
+    fn an_error_names_the_other_documents_of_its_condition_in_related() {
+        // ADR 0009, amendment of 2026-11-25: each other place has its document, a pointer
+        // relative to it, and the members of its source when it was stored, in the entry
+        // itself (C4); none leaves `related` out.
+        let error = Error::new(INVALID_INPUT, "Same id.", at("/id"), Reason::Duplicate)
+            .with_document(0)
+            .with_related(Vec::<Related>::new());
+        assert_eq!(error.related(), None);
+        assert!(
+            serde_json::to_value(&error)
+                .unwrap()
+                .get("related")
+                .is_none()
+        );
+        let stored = Source::File {
+            file: ProjectPath::new("plan/items/TASK-0107.yaml"),
+            line: Some(Line::new(number(3))),
+        };
+        let error = error.with_related([
+            Related::new(1, at("/id"), Some(stored.clone())),
+            Related::new(2, at("/id"), None),
+        ]);
+        let related = error.related().unwrap();
+        assert_eq!(
+            (
+                related[0].document(),
+                related[0].pointer(),
+                related[0].location()
+            ),
+            (1, &at("/id"), Some(&stored))
+        );
+        assert_eq!(related[1].location(), None);
+        let value = serde_json::to_value(&error).unwrap();
+        assert_eq!(
+            value["related"],
+            json!([
+                {"document": 1, "pointer": "/id", "file": "plan/items/TASK-0107.yaml", "line": 3},
+                {"document": 2, "pointer": "/id"},
+            ])
+        );
+        assert_eq!(
+            serde_json::from_value::<Error>(value.clone()).unwrap(),
+            error
+        );
+        // An empty list read is no other place: absent, as the type writes it.
+        let mut empty = value;
+        empty["related"] = json!([]);
+        let read = serde_json::from_value::<Error>(empty).unwrap();
+        assert_eq!(read.related(), None);
+        for (other, form) in [
+            (json!({"issue": 4}), Some(json!({"issue": 4}))),
+            (json!({"milestone": 2}), Some(json!({"milestone": 2}))),
+            (
+                json!({"file": "plan/briefs/BRIEF-0001.yaml"}),
+                Some(json!({"file": "plan/briefs/BRIEF-0001.yaml"})),
+            ),
+            // The rules of `source`: one form, `line` only with `file`.
+            (json!({"line": 3}), None),
+            (json!({"issue": 4, "milestone": 2}), None),
+            (
+                json!({"file": "plan/briefs/BRIEF-0001.yaml", "issue": 4}),
+                None,
+            ),
+        ] {
+            let mut entry = json!({"document": 1, "pointer": "/id"});
+            entry
+                .as_object_mut()
+                .unwrap()
+                .extend(other.as_object().unwrap().clone());
+            let read = serde_json::from_value::<Related>(entry);
+            match form {
+                Some(form) => {
+                    let related = read.unwrap();
+                    let source = serde_json::to_value(related.location().unwrap()).unwrap();
+                    assert_eq!(source, form);
+                }
+                None => assert!(read.is_err(), "{other}"),
+            }
         }
     }
 

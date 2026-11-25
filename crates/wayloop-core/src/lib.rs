@@ -50,7 +50,7 @@ pub use envelope::envelope_json;
 pub use wayloop_schemas::{
     Check, Code, DefaultApplied, DefaultReason, Diagnostics, ENVELOPE_VERSION, Envelope, Error,
     ErrorReport, ExitCode, INPUT_UNREADABLE, INTERNAL_ERROR, InputHash, IssueStep, Meta, NotDone,
-    NotDoneReason, Outcome, Pointer, Reason, Source, USAGE,
+    NotDoneReason, Outcome, Pointer, Reason, Related, Source, USAGE,
 };
 
 /// The entry point of the engine (ADR 0028, SPEC-0004 R14): runs `command` on its canonical

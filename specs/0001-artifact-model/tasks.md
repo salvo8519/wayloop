@@ -105,7 +105,7 @@ Prerequisites outside this specification:
 
 ## Rules across artifacts
 
-- [ ] **T11 Check identifier forms and uniqueness across the set**
+- [x] **T11 Check identifier forms and uniqueness across the set**
   - Covers: R2, R14; AC6 (second half: both duplicates refused with `duplicate`, each with the source of the other), AC1 (`milestone.invalid.yaml`: `identifier_format`, `fix` `M2`, no `expected`). Issue: #262.
   - Files: `crates/wayloop-core/src/artifacts/identifiers.rs`, `tests/contract/validate/v1/`.
   - Tests first: `TASK-107` and `TASK-00107` refused, `TASK-10000` accepted; `HANDOVER-12-3` accepted; a file name or folder number that differs from the identifier gives a warning.

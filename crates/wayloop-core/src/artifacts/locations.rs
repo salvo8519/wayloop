@@ -157,16 +157,52 @@ impl Location {
             _ => false,
         }
     }
+
+    /// The identifier that `below`, the segments of a path of a file of this location, names:
+    /// the name of a YAML file without its extension, `SPEC-` and the number of the folder of
+    /// a specification (SPEC-0001, Where artifacts live), whatever that number is.
+    fn names(self, below: &[&str]) -> Option<String> {
+        match (self.name, below) {
+            (Name::Yaml, [file]) if self.holds(below) => file.strip_suffix(YAML).map(str::to_owned),
+            (Name::Specification, [folder, file]) if *file == SPECIFICATION => {
+                folder_identifier(folder)
+            }
+            _ => None,
+        }
+    }
+
+    /// The segments of `path` below the folder of this location, if it is below it.
+    fn below(self, path: &str) -> Option<Vec<&str>> {
+        let below = path.strip_prefix(self.folder.path())?.strip_prefix('/')?;
+        Some(below.split('/').collect())
+    }
 }
 
-/// Whether `folder` is `<NNNN>-<capability>`: the sequence of a specification identifier, a
-/// hyphen and a capability of at least one character.
+/// The identifier of the specification that `folder` is named after, when it is
+/// `<number>-<capability>`: ASCII digits, a hyphen and a capability of at least one character;
+/// `SPEC-` and the number, in whatever form it is written.
+fn folder_identifier(folder: &str) -> Option<String> {
+    let (number, capability) = folder.split_once('-')?;
+    let digits = !number.is_empty() && number.bytes().all(|b| b.is_ascii_digit());
+    (digits && !capability.is_empty()).then(|| format!("SPEC-{number}"))
+}
+
+/// Whether `folder` is `<NNNN>-<capability>`: a folder named after a specification whose
+/// number is the canonical sequence of an identifier.
 fn is_specification_folder(folder: &str) -> bool {
-    folder
-        .split_once('-')
-        .is_some_and(|(sequence, capability)| {
-            !capability.is_empty() && format::accepts(Format::SpecId, &format!("SPEC-{sequence}"))
-        })
+    folder_identifier(folder).is_some_and(|id| format::accepts(Format::SpecId, &id))
+}
+
+/// The identifier that the path of a stored artifact names, `path` relative to the root of the
+/// project: the file name of a brief, a council report or a plan item, the folder number of a
+/// living specification; `None` for a path outside the [`LOCATIONS`]. The identity of an
+/// artifact is its `id`; a path that names another one gives a warning (SPEC-0001).
+#[must_use]
+pub(crate) fn named_identifier(path: &str) -> Option<String> {
+    LOCATIONS.iter().find_map(|location| {
+        let below = location.below(path)?;
+        location.names(&below)
+    })
 }
 
 /// A stored file to read: its path in the project and how it is read.
@@ -223,11 +259,7 @@ fn located(path: &str) -> Option<Stored> {
         return None;
     }
     LOCATIONS.iter().find_map(|location| {
-        let below = path
-            .strip_prefix(location.folder().path())?
-            .strip_prefix('/')?
-            .split('/')
-            .collect::<Vec<_>>();
+        let below = location.below(path)?;
         location.holds(&below).then_some(location.stored())
     })
 }
@@ -321,7 +353,8 @@ pub fn given<S: AsRef<str>>(
 mod tests {
     use super::{
         LOCATIONS, MAX_DOCUMENT_BYTES, MAX_FILE_BYTES, MAX_FILES, MAX_NESTING, MAX_PROJECT_BYTES,
-        Refused, Stored, StoredFile, VALUE_COST_BYTES, discovered, given, stored_by_extension,
+        Refused, Stored, StoredFile, VALUE_COST_BYTES, discovered, given, named_identifier,
+        stored_by_extension,
     };
     use wayloop_schemas::value::ProjectPath;
 
@@ -500,6 +533,30 @@ mod tests {
                 .message()
                 .contains(&MAX_FILES.to_string())
         );
+    }
+
+    #[test]
+    fn a_stored_path_names_the_identifier_of_its_artifact() {
+        // SPEC-0001, Where artifacts live: the file name of a YAML artifact, the folder number
+        // of a living specification; no identifier outside the locations.
+        for (path, named) in [
+            ("plan/briefs/BRIEF-0001.yaml", Some("BRIEF-0001")),
+            ("plan/council/COUNCIL-0002.yaml", Some("COUNCIL-0002")),
+            ("plan/items/TASK-10000.yaml", Some("TASK-10000")),
+            ("plan/items/notes.yaml", Some("notes")),
+            ("specs/0001-artifact-model/spec.md", Some("SPEC-0001")),
+            ("specs/12-x/spec.md", Some("SPEC-12")),
+            ("specs/notes-draft/spec.md", None),
+            ("specs/0001-/spec.md", None),
+            ("specs/-x/spec.md", None),
+            ("plan/briefs/deeper/BRIEF-0001.yaml", None),
+            ("plan/briefs/README.md", None),
+            ("specs/0001-artifact-model/plan.md", None),
+            ("specs/0001-artifact-model/examples/brief.valid.yaml", None),
+            ("examples/BRIEF-0001.yaml", None),
+        ] {
+            assert_eq!(named_identifier(path).as_deref(), named, "{path}");
+        }
     }
 
     #[test]

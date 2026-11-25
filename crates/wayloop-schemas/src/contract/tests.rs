@@ -144,7 +144,9 @@ fn an_optional_member_has_no_null_and_is_not_required() {
     assert_eq!(
         error["properties"]["fix"],
         json!({"description": "The closest member for a misspelt key, or a corrected value; \
-                               absent when none can be derived."})
+                               for a warning whose stored place is misnamed, the identifier \
+                               the place should be named after; absent when none can be \
+                               derived."})
     );
 }
 
@@ -174,7 +176,7 @@ fn a_flattened_struct_merges_its_members_into_one_object() {
         members,
         [
             "code", "document", "errors", "expected", "fix", "message", "pointer", "pointers",
-            "reason", "source"
+            "reason", "related", "source"
         ]
     );
     assert_eq!(
@@ -182,6 +184,23 @@ fn a_flattened_struct_merges_its_members_into_one_object() {
         json!(["code", "message", "pointer", "reason", "errors"])
     );
     assert_eq!(schema["properties"]["errors"]["minItems"], 1);
+}
+
+#[test]
+fn an_entry_of_related_holds_the_members_of_a_source_with_its_rule() {
+    // ADR 0009 C4 and its amendment of 2026-11-25: the members of the source are in the entry,
+    // so that `errors[].related[]` stays the fourth level of objects of the envelope.
+    let schema = schema_for::<crate::Related>(Direction::Output).unwrap();
+    let members: Vec<&String> = schema["properties"].as_object().unwrap().keys().collect();
+    assert_eq!(
+        members,
+        ["document", "file", "issue", "line", "milestone", "pointer"]
+    );
+    assert_eq!(schema["required"], json!(["document", "pointer"]));
+    let source = schema_for::<crate::Source>(Direction::Output).unwrap();
+    assert_eq!(schema["allOf"], source["allOf"]);
+    let report = schema_for::<crate::ErrorReport>(Direction::Output).unwrap();
+    assert_eq!(report["properties"]["related"]["minItems"], 1);
 }
 
 #[test]

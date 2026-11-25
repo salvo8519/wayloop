@@ -1,0 +1,71 @@
+{
+  "description": "A brief read from a file whose name gives another identifier passes with the warning identifier_location at /id, reason conflict, and its identifier as the fix.",
+  "covers": [
+    "SPEC-0001 R14"
+  ],
+  "input": {
+    "documents": [
+      {
+        "format": "document",
+        "document": {
+          "kind": "brief",
+          "schema_version": 1,
+          "id": "BRIEF-0001",
+          "title": "Freelancers record their working time from the terminal",
+          "status": "approved",
+          "origin": "light_requirements",
+          "owner": "@example-owner",
+          "problem": "Freelancers lose billable hours because recording time breaks their flow.",
+          "goals": [
+            "Record a time entry with one command",
+            "Export the entries of a month for an invoice"
+          ],
+          "users": [
+            "Freelance developers"
+          ],
+          "scope_in": [
+            "Time entries and monthly export"
+          ],
+          "scope_out": [
+            "Invoicing"
+          ],
+          "constraints": [
+            "Works offline"
+          ]
+        },
+        "origin": {
+          "file": "plan/briefs/BRIEF-0002.yaml"
+        },
+        "lines": {
+          "": 1,
+          "/id": 4
+        }
+      }
+    ]
+  },
+  "expect": {
+    "exit_code": 0,
+    "values": {
+      "/command": "validate",
+      "/meta/command_version": 1,
+      "/diagnostics/warnings/0/code": "identifier_location",
+      "/diagnostics/warnings/0/pointer": "/id",
+      "/diagnostics/warnings/0/reason": "conflict",
+      "/diagnostics/warnings/0/fix": "BRIEF-0001",
+      "/diagnostics/warnings/0/document": 0,
+      "/diagnostics/warnings/0/source": {
+        "file": "plan/briefs/BRIEF-0002.yaml",
+        "line": 4
+      },
+      "/data/documents/0/id": "BRIEF-0001",
+      "/meta/input_hash": "1579d24a7fd32c21ca5e640e9eba866e758136c245dbbf6944c97e209c7700dc"
+    },
+    "absent": [
+      "/error"
+    ],
+    "lengths": {
+      "/data/documents": 1,
+      "/diagnostics/warnings": 1
+    }
+  }
+}

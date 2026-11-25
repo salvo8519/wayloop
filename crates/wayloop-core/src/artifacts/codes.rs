@@ -32,6 +32,9 @@ pub const TRANSITION_REFUSED: Code = Code::new("transition_refused");
 pub const IDENTIFIER_FORMAT: Code = Code::new("identifier_format");
 /// Two artifacts with one identifier (R14, R23).
 pub const IDENTIFIER_DUPLICATE: Code = Code::new("identifier_duplicate");
+/// A warning: the file name or the folder number of a stored artifact names another identifier
+/// than its `id` (R14; decided by the maintainer on 2026-11-25).
+pub const IDENTIFIER_LOCATION: Code = Code::new("identifier_location");
 /// A milestone or an epic that differs from the one reached through the parent (R15).
 pub const HIERARCHY_MISMATCH: Code = Code::new("hierarchy_mismatch");
 /// A `schema_version` that the type does not know (R16).
@@ -52,7 +55,7 @@ pub const HANDOVER_INPUT: Code = Code::new("handover_input");
 pub const ARTIFACT_LOCATION_MISSING: Code = Code::new("artifact_location_missing");
 
 /// Every code of SPEC-0001, in the order of its Errors table.
-pub const ALL: [Code; 20] = [
+pub const ALL: [Code; 21] = [
     ARTIFACT_SCHEMA,
     LINK_MISSING,
     LINK_SUPERSEDED,
@@ -65,6 +68,7 @@ pub const ALL: [Code; 20] = [
     TRANSITION_REFUSED,
     IDENTIFIER_FORMAT,
     IDENTIFIER_DUPLICATE,
+    IDENTIFIER_LOCATION,
     HIERARCHY_MISMATCH,
     SCHEMA_VERSION_UNKNOWN,
     APPROVAL_CONFLICT,
@@ -99,6 +103,7 @@ mod tests {
                 "transition_refused",
                 "identifier_format",
                 "identifier_duplicate",
+                "identifier_location",
                 "hierarchy_mismatch",
                 "schema_version_unknown",
                 "approval_conflict",

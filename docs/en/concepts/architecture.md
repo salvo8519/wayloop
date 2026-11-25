@@ -185,14 +185,16 @@ field of a refusal that an agent acts on (ADR 0009, C3), and where the faulty va
 | `pointers` | Pointers to the other parts of the input involved, such as both sides of a conflict; optional |
 | `reason` | One value of the documented enum: `syntax`, `missing`, `unknown_field`, `duplicate`, `type`, `enum`, `conflict`, `requires`, `range`, `length`, `state`, `stale`, and `internal` for a failure of the engine itself, which is not a refusal of the input |
 | `expected` | The values accepted at `pointer`, never a pattern; optional, and `[]` when no value is accepted |
-| `fix` | The closest field for a misspelt key, or a corrected value; optional |
+| `fix` | The closest field for a misspelt key, or a corrected value; for a warning whose stored place is misnamed, the identifier the place should be named after; optional |
 | `source` | Where the value is stored: `{file, line}` for a repository file, with `line` only when it is known, `{issue}` for a tracker issue, `{milestone}` for a tracker milestone, with lines and numbers from 1; absent for a document sent directly |
 | `document` | Index, from 0, of the document of the input the error belongs to, whose `pointer` is then relative to that document; absent for an error of the input itself |
+| `related` | The other places of the same condition, each in another document of the input: `{document, pointer}`, with the members of its `source` (`file` and `line`, `issue` or `milestone`) in the entry itself when that document was stored, so that the envelope keeps at most four levels of objects (C4); optional, and never `[]` |
 
 An optional field that is not given is left out of the JSON form; a list given empty is
-written `[]`, because absent means not given and `[]` means none (ADR 0009, C2). The error
-report, `wayloop_core::ErrorReport`, lists every error found in one pass in `errors`, in the
-order found, and repeats the first one at the top level, so `errors[0]` always equals the top
+written `[]`, because absent means not given and `[]` means none (ADR 0009, C2); `related` is
+left out when there is no other place, never written `[]`. The error report,
+`wayloop_core::ErrorReport`, lists every error found in one pass in `errors`, in the order
+found, and repeats the first one at the top level, so `errors[0]` always equals the top
 level. `Error` and `ErrorReport` implement `Display` and `std::error::Error`. A code is a constant of the type
 `Code`, so that one place lists every code of the engine; the codes themselves come with the
 specification of each command.
