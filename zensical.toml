@@ -76,6 +76,7 @@ nav = [
       "project/adr/0028-one-contract-on-every-channel.md",
       "project/adr/0029-merge-waived-by-policy.md",
       "project/adr/0030-contracts-generated-from-rust-types.md",
+      "project/adr/0031-unicode-crates-in-the-core.md",
     ] },
   ] },
 ]

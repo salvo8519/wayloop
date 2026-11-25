@@ -9,9 +9,10 @@
 //! `wayloop-runtime` executes the work this crate decides (ADR 0006).
 //!
 //! The crate may depend only on the crates of its reviewed allowlist (`wayloop-schemas`, and
-//! `serde`, `serde_json` and `schemars` with the crates they reach), checked by
-//! `scripts/check_core_io.py`; I/O of the standard library in its source is refused by the
-//! Clippy lints forbidden below, with the paths listed in the `clippy.toml` of the workspace.
+//! `serde`, `serde_json`, `schemars`, `unicode-normalization` and `caseless` with the crates
+//! they reach), checked by `scripts/check_core_io.py`; I/O of the standard library in its
+//! source is refused by the Clippy lints forbidden below, with the paths listed in the
+//! `clippy.toml` of the workspace.
 //!
 //! The crate decides on the steps of the issue cycle ([`IssueStep`], a contract type of
 //! `wayloop-schemas` re-exported here, since the hand-over records it; [`is_approval`]), and
@@ -35,6 +36,8 @@ pub mod artifacts;
 pub mod canonical;
 mod command;
 pub mod envelope;
+mod naming;
+mod policy;
 pub mod schema;
 pub mod sha256;
 #[cfg(test)]

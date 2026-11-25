@@ -17,6 +17,13 @@ serde_json.workspace = true
 # The traits of serde, for the parser that refuses repeated keys (SPEC-0001 plan); on the
 # allowlist of the core, reached through serde_json and wayloop-schemas.
 serde = { version = "1.0.229", default-features = false }
+# Unicode normalisation and case folding of titles (SPEC-0001 R8; plan, D4 (a) and (i);
+# ADR 0031); on the allowlist of the core with tinyvec, which unicode-normalization reaches.
+# caseless depends on unicode-normalization with its default features (std, which adds no crate
+# and no I/O), so default-features = false here has no effect while caseless is present.
+unicode-normalization = { version = "0.1.26", default-features = false }
+# caseless has no features today; default-features = false guards against defaults it may add.
+caseless = { version = "0.2.2", default-features = false }
 
 # Tests only: never shipped, so not on the allowlist of scripts/check_core_io.py.
 [dev-dependencies]

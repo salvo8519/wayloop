@@ -33,7 +33,7 @@ use serde_json::{Map, Value};
 use wayloop_schemas::Format;
 use wayloop_schemas::artifact::{ArtifactKind, RequirementStatus, Verification};
 use wayloop_schemas::contract::SPECIFICATION;
-use wayloop_schemas::contract::rules::{ID, KIND, SCHEMA_VERSION, STATUS};
+use wayloop_schemas::contract::rules::{ID, KIND, SCHEMA_VERSION, STATUS, TITLE};
 use wayloop_schemas::value::{Line, ProjectPath};
 use wayloop_schemas::{DefaultApplied, DefaultReason};
 
@@ -110,9 +110,8 @@ enum Section {
 
 /// The names of the members of the document model of a living specification that the
 /// normalisation writes, each defined once; `kind`, `schema_version`, `id` and `status` are
-/// those of every artifact, in `rules`.
+/// those of every artifact, in `rules`, and so is `title`.
 mod member {
-    pub(super) const TITLE: &str = "title";
     pub(super) const CAPABILITY: &str = "capability";
     pub(super) const MILESTONE: &str = "milestone";
     pub(super) const OWNER: &str = "owner";
@@ -536,7 +535,7 @@ impl Writer<'_> {
             self.put(ID, id, Some(line));
         }
         if !title.is_empty() {
-            self.put(member::TITLE, title, Some(line));
+            self.put(TITLE, title, Some(line));
         }
     }
 

@@ -128,6 +128,11 @@ Types and scopes of commits, and the areas of epics and tasks, come from the pro
 which equals the policy of this repository, and it is listed in `meta.defaults_applied` (R21).
 `examples/policy.yaml` holds the subset of the policy the model reads.
 
+The default policy is listed once, `{pointer: "/policy", reason: "default_policy"}`, with the
+policy as its value, and only when a check reads the policy: when the set holds at least one
+epic or task, or an input whose check reads types or scopes (decided by the maintainer on
+2026-11-25).
+
 An `area` value is the area name without the label prefix: `core`, not `area:core`. The
 tracker adapter adds the prefix when it writes the label (SPEC-0005).
 
@@ -636,13 +641,21 @@ characters turned into one hyphen, and cut after five words. When nothing is lef
 
 Titles (R7, R8):
 
-- A type prefix is a leading `<word>:` or `<word>(<anything>):` where `<word>` is a type of
-  the policy, without regard to case.
-- A bracket tag is a group `[...]` at the start or at the end of the title.
+- A type prefix is a leading `<word>[(<anything>)][!]:`, that is `<word>:`,
+  `<word>(<anything>):`, `<word>!:` or `<word>(<anything>)!:`, where `<word>` is a type of the
+  policy, without regard to case (the breaking mark `!` decided by the maintainer on
+  2026-11-25). The scope ends at the first `):` or `)!:`, so `<anything>` may hold `)`.
+- A bracket tag is a group `[...]` at the start or at the end of the title, closed by its
+  matching bracket, nested brackets counted; an unbalanced group is not a tag.
 - A final full stop is a title that ends with `.`.
-- Two titles are equal when they are equal after Unicode NFC normalisation, case folding,
-  trimming and collapsing runs of white space into one space. Epic and task titles are compared
-  with each other, in every status except `superseded`.
+- Two titles are equal when they are equal after Unicode NFC normalisation, full case folding,
+  NFC normalisation again (decided by the maintainer on 2026-11-25, review of #342), trimming
+  and collapsing runs of white space into one space. Epic and task titles are compared with
+  each other, in every status except `superseded`.
+- Each rule broken is one error `title_format`, in the order of this list; each carries in
+  `fix` the title with every rule applied, so a rule that appears once another is fixed counts
+  too, and no `fix` when nothing is left of the title (decided by the maintainer on
+  2026-11-25).
 
 ## Errors
 

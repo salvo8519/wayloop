@@ -74,6 +74,11 @@ fn with(mut document: Value, key: &str, value: Value) -> Value {
     document
 }
 
+/// `document` with the title `Title <n>`, so that it shares no title with the examples (R8).
+fn titled(document: Value, n: u32) -> Value {
+    with(document, "title", json!(format!("Title {n}")))
+}
+
 fn entry(document: Value) -> Value {
     json!({"format": "document", "document": document})
 }
@@ -201,6 +206,8 @@ fn the_kinds_and_their_checks_are_snake_case_and_unique() {
             checks::IDENTIFIER_FORMAT,
             checks::IDENTIFIER_DUPLICATE,
             checks::IDENTIFIER_LOCATION,
+            checks::TITLE_FORMAT,
+            checks::TITLE_DUPLICATE,
             checks::MARKDOWN,
         ]
         .iter()
@@ -1650,7 +1657,7 @@ fn ac6_two_artifacts_with_one_identifier_are_both_refused_each_naming_the_other(
     let validation = validate(&read(vec![
         stored(task(), "plan/items/TASK-0001.yaml", 3),
         entry(brief()),
-        entry(task()),
+        entry(titled(task(), 2)),
     ]));
     assert_eq!(
         found(&validation.errors),
@@ -1694,8 +1701,8 @@ fn a_refused_identifier_stays_out_of_the_index_and_errors_stay_in_document_order
     let validation = validate(&read(vec![
         entry(task()),
         entry(with(brief(), "id", json!("TASK-0001"))),
-        entry(task()),
-        entry(task()),
+        entry(titled(task(), 2)),
+        entry(titled(task(), 3)),
     ]));
     let documents: Vec<(Option<u64>, Code)> = validation
         .errors
@@ -1727,7 +1734,7 @@ fn duplicates_are_found_in_the_same_pass_as_the_other_errors_of_their_documents(
     // first.
     let validation = validate(&read(vec![
         entry(with(task(), "zz", json!(1))),
-        entry(task()),
+        entry(titled(task(), 1)),
     ]));
     let found: Vec<(Option<u64>, Code, String)> = validation
         .errors
@@ -1760,7 +1767,7 @@ fn a_file_name_or_folder_number_that_names_another_identifier_gives_a_warning() 
             "notes/BRIEF-0009.yaml",
             2,
         ),
-        entry(with(task(), "id", json!("TASK-0002"))),
+        entry(titled(with(task(), "id", json!("TASK-0002")), 2)),
     ]));
     assert_eq!(validation.errors, []);
     assert_eq!(
@@ -1882,6 +1889,8 @@ fn checks_not_built_are_listed_once_with_their_reason() {
         checks::IDENTIFIER_FORMAT,
         checks::IDENTIFIER_DUPLICATE,
         checks::IDENTIFIER_LOCATION,
+        checks::TITLE_FORMAT,
+        checks::TITLE_DUPLICATE,
     ]);
     assert_eq!(validation.checks, expected);
     let summaries: Vec<(Option<&str>, Option<&str>, Option<&str>)> = validation
@@ -2691,4 +2700,263 @@ fn a_type_without_its_schema_is_a_failure_of_the_engine() {
             "{id}"
         );
     }
+}
+
+// Titles of epics and tasks (T16: R7, R8; AC1, AC4, AC10) ------------------------------------
+
+/// Validates the set `documents` with the subset of the policy `policy`.
+fn validate_with_policy(documents: Vec<Value>, policy: Value) -> super::Validation {
+    let input = json!({"documents": documents, "policy": policy});
+    assert_eq!(input_schema().validate(&input, COMMAND_INPUT), []);
+    validate(&input::read(&input).unwrap())
+}
+
+/// The subset of the policy of `examples/policy.yaml`: its types are those of the default
+/// policy; its scopes and areas are fewer, as the example gives them.
+fn policy() -> Value {
+    json!({
+        "types": crate::policy::TYPES,
+        "scopes": ["core", "cli", "docs", "specs", "ci"],
+        "areas": ["core", "cli", "docs"]
+    })
+}
+
+#[test]
+fn ac1_the_invalid_epic_is_refused_for_its_bracket_tag_with_the_title_as_fix() {
+    // `epic.invalid.yaml`: the epic of the examples with another identifier and a tag.
+    let invalid = with(
+        with(epic(), "id", json!("EPIC-0002")),
+        "title",
+        json!("[EPIC] Monthly export of time entries"),
+    );
+    let validation = validate(&read(vec![entry(epic()), entry(invalid)]));
+    assert_eq!(
+        found(&validation.errors),
+        [(codes::TITLE_FORMAT, "/title".into(), Reason::Syntax)]
+    );
+    let error = &validation.errors[0];
+    assert_eq!(error.document(), Some(1));
+    assert_eq!(error.fix(), Some(&json!("Monthly export of time entries")));
+}
+
+#[test]
+fn ac4_each_broken_title_is_reported_with_its_pointer_and_fix() {
+    // A prefix, a bracket tag and a full stop, on epics and tasks, each at `/title` with its
+    // document, its fix and the line it was read from.
+    let task_at = |n: u32, title: &str| {
+        let document = with(task(), "id", json!(format!("TASK-{n:04}")));
+        with(document, "title", json!(title))
+    };
+    let validation = validate_with_policy(
+        vec![
+            entry(with(epic(), "title", json!("feat(core): Record entries"))),
+            entry(task_at(2, "Entries are listed [WIP]")),
+            json!({
+                "format": "document", "document": task_at(3, "Entries are exported."),
+                "origin": {"file": "plan/items/TASK-0003.yaml"}, "lines": {"/title": 4}
+            }),
+        ],
+        policy(),
+    );
+    assert_eq!(
+        found(&validation.errors),
+        vec![(codes::TITLE_FORMAT, "/title".to_owned(), Reason::Syntax); 3]
+    );
+    let documents: Vec<(Option<u64>, Option<&Value>)> = validation
+        .errors
+        .iter()
+        .map(|e| (e.document(), e.fix()))
+        .collect();
+    assert_eq!(
+        documents,
+        [
+            (Some(0), Some(&json!("Record entries"))),
+            (Some(1), Some(&json!("Entries are listed"))),
+            (Some(2), Some(&json!("Entries are exported"))),
+        ]
+    );
+    assert_eq!(
+        validation.errors[2].location(),
+        Some(&stored_at("plan/items/TASK-0003.yaml", 4))
+    );
+}
+
+#[test]
+fn ac10_a_task_title_that_starts_with_a_command_name_passes() {
+    let title = "wayloop init creates a project structure that validates";
+    let validation =
+        validate_with_policy(vec![entry(with(task(), "title", json!(title)))], policy());
+    passed_with(&validation, &["title_format", "title_duplicate"]);
+}
+
+#[test]
+fn ac4_titles_equal_after_normalisation_are_refused_across_epics_and_tasks() {
+    // The epic and the task share a title after NFC, case folding and white space; each is
+    // refused at `/title` and names the other.
+    let validation = validate(&read(vec![
+        entry(with(
+            epic(),
+            "title",
+            json!("Export of the cafe\u{301} entries"),
+        )),
+        stored(
+            with(task(), "title", json!(" EXPORT of the  café entries")),
+            "plan/items/TASK-0001.yaml",
+            3,
+        ),
+    ]));
+    assert_eq!(
+        found(&validation.errors),
+        vec![
+            (
+                codes::TITLE_DUPLICATE,
+                "/title".to_owned(),
+                Reason::Duplicate
+            );
+            2
+        ]
+    );
+    let [first, second] = &validation.errors[..] else {
+        panic!("{:?}", validation.errors);
+    };
+    assert_eq!((first.document(), second.document()), (Some(0), Some(1)));
+    // The title of the task has no line of its own: its source names the file only.
+    let task_file = Source::File {
+        file: ProjectPath::new("plan/items/TASK-0001.yaml"),
+        line: None,
+    };
+    assert_eq!(second.location(), Some(&task_file));
+    assert_eq!(
+        first.related(),
+        Some(&[Related::new(1, at("/title"), Some(task_file))][..])
+    );
+    assert_eq!(
+        second.related(),
+        Some(&[Related::new(0, at("/title"), None)][..])
+    );
+    assert_eq!(first.fix(), None);
+}
+
+#[test]
+fn a_superseded_title_is_not_compared_and_other_kinds_are_not_checked() {
+    // The superseded task keeps the title of the live one; the brief and the milestone are
+    // not epics or tasks, so their titles are neither checked nor compared.
+    let superseded = with(
+        with(titled(task(), 9), "status", json!("superseded")),
+        "superseded_by",
+        json!(["TASK-0001"]),
+    );
+    let superseded = with(
+        with(superseded, "id", json!("TASK-0009")),
+        "title",
+        task()["title"].clone(),
+    );
+    let validation = validate(&read(vec![
+        entry(task()),
+        entry(superseded),
+        entry(with(brief(), "title", json!("[BRIEF] Time entries."))),
+        entry(with(milestone(), "title", task()["title"].clone())),
+    ]));
+    assert_eq!(validation.errors, []);
+}
+
+#[test]
+fn a_title_refused_by_its_schema_is_left_out_of_the_title_stage() {
+    // A title that is too long is an error of the schema only: no error of form or duplicate
+    // is added at the same pointer.
+    let long = format!("{}.", "x".repeat(130));
+    let validation = validate(&read(vec![
+        entry(with(task(), "title", json!(long))),
+        entry(with(titled(epic(), 1), "title", json!(long))),
+    ]));
+    let codes: Vec<Code> = validation.errors.iter().map(|e| e.code().clone()).collect();
+    assert_eq!(codes, [codes::ARTIFACT_SCHEMA, codes::ARTIFACT_SCHEMA]);
+}
+
+#[test]
+fn a_duplicate_names_the_other_documents_in_its_message() {
+    let one = [Related::new(3, at("/id"), None)];
+    let two = [one[0].clone(), Related::new(5, at("/title"), None)];
+    assert_eq!(super::duplicates::documents(&one), "document 3");
+    assert_eq!(super::duplicates::documents(&two), "documents 3, 5");
+    let validation = validate(&read(vec![entry(task()), entry(epic()), entry(task())]));
+    let messages: Vec<&str> = validation.errors.iter().map(Error::message).collect();
+    assert!(
+        messages[0].contains("the document 2 of the input"),
+        "{messages:?}"
+    );
+    assert!(
+        messages
+            .last()
+            .unwrap()
+            .contains("the document 0 of the input"),
+        "{messages:?}"
+    );
+}
+
+#[test]
+fn without_a_policy_the_default_policy_gives_the_types_and_is_reported_once() {
+    // R21: the prefix is a type of the default policy, and the default is listed at `/policy`
+    // before the defaults of the documents, only when a check reads it.
+    let markdown = json!({"format": "markdown", "text": super::markdown::tests::EXAMPLE,
+                          "origin": {"file": "specs/0001-time-entries/spec.md"}});
+    let validation = validate(&read(vec![
+        markdown.clone(),
+        entry(with(epic(), "title", json!("chore: Time entries"))),
+    ]));
+    assert_eq!(
+        found(&validation.errors),
+        [(codes::TITLE_FORMAT, "/title".into(), Reason::Syntax)]
+    );
+    let defaults: Vec<(Option<u64>, &str, &str)> = validation
+        .defaults_applied
+        .iter()
+        .map(|d| (d.document(), d.pointer().as_str(), d.reason().id()))
+        .collect();
+    assert_eq!(
+        defaults,
+        [
+            (None, "/policy", "default_policy"),
+            (Some(0), "/kind", "implied_by_form"),
+            (Some(0), "/schema_version", "implied_by_form"),
+        ]
+    );
+    // No epic or task: no check reads the policy, so no default is reported.
+    let validation = validate(&read(vec![markdown, entry(brief())]));
+    assert!(
+        validation
+            .defaults_applied
+            .iter()
+            .all(|d| d.pointer().as_str() != "/policy")
+    );
+    // A policy given is read instead, and no default applies.
+    let validation = validate_with_policy(
+        vec![entry(with(epic(), "title", json!("chore: Time entries")))],
+        json!({"types": ["feat"], "scopes": ["core"], "areas": ["core"]}),
+    );
+    assert_eq!(validation.errors, []);
+    assert_eq!(validation.defaults_applied, []);
+}
+
+#[test]
+fn a_title_longer_than_the_schema_allows_is_not_read_by_the_title_stage() {
+    // A document of an unknown version skips its schema, so its title is not limited there:
+    // the title stage reads no title beyond the limit of the schema, and the set is checked in
+    // a bounded time.
+    let long = ".".repeat(100_000);
+    let validation = validate(&read(vec![entry(with(
+        with(epic(), "schema_version", json!(9)),
+        "title",
+        json!(long),
+    ))]));
+    let codes: Vec<Code> = validation.errors.iter().map(|e| e.code().clone()).collect();
+    assert_eq!(codes, [codes::SCHEMA_VERSION_UNKNOWN]);
+    // At the limit, the title is read.
+    let at_limit = format!(
+        "{}.",
+        "x".repeat(wayloop_schemas::contract::rules::TITLE_MAX_CHARS - 1)
+    );
+    let validation = validate(&read(vec![entry(with(epic(), "title", json!(at_limit)))]));
+    let codes: Vec<Code> = validation.errors.iter().map(|e| e.code().clone()).collect();
+    assert_eq!(codes, [codes::TITLE_FORMAT]);
 }

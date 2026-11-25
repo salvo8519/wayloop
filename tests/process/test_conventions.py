@@ -1,7 +1,13 @@
 """The naming conventions in scripts/conventions.py (docs/en/project/conventions.md)."""
 
+import re
+
 import conventions
 import pytest
+from _labels import AREA_PREFIX
+from conftest import ROOT
+
+import roadmap
 
 
 @pytest.mark.parametrize(
@@ -153,3 +159,29 @@ def test_breaking_label_needs_the_marker_in_the_title() -> None:
         "fix(core): rename a step", "fix/42-step", body, ["breaking-change"], "a"
     )
     assert any("!" in p for p in problems)
+
+
+# The default policy of the core (SPEC-0001 R21, SPEC-0021 R1) is a deliberate copy of the
+# policy of this repository, since the crate embeds no file outside itself: these tests keep it
+# equal to its sources.
+POLICY_RS = (ROOT / "crates" / "wayloop-core" / "src" / "policy.rs").read_text(encoding="utf-8")
+
+
+def default_policy_list(name: str) -> tuple[str, ...]:
+    """The names of the constant `name` of crates/wayloop-core/src/policy.rs, in order."""
+    match = re.search(rf"const {name}: \[&str; (\d+)\] = \[(.*?)\];", POLICY_RS, re.DOTALL)
+    assert match, name
+    names = tuple(re.findall(r'"([^"]*)"', match.group(2)))
+    assert len(names) == int(match.group(1)), name
+    return names
+
+
+def test_the_default_policy_of_the_core_has_the_types_and_scopes_of_the_conventions() -> None:
+    assert default_policy_list("TYPES") == conventions.TYPES
+    assert default_policy_list("SCOPES") == conventions.SCOPES
+
+
+def test_the_default_policy_of_the_core_has_the_areas_of_the_roadmap_labels() -> None:
+    labels = [label["name"] for label in roadmap.load()["labels"]]
+    areas = tuple(name.removeprefix(AREA_PREFIX) for name in labels if name.startswith(AREA_PREFIX))
+    assert default_policy_list("AREAS") == areas

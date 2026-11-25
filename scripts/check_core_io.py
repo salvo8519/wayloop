@@ -79,9 +79,17 @@ SCHEMARS = frozenset(
         "ref-cast-impl",
     }
 )
+# Unicode normalisation (NFC) and case folding of titles (SPEC-0001 R8; plan, D4 (a) and (i);
+# ADR 0031): unicode-normalization and caseless, both of the unicode-rs project, and tinyvec, the
+# buffer unicode-normalization reaches. None has a build script or performs I/O; tinyvec forbids
+# unsafe code, and unicode-normalization confines it to the arithmetic composition and
+# decomposition of Hangul syllables (char::from_u32_unchecked with constant bounds). Licences: MIT
+# (caseless), MIT or Apache-2.0 and Unicode-3.0 (unicode-normalization), Zlib, Apache-2.0 or MIT
+# (tinyvec). Fallback if they are abandoned: tables generated into the core by a script (D4 (b)).
+UNICODE = frozenset({"unicode-normalization", "caseless", "tinyvec"})
 PURE_CRATES: dict[str, frozenset[str]] = {
     "wayloop-schemas": SERDE | SCHEMARS,
-    "wayloop-core": SERDE | SCHEMARS | {"wayloop-schemas"},
+    "wayloop-core": SERDE | SCHEMARS | UNICODE | {"wayloop-schemas"},
 }
 
 # Dependencies point one way: a crate may depend only on the crates before it (ADR 0006).

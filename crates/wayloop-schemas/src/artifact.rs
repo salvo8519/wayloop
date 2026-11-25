@@ -120,7 +120,7 @@ pub struct Common<Id, S> {
     pub identity: Identity<Id>,
     /// Outcome or name, in sentence case without a final full stop; 1 to 120 characters
     /// (Unicode code points).
-    #[schemars(length(min = 1, max = 120))]
+    #[schemars(length(min = 1, max = crate::contract::rules::TITLE_MAX_CHARS))]
     pub title: String,
     /// Current status (SPEC-0001 R5), not the issue-cycle state of SPEC-0002.
     pub status: S,
@@ -209,6 +209,7 @@ mod tests {
         assert_eq!(properties["schema_version"]["const"], 1);
         assert_eq!(properties["schema_version"]["type"], "integer");
         assert_eq!(properties["title"]["maxLength"], 120);
+        assert_eq!(crate::contract::rules::TITLE_MAX_CHARS, 120);
         assert_eq!(properties["id"]["format"], "brief-id");
         assert_eq!(properties["superseded_by"]["items"]["format"], "brief-id");
         assert_eq!(schema["additionalProperties"], false);

@@ -13,11 +13,10 @@
 //!   the reason `conflict` at `/id` and `fix` its identifier. The identity is the `id`; the
 //!   name only helps a person find the file. A document sent directly gives none.
 
-use std::collections::BTreeMap;
-
 use wayloop_schemas::contract::rules::ID;
 
 use super::codes;
+use super::duplicates::{documents, shared};
 use super::input::{Entry, Place};
 use super::locations::named_identifier;
 use crate::{Error, Pointer, Reason, Related, Source};
@@ -51,33 +50,15 @@ impl Indexed<'_> {
 /// The errors of identifiers carried by more than one artifact of `index`, one per artifact,
 /// in the order of the index.
 pub(super) fn duplicates(index: &[Indexed<'_>]) -> Vec<Error> {
-    let mut carriers: BTreeMap<&str, Vec<&Indexed<'_>>> = BTreeMap::new();
-    for artifact in index {
-        carriers.entry(&artifact.id).or_default().push(artifact);
-    }
-    index
-        .iter()
-        .filter_map(|artifact| {
-            let others: Vec<Related> = carriers
-                .get(artifact.id.as_str())?
-                .iter()
-                .filter(|other| other.document != artifact.document)
-                .map(|other| Related::new(other.document, id_pointer(), other.source()))
-                .collect();
-            if others.is_empty() {
-                return None;
-            }
-            let listed: Vec<String> = others.iter().map(|o| o.document().to_string()).collect();
-            let documents = if listed.len() == 1 {
-                "document"
-            } else {
-                "documents"
-            };
+    let related = |a: &Indexed<'_>| Related::new(a.document, id_pointer(), a.source());
+    shared(index, |a| a.id.as_str(), related)
+        .into_iter()
+        .map(|(artifact, others)| {
             let message = format!(
-                "The identifier {} is also carried by the {documents} {} of the input; an \
-                 identifier is never reused.",
+                "The identifier {} is also carried by the {} of the input; an identifier is \
+                 never reused.",
                 artifact.id,
-                listed.join(", ")
+                documents(&others)
             );
             let error = Error::new(
                 codes::IDENTIFIER_DUPLICATE,
@@ -86,7 +67,7 @@ pub(super) fn duplicates(index: &[Indexed<'_>]) -> Vec<Error> {
                 Reason::Duplicate,
             )
             .with_related(others);
-            Some(artifact.of(error))
+            artifact.of(error)
         })
         .collect()
 }

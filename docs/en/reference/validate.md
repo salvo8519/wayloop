@@ -10,8 +10,9 @@ specifications, change deltas, tasks, hand-over records and the inputs (pull req
 and hand-over inputs) are validated against their schemas. A living specification written in
 Markdown is first normalised into its document model (see Living specifications in Markdown
 below). Across documents, identifiers are checked for uniqueness and against the path of their
-file; the other checks across documents (links, parts, statuses, naming, areas) are not run by
-this version and are listed in `diagnostics.not_done`.
+file, and the titles of epics and tasks for their form and their uniqueness; the other checks
+across documents (links, parts, statuses, naming, areas) are not run by this version and are
+listed in `diagnostics.not_done`.
 
 This page describes version 1 of the command, as built from source. Its contract is the pair
 of schema snapshots `schemas/commands/validate/v1.json` (input) and
@@ -82,6 +83,8 @@ path, goes to standard error.
 | `identifier_format` | The `id` is in the canonical form of its type, for example `BRIEF-0001` |
 | `identifier_duplicate` | No two artifacts of the set carry one identifier |
 | `identifier_location` | The file name of a brief, a council report or a plan item, and the folder number of a living specification, name the `id` of the artifact; a warning otherwise |
+| `title_format` | The title of each epic and task has no type prefix, no bracket tag at its start or end and no final full stop (see Titles of epics and tasks below) |
+| `title_duplicate` | No two titles of epics and tasks, in any status except `superseded`, are equal after normalisation |
 | `artifact_locations` | Some folder of a location exists in the project the documents were discovered in; with `locations` only, after the checks above |
 
 Each schema is one check, `schema_<kind>` or `schema_<input_kind>`, listed in
@@ -95,7 +98,7 @@ Any other check the engine did not run is never skipped silently:
 | `links` | The set: links between artifacts, hierarchy, ADR citations |
 | `parts` | The set: parts of artifacts and operations of change deltas |
 | `statuses` | The set: transitions and initial statuses against `base` |
-| `naming` | The set: titles, branch names, commit headers and pull request links |
+| `naming` | The set: branch names, commit headers and pull request links |
 | `areas` | The set: the `area` of each epic and task against the areas of the project policy |
 
 A schema also states the members that a status, a verification or an operation requires; a
@@ -260,6 +263,31 @@ An empty text where one is required is refused with the reason `length`. The sch
 shape only. The grammar of a branch name and of a commit header, and the issue links of a pull
 request, are the check `naming`, which this version does not run.
 
+### Titles of epics and tasks
+
+The title of an epic or a task names the work, without its type and without the markers of a
+tracker. Its schema gives its length, at most 120 characters; the checks `title_format` and
+`title_duplicate` read every epic and task whose `title` raised no error and is within that
+length, whatever its other errors.
+
+| Rule | Example refused | `fix` |
+| --- | --- | --- |
+| No type prefix: a leading `<word>:`, `<word>(<anything>):`, `<word>!:` or `<word>(<anything>)!:` where `<word>` is a type of the policy, without regard to case | `feat(core)!: Record time entries` | `Record time entries` |
+| No bracket tag `[...]` at the start or at the end, closed by its matching bracket, nested brackets counted; an unbalanced group is no tag | `[EPIC] Monthly export of time entries` | `Monthly export of time entries` |
+| No final full stop | `Monthly export of time entries.` | `Monthly export of time entries` |
+
+A word that is not a type of the policy is not a prefix: `wayloop init creates a project
+structure that validates` passes. Each rule broken is one error `title_format`, in the order of
+the table, and each `fix` is the title with every rule applied, so a rule revealed by removing
+another counts too: `[EPIC] feat: Export.` gives three errors whose `fix` is `Export`. When
+nothing is left of the title, the error has no `fix`.
+
+Two titles are equal when they are equal after Unicode NFC normalisation, case folding, NFC
+normalisation again, trimming and collapsing every run of white space into one space: `Export of
+the café entries` and ` EXPORT of the  CAFÉ entries` are one title. Epic and task titles are
+compared with each other, in every status except `superseded`. Case folding is the full folding
+of Unicode: the sharp s `ß` equals `ss`, and the final sigma equals sigma.
+
 ## Input
 
 The canonical input is one JSON object. A member set to `null` is not given, exactly as an
@@ -269,7 +297,7 @@ absent member. The input schema is closed: a member it does not list is refused.
 | --- | --- | --- | --- |
 | `documents` | list of objects | yes | One entry per stored artifact or input; `[]` means none |
 | `base` | list of `{id, status}` | no | Statuses on the default branch of the artifacts of the set |
-| `policy` | object `{types, scopes, areas}`, each a list of names of the policy, identifiers of at least one character | no | The subset of the project policy the model reads. No check of this version reads it: the check `areas` is listed as not done |
+| `policy` | object `{types, scopes, areas}`, each a list of names of the policy, identifiers of at least one character | no | The subset of the project policy the model reads. The check `title_format` reads its `types`; the check `areas` is listed as not done. Absent: the default policy applies, the policy of the Wayloop repository, and `meta.defaults_applied` lists it when the set holds an epic or a task, whose checks read it |
 | `adrs` | list of integers from 1 | no | Numbers of the ADRs of the project |
 | `locations` | list of `plan_briefs`, `plan_council`, `plan_items`, `specs`, for the folders `plan/briefs`, `plan/council`, `plan/items` and `specs` | no | The folders of the locations that exist in the project, when the documents were discovered there; their order and a repeated folder have no meaning, they are not compared with the `file` origins of the documents, and `[]` means none, which gives the warning `artifact_location_missing`. Absent: the documents were named or sent directly, and the check `artifact_locations` is not done |
 | `language` | BCP 47 tag, for example `it` or `en-GB` | no | The language of the project. No check of this version reads it, so no default is applied or reported when it is absent; a check that needs it lists the default in `meta.defaults_applied` |
@@ -326,10 +354,16 @@ does not know and accepts enum values it does not know.
   version, whose shape the envelope has; when the input is also text the engine cannot read as
   JSON, the same report lists the version first, then the error of the text. A usage error
   reports the current version of the command it names, and 1 when it names no known command.
-- The defaults of the documents follow the default of the command version, in the order of
-  the documents, then in the byte order of their pointers. Each carries `document`, the index
-  of its document from 0, as an error does, and its `pointer` is relative to that document: a
-  living specification sent as Markdown gives `{"pointer": "/kind", "value":
+- When the input has no `policy` and the set holds an epic or a task, the default policy
+  follows the default of the command version: `{"pointer": "/policy", "value": {"types": [...],
+  "scopes": [...], "areas": [...]}, "reason": "default_policy", "message": ...}`, with no
+  `document`, since it is a default of the input itself. Its types and scopes are those of the
+  [conventions](../project/conventions.md#commits) of the Wayloop repository, and its areas
+  those of its `area:` labels.
+- The defaults of the documents follow the defaults of the command version and the policy, in
+  the order of the documents, then in the byte order of their pointers. Each carries `document`,
+  the index of its document from 0, as an error does, and its `pointer` is relative to that
+  document: a living specification sent as Markdown gives `{"pointer": "/kind", "value":
   "specification", "reason": "implied_by_form", "message": "The Markdown form of a living
   specification does not carry `kind`.", "document": <i>}` and the same for `/schema_version`
   with the current version. The wording of `message` is not part of the contract.
@@ -348,12 +382,13 @@ Every error found is listed in `error.errors`; the first one is repeated at the 
 1. The errors of the input itself (code `command_input`) come first and stop the command: no
    document is checked. They follow the schema pass of the input schema, then the entries in
    order for the rules the schema cannot state.
-2. Otherwise, the errors of the documents, in the order of the documents; within a document,
-   by stage (kind, version and schema first, then identifier, then the identifiers across the
-   set); within a stage, in the order of the schema pass: the members of an object in the byte
-   order of their keys (`/aa` before `/zz`), the elements of an array by index, absent members
-   after present ones, in the order in which the schema lists them as required. The errors of
-   the name of a member come before the errors of its value, at the same pointer.
+2. Otherwise, the errors of the documents, in the order of the documents; within a document, by
+   stage (kind, version and schema first, then identifier, then the identifiers across the set,
+   then the form of the title and the titles across the set); within a stage, in the order of
+   the schema pass: the members of an object in the byte order of their keys (`/aa` before
+   `/zz`), the elements of an array by index, absent members after present ones, in the order in
+   which the schema lists them as required. The errors of the name of a member come before the
+   errors of its value, at the same pointer.
 
 Every `pointer` of the result is an RFC 6901 pointer; the schemas of the output and of the
 envelope give it the format `json-pointer`, which a JSON Schema validator checks when format
@@ -385,6 +420,8 @@ levels of objects (ADR 0009 C4). `related` is absent when there is no other docu
 | `schema_version_unknown` | `enum` | 1 | The `schema_version` is not a version of the type or of the input; `expected` lists the known versions |
 | `identifier_format` | `syntax` | 1 | The `id` is not in the canonical form of its type; `fix` gives the corrected identifier when one can be derived |
 | `identifier_duplicate` | `duplicate` | 1 | Two artifacts or more of the set carry one identifier: each is refused at `/id`, and each error names the others in `related`. Every document of a known `kind` whose `id` raised no error is compared, whatever its other errors, so the duplicates come in the same pass |
+| `title_format` | `syntax` | 1 | The title of an epic or a task has a type prefix, a bracket tag at its start or end, or a final full stop: one error per rule at `/title`, each with `fix` the title with every rule applied, when anything is left |
+| `title_duplicate` | `duplicate` | 1 | Two epic or task titles or more, in any status except `superseded`, are equal after normalisation: each is refused at `/title`, and each error names the others in `related` |
 | `usage` | `syntax` | 2 | The command line is not understood; `command` is the command named, empty when none |
 | `input_unreadable` | `missing`, `state` | 3 | The input file, a file named or a folder of the project does not exist (`missing`) or cannot be read (`state`); the envelope holds no path |
 | `internal_error` | `internal` | 5 | The engine could not compute the result; the input may be valid |

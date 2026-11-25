@@ -1,6 +1,6 @@
 ---
 source: concepts/architecture.md
-source_hash: 5f78b0f66293
+source_hash: 6cb8f6b83625
 ---
 # Architettura
 
@@ -73,8 +73,11 @@ wayloop-schemas    tipi dei contratti, niente I/O
   feature `preserve_order`, con i crate che raggiunge (`schemars_derive`,
   `serde_derive_internals`, `dyn-clone`, `ref-cast`, `ref-cast-impl`)
   ([ADR 0030](https://salvo8519.github.io/wayloop/project/adr/0030-contracts-generated-from-rust-types/));
-  `wayloop-core` può usare anche `wayloop-schemas`, e `wayloop-schemas` nessun crate di
-  Wayloop. `scripts/check_core_io.py` risolve ogni crate puro da solo con
+  `wayloop-core` può usare anche `wayloop-schemas`, e `unicode-normalization` e `caseless`,
+  che normalizzano e applicano il case folding ai titoli di epic e task e non fanno I/O, con
+  `tinyvec`, che raggiungono
+  ([ADR 0031](https://salvo8519.github.io/wayloop/project/adr/0031-unicode-crates-in-the-core/));
+  `wayloop-schemas` non usa nessun crate di Wayloop. `scripts/check_core_io.py` risolve ogni crate puro da solo con
   `cargo tree` (dipendenze normali, ogni target, tutte le sue feature, il lock file lasciato
   invariato) e fallisce su ogni crate raggiunto fuori dall'allowlist, stampando il percorso
   che lo raggiunge e indicando i crate di I/O noti. Le allowlist impongono anche la direzione

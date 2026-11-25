@@ -1,6 +1,6 @@
 ---
 source: reference/validate.md
-source_hash: 078f5285091e
+source_hash: 7eb90577c4d5
 ---
 # wayloop validate
 
@@ -14,8 +14,9 @@ modifiche a delta, task, record di passaggio di mano e gli input (pull request, 
 di passaggio di mano) sono validati rispetto ai loro schemi. Una specifica viva scritta in
 Markdown viene prima normalizzata nel suo modello di documento (vedi Specifiche vive in Markdown
 più sotto). Tra documenti, gli identificativi sono controllati per unicità e rispetto al
-percorso del loro file; gli altri controlli tra documenti (collegamenti, parti, stati, nomi,
-aree) non sono eseguiti da questa versione e sono elencati in `diagnostics.not_done`.
+percorso del loro file, e i titoli di epic e task per la loro forma e la loro unicità; gli altri
+controlli tra documenti (collegamenti, parti, stati, nomi, aree) non sono eseguiti da questa
+versione e sono elencati in `diagnostics.not_done`.
 
 Questa pagina descrive la versione 1 del comando, compilata dai sorgenti. Il suo contratto è la
 coppia di snapshot di schema `schemas/commands/validate/v1.json` (input) e
@@ -88,6 +89,8 @@ letto; il messaggio per una persona, con il percorso, va sullo standard error.
 | `identifier_format` | L'`id` è nella forma canonica del suo tipo, per esempio `BRIEF-0001` |
 | `identifier_duplicate` | Due artefatti dell'insieme non portano mai lo stesso identificativo |
 | `identifier_location` | Il nome del file di un brief, di un verbale del comitato o di un elemento del piano, e il numero della cartella di una specifica viva, indicano l'`id` dell'artefatto; altrimenti un avviso |
+| `title_format` | Il titolo di ogni epic e di ogni task non ha un prefisso di tipo, né un tag tra parentesi quadre all'inizio o alla fine, né un punto finale (vedi Titoli di epic e task più sotto) |
+| `title_duplicate` | Due titoli di epic e task, in qualunque stato tranne `superseded`, non sono mai uguali dopo la normalizzazione |
 | `artifact_locations` | Nel progetto in cui i documenti sono stati scoperti esiste almeno una cartella di una posizione; solo con `locations`, dopo i controlli precedenti |
 
 Ogni schema è un controllo, `schema_<kind>` o `schema_<input_kind>`, elencato in
@@ -102,7 +105,7 @@ eseguito non è mai saltato in silenzio:
 | `links` | L'insieme: collegamenti tra artefatti, gerarchia, citazioni di ADR |
 | `parts` | L'insieme: parti degli artefatti e operazioni delle modifiche a delta |
 | `statuses` | L'insieme: transizioni e stati iniziali rispetto a `base` |
-| `naming` | L'insieme: titoli, nomi dei branch, intestazioni dei commit e collegamenti delle pull request |
+| `naming` | L'insieme: nomi dei branch, intestazioni dei commit e collegamenti delle pull request |
 | `areas` | L'insieme: l'`area` di ogni epic e di ogni task rispetto alle aree della policy del progetto |
 
 Uno schema indica anche i membri che uno stato, una verifica o un'operazione richiedono; un
@@ -272,6 +275,32 @@ solo la forma. La grammatica di un nome di branch e di un'intestazione di commit
 collegamenti alle issue di una pull request, sono il controllo `naming`, che questa versione
 non esegue.
 
+### Titoli di epic e task
+
+Il titolo di un epic o di un task nomina il lavoro, senza il suo tipo e senza i marcatori di un
+tracker. Il suo schema ne fissa la lunghezza, al massimo 120 caratteri; i controlli
+`title_format` e `title_duplicate` leggono ogni epic e ogni task il cui `title` non ha dato
+errori e rientra in quella lunghezza, qualunque siano i suoi altri errori.
+
+| Regola | Esempio rifiutato | `fix` |
+| --- | --- | --- |
+| Nessun prefisso di tipo: un `<word>:`, `<word>(<anything>):`, `<word>!:` o `<word>(<anything>)!:` iniziale dove `<word>` è un tipo della policy, senza distinzione tra maiuscole e minuscole | `feat(core)!: Record time entries` | `Record time entries` |
+| Nessun tag tra parentesi quadre `[...]` all'inizio o alla fine, chiuso dalla parentesi corrispondente, contando quelle annidate; un gruppo non bilanciato non è un tag | `[EPIC] Monthly export of time entries` | `Monthly export of time entries` |
+| Nessun punto finale | `Monthly export of time entries.` | `Monthly export of time entries` |
+
+Una parola che non è un tipo della policy non è un prefisso: `wayloop init creates a project
+structure that validates` è accettato. Ogni regola violata è un errore `title_format`,
+nell'ordine della tabella, e ogni `fix` è il titolo con tutte le regole applicate, quindi conta
+anche una regola che emerge togliendone un'altra: `[EPIC] feat: Export.` dà tre errori il cui
+`fix` è `Export`. Quando del titolo non resta nulla, l'errore non ha `fix`.
+
+Due titoli sono uguali quando lo sono dopo la normalizzazione Unicode NFC, il case folding, di
+nuovo la normalizzazione NFC, la rimozione degli spazi iniziali e finali e la riduzione di ogni
+sequenza di spazi bianchi a un solo spazio: `Export of the café entries` e ` EXPORT of the  CAFÉ
+entries` sono un solo titolo. I titoli di epic e task sono confrontati tra loro, in ogni stato
+tranne `superseded`. Il case folding è quello completo di Unicode: la s tedesca `ß` equivale a
+`ss`, e il sigma finale al sigma.
+
 ## Input
 
 L'input canonico è un oggetto JSON. Un membro impostato a `null` non è dato, esattamente come
@@ -281,7 +310,7 @@ un membro assente. Lo schema di input è chiuso: un membro che non elenca è rif
 | --- | --- | --- | --- |
 | `documents` | lista di oggetti | sì | Una voce per ogni artefatto o input memorizzato; `[]` significa nessuno |
 | `base` | lista di `{id, status}` | no | Stati sul branch predefinito degli artefatti dell'insieme |
-| `policy` | oggetto `{types, scopes, areas}`, ciascuno una lista di nomi della policy, identificativi di almeno un carattere | no | La parte della policy del progetto che il modello legge. Nessun controllo di questa versione la legge: il controllo `areas` è elencato come non eseguito |
+| `policy` | oggetto `{types, scopes, areas}`, ciascuno una lista di nomi della policy, identificativi di almeno un carattere | no | La parte della policy del progetto che il modello legge. Il controllo `title_format` ne legge i `types`; il controllo `areas` è elencato come non eseguito. Assente: vale la policy predefinita, la policy del repository di Wayloop, e `meta.defaults_applied` la elenca quando l'insieme contiene un epic o un task, i cui controlli la leggono |
 | `adrs` | lista di interi da 1 | no | Numeri degli ADR del progetto |
 | `locations` | lista di `plan_briefs`, `plan_council`, `plan_items`, `specs`, per le cartelle `plan/briefs`, `plan/council`, `plan/items` e `specs` | no | Le cartelle delle posizioni che esistono nel progetto, quando i documenti vi sono stati scoperti; il loro ordine e una cartella ripetuta non hanno significato, non sono confrontate con le origini `file` dei documenti, e `[]` significa nessuna, e dà l'avviso `artifact_location_missing`. Assente: i documenti sono stati indicati per nome o inviati direttamente, e il controllo `artifact_locations` non è eseguito |
 | `language` | tag BCP 47, per esempio `it` o `en-GB` | no | La lingua del progetto. Nessun controllo di questa versione la legge, quindi quando è assente nessun default viene applicato né riportato; un controllo che ne ha bisogno elenca il default in `meta.defaults_applied` |
@@ -340,13 +369,20 @@ che non conosce e accetta i valori di enum che non conosce.
   motore non può leggere come JSON, lo stesso rapporto elenca prima la versione, poi l'errore
   del testo. Un errore d'uso riporta la versione corrente del comando che indica, e 1 quando
   non indica un comando noto.
-- I valori predefiniti dei documenti seguono quello della versione del comando, nell'ordine dei
-  documenti, poi nell'ordine dei byte dei loro puntatori. Ognuno porta `document`, l'indice del
-  suo documento da 0, come un errore, e il suo `pointer` è relativo a quel documento: una
-  specifica viva inviata in Markdown dà `{"pointer": "/kind", "value": "specification",
-  "reason": "implied_by_form", "message": "The Markdown form of a living specification does
-  not carry `kind`.", "document": <i>}` e lo stesso per `/schema_version` con la versione
-  corrente. Il testo di `message` non fa parte del contratto.
+- Quando l'input non ha `policy` e l'insieme contiene un epic o un task, la policy predefinita
+  segue il valore predefinito della versione del comando: `{"pointer": "/policy", "value":
+  {"types": [...], "scopes": [...], "areas": [...]}, "reason": "default_policy", "message":
+  ...}`, senza `document`, perché è un valore predefinito dell'input stesso. I suoi tipi e
+  scope sono quelli delle
+  [convenzioni](https://salvo8519.github.io/wayloop/project/conventions/#commits) del
+  repository di Wayloop, e le sue aree quelle delle sue etichette `area:`.
+- I valori predefiniti dei documenti seguono quelli della versione del comando e della policy,
+  nell'ordine dei documenti, poi nell'ordine dei byte dei loro puntatori. Ognuno porta
+  `document`, l'indice del suo documento da 0, come un errore, e il suo `pointer` è relativo a
+  quel documento: una specifica viva inviata in Markdown dà `{"pointer": "/kind", "value":
+  "specification", "reason": "implied_by_form", "message": "The Markdown form of a living
+  specification does not carry `kind`.", "document": <i>}` e lo stesso per `/schema_version` con
+  la versione corrente. Il testo di `message` non fa parte del contratto.
 - `meta.input_hash` è lo SHA-256 del JSON canonico (RFC 8785) dell'input senza i suoi membri
   impostati a `null`, quindi un input con `"base": null` ha l'hash dell'input senza `base`. Per
   un testo che il motore rifiuta di leggere come JSON (non JSON, una chiave ripetuta in un
@@ -364,12 +400,12 @@ Ogni errore trovato è elencato in `error.errors`; il primo è ripetuto al livel
    nessun documento viene controllato. Seguono il passaggio dello schema di input, poi le voci
    in ordine per le regole che lo schema non può esprimere.
 2. Altrimenti, gli errori dei documenti, nell'ordine dei documenti; dentro un documento, per
-   fase (prima tipo, versione e schema, poi identificativo, poi gli identificativi
-   dell'insieme); dentro una fase, nell'ordine del passaggio dello schema: i membri di un
-   oggetto nell'ordine dei byte delle loro chiavi (`/aa` prima di `/zz`), gli elementi di un
-   array per indice, i membri assenti dopo quelli presenti, nell'ordine in cui lo schema li
-   elenca come obbligatori. Gli errori del nome di un membro vengono prima degli errori del suo
-   valore, allo stesso puntatore.
+   fase (prima tipo, versione e schema, poi identificativo, poi gli identificativi dell'insieme,
+   poi la forma del titolo e i titoli dell'insieme); dentro una fase, nell'ordine del passaggio
+   dello schema: i membri di un oggetto nell'ordine dei byte delle loro chiavi (`/aa` prima di
+   `/zz`), gli elementi di un array per indice, i membri assenti dopo quelli presenti,
+   nell'ordine in cui lo schema li elenca come obbligatori. Gli errori del nome di un membro
+   vengono prima degli errori del suo valore, allo stesso puntatore.
 
 Ogni `pointer` del risultato è un puntatore RFC 6901; gli schemi dell'output e dell'envelope gli
 danno il formato `json-pointer`, che un validatore JSON Schema controlla quando la verifica dei
@@ -401,6 +437,8 @@ livelli di oggetti (ADR 0009 C4). `related` è assente quando non c'è un altro 
 | `schema_version_unknown` | `enum` | 1 | Lo `schema_version` non è una versione del tipo o dell'input; `expected` elenca le versioni note |
 | `identifier_format` | `syntax` | 1 | L'`id` non è nella forma canonica del suo tipo; `fix` dà l'identificativo corretto quando è possibile ricavarlo |
 | `identifier_duplicate` | `duplicate` | 1 | Due o più artefatti dell'insieme portano lo stesso identificativo: ciascuno è rifiutato in `/id`, e ogni errore nomina gli altri in `related`. È confrontato ogni documento di un `kind` noto il cui `id` non ha dato errori, qualunque siano i suoi altri errori, così i duplicati arrivano nello stesso passaggio |
+| `title_format` | `syntax` | 1 | Il titolo di un epic o di un task ha un prefisso di tipo, un tag tra parentesi quadre all'inizio o alla fine, o un punto finale: un errore per regola in `/title`, ciascuno con `fix` il titolo con tutte le regole applicate, quando ne resta qualcosa |
+| `title_duplicate` | `duplicate` | 1 | Due o più titoli di epic o task, in qualunque stato tranne `superseded`, sono uguali dopo la normalizzazione: ciascuno è rifiutato in `/title`, e ogni errore nomina gli altri in `related` |
 | `usage` | `syntax` | 2 | La riga di comando non è compresa; `command` è il comando indicato, vuoto quando nessuno |
 | `input_unreadable` | `missing`, `state` | 3 | Il file di input, un file indicato o una cartella del progetto non esiste (`missing`) o non può essere letto (`state`); l'envelope non contiene percorsi |
 | `internal_error` | `internal` | 5 | Il motore non ha potuto calcolare il risultato; l'input può essere valido |
