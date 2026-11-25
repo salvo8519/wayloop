@@ -33,6 +33,7 @@ use wayloop_schemas::artifact::{ArtifactKind, RequirementStatus, Verification};
 use wayloop_schemas::contract::SPECIFICATION;
 use wayloop_schemas::contract::rules::STATUS;
 use wayloop_schemas::value::{Line, ProjectPath};
+use wayloop_schemas::{DefaultApplied, DefaultReason};
 
 use super::{codes, locations};
 use crate::schema::format;
@@ -51,10 +52,18 @@ pub(crate) struct Normalised {
     /// The faults the document model cannot hold, each with its source when the text was read
     /// from a file.
     pub(crate) errors: Vec<Error>,
+    /// The members the Markdown form does not carry, `kind` and `schema_version`, with the value
+    /// written: defaults of the document (decided by the maintainer on 2026-11-25).
+    pub(crate) defaults_applied: Vec<DefaultApplied>,
     /// The members left out of the document because a fault refused here stands for them: the
     /// schema reports nothing more at these pointers, so that one fault gives one error.
     pub(crate) withheld: BTreeSet<Pointer>,
 }
+
+/// The reason of a default of a member that the Markdown form of a living specification does not
+/// carry, `kind` and `schema_version`: the value is the one the form implies, the type
+/// `specification` and the current version of its schema.
+pub(crate) const IMPLIED_BY_FORM: DefaultReason = DefaultReason::new("implied_by_form");
 
 /// How the value of a header row is written into its member.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -194,8 +203,8 @@ pub(crate) fn normalise(text: &str, file: Option<&ProjectPath>) -> Normalised {
     if let Some(first) = lines.first() {
         out.at(&Pointer::root(), first.line);
     }
-    out.put("kind", ArtifactKind::Specification.id(), None);
-    out.put("schema_version", SPECIFICATION.version.get(), None);
+    out.implied("kind", ArtifactKind::Specification.id());
+    out.implied("schema_version", SPECIFICATION.version.get());
     if let Some(capability) = file.and_then(|f| locations::specification_capability(f.as_str())) {
         out.put("capability", capability, None);
     }
@@ -383,6 +392,21 @@ impl Writer<'_> {
         self.normalised
             .document
             .insert(key.to_owned(), value.into());
+    }
+
+    /// Writes `value` at the member `key` of the root, which the form does not carry, and lists
+    /// it among the defaults applied.
+    fn implied(&mut self, key: &str, value: impl Into<Value>) {
+        let value = value.into();
+        let at = Pointer::root().join(key);
+        let message =
+            format!("The Markdown form of a living specification does not carry `{key}`.");
+        if let Some(default) = DefaultApplied::new(at, value.clone(), IMPLIED_BY_FORM) {
+            self.normalised
+                .defaults_applied
+                .push(default.with_message(message));
+        }
+        self.put(key, value, None);
     }
 
     /// Writes the list `values` at the member `key`, read from `line`, each value at its line.

@@ -450,3 +450,56 @@ fn text_of_the_scope_before_its_paragraphs_is_refused_and_an_empty_row_gives_no_
         json!(["Recording and listing time entries"])
     );
 }
+
+#[test]
+fn kind_and_schema_version_are_listed_as_defaults_of_their_document() {
+    // Decided by the maintainer on 2026-11-25: the Markdown form does not carry them, so the
+    // envelope lists both in `meta.defaults_applied` with the index of the document, after the
+    // default of the input itself, in the order of the documents and of their pointers.
+    let input = json!({"documents": [
+        {"format": "document", "document": examples::specification()},
+        {"format": "markdown", "text": EXAMPLE, "origin": {"file": FILE}},
+        {"format": "markdown", "text": EXAMPLE, "origin": {"file": FILE}}
+    ]});
+    let envelope = crate::run(crate::Command::Validate, &input, &crate::Context::default());
+    let written = serde_json::to_value(&envelope).unwrap();
+    let defaults: Vec<(Option<u64>, String, Value, String)> = written["meta"]["defaults_applied"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| {
+            (
+                d["document"].as_u64(),
+                d["pointer"].as_str().unwrap().to_owned(),
+                d["value"].clone(),
+                d["reason"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect();
+    let implied = super::IMPLIED_BY_FORM.id().to_owned();
+    assert_eq!(
+        defaults,
+        [
+            (
+                None,
+                String::new(),
+                json!(1),
+                crate::CURRENT_COMMAND_VERSION.id().to_owned()
+            ),
+            (
+                Some(1),
+                "/kind".into(),
+                json!("specification"),
+                implied.clone()
+            ),
+            (Some(1), "/schema_version".into(), json!(1), implied.clone()),
+            (
+                Some(2),
+                "/kind".into(),
+                json!("specification"),
+                implied.clone()
+            ),
+            (Some(2), "/schema_version".into(), json!(1), implied),
+        ]
+    );
+}

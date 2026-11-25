@@ -227,7 +227,7 @@ sola volta per tutti i comandi
 | `data` | Il risultato; presente solo quando il comando è riuscito |
 | `error` | Il report degli errori ([sopra](#gli-errori-sono-valori)); presente solo quando il comando è stato rifiutato o è fallito, e allora `data` è assente |
 | `diagnostics` | `warnings` nella forma di un errore; `not_done`, un `{check, reason}` per ogni controllo non eseguito, con la reason `not_built` (la parte del motore che lo esegue non è ancora costruita) o `input_absent` (l'input che gli serve non è stato fornito); `checks`, i controlli eseguiti. Ogni lista è sempre scritta, `[]` quando è vuota |
-| `meta` | `engine_version`, `envelope_version` (1), `command_version`, `input_hash`, `dry_run` e `defaults_applied`: un `{pointer, value, reason, message}` per ogni valore predefinito applicato dal motore, dove `reason` è un identificativo e `message`, per le persone, è facoltativo |
+| `meta` | `engine_version`, `envelope_version` (1), `command_version`, `input_hash`, `dry_run` e `defaults_applied`: un `{pointer, value, reason, message, document}` per ogni valore predefinito applicato dal motore, dove `reason` è un identificativo, `message`, per le persone, è facoltativo, e `document`, facoltativo, è l'indice del documento a cui il valore predefinito appartiene, come in un errore |
 
 Ogni identificativo nell'envelope (un controllo, una reason, un codice di errore) è un valore
 `snake_case` stabile, documentato con il comando che lo scrive; i client accettano i valori che

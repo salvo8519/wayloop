@@ -163,8 +163,10 @@ be read, no check runs: `diagnostics.checks` and `diagnostics.not_done` are then
 
 A living specification is stored as `specs/<NNNN>-<capability>/spec.md`, in the layout of the
 template `specs/_templates/spec.md`. The engine reads it line by line, without a Markdown
-parser, into the document model of the type `specification` (`kind` and `schema_version`, the
-current version, are those of that model), then applies the schema; every error carries the
+parser, into the document model of the type `specification`, then applies the schema. The form does
+not carry `kind` and `schema_version`: they are written as `specification` and the current
+version, and listed in `meta.defaults_applied` with the index of the document in `document`,
+the pointers `/kind` and `/schema_version` and the reason `implied_by_form`; every error carries the
 line it was read from in `source`. Headings, header rows and status words are English, whatever
 the language of the project; prose is in the language of the project.
 
@@ -314,6 +316,12 @@ does not know and accepts enum values it does not know.
   version, whose shape the envelope has; when the input is also text the engine cannot read as
   JSON, the same report lists the version first, then the error of the text. A usage error
   reports the current version of the command it names, and 1 when it names no known command.
+- The defaults of the documents follow the default of the command version, in the order of the
+  documents, then of their pointers. Each carries `document`, the index of its document from 0,
+  as an error does, and its `pointer` is relative to that document: a living specification sent
+  as Markdown gives `{"pointer": "/kind", "value": "specification", "reason":
+  "implied_by_form", "document": <i>}` and the same for `/schema_version` with the current
+  version.
 - `meta.input_hash` is the SHA-256 of the canonical JSON (RFC 8785) of the input without its
   members set to null, so an input with `"base": null` has the hash of the input without
   `base`. For text the engine refuses to read as JSON (not JSON, a key repeated in one object,

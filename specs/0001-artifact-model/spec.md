@@ -427,12 +427,17 @@ with no mapped word is refused with the reason `enum` and the words below in `ex
 Cases the tables above leave open (decided by the maintainer on 2026-11-25). Each refusal below
 has the code `artifact_schema` and carries the line it names in `source`:
 
+- `kind` and `schema_version`, which the Markdown form does not carry, are written as
+  `specification` and the current version of its schema, and listed in `meta.defaults_applied`
+  as two entries with `document`, the pointers `/kind` and `/schema_version` and the reason
+  `implied_by_form` (SPEC-0004 R3).
 - A header row whose label is not in the table, or that repeats a row already read, is refused
   with the reason `unknown_field` at the pointer of the label as written, for example `/Stato`,
   with the line of the row.
-- A section of the template given twice is refused with the reason `duplicate` at the member of
-  the section (`/scope_in` for `## Scope`, `/stories` for `## User stories`), with the line of
-  the second heading; its content is not read.
+- A section of the template given twice is refused with the reason `duplicate` at the member the
+  section fills, the first of its two members for `## Scope` (`/scope_in`) and `## User stories`
+  (`/stories`), with the line of the second heading; its content is not read. `duplicate` is
+  therefore a reason of `artifact_schema` (Errors).
 - Text outside the title, the header rows and the sections, or in `## Scope` before its
   paragraphs, is refused with the reason `syntax` at the root, with its line.
 - A paragraph in a section read as a list is one entry, as a list item is: a requirement

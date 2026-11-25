@@ -25,15 +25,20 @@
       "type": "string"
     },
     "DefaultApplied": {
-      "description": "A default the engine applied on behalf of the caller (ADR 0009 C2): an entry of `meta.defaults_applied`, `{pointer, value, reason, message}`. `message` is optional and left out of the serialised form when not given. The value applied is never null: null means not given (C2).",
+      "description": "A default the engine applied on behalf of the caller (ADR 0009 C2): an entry of `meta.defaults_applied`, `{pointer, value, reason, message, document}`. `message` and `document` are optional and left out of the serialised form when not given. The value applied is never null: null means not given (C2). `document` has the meaning it has in an error (ADR 0009, amended on 2026-11-25).",
       "properties": {
+        "document": {
+          "description": "Index, from 0, in the input array `documents` of the document the entry belongs to; its `pointer` is then relative to that document. Absent for an entry of the input itself (SPEC-0004 R2).",
+          "minimum": 0,
+          "type": "integer"
+        },
         "message": {
           "description": "Why the default applies, for a person; absent when not given.",
           "type": "string"
         },
         "pointer": {
           "$ref": "#/$defs/Pointer",
-          "description": "RFC 6901 pointer, from the root of the input, to where the default applies. With the reason `current_command_version`, the pointer `\"\"` designates the context of the command, its version, which has no place in the input."
+          "description": "RFC 6901 pointer to where the default applies: into the document given by `document` for a default of a document, from the root of the input otherwise. With the reason `current_command_version`, the pointer `\"\"` designates the context of the command, its version, which has no place in the input."
         },
         "reason": {
           "$ref": "#/$defs/DefaultReason",
@@ -120,7 +125,7 @@
           "description": "Stable `snake_case` code of the error; codes are never renamed or reused (ADR 0009 C8)."
         },
         "document": {
-          "description": "Index, from 0, in the input array `documents` of the document the error belongs to; absent for an error of the input itself (SPEC-0004 R2).",
+          "description": "Index, from 0, in the input array `documents` of the document the entry belongs to; its `pointer` is then relative to that document. Absent for an entry of the input itself (SPEC-0004 R2).",
           "minimum": 0,
           "type": "integer"
         },
@@ -182,7 +187,7 @@
           "description": "Stable `snake_case` code of the error; codes are never renamed or reused (ADR 0009 C8)."
         },
         "document": {
-          "description": "Index, from 0, in the input array `documents` of the document the error belongs to; absent for an error of the input itself (SPEC-0004 R2).",
+          "description": "Index, from 0, in the input array `documents` of the document the entry belongs to; its `pointer` is then relative to that document. Absent for an entry of the input itself (SPEC-0004 R2).",
           "minimum": 0,
           "type": "integer"
         },

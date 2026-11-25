@@ -173,8 +173,10 @@ sono allora vuoti.
 
 Una specifica viva è memorizzata come `specs/<NNNN>-<capability>/spec.md`, con la struttura del
 modello `specs/_templates/spec.md`. Il motore la legge riga per riga, senza un parser Markdown,
-nel modello di documento del tipo `specification` (`kind` e `schema_version`, la versione
-corrente, sono quelli di quel modello), poi applica lo schema; ogni errore riporta in `source`
+nel modello di documento del tipo `specification`, poi applica lo schema. La forma non riporta
+`kind` e `schema_version`: sono scritti come `specification` e la versione corrente, ed elencati
+in `meta.defaults_applied` con l'indice del documento in `document`, i puntatori `/kind` e
+`/schema_version` e il motivo `implied_by_form`; ogni errore riporta in `source`
 la riga da cui il valore è stato letto. Titoli di sezione, righe di intestazione e parole di
 stato sono in inglese, qualunque sia la lingua del progetto; la prosa è nella lingua del
 progetto.
@@ -331,6 +333,11 @@ che non conosce e accetta i valori di enum che non conosce.
   motore non può leggere come JSON, lo stesso rapporto elenca prima la versione, poi l'errore
   del testo. Un errore d'uso riporta la versione corrente del comando che indica, e 1 quando
   non indica un comando noto.
+- I valori predefiniti dei documenti seguono quello della versione del comando, nell'ordine dei
+  documenti, poi dei loro puntatori. Ognuno porta `document`, l'indice del suo documento da 0,
+  come un errore, e il suo `pointer` è relativo a quel documento: una specifica viva inviata in
+  Markdown dà `{"pointer": "/kind", "value": "specification", "reason": "implied_by_form",
+  "document": <i>}` e lo stesso per `/schema_version` con la versione corrente.
 - `meta.input_hash` è lo SHA-256 del JSON canonico (RFC 8785) dell'input senza i suoi membri
   impostati a `null`, quindi un input con `"base": null` ha l'hash dell'input senza `base`. Per
   un testo che il motore rifiuta di leggere come JSON (non JSON, una chiave ripetuta in un

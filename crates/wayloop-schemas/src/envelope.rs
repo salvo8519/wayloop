@@ -27,6 +27,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use crate::contract::rules;
+use crate::error::DOCUMENT_INDEX;
 use crate::{Code, Error, ErrorReport, Pointer, Reason};
 
 /// The channel was not used as documented, for example a command line its adapter does not
@@ -152,14 +153,16 @@ crate::static_id! {
 }
 
 /// A default the engine applied on behalf of the caller (ADR 0009 C2): an entry of
-/// `meta.defaults_applied`, `{pointer, value, reason, message}`. `message` is optional and left
-/// out of the serialised form when not given. The value applied is never null: null means not
-/// given (C2).
+/// `meta.defaults_applied`, `{pointer, value, reason, message, document}`. `message` and
+/// `document` are optional and left out of the serialised form when not given. The value
+/// applied is never null: null means not given (C2). `document` has the meaning it has in an
+/// error (ADR 0009, amended on 2026-11-25).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DefaultApplied {
-    /// RFC 6901 pointer, from the root of the input, to where the default applies. With the
-    /// reason `current_command_version`, the pointer `""` designates the context of the
-    /// command, its version, which has no place in the input.
+    /// RFC 6901 pointer to where the default applies: into the document given by `document`
+    /// for a default of a document, from the root of the input otherwise. With the reason
+    /// `current_command_version`, the pointer `""` designates the context of the command, its
+    /// version, which has no place in the input.
     pointer: Pointer,
     /// The value applied.
     #[serde(deserialize_with = "not_null")]
@@ -171,6 +174,10 @@ pub struct DefaultApplied {
     /// Why the default applies, for a person; absent when not given.
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
+    /// The document the default belongs to: see [`DOCUMENT_INDEX`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(description = DOCUMENT_INDEX)]
+    document: Option<u64>,
 }
 
 /// Reads a value and refuses null, which means not given (ADR 0009 C2).
@@ -192,7 +199,23 @@ impl DefaultApplied {
             value,
             reason,
             message: None,
+            document: None,
         })
+    }
+
+    /// The entry of the document at `index`, from 0, of the input array `documents`: its
+    /// `pointer` is then relative to that document, as for an error (SPEC-0004 R2).
+    #[must_use]
+    pub const fn with_document(mut self, index: u64) -> Self {
+        self.document = Some(index);
+        self
+    }
+
+    /// The index of the document the default belongs to; `None` for a default of the input
+    /// itself.
+    #[must_use]
+    pub const fn document(&self) -> Option<u64> {
+        self.document
     }
 
     /// The entry with a `message` for a person.

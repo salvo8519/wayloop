@@ -1516,7 +1516,7 @@ fn a_migration_that_gives_an_invalid_document_is_a_failure_of_the_engine() {
     let validation = validate_with(&read, &loaded);
     assert_eq!(validation.failures.len(), 1);
     assert_eq!(validation.errors.len(), 1);
-    let (outcome, diagnostics) = run_with(&input, &[kind]);
+    let (outcome, diagnostics, _) = run_with(&input, &[kind]);
     assert_eq!(outcome.exit_code(), crate::ExitCode::InternalError);
     assert_eq!(outcome.report().unwrap().first().reason(), Reason::Internal);
     assert_eq!(diagnostics, wayloop_schemas::Diagnostics::default());
@@ -1562,7 +1562,7 @@ fn a_type_whose_schemas_cannot_be_loaded_is_a_failure_of_the_engine() {
     ] {
         let failure = kinds::load_all(core::slice::from_ref(&kind)).unwrap_err();
         assert_eq!(failure.reason(), Reason::Internal, "{failure}");
-        let (outcome, _) = run_with(&json!({"documents": []}), &[kind]);
+        let (outcome, _, _) = run_with(&json!({"documents": []}), &[kind]);
         assert_eq!(outcome.exit_code(), crate::ExitCode::InternalError);
     }
 }

@@ -18,7 +18,7 @@ use serde_json::{Map, Value};
 use wayloop_schemas::artifact::ArtifactKind;
 use wayloop_schemas::contract::{Part, VALIDATE};
 use wayloop_schemas::validate::{ArtifactFolder, DocumentSummary, InputKind, Origin, ValidateData};
-use wayloop_schemas::{Diagnostics, ErrorReport, NotDone, NotDoneReason, Outcome};
+use wayloop_schemas::{DefaultApplied, Diagnostics, ErrorReport, NotDone, NotDoneReason, Outcome};
 
 use super::identifiers::{self, Indexed};
 use super::input::{self, Body, Entry, Input, Place};
@@ -40,6 +40,9 @@ pub(crate) struct Validation {
     pub(crate) not_done: Vec<NotDone>,
     /// The checks run.
     pub(crate) checks: Vec<Check>,
+    /// The defaults applied to the documents, each with the index of its document, in the order
+    /// of the documents, then of their pointers.
+    pub(crate) defaults_applied: Vec<DefaultApplied>,
     /// Failures of the engine itself, with the reason `internal`; when there is one, the
     /// result is a failure, whatever the errors.
     pub(crate) failures: Vec<Error>,
@@ -85,12 +88,20 @@ pub(crate) fn validate_with(input: &Input, kinds: &[Loaded]) -> Validation {
     // The position counts in u64, the type of `document`, so it needs no conversion.
     for (document, entry) in (0_u64..).zip(&input.documents) {
         let first = validation.errors.len();
+        let first_default = validation.defaults_applied.len();
         let summary = check_entry(entry, kinds, &mut validation, &mut not_done);
         let found = validation.errors.get_mut(first..).unwrap_or_default();
         let id_refused = found.iter().any(|error| *error.pointer() == id);
         for error in found {
             *error = error.clone().with_document(document);
         }
+        let defaults = validation.defaults_applied.split_off(first_default);
+        let mut defaults: Vec<DefaultApplied> = defaults
+            .into_iter()
+            .map(|d| d.with_document(document))
+            .collect();
+        defaults.sort_by(|a, b| a.pointer().cmp(b.pointer()));
+        validation.defaults_applied.extend(defaults);
         if let (Some(_), Some(carried), false) = (summary.kind, &summary.id, id_refused) {
             index.push(Indexed {
                 document,
@@ -263,6 +274,9 @@ fn from_markdown(
     let normalised = markdown::normalise(text, file);
     let withheld = normalised.withheld;
     validation.errors.extend(normalised.errors);
+    validation
+        .defaults_applied
+        .extend(normalised.defaults_applied);
     let document = Entry {
         given: entry.given.clone(),
         origin: entry.origin.clone(),
@@ -343,19 +357,25 @@ fn summary(
     }
 }
 
-/// The outcome of `validate` on the canonical `input`, with its diagnostics: the input is
-/// checked against the input schema of the command and its rules, then the set is validated.
-/// No check of this version applies a default.
-pub(crate) fn run(input: &Value) -> (Outcome<ValidateData>, Diagnostics) {
+/// What `validate` gave: its outcome, its diagnostics and the defaults it applied to the
+/// documents, in the order of the documents, then of their pointers.
+pub(crate) type Ran = (Outcome<ValidateData>, Diagnostics, Vec<DefaultApplied>);
+
+/// The outcome of `validate` on the canonical `input`, with its diagnostics and its defaults:
+/// the input is checked against the input schema of the command and its rules, then the set is
+/// validated. The defaults are those of the documents, `kind` and `schema_version` of a living
+/// specification sent as Markdown; none when the input is refused or the engine fails before
+/// the set is validated.
+pub(crate) fn run(input: &Value) -> Ran {
     match kinds::built() {
         Ok(kinds) => run_with(input, &kinds),
         Err(failure) => alone(failed(*failure)),
     }
 }
 
-/// An outcome with no diagnostics.
-fn alone(outcome: Outcome<ValidateData>) -> (Outcome<ValidateData>, Diagnostics) {
-    (outcome, Diagnostics::default())
+/// An outcome with no diagnostics and no defaults.
+fn alone(outcome: Outcome<ValidateData>) -> Ran {
+    (outcome, Diagnostics::default(), Vec::new())
 }
 
 /// The failure of `error`, an internal error.
@@ -375,7 +395,7 @@ fn not_an_outcome() -> Outcome<ValidateData> {
 }
 
 /// [`run`] with the types `kinds`.
-pub(crate) fn run_with(input: &Value, kinds: &[Kind]) -> (Outcome<ValidateData>, Diagnostics) {
+pub(crate) fn run_with(input: &Value, kinds: &[Kind]) -> Ran {
     let Some(snapshot) = VALIDATE.embedded(Part::Schema, VALIDATE.version) else {
         let path = VALIDATE.path(Part::Schema, VALIDATE.version);
         return alone(failed(Error::internal(format!(
@@ -408,5 +428,5 @@ pub(crate) fn run_with(input: &Value, kinds: &[Kind]) -> (Outcome<ValidateData>,
         })
         .unwrap_or_else(not_an_outcome),
     };
-    (outcome, diagnostics)
+    (outcome, diagnostics, validation.defaults_applied)
 }
