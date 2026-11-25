@@ -210,6 +210,7 @@ milestones:
           - { issue: 64, title: "Read issues, sub-issues, dependencies and milestones into the cache", spec: "0005", status: open }
           - { issue: 65, title: "Write with structured block and optimistic concurrency", spec: "0005", status: open }
           - { issue: 272, title: "Replace a plan item file by its tracker item", spec: "0001", status: open }
+          - { issue: 339, title: "Check the issue of a hand-over against the tracker", spec: "0001", status: open }
       - title: "Loop runtime"
         issue: 26
         labels: ["area:runtime"]
