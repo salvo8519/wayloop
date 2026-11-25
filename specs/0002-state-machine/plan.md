@@ -337,7 +337,7 @@ Acceptance criteria per task:
 | T7a | AC1 (rows I15 to I17, I20 to I23, I39 to I44, I47, I49, I51), AC35, AC38, AC65, AC66, AC68 (except its last clause), AC74, AC75 | AC27 |
 | T7b | AC1 (rows I18, I19, I24 to I26, I32 to I37, I45, G1 to G7 for merge and question gates), AC13, AC14, AC17, AC30, AC33, AC34, AC36, AC37, AC68 (last clause), AC69, AC70 (first and third parts), AC72, AC73, AC76, AC78 (clause of the answer) | |
 | T7c | AC1 (rows I30, I31, S1 to S6), AC71, AC81 | AC44, AC45, AC47 (without the quarantine) |
-| T8 | AC3, AC19, AC20, AC21, AC24, AC39, AC41, AC77 | AC5 (decision part), AC41 (due events part), AC70 |
+| T8 | AC3, AC19, AC20, AC21, AC24, AC39, AC41, AC77, AC82 | AC5 (decision part), AC41 (due events part), AC70 |
 | T9 | AC61 (except its last clause) | AC13, AC14, AC15, AC22 (rewrite), AC24, AC48, AC63, AC64, AC65, AC68, AC71 |
 | T10 | AC46, AC47 (replay) | AC1, AC21, AC22 (mismatch), AC67, AC69 |
 | T11 | AC43 | |
@@ -346,7 +346,7 @@ Acceptance criteria per task:
 Every row of the tables Issue transitions and Session transitions, and every row G1 to G7 for
 merge and question gates, is in exactly one AC1 list above (second counter-review S11).
 
-Out of the slice, with their requirements: SPEC-0002 AC4, AC8 to AC12, AC15, AC16, AC42, AC45
+Out of the slice, with their requirements: SPEC-0002 AC4, AC8 to AC12, AC83 (Q18 and Q22), AC15, AC16, AC42, AC45
 (last clause: the input schema of a command at the entry point, SPEC-0004), AC48, AC49, AC50,
 AC61 (last clause: an input time with a fraction refused by the schema of its command), AC70
 (superseded part); SPEC-0003 AC3, AC4, AC6 to AC8, AC18 to AC20, AC23, AC25,
