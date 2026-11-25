@@ -84,7 +84,7 @@ T2 is split in two, so that no task exceeds size M (second counter-review S10).
 ## Step 4: state model and apply (#48, part 1)
 
 - [ ] **T5 Model the state with its invariants and fold events with apply**
-  - Covers: SPEC-0002 section Machines and state, Invariants, R2, R56, R57, plan rules 2, 3 and 6; SPEC-0002 AC2 (`apply` and the `clippy.toml` of the core), AC56, AC57; SPEC-0003 AC16 (state part). Issue: new issue (D1), part of #48.
+  - Covers: SPEC-0002 section Machines and state (with `unassigned_provider_tokens` always present and 0 until AC83 is built, and `closed_pull_request`; final check 2), Invariants, R2, R56, R57, plan rules 2, 3 and 6; SPEC-0002 AC2 (`apply` and the `clippy.toml` of the core), AC56, AC57; SPEC-0003 AC16 (state part). Issue: new issue (D1), part of #48.
   - Files: `crates/wayloop-core/src/state/{mod,model,apply,invariants}.rs`, `crates/wayloop-core/clippy.toml`, `crates/wayloop-core/src/lib.rs`, `docs/en/concepts/architecture.md` and its Italian edition.
   - Tests first: `check_invariants` refuses each invariant broken by a hand-built state; `apply` of every kind of the slice on the initial state, and of every event with an unknown issue or an absent checkout, returns a state without panic; the module denies `clippy::wildcard_enum_match_arm`.
   - Verification: TDD, property test.
@@ -114,7 +114,7 @@ floor of D3 on `state/transitions.rs` and `state/guards.rs` (plan rule 8).
   - Size: M. Maintainer (crates).
 
 - [ ] **T7a Decide the pull request and its checks**
-  - Covers: SPEC-0002 R35, R37, R38, rows I15 to I17, I20 to I23, I39 to I44 (I44 with the reason `awaiting_checks`, Q15, and only at `verified_head` without `head_pending`, B5; I22 and I39 at `verified_head` only, Q19; I42 for any conclusion, without counts, B3), I47 (any non-terminal state, B4), I49 (Q20), I51 (B3), I16 and I17 only at `verified_head`, with I39 for a passing check run at another recorded head (final check), the fields `checks`, `pending_checks`, `pull_request_step_completed` (set by I44, N-S2) and `pull_request_pass_completed` (set by I44, cleared on entry to `pull_request` from `verify` or `review`); SPEC-0003 R9, R30; the acceptance criteria of T7a in `plan.md`. Issue: new issue (D1), part of #161.
+  - Covers: SPEC-0002 R35, R37, R38, rows I15 to I17, I20 to I23, I39 to I44 (I44 with the reason `awaiting_checks`, Q15, and only at `verified_head` without `head_pending`, B5; I22 and I39 at `verified_head` only, Q19; I42 for any conclusion, without counts, B3), I47 (any non-terminal state, B4), I49 (Q20), I51 (B3), I16 and I17 only at `verified_head`, with I39 for a passing check run at another recorded head (final check) and at once when `pull_request` is reached or its dispatch closes at another recorded head (final check 2), the fields `checks`, `pending_checks`, `pull_request_step_completed` (set by I44, N-S2) and `pull_request_pass_completed` (set by I44, cleared on entry to `pull_request` from `verify` or `review`); SPEC-0003 R9, R30; the acceptance criteria of T7a in `plan.md`. Issue: new issue (D1), part of #161.
   - Files: `crates/wayloop-core/src/state/{transitions,guards,selectors,decide}.rs`, `crates/wayloop-core/src/state/pull_request.rs`, `crates/wayloop-core/tests/state_table.rs`, `changes/`.
   - Tests first: one test per AC of T7a; the cases of AC1 for its rows; AC35 as a property test over decided sequences.
   - Verification: TDD, property test.
@@ -122,7 +122,7 @@ floor of D3 on `state/transitions.rs` and `state/guards.rs` (plan rule 8).
   - Size: M. Maintainer (crates).
 
 - [ ] **T7b Decide the merge gate, the merge and the holds**
-  - Covers: SPEC-0002 R13 to R17 (merge and question gates), R30 to R34, R36, R39, R42 (holds), R43 (`done`), rows I18, I19, I24 to I26, I32 to I37, I45, G1 to G7 for merge and question gates (with the gate issue of S6 in the column Recorded), tables Holds (the answer of S9, kept in `no_unit_acknowledged` until the last hold is removed, N-S2; the reopen of a hold entered before `pull_request` resumes at its step, and a move out of `review` withdraws the question of I46 with `review_left`, final check) and Reconciliation codes; the acceptance criteria of T7b in `plan.md`. Issue: closes #161 (pull request events).
+  - Covers: SPEC-0002 R13 to R17 (merge and question gates), R30 to R34, R36, R39, R42 (holds), R43 (`done`), rows I18, I19, I24 to I26, I32 to I37, I45, G1 to G7 for merge and question gates (with the gate issue of S6 in the column Recorded), tables Holds (the answer of S9, kept in `no_unit_acknowledged` until the last hold is removed, N-S2; the target of every removal computed from the state at that moment with no target stored, the reopen restoring `closed_pull_request` and chaining the row of its checks, and a move out of `review` withdrawing the question of I46 with `review_left`, final checks 1 and 2) and Reconciliation codes; the acceptance criteria of T7b in `plan.md`. Issue: closes #161 (pull request events).
   - Files: `crates/wayloop-core/src/state/{transitions,guards,selectors,decide,holds}.rs`, `crates/wayloop-core/tests/state_table.rs`, `docs/en/reference/errors.md` and its Italian edition, `changes/`.
   - Tests first: one test per AC of T7b; the cases of AC1 for its rows; AC13 as a property test over decided sequences.
   - Verification: TDD, property test.
