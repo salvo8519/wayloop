@@ -37,7 +37,11 @@ built with the process it describes. Read `docs/en/project/vision.md` and the AD
    `done` in `roadmap/roadmap.yaml` in the same change. When a request adds, changes or drops
    planned work, propose the roadmap change first.
 2. Structural changes start from an ADR; behaviour of the engine starts from a specification
-   with numbered requirements.
+   with numbered requirements. A specification is approved only when it leaves no rule
+   undecided: the critic reviews it first, and each of its questions is answered and recorded
+   in the specification before approval. A decision taken during implementation is written
+   into the specification at its place, with its date and origin, as in
+   `(#<issue>, decided by the maintainer on <date>)`.
 3. Work in one git worktree per session when other sessions are active:
    `git worktree add ../wayloop-<issue> -b <type>/<issue>-<slug> origin/main`.
 4. Test first where it pays: acceptance criteria and bug fixes.
@@ -52,13 +56,20 @@ built with the process it describes. Read `docs/en/project/vision.md` and the AD
 
 - Decision logic only in `wayloop-core`. Adapters translate, they never decide.
 - One source for every rule and value. A constant, a limit, an identifier spelling, a regular
-  expression, a label name or a list of paths is defined once and imported where it is used; in
-  the pure crates, each pattern is one type or one macro (ADR 0030). Shared helpers of the
+  expression, a label name, the member names of an artifact or a list of paths is defined once
+  and imported where it is used, and an index of identifiers is built once and shared, never
+  rebuilt; in the pure crates, each pattern is one type or one macro (ADR 0030). Shared helpers of the
   scripts live in `scripts/_*.py` (standard library only, so hooks and workflows can import
   them). A deliberate copy (an independent oracle in tests, a frozen snapshot, a hook that must
   run without the project environment) states its reason in a comment and has a test that keeps
   it equal to its source. `just dup` fails on clones: none in `wayloop-core` and
   `wayloop-schemas`, at most 1 percent elsewhere.
+- Work on untrusted input stays linear in its size: every scan is bounded, lookup maps are
+  built once, no step rescans the whole text, and no error copies a list that grows with the
+  input; it points to where the list is.
+- Each field of a contract keeps one meaning (ADR 0009 C3, as amended): `fix` is what to
+  write at the `pointer` (the closest member for a misspelt key, or the corrected value),
+  never a value that cannot be written there; `expected` lists the accepted values.
 - The ledger is written only by the engine. Model output enters the state only after schema
   validation.
 - Issues of the roadmap are created and changed only with `scripts/roadmap.py` (`new`,
@@ -113,6 +124,8 @@ change and the order of dependent branches stays with whoever built them.
 - Squash-merge with the pull request title as the commit title; delete the branch afterwards.
 - Stacked pull requests are merged bottom up. Before each merge, rebase the branch onto `main`
   with its own commits only, retarget it to `main` and wait for its checks.
+- After every rebase, run every contract case again (`cargo test --workspace`, part of
+  `just check`): two branches correct on their own can break a case together.
 - Never merge to bypass a failing required check, a review finding or an open question.
 
 ## Commands
