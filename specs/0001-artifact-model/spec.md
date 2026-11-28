@@ -302,7 +302,7 @@ issue to close (R10).
 
 - Identifier: `GATE-<seq>`.
 - Statuses: `draft`, `done`, `superseded`.
-- Transitions: `draft` to `done` (person: approval on the issue, recorded by the engine, R17); `draft` to `superseded` (person, or engine when the subject is superseded). When the subject is superseded, the engine always creates a new gate for the replacement subject; a gate still in `draft` becomes `superseded` with `superseded_by` naming the new gate, while a gate in `done` stays `done`, since it records an approval that took place (decided by the maintainer on 2026-11-23).
+- Transitions: `draft` to `done` (person: approval on the issue, recorded by the engine, R17); `draft` to `superseded` (person, or engine when the subject is superseded, or engine when a person rejects the gate, so that a rejected gate issue never stays in `draft`; rejection: decided by the maintainer on 2026-11-25, counter-review of SPEC-0002 and SPEC-0003, item 25). When the subject is superseded, the engine always creates a new gate for the replacement subject; a gate still in `draft` becomes `superseded` with `superseded_by` naming the new gate, while a gate in `done` stays `done`, since it records an approval that took place (decided by the maintainer on 2026-11-23). SPEC-0002 G5 applies this rule, and G3 the rejection (decided by the maintainer on 2026-11-25, item 25).
 - Required links: `subject`, which must exist.
 
 Flow. The pull request that adds the brief or the report closes the gate issue (R10). The
@@ -519,10 +519,12 @@ A reviewable change of a living specification (ADR 0014, SPEC-0009 R2).
 | `expanded_from` | `TASK` identifier | no | Task this subtask was expanded from (SPEC-0013 R3); that task is superseded and lists this one in its `superseded_by` |
 | `parallel` | boolean | no | Can run in parallel with other tasks of the epic |
 | `issue` | integer | when `status` is `implementing` or `done` | Tracker number, cited by branches and pull requests (R10, R11) |
+| `branch_type` | a commit type of the project policy (R21) | no | Type of the branch the engine derives for the issue of the task (R11, SPEC-0002 section Names of a checkout); when absent, `feat` (decided by the maintainer on 2026-11-25, SPEC-0002 Q16; named `branch_type`, not `type`, because `type` names the artifact type of an item of the plan observation of SPEC-0002: decided by the maintainer on 2026-11-25, second counter-review of SPEC-0002 and SPEC-0003, B10) |
 
 - Identifier: `TASK-<seq>`. Title rules: R7 and R8.
+- The member `branch_type` is an additive change of the contract `artifacts/task`; until it is built, the engine uses `feat` for every task (decided by the maintainer on 2026-11-25, SPEC-0002 Q16).
 - Statuses: `draft`, `approved`, `implementing`, `done`, `superseded`.
-- Transitions: `draft` to `approved` (person: roadmap approval); `approved` to `implementing` (engine: claim); `implementing` to `approved` (engine: lease expired, SPEC-0003 R11); `implementing` to `done` (engine: closing pull request merged); `draft`, `approved` or `implementing` to `superseded` (person, or engine when the task is expanded into subtasks).
+- Transitions: `draft` to `approved` (person: roadmap approval); `approved` to `implementing` (engine: claim); `implementing` to `approved` (engine: lease expired, SPEC-0003 R11, only while no `step_completed` of the step `pull_request` is recorded for the issue, SPEC-0002 R22; decided by the maintainer on 2026-11-25, second counter-review of SPEC-0002 and SPEC-0003, B1); `implementing` to `done` (engine: closing pull request merged); `approved` to `done` (engine: closing pull request merged while the task is `approved`, as when the merge is observed before any claim, SPEC-0002 I24; decided by the maintainer on 2026-11-25, counter-review of SPEC-0002 and SPEC-0003, item 27); `draft`, `approved` or `implementing` to `superseded` (person, or engine when the task is expanded into subtasks).
 - Required links: `epic`, `milestone`; every cited specification and requirement; `expanded_from`, when present.
 
 ### Hand-over record
@@ -563,6 +565,14 @@ The `step` values are the identifiers of `IssueStep` of `wayloop-schemas`, re-ex
 `counter_review` and `pull_request` (#228). Adding a step is an additive change of the enum;
 removing or renaming a step is a breaking change and a new version of both hand-over schemas,
 with a migration of older records (R16).
+
+The description of each step in `IssueStep` is part of the contract and follows the column
+Meaning of the table Issue states of SPEC-0002; the description of `merge`, which says that
+only a person merges, follows ADR 0029 instead: a person merges, or the engine under a waiver of
+the policy for the tier `small` (decided by the maintainer on 2026-11-25, counter-review of
+SPEC-0002 and SPEC-0003, section 2). The descriptions in `crates/wayloop-schemas/src/cycle.rs`
+are corrected by task T1 of `specs/0002-state-machine/tasks.md`, a contract change of the
+hand-over schemas under the version rules of ADR 0030.
 
 
 ## Inputs
